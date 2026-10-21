@@ -1,0 +1,12 @@
+# Real-browser regression tooling (PLAN-36 T00/T08).
+#
+# Development/CI only. Never install in production — the app does not run a
+# browser, and this pulls in a large binary download (`playwright install`).
+#
+# Install:
+#   .venv\Scripts\python.exe -m pip install -r requirements-browser-dev.txt
+#   .venv\Scripts\python.exe -m playwright install --with-deps chromium
+#
+# Version pinned exactly (matches this repo's other requirements files);
+# confirmed current on PyPI at pin time (2026-09-24, latest was 1.63.0).
+playwright==1.63.0

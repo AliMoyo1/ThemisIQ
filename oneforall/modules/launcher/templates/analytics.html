@@ -2,7 +2,6 @@
 {% block title %}Analytics — ThemisIQ{% endblock %}
 
 {% block head %}
-<style>
 /* ── Analytics layout ─────────────────────────────────────────────────────── */
 .an-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
 .an-select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer}
@@ -49,8 +48,8 @@
 .an-chart-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
 .an-chart-hero{font-size:22px;font-weight:800;color:var(--text);line-height:1;margin-bottom:2px}
 .an-chart-delta{font-size:11px;font-weight:700;margin-bottom:10px}
-.an-chart-area{position:relative;height:100px}
-.an-chart-empty{display:flex;align-items:center;justify-content:center;height:100px;font-size:12px;color:var(--muted)}
+.an-chart-area{position:relative;height:140px}
+.an-chart-empty{display:flex;align-items:center;justify-content:center;height:140px;font-size:12px;color:var(--muted)}
 
 /* ── Bottom row: module health + risk distribution ───────────────────────── */
 .an-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -58,12 +57,14 @@
 .an-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
 .an-card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:14px}
 
-/* Module health bars */
+/* Source-backed module indicators */
 .mh-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.mh-name{font-size:12px;font-weight:700;width:64px;flex-shrink:0;color:var(--text)}
+.mh-name{font-size:12px;font-weight:700;width:165px;flex-shrink:0;color:var(--text)}
+.mh-definition{display:block;font-size:10px;font-weight:400;color:var(--muted);line-height:1.3}
 .mh-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
 .mh-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.mh-pct{font-size:12px;font-weight:800;width:36px;text-align:right;flex-shrink:0}
+.mh-pct{font-size:12px;font-weight:800;min-width:88px;text-align:right;flex-shrink:0}
+@media(max-width:480px){.mh-row{flex-wrap:wrap}.mh-name{width:100%}}
 
 /* Risk distribution */
 .risk-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
@@ -75,7 +76,6 @@
 
 /* Loading */
 .an-loading{text-align:center;padding:32px;color:var(--muted)}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -87,7 +87,7 @@
     Analytics &amp; Insights
   </span>
 
-  <select id="trendDays" class="an-select" onchange="reloadTrends()">
+  <select id="trendDays" class="an-select" aria-label="Trend period" onchange="reloadTrends()">
     <option value="7">7 days</option>
     <option value="30" selected>30 days</option>
     <option value="60">60 days</option>
@@ -179,10 +179,11 @@
   </div>
 </div>
 
-<!-- ── Module Health + Risk Distribution ─────────────────────────────────── -->
+<!-- ── Module indicators + risk distribution ─────────────────────────────── -->
 <div class="an-bottom">
   <div class="an-card">
-    <div class="an-card-title">Module Health</div>
+    <div class="an-card-title">Module indicators</div>
+    <p style="font-size:11px;color:var(--muted);margin:-8px 0 12px">Each percentage has its own definition and denominator. Compare it with its source records, not with another module's percentage.</p>
     <div id="moduleHealthPanel">
       <div class="an-loading"><div class="spinner" style="margin:0 auto"></div></div>
     </div>
@@ -207,6 +208,7 @@ let liveData     = null;   // from /api/command-centre/stats
 let snapshotData = [];     // from /api/analytics/current
 let trendData    = {};     // metric name → [{date, value}]
 const IS_ADMIN   = {{ 'true' if is_admin else 'false' }};
+let trendRequestSequence = 0;
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
@@ -242,7 +244,9 @@ async function loadAll(){
 }
 
 async function loadTrends(){
+  const requestId = ++trendRequestSequence;
   const days = document.getElementById('trendDays').value;
+  let nextTrends;
   try{
     const [cR,rR,aR,pR] = await Promise.all([
       fetch(`/api/analytics/trends?metric=compliance_pct&days=${days}`),
@@ -250,13 +254,17 @@ async function loadTrends(){
       fetch(`/api/analytics/trends?metric=audits_active&days=${days}`),
       fetch(`/api/analytics/trends?metric=breaches_open&days=${days}`),
     ]);
-    trendData.compliance = cR.ok ? await cR.json() : [];
-    trendData.risks      = rR.ok ? await rR.json() : [];
-    trendData.audits     = aR.ok ? await aR.json() : [];
-    trendData.privacy    = pR.ok ? await pR.json() : [];
+    nextTrends = {
+      compliance: cR.ok ? await cR.json() : [],
+      risks: rR.ok ? await rR.json() : [],
+      audits: aR.ok ? await aR.json() : [],
+      privacy: pR.ok ? await pR.json() : [],
+    };
   }catch(e){
-    trendData = {compliance:[],risks:[],audits:[],privacy:[]};
+    nextTrends = {compliance:[],risks:[],audits:[],privacy:[]};
   }
+  if(requestId !== trendRequestSequence) return;
+  trendData = nextTrends;
   renderAllCharts();
 }
 
@@ -268,15 +276,23 @@ function renderLiveMetrics(){
   if(!liveData){ el.innerHTML='<div class="an-loading" style="grid-column:1/-1">No live data available</div>'; return; }
 
   const d = liveData;
-  const compPct  = d.compliance_pct||0;
+  const compPct  = (d.compliance_pct===null||d.compliance_pct===undefined) ? null : d.compliance_pct;
   const risks    = (d.risk_counts?.critical||0)+(d.risk_counts?.high||0)+(d.risk_counts?.medium||0);
   const critRisk = d.risk_counts?.critical||0;
-  const slaPct   = d.sla?.pct||100;
+  const slaPct   = (d.sla?.pct===null||d.sla?.pct===undefined) ? null : d.sla.pct;
   const evCount  = d.evidence_count||0;
   const wfActive = d.workflow_active||0;
 
   // Helper to build a metric card
   function metCard(label, value, suffix, barColor, barPct, deltaHtmlStr, textColor){
+    if(value===null){
+      return `<div class="an-metric">
+      <div class="an-metric-lbl">${esc(label)}</div>
+      <div class="an-metric-val" style="color:var(--muted)">&mdash;</div>
+      <div class="an-metric-delta neutral">Not measured: nothing is recorded to measure it against.</div>
+      <div class="an-metric-bar" style="width:0%"></div>
+    </div>`;
+    }
     return `<div class="an-metric">
       <div class="an-metric-lbl">${esc(label)}</div>
       <div class="an-metric-val" style="color:${textColor||'var(--text)'}">${esc(String(value))}${suffix?'<span style="font-size:14px;font-weight:600;color:var(--muted)">'+esc(suffix)+'</span>':''}</div>
@@ -293,7 +309,7 @@ function renderLiveMetrics(){
     metCard('Compliance', compPct, '%',
       compPct>=80?'var(--green-status)':compPct>=60?'var(--amber)':'var(--red)',
       compPct,
-      deltaHtml(compPct, snapMap.compliance_pct, false),
+      compPct===null?'':deltaHtml(compPct, snapMap.compliance_pct, false),
       compPct>=80?'var(--green-status)':compPct>=60?'var(--amber)':'var(--red)') +
 
     metCard('Open Risks', risks, '',
@@ -323,25 +339,31 @@ function renderLiveMetrics(){
       '', 'var(--text)');
 }
 
-/* ── Module Health Bars ──────────────────────────────────────────────────── */
+/* ── Module indicators ───────────────────────────────────────────────────── */
 function renderModuleHealth(){
   const el = document.getElementById('moduleHealthPanel');
   const items = (liveData?.module_health)||[];
   if(!items.length){ el.innerHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">No module data</div>'; return; }
 
-  const MOD_COLOR = {aria:'#7c3aed',grid:'#1a6b3a',bcm:'#d97706',sentinel:'#0891b2'};
+  const moduleKeys = ['aria','grid','bcm','sentinel','erm','orm','governance'];
   el.innerHTML = items.map(m=>{
-    const pct = parseInt(m.pct)||0;
-    const color = pct>=80?'var(--green-status)':pct>=60?'var(--amber)':'var(--red)';
-    const modColor = MOD_COLOR[m.key]||'var(--accent)';
+    const measured = m.pct!==null && m.pct!==undefined && Number.isFinite(Number(m.pct));
+    const pct = measured ? Math.max(0,Math.min(100,Number(m.pct))) : 0;
+    const color = 'var(--accent)';
+    const modKey = moduleKeys.includes(m.key) ? m.key : 'platform';
+    const definition = m.definition || 'Definition unavailable';
+    const quantity = m.numerator!==null && m.numerator!==undefined &&
+      Number.isFinite(Number(m.denominator)) && Number(m.denominator)>0
+      ? `${m.numerator} of ${m.denominator}` : '';
     return `<div class="mh-row">
       <div class="mh-name">
-        <span style="color:${modColor};margin-right:4px">●</span>${esc(m.name)}
+        <span class="mh-dot" data-module-key="${modKey}" aria-hidden="true">●</span>${esc(m.name)}
+        <span class="mh-definition">${esc(definition)}${quantity ? ' · '+esc(quantity) : ''}</span>
       </div>
-      <div class="mh-track">
+      <div class="mh-track" ${measured ? `role="meter" aria-label="${esc(m.name+': '+definition).replace(/"/g,'&quot;')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"` : 'aria-hidden="true"'}>
         <div class="mh-fill" style="width:${pct}%;background:${color}"></div>
       </div>
-      <div class="mh-pct" style="color:${color}">${pct}%</div>
+      <div class="mh-pct">${measured?pct+'%':'Not measured'}</div>
     </div>`;
   }).join('');
 }
@@ -356,12 +378,13 @@ function renderRiskDist(){
     {key:'medium',   label:'Medium',   color:'#d97706', val:rc.medium||0},
     {key:'low',      label:'Low',      color:'#16a34a', val:rc.low||0},
   ];
-  const total = levels.reduce((s,l)=>s+l.val,0)||1;
+  const riskCount = levels.reduce((s,l)=>s+l.val,0);
+  const total = riskCount||1;
   el.innerHTML = levels.map(l=>{
     const w = Math.round((l.val/total)*100);
     return `<div class="risk-row">
       <div class="risk-lbl" style="color:${l.color}">${esc(l.label)}</div>
-      <div class="risk-track">
+      <div class="risk-track" role="img" aria-label="${esc(l.label)}: ${l.val} risks, ${w}% of total" title="${esc(l.label)}: ${l.val} risks (${w}%)">
         <div class="risk-fill" style="width:${w}%;background:${l.color}">
           ${l.val>0?`<span class="risk-fill-num">${l.val}</span>`:''}
         </div>
@@ -369,7 +392,7 @@ function renderRiskDist(){
       <div class="risk-num" style="color:${l.color}">${l.val}</div>
     </div>`;
   }).join('') +
-  (total===1?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px">No risks in register</div>':'');
+  (riskCount===0?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px">No risks in register</div>':'');
 }
 
 /* ── Charts ───────────────────────────────────────────────────────────────── */
@@ -379,18 +402,18 @@ function renderAllCharts(){
 
   // For compliance: higher is better (NOT inverted)
   renderChart('chartCompliance', d.compliance, 'compVal', 'compDelta', '%',
-    live?.compliance_pct??null, '#16a34a', false);
+    live?.compliance_pct??null, 'var(--chart-line)', false);
 
   // For risks: lower is better (inverted)
   const openRisks = (live?.risk_counts?.critical||0)+(live?.risk_counts?.high||0)+(live?.risk_counts?.medium||0);
   renderChart('chartRisks', d.risks, 'riskVal', 'riskDelta', '',
-    snapshotData.find(s=>s.metric_name==='risks_open')?.metric_value??openRisks, '#f97316', true);
+    snapshotData.find(s=>s.metric_name==='risks_open')?.metric_value??openRisks, 'var(--chart-line)', true);
 
   renderChart('chartAudits', d.audits, 'auditVal', 'auditDelta', '',
-    snapshotData.find(s=>s.metric_name==='audits_active')?.metric_value??null, '#2563eb', false);
+    snapshotData.find(s=>s.metric_name==='audits_active')?.metric_value??null, 'var(--chart-line)', false);
 
   renderChart('chartPrivacy', d.privacy, 'privVal', 'privDelta', '',
-    snapshotData.find(s=>s.metric_name==='breaches_open')?.metric_value??null, '#dc2626', true);
+    snapshotData.find(s=>s.metric_name==='breaches_open')?.metric_value??null, 'var(--chart-line)', true);
 
   // Re-run insights now that trend data is available (adds the trend bullet)
   if(liveData) runInsightEngine();
@@ -406,6 +429,7 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
   if(valEl) valEl.textContent = current!==null ? (current+suffix) : '—';
 
   if(!data||!data.length){
+    chartEl.onpointermove = chartEl.onpointerleave = null;
     chartEl.innerHTML = `<div class="an-chart-empty">No snapshot data yet — click Refresh Snapshot</div>`;
     if(deltaEl) deltaEl.innerHTML = '';
     return;
@@ -428,7 +452,7 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
 
   // Draw SVG chart with area fill
   const W = chartEl.clientWidth || 320;
-  const H = 100;
+  const H = 140;
   const PAD = {top:10, right:10, bottom:18, left:32};
   const vals = data.map(d=>d.value);
   const max  = Math.max(...vals);
@@ -464,28 +488,59 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
   ] : [];
 
   const gradId = `grad-${chartId}`;
+  const title = chartEl.closest('.an-chart-card')?.querySelector('.an-chart-title')?.textContent.trim() || 'Trend';
 
-  chartEl.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+  chartEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} over selected period">
     <defs>
       <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${baseColor}" stop-opacity="0.25"/>
-        <stop offset="100%" stop-color="${baseColor}" stop-opacity="0.02"/>
+        <stop offset="0%" style="stop-color:${baseColor};stop-opacity:.24"/>
+        <stop offset="100%" style="stop-color:${baseColor};stop-opacity:.015"/>
       </linearGradient>
     </defs>
-    <!-- Grid lines -->
-    ${yLabels.map(l=>`<line x1="${PAD.left}" y1="${l.y.toFixed(1)}" x2="${PAD.left+innerW}" y2="${l.y.toFixed(1)}"
-      stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`).join('')}
-    <!-- Y-axis labels -->
-    ${yLabels.map(l=>`<text x="${PAD.left-4}" y="${l.y+4}" text-anchor="end" font-size="9" fill="var(--muted)">${esc(l.val+suffix)}</text>`).join('')}
-    <!-- Area fill -->
-    <path d="${areaPath}" fill="url(#${gradId})"/>
-    <!-- Line -->
-    <path d="${linePath}" fill="none" stroke="${baseColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Last point dot -->
-    <circle cx="${pts[pts.length-1].x.toFixed(1)}" cy="${pts[pts.length-1].y.toFixed(1)}" r="4" fill="${baseColor}"/>
-    <!-- X-axis labels -->
-    ${xLabels.map((l,i)=>`<text x="${l.x}" y="${H}" text-anchor="${i===0?'start':'end'}" font-size="9" fill="var(--muted)">${esc(l.label)}</text>`).join('')}
-  </svg>`;
+    ${yLabels.map(l=>`<line class="an-chart-grid" x1="${PAD.left}" y1="${l.y.toFixed(1)}" x2="${PAD.left+innerW}" y2="${l.y.toFixed(1)}"/>`).join('')}
+    ${yLabels.map(l=>`<text class="an-chart-axis" x="${PAD.left-5}" y="${l.y+4}" text-anchor="end">${esc(l.val+suffix)}</text>`).join('')}
+    <g class="an-chart-series">
+      <path d="${areaPath}" fill="url(#${gradId})"/>
+      <path class="an-chart-line" d="${linePath}" fill="none" style="stroke:${baseColor}"/>
+      ${pts.map((p,i)=>`<g class="an-chart-point" tabindex="${i===0?0:-1}" role="img"
+        aria-label="${esc(String(p.d.date))}: ${esc(String(p.d.value))}${suffix}" data-point-index="${i}">
+        <circle class="an-chart-point-hit" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="11"/>
+        <circle class="an-chart-point-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" style="fill:${baseColor}"/>
+      </g>`).join('')}
+    </g>
+    ${xLabels.map((l,i)=>`<text class="an-chart-axis" x="${l.x}" y="${H}" text-anchor="${i===0?'start':'end'}">${esc(l.label)}</text>`).join('')}
+  </svg><div class="an-chart-tooltip" hidden></div>`;
+
+  const tooltip = chartEl.querySelector('.an-chart-tooltip');
+  function showPoint(point){
+    if(!point){ tooltip.hidden = true; return; }
+    const p = pts[Number(point.dataset.pointIndex)];
+    if(!p) return;
+    tooltip.textContent = `${p.d.date} | ${p.d.value}${suffix}`;
+    tooltip.style.left = `${Math.max(56, Math.min(W-56, p.x))}px`;
+    tooltip.style.top = `${p.y}px`;
+    tooltip.hidden = false;
+  }
+  chartEl.onpointermove = e => showPoint(e.target.closest('.an-chart-point'));
+  chartEl.onpointerleave = () => { tooltip.hidden = true; };
+  const points = [...chartEl.querySelectorAll('.an-chart-point')];
+  points.forEach((point,index) => {
+    point.onfocus = () => {
+      points.forEach((candidate,i) => candidate.setAttribute('tabindex', i===index ? '0' : '-1'));
+      showPoint(point);
+    };
+    point.onblur = () => { tooltip.hidden = true; };
+    point.onkeydown = event => {
+      let next = index;
+      if(event.key==='ArrowRight') next = Math.min(index+1, points.length-1);
+      else if(event.key==='ArrowLeft') next = Math.max(index-1, 0);
+      else if(event.key==='Home') next = 0;
+      else if(event.key==='End') next = points.length-1;
+      else return;
+      event.preventDefault();
+      points[next].focus();
+    };
+  });
 }
 
 /* ── AI Insight Engine ────────────────────────────────────────────────────── */
@@ -501,29 +556,33 @@ function runInsightEngine(){
   if(ts) ts.textContent = `Generated at ${now}`;
 
   // 1. Overall compliance
-  const comp = d.compliance_pct||0;
-  if(comp >= 85){
-    insights.push({sev:'green', title:'Compliance at '+comp+'%', body:'Above the 80% operational threshold. Continue control assurance programme.'});
+  const comp = (d.compliance_pct===null||d.compliance_pct===undefined) ? null : d.compliance_pct;
+  if(comp === null){
+    insights.push({sev:'blue', title:'Compliance is not measured yet.', body:'No control is recorded that you may open, so there is nothing to measure. Add a framework or controls to start.'});
+  } else if(comp >= 85){
+    insights.push({sev:'blue', title:'Recorded implementation at '+comp+'%', body:'This exceeds the 80% operational threshold. Review evidence and audit results separately before drawing an assurance conclusion.'});
   } else if(comp >= 70){
-    insights.push({sev:'amber', title:'Compliance at '+comp+'%', body:'Approaching the 80% threshold. Review and accelerate implementation of '+Math.ceil((80-comp)/100*(d.compliance_pct||1))+' outstanding controls.'});
+    insights.push({sev:'amber', title:'Recorded implementation at '+comp+'%', body:'Review controls that are not recorded as implemented and inspect their evidence before drawing an assurance conclusion.'});
   } else {
-    insights.push({sev:'red', title:'Compliance at '+comp+'%', body:'Below acceptable threshold. Immediate executive review of control gaps required.'});
+    insights.push({sev:'red', title:'Recorded implementation at '+comp+'%', body:'Prioritize review of controls not recorded as implemented. Confirm the underlying records and evidence.'});
   }
 
   // 2. Critical risks
   const crit = d.risk_counts?.critical||0;
   const high = d.risk_counts?.high||0;
-  if(crit > 0){
+  if(!d.risk_counts){
+    insights.push({sev:'blue', title:'Risk counts are unavailable.', body:'Open the Risk Register before drawing a conclusion about the current risk posture.'});
+  } else if(crit > 0){
     insights.push({sev:'red', title:crit+' critical risk'+(crit>1?'s':'')+' unresolved.', body:'These require immediate mitigation plans and executive sign-off before quarter close.'});
   } else if(high > 3){
     insights.push({sev:'amber', title:high+' high-priority risks open.', body:'No critical risks. Review mitigation adequacy for the high-risk items before next board cycle.'});
   } else {
     const total = (d.risk_counts?.medium||0)+(d.risk_counts?.low||0);
-    insights.push({sev:'green', title:'Risk posture healthy.', body:'No critical risks. '+high+' high, '+total+' medium/low risks tracked and managed.'});
+    insights.push({sev:'blue', title:'No critical risks are recorded in this view.', body:high+' high and '+total+' medium/low risks are recorded. This count does not establish that risk is controlled.'});
   }
 
   // 3. SLA performance
-  const slaPct  = d.sla?.pct||100;
+  const slaPct  = (d.sla?.pct===null||d.sla?.pct===undefined) ? null : d.sla.pct;
   const slaBr   = d.sla?.breached||0;
   const slaRisk = d.sla?.at_risk||0;
   if(slaBr > 0){
@@ -531,22 +590,30 @@ function runInsightEngine(){
   } else if(slaRisk > 2){
     insights.push({sev:'amber', title:slaRisk+' SLAs at risk', body:'Breach within 2 hours. Assign response owners immediately to avoid formal breaches.'});
   } else {
-    insights.push({sev:'green', title:'SLA compliance at '+slaPct+'%.', body:(slaBr===0?'No active breaches. ':'')+' Response and resolution deadlines on track.'});
+    if(!d.sla){
+      insights.push({sev:'blue', title:'SLA source is unavailable.', body:'No conclusion about service clocks can be drawn from this view.'});
+    } else if(slaPct === null){
+      insights.push({sev:'blue', title:'SLA compliance is not measured yet.', body:'No service clock has ended, so there is no on-time share to report.'});
+    } else {
+      insights.push({sev:'green', title:'SLA compliance at '+slaPct+'%.', body:(slaBr===0?'No active breaches. ':'')+' Response and resolution deadlines on track.'});
+    }
   }
 
   // 4. Evidence vault
   const evExp = d.evidence_expiring||0;
   if(evExp > 0){
     insights.push({sev:'amber', title:evExp+' evidence item'+(evExp>1?'s':'')+' expiring within 30 days.', body:'Renew or archive these items to maintain audit trail integrity. Review in Evidence Repository.'});
+  } else if((d.evidence_count||0) === 0){
+    insights.push({sev:'blue', title:'No evidence is recorded in this view.', body:'Expiry and proof coverage cannot be inferred from an empty repository.'});
   } else {
-    insights.push({sev:'green', title:'Evidence vault in good standing.', body:'No items expiring in the next 30 days. Coverage spans '+Object.keys(d.module_health||{}).length+' modules.'});
+    insights.push({sev:'blue', title:'No evidence items are recorded as expiring soon.', body:'Review proof coverage and acceptance separately; expiry count alone does not establish assurance.'});
   }
 
-  // 5. Module health
+  // 5. Source-backed module indicators
   const mh = d.module_health||[];
-  const lowMod = mh.filter(m=>parseInt(m.pct)<60);
-  if(lowMod.length){
-    insights.push({sev:'amber', title:lowMod.map(m=>m.name).join(', ')+' health below 60%.', body:'These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.'});
+  const missingMod = mh.filter(m=>m.pct===null||m.pct===undefined);
+  if(missingMod.length){
+    insights.push({sev:'blue', title:'Some module indicators are not measured.', body:missingMod.map(m=>m.name).join(', ')+' have no eligible records in this view.'});
   }
 
   // 6. Trends (if we have trend data)
@@ -605,29 +672,30 @@ window.askAnalytics = function(){
 
   // Compliance
   if(/compliance|control|compliant/.test(q)){
-    const c = d?.compliance_pct??snap.compliance_pct??'unknown';
+    const c = d?.compliance_pct??snap.compliance_pct;
     const tot = snap.controls_total;
     const ok  = snap.controls_compliant;
-    response = `Current compliance rate is <strong>${c}%</strong>${tot?` (${ok} of ${tot} controls implemented)`:''}. `+
-      (c>=80?'This is above the 80% operational threshold.':'This is below the 80% threshold — review control gaps urgently.');
+    response = c===null||c===undefined
+      ? 'Compliance is not measured because no eligible controls are recorded in this view.'
+      : `Recorded implementation is <strong>${c}%</strong>${tot?` (${ok} of ${tot} controls implemented in the saved snapshot)`:''}. This is a status measure, not an independent assurance opinion.`;
   }
 
   // Risks
   else if(/critical risk|how many critical/.test(q)){
-    const crit = d?.risk_counts?.critical??0;
-    response = `There are currently <strong>${crit} critical open risk${crit!==1?'s':''}</strong> in the Risk Register.`+
-      (crit>0?' These require executive attention and immediate mitigation.':' No critical risks — good risk posture.');
+    const crit = d?.risk_counts?.critical;
+    response = crit===null||crit===undefined ? 'Risk counts are unavailable in this view.' :
+      `There are <strong>${crit} critical open risk${crit!==1?'s':''}</strong> recorded in the Risk Register. This count does not establish that other risks are controlled.`;
   }
   else if(/risk|risks/.test(q)){
-    const rc = d?.risk_counts||{};
-    response = `Open risks: <strong>${rc.critical||0} critical, ${rc.high||0} high, ${rc.medium||0} medium, ${rc.low||0} low.</strong> `+
-      `Total ${(rc.critical||0)+(rc.high||0)+(rc.medium||0)+(rc.low||0)} open risks in the register.`;
+    const rc = d?.risk_counts;
+    response = rc ? `Open risks recorded in this view: <strong>${rc.critical||0} critical, ${rc.high||0} high, ${rc.medium||0} medium, ${rc.low||0} low.</strong> `+
+      `Total ${(rc.critical||0)+(rc.high||0)+(rc.medium||0)+(rc.low||0)}.` : 'Risk counts are unavailable in this view.';
   }
 
   // SLA
   else if(/sla|service level|breach/.test(q)){
     const sla = d?.sla||{};
-    response = `SLA performance: <strong>${sla.pct||100}% on-time</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
+    response = `SLA performance: <strong>${(sla.pct===null||sla.pct===undefined)?'not measured (no service clock has ended)':sla.pct+'% on-time'}</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
       (sla.breached>0?'Navigate to Workflows → SLA → Breach Monitor to resolve active breaches.':'No active breaches.');
   }
 
@@ -636,7 +704,8 @@ window.askAnalytics = function(){
     const count = d?.evidence_count??0;
     const exp   = d?.evidence_expiring??0;
     response = `Evidence vault holds <strong>${count} item${count!==1?'s':''}</strong>. `+
-      (exp>0?`⚠ <strong>${exp} item${exp!==1?'s':''} expiring within 30 days</strong> — review in Evidence Repository.`:'No items expiring in the next 30 days.');
+      (exp>0?`<strong>${exp} item${exp!==1?'s':''} expiring within 30 days</strong>. Review in Evidence Repository.`:
+       count===0?'Coverage is not measured from an empty repository.':'No item is recorded as expiring in the next 30 days. Check proof coverage separately.');
   }
 
   // Audits
@@ -657,9 +726,9 @@ window.askAnalytics = function(){
   else if(/module|health|aria|grid|bcm|sentinel/.test(q)){
     const mh = d?.module_health||[];
     if(mh.length){
-      response = 'Module health scores:<br>' + mh.map(m=>{
-        const c = m.pct>=80?'green':m.pct>=60?'amber':'red';
-        return `<span style="color:var(--${c==='green'?'green-status':c==='amber'?'amber':'red'})">${esc(m.name)}: ${parseInt(m.pct)||0}%</span>`;
+      response = 'Module indicators, each with its own definition:<br>' + mh.map(m=>{
+        const value = m.pct===null||m.pct===undefined ? 'Not measured' : parseInt(m.pct,10)+'%';
+        return `<span>${esc(m.name)}: ${value} (${esc(m.definition||'definition unavailable')})</span>`;
       }).join(' · ');
     } else {
       response = 'No module health data available. Ensure the platform has data in each module.';
@@ -682,7 +751,7 @@ window.askAnalytics = function(){
 
   // Fallback
   else {
-    response = `I can answer questions about: <strong>compliance rate, critical risks, SLA performance, evidence vault, audits, module health, workflows, and trends.</strong> Try asking one of these topics.`;
+    response = `I can show recorded facts about <strong>control implementation, critical risks, SLA performance, evidence, audits, module indicators, workflows and trends.</strong> Try asking one of these topics.`;
   }
 
   answer.innerHTML = response;
@@ -735,6 +804,17 @@ window.exportCSV = function(){
 /* ── Init ─────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', function(){
   loadAll();
+  if('ResizeObserver' in window){
+    const chart = document.getElementById('chartCompliance');
+    let chartWidth = chart.clientWidth;
+    new ResizeObserver(entries => {
+      const nextWidth = entries[0].contentRect.width;
+      if(Math.abs(nextWidth - chartWidth) > 2){
+        chartWidth = nextWidth;
+        if(Array.isArray(trendData.compliance)) renderAllCharts();
+      }
+    }).observe(chart);
+  }
 
   // Re-run insight engine + chart delta after trends load
   // (called inside loadTrends via renderAllCharts which triggers runInsightEngine 2nd time if trends are available)

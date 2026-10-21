@@ -108,27 +108,41 @@ def restore_pg(zip_path: Path, target_db: str) -> None:
     print("[restore] pg_restore OK.")
 
 
-def validate_row_counts(target_db: str) -> None:
-    """Spot-check a few core tables to confirm data landed."""
+def validate_row_counts(target_db: str) -> bool:
+    """Spot-check a few core tables to confirm data landed.
+
+    Returns False (caller must exit non-zero) if any table is missing --
+    that means the restore itself is broken, not just short on data. An
+    empty-but-present table (0 rows) is reported but not treated as a
+    failure: a freshly restored tenant can legitimately have no risks yet.
+    """
     try:
         import psycopg2
-        conn = psycopg2.connect(target_db)
+    except ImportError:
+        print("[restore] psycopg2 not available — skipping row count check.")
+        return True
+
+    tables = [
+        "aria_frameworks", "aria_controls", "sentinel_breaches",
+        "grid_audits", "bcm_plans", "erm_enterprise_risks",
+    ]
+    ok = True
+    conn = psycopg2.connect(target_db)
+    try:
         cur = conn.cursor()
-        tables = [
-            "aria_frameworks", "aria_controls", "sentinel_breaches",
-            "grid_audits", "bcm_plans", "erm_risks",
-        ]
         print("[restore] Row count validation:")
         for tbl in tables:
             try:
                 cur.execute(f"SELECT COUNT(*) FROM {tbl}")
                 n = cur.fetchone()[0]
-                print(f"  {tbl}: {n} rows")
+                print(f"  {tbl}: {n} rows" + ("" if n else " (empty)"))
             except Exception as exc:
-                print(f"  {tbl}: ERROR — {exc}")
+                conn.rollback()  # a failed statement poisons the rest of the transaction
+                print(f"  {tbl}: MISSING — {exc}")
+                ok = False
+    finally:
         conn.close()
-    except ImportError:
-        print("[restore] psycopg2 not available — skipping row count check.")
+    return ok
 
 
 def main() -> None:
@@ -154,7 +168,9 @@ def main() -> None:
         validate_zip(zip_path)
         extract_uploads(zip_path, Path(args.uploads_dest))
         restore_pg(zip_path, args.target_db)
-        validate_row_counts(args.target_db)
+        if not validate_row_counts(args.target_db):
+            print("[restore] FAILED: one or more expected tables are missing after restore.", file=sys.stderr)
+            sys.exit(1)
 
     print("[restore] Done.")
 

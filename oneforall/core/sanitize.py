@@ -57,21 +57,33 @@ def sanitize_str(s: Any, max_len: int | None = None, allow_html: bool = False) -
     return s
 
 
-def sanitize_dict(d: Any, max_len: int = _DEFAULT_MAX_LEN) -> Any:
+_MAX_SANITIZE_DEPTH = 100
+
+
+def sanitize_dict(d: Any, max_len: int = _DEFAULT_MAX_LEN, _depth: int = 0) -> Any:
     """Recursively sanitize all string values in a JSON-decoded request body.
 
     Keys in _RICH_TEXT_KEYS have HTML stripping skipped so markdown/HTML
     content fields are preserved.
+
+    Nesting beyond _MAX_SANITIZE_DEPTH is returned as-is rather than
+    recursed into, so a pathologically deep payload can't blow Python's
+    recursion limit and crash the request with an unhandled RecursionError
+    (endpoints that accept nested structures, e.g. framework taxonomy
+    import, enforce their own shallower depth caps and will reject such
+    payloads cleanly once sanitization no longer crashes first).
     """
+    if _depth >= _MAX_SANITIZE_DEPTH:
+        return d
     if isinstance(d, dict):
         return {
-            k: sanitize_dict(v, max_len) if isinstance(v, (dict, list))
+            k: sanitize_dict(v, max_len, _depth + 1) if isinstance(v, (dict, list))
             else sanitize_str(v, max_len=max_len, allow_html=(k in _RICH_TEXT_KEYS))
             for k, v in d.items()
         }
     if isinstance(d, list):
         return [
-            sanitize_dict(item, max_len) if isinstance(item, (dict, list))
+            sanitize_dict(item, max_len, _depth + 1) if isinstance(item, (dict, list))
             else sanitize_str(item, max_len=max_len)
             for item in d
         ]

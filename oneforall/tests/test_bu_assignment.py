@@ -94,8 +94,8 @@ def test_bu_scope_after_assignment(test_db):
     assert parent_id in scope
     assert child_id in scope
 
-    # A user with no BU (or super_admin) stays unrestricted.
-    assert bu_scope_ids({"business_unit_id": None, "is_super_admin": 0}) is None
+    # An unassigned non-super user can see organization-wide records only.
+    assert bu_scope_ids({"business_unit_id": None, "is_super_admin": 0}) == [-1]
     assert bu_scope_ids({"business_unit_id": parent_id, "is_super_admin": 1}) is None
 
 

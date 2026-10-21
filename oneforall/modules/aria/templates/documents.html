@@ -23,6 +23,34 @@
   </div>
 </div>
 
+{# PLAN-35 T10: a manager's own approval queue -- section 11 point 7/8.
+   Collapsed by default (matches the recent-section chevron pattern from
+   ai_generator.html); populated live since it's per-user and changes
+   without a page reload. Hidden entirely for a user with nothing pending,
+   confirmed empty-vs-populated only after the fetch resolves. #}
+<div class="card" id="pendingApprovalsCard" style="display:none;margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer" onclick="togglePendingApprovals()">
+    <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Pending My Approval
+      <span class="badge badge-progress" id="pendingApprovalsCount">0</span>
+    </div>
+    <svg id="pendingApprovalsChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform .15s"><polyline points="18 15 12 9 6 15"/></svg>
+  </div>
+  <div id="pendingApprovalsList" style="display:none;padding:0 18px 14px"></div>
+</div>
+
+<!-- Approval Decision Modal -->
+<div class="modal-overlay" id="approvalDecisionModal">
+  <div class="modal" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title">Review Submission</div>
+      <button onclick="closeModal('approvalDecisionModal')" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+    </div>
+    <div id="approvalDecisionBody"></div>
+  </div>
+</div>
+
 <!-- Stats -->
 <div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
   <div class="stat-card">
@@ -41,7 +69,7 @@
     <div class="stat-label">AI Generated</div>
     <div class="stat-value" style="color:var(--accent)">{{ stats.ai_gen }}</div>
   </div>
-  <div class="stat-card" style="border-left:3px solid {% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--border){% endif %}">
+  <div class="stat-card" style="--status-color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--green-status){% endif %}">
     <div class="stat-label">Due for Review</div>
     <div class="stat-value" style="color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--muted){% endif %}">{{ stats.review_due }}</div>
   </div>
@@ -51,12 +79,12 @@
 <form method="get" action="/aria/documents">
 <div class="filter-bar">
   <div style="flex:1;min-width:160px">
-    <label>Search</label>
-    <input type="text" name="search" value="{{ filters.search }}" placeholder="Title, ref, owner...">
+    <label for="doc-filter-search">Search</label>
+    <input type="text" id="doc-filter-search" name="search" value="{{ filters.search }}" placeholder="Title, ref, owner...">
   </div>
   <div style="min-width:150px">
-    <label>Framework</label>
-    <select name="framework">
+    <label for="doc-filter-framework">Framework</label>
+    <select id="doc-filter-framework" name="framework">
       <option value="">All Frameworks</option>
       {% for fw in frameworks %}
       <option value="{{ fw.name }}" {% if filters.framework == fw.name %}selected{% endif %}>{{ fw.name }}</option>
@@ -64,8 +92,8 @@
     </select>
   </div>
   <div style="min-width:130px">
-    <label>Status</label>
-    <select name="status">
+    <label for="doc-filter-status">Status</label>
+    <select id="doc-filter-status" name="status">
       <option value="">All Statuses</option>
       {% for s in ['Draft','Under Review','Approved','Retired'] %}
       <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
@@ -73,8 +101,8 @@
     </select>
   </div>
   <div style="min-width:130px">
-    <label>Type</label>
-    <select name="doc_type">
+    <label for="doc-filter-type">Type</label>
+    <select id="doc-filter-type" name="doc_type">
       <option value="">All Types</option>
       {% for t in ['Policy','Procedure','Standard','Guideline','Template','Record','Plan'] %}
       <option value="{{ t }}" {% if filters.doc_type == t %}selected{% endif %}>{{ t }}</option>
@@ -124,11 +152,12 @@
           <td><span class="row-chip">{{ doc.doc_type }}</span></td>
           <td><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-mid)">v{{ doc.version }}</span></td>
           <td>
-            {% if doc.status == 'Approved' %}<span class="badge badge-implemented">{{ doc.status }}</span>
-            {% elif doc.status == 'Draft' %}<span class="badge badge-not-started">{{ doc.status }}</span>
-            {% elif doc.status == 'Under Review' %}<span class="badge badge-in-progress">{{ doc.status }}</span>
+            {% if doc.status == 'Approved' %}<span class="badge badge-complete">{{ doc.status }}</span>
+            {% elif doc.status == 'Draft' %}<span class="badge badge-draft">{{ doc.status }}</span>
+            {% elif doc.status == 'Under Review' %}<span class="badge badge-progress">{{ doc.status }}</span>
             {% elif doc.status == 'Retired' %}<span class="badge" style="background:var(--surface3);color:var(--muted);border:1px solid var(--border)">{{ doc.status }}</span>
-            {% else %}<span class="badge badge-not-started">{{ doc.status }}</span>{% endif %}
+            {% else %}<span class="badge badge-draft">{{ doc.status }}</span>{% endif %}
+            {% if doc.policy_workflow_managed %}<span class="badge badge-accent" title="Managed by the policy workflow: status changes only through draft, submission and approval" style="margin-left:4px">Managed</span>{% endif %}
           </td>
           <td style="font-size:12px;color:var(--muted)">{{ doc.owner or '' }}</td>
           <td style="font-size:12px" data-review="{{ doc.review_date or '' }}">
@@ -139,6 +168,7 @@
             {% endif %}
           </td>
           <td style="text-align:center;white-space:nowrap">
+            <a class="edit-btn" href="/governance/connected/aria/document/{{ doc.id }}" aria-label="View connected records for {{ doc.doc_id }}">Connected</a>
             {% if user.role != 'viewer' %}
             <button class="edit-btn" onclick='openEditModal({{ doc | tojson }})'>Edit</button>
             {% if has_capability(user, 'aria.policy.delete') %}
@@ -344,9 +374,53 @@
       <button onclick="closeModal('editModal')" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
     </div>
     <input type="hidden" id="edit-doc-id">
+    <input type="hidden" id="edit-is-managed" value="">
 
-    <!-- Upload Revision Section -->
-    <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;border:1px dashed var(--border)">
+    {# PLAN-35 T10 / PLAN-36 T01: a managed document's status/version/owner/
+       approver and file/template only ever change through the draft/
+       confirm/submit/approve flow now (the T08 guards below refuse these
+       routes outright for one) -- this panel replaces the legacy upload/
+       template sections for a managed document, and is hidden for a
+       legacy one. The current lifecycle values are shown here as
+       read-only text (never as disabled inputs sitting in the save form)
+       so it's never ambiguous whether Save will persist them. #}
+    <div id="edit-managed-panel" style="display:none;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted)">Policy Workflow — Current Lifecycle State</div>
+        <a id="edit-workbench-link" href="#" class="btn btn-ghost" style="font-size:11px;padding:4px 10px">Open Policy Workbench</a>
+      </div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div><span style="font-size:11px;color:var(--muted)">Status</span><div id="edit-lifecycle-status" style="font-size:13px;font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--muted)">Version</span><div id="edit-lifecycle-version" style="font-size:13px;font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--muted)">Owner</span><div id="edit-lifecycle-owner" style="font-size:13px;font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--muted)">Approver</span><div id="edit-lifecycle-approver" style="font-size:13px;font-weight:600">—</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:-8px 0 14px">These change only through Start Revision below, then Submit and Decide -- never through Save.</div>
+      <div id="edit-publication-status"></div>
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin:10px 0;border:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Version History</div>
+        <div id="edit-version-history"></div>
+      </div>
+      <div id="edit-revision-action" style="margin-bottom:10px"></div>
+      <div id="edit-submit-approval-section" style="display:none;background:var(--surface2);border-radius:var(--radius);padding:14px;border:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Submit for Approval</div>
+        <div id="edit-submit-empty" class="aria-workflow-hint" style="display:none">No eligible approver is currently available.</div>
+        <div id="edit-submit-form" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="flex:1;min-width:160px;margin:0">
+            <label class="form-label">Approver</label>
+            <select id="edit-approver-select"></select>
+          </div>
+          <div class="form-group" style="flex:1;min-width:160px;margin:0">
+            <label class="form-label">Note (optional)</label>
+            <input type="text" id="edit-submit-note" maxlength="500">
+          </div>
+          <button class="btn btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap" id="edit-submit-btn">Submit for Approval</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload Revision Section (legacy documents only) -->
+    <div id="edit-legacy-upload-section" style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;border:1px dashed var(--border)">
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Upload Revised Document</div>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="file" id="edit-revision-file" accept=".docx,.doc,.pdf,.odt" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px">
@@ -359,8 +433,8 @@
       <div id="edit-revision-status" style="font-size:12px;margin-top:6px"></div>
     </div>
 
-    <!-- Apply Template Section -->
-    <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;border:1px solid var(--border)">
+    <!-- Apply Template Section (legacy documents only) -->
+    <div id="edit-legacy-template-section" style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;border:1px solid var(--border)">
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Apply Branding Template</div>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="edit-template-id" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px">
@@ -388,25 +462,27 @@
         <label class="form-label">Document Title</label>
         <input type="text" id="edit-title">
       </div>
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <select id="edit-status">
-          {% for s in ['Draft','AI Draft','Under Review','Approved','Retired'] %}
-          <option>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Version</label>
-        <input type="text" id="edit-version" placeholder="e.g. 1.0">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Owner</label>
-        <input type="text" id="edit-owner">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Approver</label>
-        <input type="text" id="edit-approver">
+      <div id="edit-legacy-lifecycle-fields" style="display:contents">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="edit-status">
+            {% for s in ['Draft','AI Draft','Under Review','Approved','Retired'] %}
+            <option>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Version</label>
+          <input type="text" id="edit-version" placeholder="e.g. 1.0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Owner</label>
+          <input type="text" id="edit-owner">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Approver</label>
+          <input type="text" id="edit-approver">
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Effective Date</label>
@@ -452,7 +528,7 @@
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModal('editModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitEdit()">Save Changes</button>
+      <button class="btn btn-primary" id="edit-save-btn" onclick="submitEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -464,7 +540,46 @@
 .review-soon { color:var(--amber,#d97706)!important; font-weight:600; }
 .badge-review-overdue { background:rgba(220,38,38,.12); color:var(--red,#dc2626); border:1px solid rgba(220,38,38,.25); padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; margin-left:4px; }
 .badge-review-soon { background:rgba(217,119,6,.12); color:var(--amber,#d97706); border:1px solid rgba(217,119,6,.25); padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; margin-left:4px; }
+/* PLAN-35 T10: version history / publication status (shared class names
+   with ai_generator.html's inline <style>, kept in sync manually since
+   this file has no equivalent extra_styles block to share one copy from). */
+.aria-workflow-hint{font-size:12px;color:var(--muted);margin:0}
+.aria-version-row{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:6px;font-size:12px}
+.aria-version-current{border-color:var(--accent-shadow);background:var(--accent-bg)}
+.aria-version-main{display:flex;flex-direction:column;gap:2px}
+.aria-version-tag{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.3px}
+.aria-version-meta{font-size:11px;color:var(--muted)}
+.aria-version-actions a{font-size:12px}
+.aria-publication-warning{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 12px;background:var(--amber-bg);border:1px solid rgba(217,119,6,0.25);
+  border-radius:var(--radius);font-size:12px;color:var(--amber)}
+.aria-pdf-container{border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface2);padding:12px;max-height:520px;overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;gap:12px}
+.aria-pdf-page{max-width:100%;box-shadow:var(--shadow-sm);background:#fff}
+.aria-pdf-state{font-size:12px;color:var(--muted);padding:20px}
+.aria-pdf-error{color:var(--red,#dc2626)}
+.aria-approval-comment{width:100%;min-height:70px;padding:8px 10px;font-size:12px;
+  border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+  color:var(--text);resize:vertical}
 </style>
+
+{# PLAN-35 T10: pinned, self-hosted, checksummed -- see
+   static/vendor/aria-policy/MANIFEST.json. Same libraries ai_generator.html
+   loads; documents.html needs them for version-history/approval rendering
+   and the exact submitted-preview PDF, not for its own markdown (this page
+   never renders a policy body directly). #}
+<script src="/static/vendor/aria-policy/marked.umd.js"></script>
+<script src="/static/vendor/aria-policy/purify.min.js"></script>
+<script src="/static/js/aria_markdown.js?v=3"></script>
+<script type="module">
+  import * as pdfjsLib from '/static/vendor/aria-policy/pdfjs/pdf.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+</script>
+<script src="/static/js/aria_pdf_viewer.js?v=1"></script>
+<script src="/static/js/aria_policy_workflow.js?v=4"></script>
 
 <script>
 // ── Framework checkbox + control ref logic ──────────────────────────────────
@@ -777,6 +892,69 @@ async function openEditModal(doc) {
     dlRow.style.display = 'none';
   }
 
+  // PLAN-35 T10: a managed document's status/version/owner/approver and
+  // file/template only change through draft/confirm/submit/approve now --
+  // the T08 route guards refuse the legacy paths below outright for one.
+  // Swap the whole editing surface rather than let a manager submit a
+  // change the server will just 409 back.
+  var isManaged = !!doc.policy_workflow_managed;
+  document.getElementById('edit-is-managed').value = isManaged ? '1' : '';
+  document.getElementById('edit-legacy-lifecycle-fields').style.display = isManaged ? 'none' : 'contents';
+  document.getElementById('edit-lifecycle-status').textContent   = doc.status   || '—';
+  document.getElementById('edit-lifecycle-version').textContent  = doc.version  || '—';
+  document.getElementById('edit-lifecycle-owner').textContent    = doc.owner    || '—';
+  document.getElementById('edit-lifecycle-approver').textContent = doc.approver || '—';
+  document.getElementById('edit-save-btn').textContent = isManaged ? 'Save metadata' : 'Save changes';
+  document.getElementById('edit-legacy-upload-section').style.display = isManaged ? 'none' : '';
+  document.getElementById('edit-legacy-template-section').style.display = isManaged ? 'none' : '';
+  document.getElementById('edit-managed-panel').style.display = isManaged ? '' : 'none';
+  if (isManaged) {
+    document.getElementById('edit-workbench-link').href = '/aria/documents/' + encodeURIComponent(doc.doc_id) + '/workbench';
+    await AriaPolicyWorkflow.ui.renderPublicationStatus(document.getElementById('edit-publication-status'), doc);
+    await AriaPolicyWorkflow.ui.renderVersionHistory(document.getElementById('edit-version-history'), doc);
+
+    var revisionActionEl = document.getElementById('edit-revision-action');
+    revisionActionEl.innerHTML =
+      '<button type="button" class="btn btn-ghost" style="font-size:12px;padding:6px 14px" id="edit-start-revision-btn">Start a revision</button>';
+    document.getElementById('edit-start-revision-btn').onclick = function () {
+      AriaPolicyWorkflow.ui.startRevision(doc);
+    };
+
+    var submitSection = document.getElementById('edit-submit-approval-section');
+    if (doc.current_policy_version_id) {
+      var versionRes = await AriaPolicyWorkflow.api.getVersion(doc.current_policy_version_id);
+      var version = versionRes.ok ? versionRes.data.version : null;
+      // Only a confirmed-but-undecided version (not yet approved) is
+      // eligible to submit -- an already-approved current version has
+      // nothing pending, and section 11 point 7's form only makes sense
+      // for a real candidate.
+      if (version && (version.state === 'draft' || version.state === 'withdrawn')) {
+        submitSection.style.display = '';
+        var submitFormEl = document.getElementById('edit-submit-form');
+        await AriaPolicyWorkflow.ui.initSubmitForApprovalForm(
+          submitFormEl, document.getElementById('edit-approver-select'),
+          document.getElementById('edit-submit-note'), document.getElementById('edit-submit-empty'),
+          document.getElementById('edit-submit-btn'), version,
+          // PLAN-35 T11 review fix: a real callback (the previous
+          // formEl.dataset.onSubmitted check could never actually run --
+          // a dataset value is always a string, never typeof 'function').
+          // Refreshes both panels with fresh data and hides the
+          // now-stale submit section, rather than leaving the page
+          // showing pre-submission state after a successful submit.
+          function () {
+            submitSection.style.display = 'none';
+            AriaPolicyWorkflow.ui.renderVersionHistory(document.getElementById('edit-version-history'), doc);
+            AriaPolicyWorkflow.ui.renderPublicationStatus(document.getElementById('edit-publication-status'), doc);
+          }
+        );
+      } else {
+        submitSection.style.display = 'none';
+      }
+    } else {
+      submitSection.style.display = 'none';
+    }
+  }
+
   try {
     var tpls = await fetch('/aria/api/templates').then(function(r){ return r.json(); });
     var sel = document.getElementById('edit-template-id');
@@ -863,6 +1041,45 @@ async function applyTemplate() {
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+// ── PLAN-35 T10: pending approvals + decision modal ─────────────────────────
+var _pendingApprovalsOpen = false;
+function togglePendingApprovals() {
+  var list = document.getElementById('pendingApprovalsList');
+  var chevron = document.getElementById('pendingApprovalsChevron');
+  _pendingApprovalsOpen = !_pendingApprovalsOpen;
+  list.style.display = _pendingApprovalsOpen ? '' : 'none';
+  if (chevron) chevron.style.transform = _pendingApprovalsOpen ? 'rotate(180deg)' : '';
+}
+
+function openApprovalDecision(approval) {
+  document.getElementById('approvalDecisionModal').classList.add('open');
+  AriaPolicyWorkflow.ui.renderApprovalDecision(
+    document.getElementById('approvalDecisionBody'), approval,
+    function () {
+      closeModal('approvalDecisionModal');
+      refreshPendingApprovals();
+    }
+  );
+}
+
+async function refreshPendingApprovals() {
+  var card = document.getElementById('pendingApprovalsCard');
+  var res = await AriaPolicyWorkflow.api.listMyApprovals();
+  if (!res.ok) return;
+  var approvals = res.data.approvals || [];
+  if (!approvals.length) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  document.getElementById('pendingApprovalsCount').textContent = String(approvals.length);
+  await AriaPolicyWorkflow.ui.renderPendingApprovals(document.getElementById('pendingApprovalsList'), openApprovalDecision);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.AriaPolicyWorkflow) refreshPendingApprovals();
+});
+
 // ── Submit: Add / Upload ────────────────────────────────────────────────────
 async function submitAdd() {
   var title = document.getElementById('add-title').value.trim();
@@ -912,29 +1129,54 @@ async function submitAdd() {
 
 async function submitEdit() {
   var docId = document.getElementById('edit-doc-id').value;
+  var isManaged = document.getElementById('edit-is-managed').value === '1';
+
+  // PLAN-36 T01 (findings.md F01): a managed document's status/version/
+  // owner/approver are workflow-owned -- start a revision, then submit and
+  // decide, instead. Sending them here used to happen unconditionally and
+  // the backend correctly 409s any of them on a managed document; the fix
+  // is that this generic Save must never send them for a managed one, not
+  // that the backend guard should ever be relaxed to let it.
   var form = new FormData();
   form.append('title',          document.getElementById('edit-title').value);
-  form.append('status',         document.getElementById('edit-status').value);
-  form.append('version',        document.getElementById('edit-version').value);
-  form.append('owner',          document.getElementById('edit-owner').value);
-  form.append('approver',       document.getElementById('edit-approver').value);
   form.append('effective_date', document.getElementById('edit-effective-date').value);
   form.append('review_date',    document.getElementById('edit-review-date').value);
   form.append('location',       document.getElementById('edit-location').value);
   form.append('comments',       document.getElementById('edit-comments').value);
-  form.append('control_ref',   document.getElementById('edit-control-ref').value);
-  var res = await fetch('/aria/documents/update/' + docId, { method: 'POST', body: form });
-  var data = await res.json();
-  if (data.ok) { showToast('Document updated'); setTimeout(function(){ location.reload(); }, 900); }
-  else showToast(data.error || 'Failed', 'error');
+  form.append('control_ref',    document.getElementById('edit-control-ref').value);
+  if (!isManaged) {
+    form.append('status',   document.getElementById('edit-status').value);
+    form.append('version',  document.getElementById('edit-version').value);
+    form.append('owner',    document.getElementById('edit-owner').value);
+    form.append('approver', document.getElementById('edit-approver').value);
+  }
+
+  var btn = document.getElementById('edit-save-btn');
+  var originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    await ApiClient.request('/aria/documents/update/' + docId, { method: 'POST', body: form, actionId: 'aria.document.update' });
+    showToast('Document updated');
+    setTimeout(function(){ location.reload(); }, 900);
+    return; // page reloads shortly; finally still restores the button in the meantime
+  } catch (e) {
+    showToast(e.detail || 'Failed to update document.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 async function deleteDoc(docId) {
   if (!confirm('Delete ' + docId + '? This cannot be undone.')) return;
-  var res = await fetch('/aria/documents/delete/' + docId, { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) { document.getElementById('row-' + docId)?.remove(); showToast('Document deleted'); }
-  else showToast(data.error || 'Failed', 'error');
+  try {
+    await ApiClient.request('/aria/documents/delete/' + docId, { method: 'POST', actionId: 'aria.document.delete' });
+    document.getElementById('row-' + docId)?.remove();
+    showToast('Document deleted');
+  } catch (e) {
+    showToast(e.detail || 'Failed', 'error');
+  }
 }
 
 // ── Review-date status badges ───────────────────────────────────────────────
@@ -964,6 +1206,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 document.querySelectorAll('.modal-overlay').forEach(function(el) {
   el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('open'); });
+});
+
+// PLAN-35 T10: "?open=<doc_id>" deep link -- api_confirm_policy_draft has
+// returned a detail_url in exactly this shape since T06, and My Drafts /
+// the confirm flow both navigate to it, but nothing here ever read the
+// parameter: arriving from a fresh confirmation landed on the plain list,
+// never the document itself. {{ docs_json }} is the same row data each
+// row's own onclick='openEditModal(...)' already carries, just also
+// available as one lookup table for this.
+var _allDocsById = {};
+({{ docs | tojson }}).forEach(function (d) { _allDocsById[d.doc_id] = d; });
+document.addEventListener('DOMContentLoaded', function () {
+  var openId = new URLSearchParams(window.location.search).get('open');
+  if (openId && _allDocsById[openId]) {
+    openEditModal(_allDocsById[openId]);
+  }
 });
 </script>
 {% endblock %}

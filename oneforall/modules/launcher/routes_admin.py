@@ -1,13 +1,13 @@
 """
 Admin routes — user management, audit logs, API keys, webhooks.
 """
-import ipaddress
-from urllib.parse import urlparse
-
 from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File
 from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from core.outbound_http import validate_outbound_url, OutboundURLError
+from core.webhooks import send_test_ping
+from core.middleware import check_rate_limit, record_failed_login
 from database import insert_returning_id
 from modules.sentinel.data_service import get_setting, set_setting  # org policy
 from modules.launcher._route_helpers import (
@@ -18,10 +18,10 @@ from modules.launcher._route_helpers import (
     EMPLOYEE, ALL_ROLES, ROLE_LABELS,
     csv, io, json_lib, Response,
     _json_body,)
+from core.sql_like import ci_like, like_pattern
+from core.best_effort import swallowed
 
 router = APIRouter()
-
-_SSRF_BLOCKED_PREFIXES = ("127.", "0.", "169.254.", "10.", "192.168.", "172.")
 
 
 def _target_user(db, uid: int, admin: dict):
@@ -32,10 +32,12 @@ def _target_user(db, uid: int, admin: dict):
     """
     if admin.get("is_super_admin"):
         return db.execute(
-            "SELECT id, username, full_name, org_id FROM users WHERE id=%s", (uid,)
+            "SELECT id, username, full_name, email, org_id, business_unit_id "
+            "FROM users WHERE id=%s", (uid,)
         ).fetchone()
     return db.execute(
-        "SELECT id, username, full_name, org_id FROM users WHERE id=%s AND org_id=%s",
+        "SELECT id, username, full_name, email, org_id, business_unit_id "
+        "FROM users WHERE id=%s AND org_id=%s",
         (uid, admin.get("org_id")),
     ).fetchone()
 
@@ -74,6 +76,7 @@ def _user_reference_counts(db, uid: int) -> dict:
                 tuple([uid] * len(cols)),
             ).fetchone()[0]
         except Exception:
+            swallowed("_user_reference_counts")
             n = 0
         if n:
             counts[label] = counts.get(label, 0) + n
@@ -81,24 +84,19 @@ def _user_reference_counts(db, uid: int) -> dict:
 
 
 def _validate_webhook_url(url: str) -> None:
-    """Raise HTTP 400 if the URL is not HTTPS or resolves to a private/loopback address."""
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        raise HTTPException(status_code=400, detail="Webhook URL must use HTTPS")
-    host = parsed.hostname or ""
-    if not host:
-        raise HTTPException(status_code=400, detail="Invalid webhook URL")
-    if host in ("localhost", "::1", "0.0.0.0"):
-        raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
-    for prefix in _SSRF_BLOCKED_PREFIXES:
-        if host.startswith(prefix):
-            raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
+    """Raise HTTP 400 if the URL fails the shared outbound policy
+    (core/outbound_http.py, PLAN-36 T05 / findings.md F07): HTTPS only, no
+    embedded credentials, and every DNS answer for the host must be a
+    public address -- resolved for real, not guessed from a string prefix.
+
+    Kept as a thin HTTPException-raising wrapper so every existing call
+    site (webhook create/update, Slack/Teams/WhatsApp connector save)
+    keeps working unchanged; the actual policy lives in one place.
+    """
     try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-            raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
-    except ValueError:
-        pass  # domain name, not an IP literal
+        validate_outbound_url(url)
+    except OutboundURLError as exc:
+        raise HTTPException(status_code=400, detail=f"Webhook URL rejected: {exc}") from None
 
 
 # ── Admin User Management ───────────────────────────────────────────────────
@@ -553,7 +551,7 @@ async def admin_reset_password(request: Request, uid: int,
 @router.patch("/api/admin/users/{uid}")
 @_require_cap("platform.manage_users", "platform.manage_org_users")
 async def api_admin_patch_user(request: Request, uid: int):
-    """Edit a user's full_name and/or email. Accepts JSON, returns JSON."""
+    """Edit profile fields only. SBU moves use the controlled transfer API."""
     import re as _re
     admin = request.state.user
 
@@ -567,8 +565,6 @@ async def api_admin_patch_user(request: Request, uid: int):
 
     full_name = (data.get("full_name") or "").strip()
     email     = (data.get("email") or "").strip().lower()
-    bu_id_raw = data.get("business_unit_id")
-    business_unit_id = int(bu_id_raw) if bu_id_raw is not None and bu_id_raw != "" else None
 
     if not full_name:
         return _JSONResp({"success": False, "error": "Full name cannot be empty."})
@@ -596,8 +592,8 @@ async def api_admin_patch_user(request: Request, uid: int):
         avatar_initials = "".join(w[0].upper() for w in full_name.split()[:2]) or "?"
         db.execute(
             "UPDATE users SET full_name=%s, email=%s, avatar_initials=%s, "
-            "business_unit_id=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
-            (full_name, email, avatar_initials, business_unit_id, uid),
+            "updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (full_name, email, avatar_initials, uid),
         )
         db.commit()
         log_audit(
@@ -613,8 +609,107 @@ async def api_admin_patch_user(request: Request, uid: int):
         "full_name": full_name,
         "email": email,
         "avatar_initials": avatar_initials,
-        "business_unit_id": business_unit_id,
+        "business_unit_id": target["business_unit_id"],
     })
+
+
+def _transfer_target_error(admin: dict, target) -> str | None:
+    if not target:
+        return "User not found."
+    if int(target["id"]) == int(admin["id"]):
+        return "You cannot transfer your own account."
+    if target["org_id"] is None or admin.get("org_id") is None:
+        return "Both the administrator and user must belong to an organization."
+    if int(target["org_id"]) != int(admin["org_id"]):
+        return (
+            "Open the target organization's tenant before moving this user. "
+            "Cross-organization transfers are not supported by this workflow."
+        )
+    return None
+
+
+@router.get("/api/admin/users/{uid}/business-unit-transfer-preview")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_user_transfer_preview(request: Request, uid: int):
+    admin = request.state.user
+    if not has_capability(admin, "governance.bu.assign"):
+        return _JSONResp({"success": False, "error": "SBU assignment permission required."}, status_code=403)
+    try:
+        to_bu_id = int(request.query_params.get("to_business_unit_id", ""))
+    except (TypeError, ValueError):
+        return _JSONResp({"success": False, "error": "Choose a destination business unit."}, status_code=400)
+
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        error = _transfer_target_error(admin, target)
+    finally:
+        db.close()
+    if error:
+        status = 404 if not target else 409
+        return _JSONResp({"success": False, "error": error}, status_code=status)
+
+    from modules.governance.data_service import (
+        BusinessUnitTransferError,
+        preview_user_business_unit_transfer,
+    )
+    try:
+        preview = preview_user_business_unit_transfer(uid, to_bu_id, target["org_id"])
+    except BusinessUnitTransferError as exc:
+        return _JSONResp({"success": False, "error": str(exc)}, status_code=409)
+    return _JSONResp({"success": True, "preview": preview})
+
+
+@router.post("/api/admin/users/{uid}/business-unit-transfer")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_user_transfer(request: Request, uid: int):
+    admin = request.state.user
+    if not has_capability(admin, "governance.bu.assign"):
+        return _JSONResp({"success": False, "error": "SBU assignment permission required."}, status_code=403)
+    try:
+        data = await _json_body(request)
+        to_bu_id = int(data.get("to_business_unit_id"))
+    except (TypeError, ValueError):
+        return _JSONResp({"success": False, "error": "Choose a destination business unit."}, status_code=400)
+
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        error = _transfer_target_error(admin, target)
+    finally:
+        db.close()
+    if error:
+        status = 404 if not target else 409
+        return _JSONResp({"success": False, "error": error}, status_code=status)
+
+    from modules.governance.data_service import (
+        BusinessUnitTransferError,
+        transfer_user_business_unit,
+    )
+    try:
+        result = transfer_user_business_unit(
+            uid,
+            to_bu_id,
+            target["org_id"],
+            int(admin["id"]),
+            data.get("reason") or "",
+            handover_confirmed=data.get("handover_confirmed") is True,
+            roles_reviewed=data.get("roles_reviewed") is True,
+        )
+    except BusinessUnitTransferError as exc:
+        return _JSONResp({"success": False, "error": str(exc)}, status_code=409)
+
+    old_name = result["current_business_unit"]["name"]
+    new_name = result["destination_business_unit"]["name"]
+    log_audit(
+        admin,
+        "governance",
+        f"Transferred {target['username']} from {old_name} to {new_name}; "
+        f"transfer_id={result['transfer_id']}; reason={data.get('reason', '').strip()}",
+        "business_unit_transfer",
+        result["transfer_id"],
+    )
+    return _JSONResp({"success": True, "transfer": result})
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -675,8 +770,10 @@ async def api_admin_users_template(request: Request):
 @router.get("/admin/api/users/export")
 @_require_cap("platform.manage_users", "platform.manage_org_users")
 async def api_admin_users_export(request: Request):
-    """Export the current (non-deleted) user list to CSV -- round-trips with
-    the importer's column model and doubles as a seat-usage-per-SBU report."""
+    """Export the current (non-deleted) user list to .xlsx -- round-trips with
+    the importer's column model (which only accepts .xlsx/.xls/.xlsm) and
+    doubles as a seat-usage-per-SBU report."""
+    import openpyxl
     admin = request.state.user
     is_super = bool(admin.get("is_super_admin"))
     db = get_db()
@@ -702,24 +799,27 @@ async def api_admin_users_export(request: Request):
     finally:
         db.close()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Users"
     header = ["Full Name", "Email", "Username", "Roles", "Business Unit", "Status"]
     if is_super:
         header.insert(0, "Organization")
-    writer.writerow(header)
+    ws.append(header)
     for r in rows:
         line = [r["full_name"], r["email"], r["username"],
                 ",".join(role_map.get(r["id"], [])),
                 r["bu_name"] or "", "Active" if r["is_active"] else "Inactive"]
         if is_super:
             line.insert(0, r["org_name"] or "")
-        writer.writerow(line)
+        ws.append(line)
 
+    buf = io.BytesIO()
+    wb.save(buf)
     return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=users_export.csv"},
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=users_export.xlsx"},
     )
 
 
@@ -767,7 +867,7 @@ async def api_admin_users_import_commit(request: Request):
 # ═════════════════════════════════════════════════════════════════════════════
 
 @router.get("/admin/logs", response_class=HTMLResponse)
-@_require_cap("platform.manage_users")
+@_require_cap("platform.view_audit_log")
 async def admin_logs_page(request: Request):
     """Platform-wide audit log page."""
     ctx = shell_ctx(request, active_module="platform", active_section="logs")
@@ -775,7 +875,7 @@ async def admin_logs_page(request: Request):
 
 
 @router.get("/admin/api/logs")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.view_audit_log")
 async def admin_api_logs(request: Request):
     """JSON API for audit logs with filtering and pagination."""
     db = get_db()
@@ -809,11 +909,11 @@ async def admin_api_logs(request: Request):
             where_clauses.append("al.module = %s")
             params.append(module)
         if action:
-            where_clauses.append("al.action LIKE %s")
-            params.append(f"%{action}%")
+            where_clauses.append(ci_like("al.action"))
+            params.append(like_pattern(action))
         if user_filter:
-            where_clauses.append("(al.username LIKE %s OR u.full_name LIKE %s)")
-            params.extend([f"%{user_filter}%", f"%{user_filter}%"])
+            where_clauses.append(f"({ci_like('al.username')} OR {ci_like('u.full_name')})")
+            params.extend([like_pattern(user_filter)] * 2)
         if date_from:
             where_clauses.append("al.created_at >= %s")
             params.append(date_from)
@@ -838,7 +938,8 @@ async def admin_api_logs(request: Request):
 
         # Get distinct modules for filter dropdown (scoped to visible logs).
         modules = db.execute(
-            f"SELECT DISTINCT al.module FROM audit_log al WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
+            f"SELECT DISTINCT al.module FROM audit_log al LEFT JOIN users u ON al.user_id = u.id "
+            f"WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
             params
         ).fetchall()
     finally:
@@ -855,7 +956,7 @@ async def admin_api_logs(request: Request):
 
 
 @router.get("/admin/api/logs/export")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.view_audit_log")
 async def admin_api_logs_export(request: Request):
     """Export audit logs as CSV."""
     db = get_db()
@@ -1156,23 +1257,39 @@ async def api_webhook_logs(request: Request, wid: int):
 @router.post("/api/admin/webhooks/{wid}/test")
 @_require_cap("platform.manage_users")
 async def api_webhook_test(request: Request, wid: int):
-    """Send a test ping to a webhook."""
+    """Send a real test ping to a webhook and report the truthful outcome.
+
+    PLAN-36 T05 (findings.md F06): this used to insert a synthetic
+    response_code=200/success=1 row without ever making a network call.
+    It now invokes the same signed-delivery path (core/webhooks.py) that
+    real platform events use, against the saved URL revalidated
+    immediately before connecting (core/outbound_http.py, F07).
+    """
     user = request.state.user
+    rl_key = f"webhook_test:{user['id']}:{wid}"
+    if not check_rate_limit(rl_key):
+        return _JSONResp(
+            {"error": "Too many test sends for this webhook. Please wait a few minutes."},
+            status_code=429,
+        )
+
     db = get_db()
     try:
         wh = _get_webhook_for_admin(db, wid, user)
-        if not wh:
-            return _JSONResp({"error": "Not found"}, status_code=404)
-
-        payload = {"event": "test.ping", "timestamp": "now", "data": {"message": "Webhook test from ThemisIQ"}}
-        db.execute(
-            "INSERT INTO webhook_logs (webhook_id, event, payload_json, response_code, success) VALUES (%s,%s,%s,%s,%s)",
-            (wid, "test.ping", json_lib.dumps(payload), 200, 1)
-        )
-        db.commit()
     finally:
         db.close()
-    return _JSONResp({"success": True, "message": "Test ping logged"})
+    if not wh:
+        return _JSONResp({"error": "Not found"}, status_code=404)
+
+    record_failed_login(rl_key)  # generic per-key attempt counter, not login-specific despite the name
+    result = send_test_ping(wid, wh["url"], wh["secret"] or "")
+    log_audit(user, "platform", "webhook_test",
+              details=f"wid={wid} success={result['success']} status={result['status_code']}")
+    status_code = 200 if result["success"] else 502
+    return _JSONResp(
+        {"success": result["success"], "status_code": result["status_code"], "detail": result["detail"]},
+        status_code=status_code,
+    )
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1190,8 +1307,9 @@ async def admin_email_page(request: Request):
 @router.get("/api/admin/email-config")
 @_require_cap("platform.manage_users")
 async def api_email_config_get(request: Request):
-    """Return current email configuration with passwords masked."""
-    from core.email import _get_setting, _resolve_provider
+    """Return current email configuration with passwords masked, and what an administrator needs to know about the
+    sender: where the password comes from, whether a provider is really configured, and what is wrong with it."""
+    from core.email import _get_setting, _resolve_provider, health, db_secrets_allowed
 
     provider = _resolve_provider()
 
@@ -1210,8 +1328,12 @@ async def api_email_config_get(request: Request):
         "ms_client_id":      _get_setting("ms_client_id", ""),
         "ms_client_secret":  _masked("ms_client_secret_enc"),
         "resolved_provider": provider,
+        "health":            health(),
+        "secrets_in_database_allowed": db_secrets_allowed(),
         "last_test_result":  _get_setting("email_last_test_result", ""),
         "last_test_at":      _get_setting("email_last_test_at", ""),
+        "last_receipt":      _get_setting("email_last_receipt", ""),
+        "privacy_backup_email": _get_setting("sentinel_backup_email", ""),
     }
     return _JSONResp(cfg)
 
@@ -1219,10 +1341,16 @@ async def api_email_config_get(request: Request):
 @router.post("/api/admin/email-config")
 @_require_cap("platform.manage_users")
 async def api_email_config_save(request: Request):
-    """Save email configuration to the settings table."""
-    from core.email import encrypt_setting
+    """Save email configuration to the settings table.
+
+    The host, user and From address are saved here. A new password or client secret is a deployment secret (SMTP_PASS,
+    MS_CLIENT_SECRET in the service environment): it is saved in the database only when the operator allowed that on
+    purpose (EMAIL_ALLOW_DB_SECRETS), because the stored value is obscured, not encrypted. A refused secret is reported,
+    not silently dropped."""
+    from core.email import encrypt_setting, db_secrets_allowed
 
     data = await _json_body(request)
+    refused = []
     db = get_db()
     try:
         def _save(key: str, val: str):
@@ -1239,31 +1367,86 @@ async def api_email_config_save(request: Request):
         _save("smtp_from",      data.get("smtp_from", "").strip())
         _save("ms_tenant_id",   data.get("ms_tenant_id", "").strip())
         _save("ms_client_id",   data.get("ms_client_id", "").strip())
+        if "privacy_backup_email" in data:
+            backup = str(data["privacy_backup_email"] or "").strip().lower()
+            if backup:
+                from core.email import valid_address
+                if not valid_address(backup) or not request.state.user.get("org_id"):
+                    return _JSONResp({"error": "Choose an active privacy specialist in this organization"}, status_code=400)
+                eligible = db.execute(
+                    "SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id=u.id "
+                    "WHERE LOWER(u.email)=LOWER(%s) AND u.org_id=%s AND u.is_active=1 "
+                    "AND COALESCE(u.is_super_admin,0)=0 "
+                    "AND ur.role_key IN ('dpo','privacy_analyst') LIMIT 1",
+                    (backup, request.state.user["org_id"]),
+                ).fetchone()
+                if not eligible:
+                    return _JSONResp({"error": "Choose an active privacy specialist in this organization"}, status_code=400)
+            _save("sentinel_backup_email", backup)
 
         # Only update passwords if a non-masked value was submitted
         raw_pass = data.get("smtp_pass", "")
         if raw_pass and raw_pass != "__unchanged__":
-            _save("smtp_pass_enc", encrypt_setting(raw_pass))
+            if db_secrets_allowed():
+                _save("smtp_pass_enc", encrypt_setting(raw_pass))
+            else:
+                refused.append("smtp_pass")
 
         raw_secret = data.get("ms_client_secret", "")
         if raw_secret and raw_secret != "__unchanged__":
-            _save("ms_client_secret_enc", encrypt_setting(raw_secret))
+            if db_secrets_allowed():
+                _save("ms_client_secret_enc", encrypt_setting(raw_secret))
+            else:
+                refused.append("ms_client_secret")
 
         db.commit()
     finally:
         db.close()
 
     log_audit(request.state.user, "platform", "email_config_update",
-              details=f"Email provider set to: {data.get('provider','')}")
-    return _JSONResp({"success": True})
+              details=f"Email provider set to: {data.get('provider','')}"
+                      + (f"; not saved because secrets belong in the service environment: {', '.join(refused)}"
+                         if refused else ""))
+    out = {"success": True}
+    if refused:
+        out["secrets_not_saved"] = refused
+        out["notice"] = ("The settings were saved, but the password was not: set SMTP_PASS (or MS_CLIENT_SECRET) in the "
+                         "service environment and restart the service. A password stored in the database is only "
+                         "obscured, not encrypted.")
+    return _JSONResp(out)
+
+
+@router.post("/api/admin/email-config/clear-secrets")
+@_require_cap("platform.manage_users")
+async def api_email_clear_secrets(request: Request):
+    """Remove the passwords and keys an earlier version stored, obscured, in the settings table. Done after the secret
+    is set in the service environment and rotated; with no environment secret, mail stops."""
+    data = await _json_body(request)
+    if data.get("confirm") is not True:
+        raise HTTPException(400, "Confirm that the secret is set in the service environment before clearing the stored copy")
+    cleared = []
+    db = get_db()
+    try:
+        for key in ("smtp_pass_enc", "ms_client_secret_enc", "sendgrid_api_key_enc"):
+            cur = db.execute("DELETE FROM settings WHERE key=%s", (key,))
+            if getattr(cur, "rowcount", 0):
+                cleared.append(key)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(request.state.user, "platform", "email_secrets_cleared", details=", ".join(cleared) or "none stored")
+    return _JSONResp({"success": True, "cleared": cleared})
 
 
 @router.post("/api/admin/email-test")
 @_require_cap("platform.manage_users")
 async def api_email_test(request: Request):
-    """Send a test email to the requesting admin's address."""
-    from core.email import send_email, test_connection, _get_setting
+    """Send a test email to the requesting admin's address and say what happened in words that cannot be mistaken for
+    delivery: the provider accepted it, it was only logged, or it failed. Whether it arrived is confirmed by the person
+    who opens the mailbox (/api/admin/email-test/receipt)."""
+    from core.email import send_email, test_connection, STATUS_LOGGED
     import datetime as _dt
+    import html as _html
 
     admin       = request.state.user
     admin_email = admin.get("email", "")
@@ -1272,41 +1455,132 @@ async def api_email_test(request: Request):
 
     # First validate config without sending
     check = test_connection()
-    if not check["ok"] and check["provider"] not in ("console",):
+    if check.get("status") == STATUS_LOGGED:
+        detail = "No mail provider is configured: nothing was sent and nothing left the platform. " + check.get("detail", "")
+        _save_test_result(detail, ok=False)
+        return _JSONResp({"ok": False, "status": STATUS_LOGGED, "provider": check.get("provider", "unknown"),
+                          "detail": detail})
+    if not check["ok"]:
         _save_test_result(check.get("detail", "Connection failed"), ok=False)
-        return _JSONResp({"ok": False, "provider": check.get("provider", "unknown"), "detail": "Email connection test failed"})
+        return _JSONResp({"ok": False, "status": check.get("status"), "provider": check.get("provider", "unknown"),
+                          "detail": "Email connection test failed: " + str(check.get("detail", ""))})
 
     # Send a real test message
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    esc = _html.escape
     body_html = f"""
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
       <div style="background:#1e3a8a;color:white;padding:16px 20px;border-radius:8px 8px 0 0;font-size:16px;font-weight:700">
-        ✅ ThemisIQ — Email Test
+        ThemisIQ: email test
       </div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:20px">
         <p>This is a test email from <strong>ThemisIQ</strong>.</p>
-        <p>If you received this, your email configuration is working correctly.</p>
+        <p>If you received this, mail from this installation reaches your mailbox.</p>
         <table style="margin-top:16px;font-size:12px;color:#64748b;border-collapse:collapse">
-          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent to:</td><td>{admin_email}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent at:</td><td>{_dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Provider:</td><td>{check['provider']}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent to:</td><td>{esc(admin_email)}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent at:</td><td>{esc(stamp)}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Provider:</td><td>{esc(str(check['provider']))}</td></tr>
         </table>
       </div>
     </div>
     """
+    body_text = (f"This is a test email from ThemisIQ.\nIf you received this, mail from this installation reaches your "
+                 f"mailbox.\n\nSent to: {admin_email}\nSent at: {stamp}\nProvider: {check['provider']}\n")
 
     result = send_email(
         to=admin_email,
-        subject="[ThemisIQ] Email configuration test",
+        subject="ThemisIQ: email configuration test",
         body_html=body_html,
+        body_text=body_text,
     )
 
-    ok = result["ok"]
+    ok = bool(result.get("ok"))
+    status = result.get("status")
     provider = result.get("provider", "unknown")
-    detail = ("Sent via " + provider) if ok else "Email delivery failed"
-    _save_test_result(result.get("error") or detail, ok=ok)
+    if ok:
+        detail = (f"The provider ({provider}) accepted the message for {admin_email}. Accepted is not received: "
+                  "check the mailbox and confirm below.")
+    elif status == STATUS_LOGGED:
+        detail = "Nothing was sent: no mail provider is configured."
+    else:
+        detail = "The provider did not accept the message: " + str(result.get("error") or result.get("reason") or "unknown error")
+    _save_test_result(detail, ok=ok)
     log_audit(request.state.user, "platform", "email_test",
-              details=f"Test email to {admin_email}: {'ok' if ok else 'failed'}")
-    return _JSONResp({"ok": ok, "provider": provider, "detail": detail, "to": admin_email})
+              details=f"Test email to {admin_email}: {status or 'unknown'}")
+    return _JSONResp({"ok": ok, "status": status, "provider": provider, "detail": detail, "to": admin_email,
+                      "confirm_receipt": ok})
+
+
+@router.post("/api/admin/email-test/receipt")
+@_require_cap("platform.manage_users")
+async def api_email_test_receipt(request: Request):
+    """The administrator's own statement that the test message did or did not reach the mailbox."""
+    import datetime as _dt
+    data = await _json_body(request)
+    received = data.get("received") is True
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    value = ("Received" if received else "Not received") + f" ({stamp})"
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            ("email_last_receipt", value),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log_audit(request.state.user, "platform", "email_test_receipt", details=value)
+    return _JSONResp({"success": True, "last_receipt": value})
+
+
+@router.get("/api/admin/email-outbox")
+@_require_cap("platform.manage_users")
+async def api_email_outbox(request: Request):
+    """The delivery queue of this organization: counts by state, and what needs attention (failed, logged only, or
+    waiting to retry). No recipient or message text: a reference to the source record and what the provider said."""
+    from core import email_outbox
+    db = get_db()
+    try:
+        return _JSONResp(email_outbox.summary(db))
+    finally:
+        db.close()
+
+
+@router.post("/api/admin/email-outbox/{outbox_id}/requeue")
+@_require_cap("platform.manage_users")
+async def api_email_outbox_requeue(request: Request, outbox_id: int):
+    """Put a message that was logged only or failed back in the queue, after the configuration was fixed."""
+    from core import email_outbox
+    db = get_db()
+    try:
+        queued = email_outbox.requeue(db, outbox_id)
+        db.commit()
+    finally:
+        db.close()
+    if not queued:
+        raise HTTPException(409, "That message was already sent, or it no longer exists")
+    log_audit(request.state.user, "platform", "email_outbox_requeue", details=f"Message {outbox_id} queued again")
+    return _JSONResp({"success": True})
+
+
+@router.post("/api/admin/email-outbox/pause")
+@_require_cap("platform.manage_users")
+async def api_email_outbox_pause(request: Request):
+    """Pause or resume sending: the first step of a provider cutover (drain the queue, switch, resume). A pause holds
+    everything except critical messages."""
+    from core import email_outbox
+    data = await _json_body(request)
+    if not isinstance(data.get("paused"), bool):
+        raise HTTPException(400, "paused must be true or false")
+    db = get_db()
+    try:
+        email_outbox.set_paused(db, data["paused"])
+        db.commit()
+    finally:
+        db.close()
+    log_audit(request.state.user, "platform", "email_outbox_pause",
+              details="Sending paused" if data["paused"] else "Sending resumed")
+    return _JSONResp({"paused": data["paused"]})
 
 
 def _save_test_result(detail: str, ok: bool):
@@ -1317,6 +1591,7 @@ def _save_test_result(detail: str, ok: bool):
         for key, val in [
             ("email_last_test_result", (("OK " if ok else "FAIL ") + detail[:200])),
             ("email_last_test_at",     _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")),
+            ("email_last_receipt",     ""),
         ]:
             db.execute(
                 "INSERT INTO settings(key,value) VALUES(%s,%s) "
@@ -1431,13 +1706,31 @@ async def api_connectors_delete_teams(request: Request):
     return _JSONResp({"ok": True})
 
 
+def _rate_limited_connector_test(request: Request, connector: str, send_fn, message: str):
+    """Shared body for the three connector test routes below (PLAN-36 T05):
+    per-actor-and-connector rate limit, then a real send through
+    core.notifications (which itself revalidates the URL via
+    core.outbound_http immediately before connecting)."""
+    user = request.state.user
+    rl_key = f"connector_test:{connector}:{user['id']}"
+    if not check_rate_limit(rl_key):
+        return _JSONResp(
+            {"ok": False, "detail": "Too many test sends. Please wait a few minutes."},
+            status_code=429,
+        )
+    record_failed_login(rl_key)
+    ok = send_fn(message)
+    log_audit(user, "platform", "connector_test", details=f"connector={connector} ok={ok}")
+    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
 @router.post("/api/admin/connectors/test-slack")
 @_require_cap("platform.manage_users")
 async def api_connectors_test_slack(request: Request):
     """Send a test message to the configured Slack webhook."""
     from core.notifications import send_slack
-    ok = send_slack("[ThemisIQ] Slack connector test — configuration is working.")
-    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+    return _rate_limited_connector_test(
+        request, "slack", send_slack, "[ThemisIQ] Slack connector test - configuration is working.")
 
 
 @router.post("/api/admin/connectors/test-teams")
@@ -1445,8 +1738,8 @@ async def api_connectors_test_slack(request: Request):
 async def api_connectors_test_teams(request: Request):
     """Send a test message to the configured Teams webhook."""
     from core.notifications import send_teams
-    ok = send_teams("[ThemisIQ] Teams connector test - configuration is working.")
-    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+    return _rate_limited_connector_test(
+        request, "teams", send_teams, "[ThemisIQ] Teams connector test - configuration is working.")
 
 
 @router.delete("/api/admin/connectors/whatsapp")
@@ -1463,13 +1756,143 @@ async def api_connectors_delete_whatsapp(request: Request):
 async def api_connectors_test_whatsapp(request: Request):
     """Send a test message to the configured WhatsApp webhook."""
     from core.notifications import send_whatsapp
-    ok = send_whatsapp("[ThemisIQ] WhatsApp connector test - configuration is working.")
-    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+    return _rate_limited_connector_test(
+        request, "whatsapp", send_whatsapp, "[ThemisIQ] WhatsApp connector test - configuration is working.")
 
 
 # ── Org security policy (MFA enforcement) ────────────────────────────────────
 
 _VALID_MFA_POLICIES = ("off", "admins", "all")
+
+
+# ── AI policy (AI governance G1c) ───────────────────────────────────────────
+
+def _ai_policy_scope(user: dict, requested):
+    """(org_id, slug or None): the organization whose AI policy is read or changed. An organization administrator
+    always means their own (the request is already bound to its schema); a platform administrator has none and
+    names one, whose schema is then bound for the work."""
+    if user.get("is_super_admin"):
+        if requested is None:
+            raise HTTPException(status_code=400, detail="Choose an organization.")
+        db = get_db()
+        try:
+            org = db.execute("SELECT id, slug FROM organizations WHERE id=%s", (requested,)).fetchone()
+        finally:
+            db.close()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found.")
+        return org["id"], org["slug"]
+    if not user.get("org_id"):
+        raise HTTPException(status_code=400, detail="This account belongs to no organization.")
+    return user["org_id"], None
+
+
+def _ai_policy_view(org_id: int, can_switch: bool = False) -> dict:
+    from core import ai_client, ai_policy, ai_rollout
+    stored = ai_policy.get_policy(org_id)
+    return {
+        "org_id": org_id,
+        "governance": {"enabled": ai_rollout.is_enabled(org_id, fresh=True), "chosen": ai_rollout.is_set(org_id),
+                       "default": ai_rollout.default_enabled(), "can_change": can_switch,
+                       "separation_required": ai_rollout.separation_required(org_id)},
+        "configured": stored is not None,
+        "policy": {**ai_policy.default_policy(), **(stored or {})},
+        "active_provider": ai_client._provider(),
+        "providers": list(ai_policy.PROVIDERS),
+        "categories": ai_policy.CATEGORIES,
+        "features": [{"id": fid, "label": label, "categories": list(cats)}
+                     for fid, (label, cats) in ai_policy.FEATURES.items()],
+        "usage": {**ai_policy.usage_summary(org_id), "allowance_used": ai_policy.tokens_used_this_month(org_id)},
+    }
+
+
+@router.get("/admin/ai-policy", response_class=HTMLResponse)
+@_require_cap("ai_governance.policy.manage")
+async def admin_ai_policy_page(request: Request):
+    """Which providers and kinds of data ThemisIQ's AI features may use for this organization, and what they used."""
+    ctx = shell_ctx(request, active_module="platform", active_section="ai-policy")
+    return shell_templates.TemplateResponse(request, "admin_ai_policy.html", ctx)
+
+
+@router.get("/api/admin/ai-policy")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_policy_get(request: Request, org_id: int = None):
+    from contextlib import nullcontext
+    from database import tenant_context
+    scope_org, slug = _ai_policy_scope(request.state.user, org_id)
+    with (tenant_context(scope_org, slug, is_super_admin=False) if slug else nullcontext()):
+        return _JSONResp(_ai_policy_view(scope_org, bool(request.state.user.get("is_super_admin"))))
+
+
+@router.put("/api/admin/ai-policy")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_policy_put(request: Request, org_id: int = None):
+    from contextlib import nullcontext
+    from core import ai_policy
+    from database import tenant_context
+    try:
+        submitted = ai_policy.parse_submitted_policy(await request.json())
+    except ValueError as exc:
+        return _JSONResp({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+    user = request.state.user
+    scope_org, slug = _ai_policy_scope(user, org_id)
+    with (tenant_context(scope_org, slug, is_super_admin=False) if slug else nullcontext()):
+        before = ai_policy.get_policy(scope_org)
+        saved = ai_policy.save_policy(scope_org, submitted, user_id=user["id"])
+        view = _ai_policy_view(scope_org, bool(user.get("is_super_admin")))
+    changed = sorted(k for k in submitted if before is None or before.get(k) != saved.get(k))
+    log_audit(user, "platform", "ai_policy_updated", "organization", scope_org,
+              details="changed: " + (", ".join(changed) or "nothing") + ("" if before else " (first policy)"),
+              org_id=scope_org)
+    return _JSONResp({"ok": True, **view})
+
+
+@router.put("/api/admin/ai-governance")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_governance_switch(request: Request, org_id: int = None):
+    """Turn AI Governance on or off for an organization. A platform administrator's decision: it controls what an
+    organization is shown, not what it may do."""
+    from core import ai_rollout
+    user = request.state.user
+    if not user.get("is_super_admin"):
+        return _JSONResp({"ok": False, "error": "Only a platform administrator turns AI Governance on or off."}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+    if not isinstance(body, dict) or not isinstance(body.get("enabled"), bool):
+        return _JSONResp({"ok": False, "error": "Send {\"enabled\": true} or {\"enabled\": false}."}, status_code=400)
+    scope_org, _slug = _ai_policy_scope(user, org_id)
+    before = ai_rollout.is_enabled(scope_org, fresh=True)
+    ai_rollout.set_enabled(scope_org, body["enabled"])
+    log_audit(user, "platform", "ai_governance_switched", "organization", scope_org,
+              details=f"{'on' if before else 'off'} -> {'on' if body['enabled'] else 'off'}", org_id=scope_org)
+    return _JSONResp({"ok": True, "governance": {"enabled": body["enabled"], "chosen": True,
+                                                  "default": ai_rollout.default_enabled(), "can_change": True}})
+
+
+@router.put("/api/admin/ai-decision-separation")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_decision_separation(request: Request, org_id: int = None):
+    """Whether a decision on an AI use needs someone other than the person who asked and the system's owner. On unless an
+    organization turns it off, because one person may be its whole compliance function. Audited, and recorded on every
+    decision made while it is off."""
+    from core import ai_rollout
+    user = request.state.user
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+    if not isinstance(body, dict) or not isinstance(body.get("required"), bool):
+        return _JSONResp({"ok": False, "error": "Send {\"required\": true} or {\"required\": false}."}, status_code=400)
+    scope_org, _slug = _ai_policy_scope(user, org_id)
+    before = ai_rollout.separation_required(scope_org)
+    ai_rollout.set_separation(scope_org, body["required"])
+    log_audit(user, "platform", "ai_decision_separation_changed", "organization", scope_org,
+              details=f"{'on' if before else 'off'} -> {'on' if body['required'] else 'off'}", org_id=scope_org)
+    return _JSONResp({"ok": True, "separation_required": body["required"]})
 
 
 @router.get("/api/admin/security-settings")

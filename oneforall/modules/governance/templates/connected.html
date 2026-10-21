@@ -1,0 +1,54 @@
+{% extends "base_shell.html" %}
+{% block title %}{{ page_title }} | ThemisIQ{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">{{ page_title }}</span>{% endblock %}
+{% block extra_styles %}
+.gc-page{max-width:980px}
+.gc-head{margin-bottom:14px}
+.gc-h1{font-size:22px;font-weight:800;color:var(--text);margin:2px 0 8px}
+.gc-h2{font-size:14px;font-weight:700;color:var(--text);margin:0 0 8px}
+.gc-muted{color:var(--muted);font-size:12px}
+.gc-note{color:var(--muted);font-size:12px;margin:0 0 14px;max-width:70ch}
+.gc-warn{color:#92400e;font-size:13px;margin:0}
+.gc-say{font-size:12px;color:var(--muted);min-height:18px;margin:6px 0}
+.gc-say-bad{color:#b91c1c}
+.gc-facts{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 10px}
+.gc-fact dt{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.gc-fact dd{margin:2px 0 0;font-size:13px;color:var(--text)}
+.gc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px}
+.gc-list{list-style:none;margin:0;padding:0}
+.gc-list>li{padding:8px 0;border-top:1px solid var(--border)}
+.gc-list>li:first-child{border-top:none}
+.gc-row{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+.gc-changes{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text)}
+.gc-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.gc-actions input{flex:1 1 200px;min-width:160px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px}
+.gc-chip{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:100px;background:#e5e7eb;color:#374151}
+.gc-chip-good{background:#dcfce7;color:#166534}
+.gc-chip-warn{background:#fef3c7;color:#92400e}
+.gc-chip-bad{background:#fee2e2;color:#991b1b}
+.gc-chip-muted{background:#e5e7eb;color:#374151}
+[data-theme="dark"] .gc-chip{background:#374151;color:#e5e7eb}
+[data-theme="dark"] .gc-chip-good{background:#14532d;color:#bbf7d0}
+[data-theme="dark"] .gc-chip-warn{background:#78350f;color:#fde68a}
+[data-theme="dark"] .gc-chip-bad{background:#7f1d1d;color:#fecaca}
+[data-theme="dark"] .gc-warn,[data-theme="dark"] .gc-say-bad{color:#fca5a5}
+{% endblock %}
+
+{% block content %}
+<div class="gc-page">
+  {% if page_kind == "entity" %}
+  <div id="gcRoot" data-module="{{ module }}" data-type="{{ entity_type }}" data-id="{{ entity_id }}"></div>
+  {% else %}
+  <h1 class="gc-h1">Changes to look at</h1>
+  <p class="gc-note">A record that others depend on changed. Say whether each connected record needs a second look. Nothing is changed in the record itself, and an earlier decision keeps the basis it was made on.</p>
+  <div id="gcRoot"></div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/governance_connected.js?v=1"></script>
+<script>
+  {% if page_kind == "entity" %}GovConnected.entity(document.getElementById('gcRoot')){% else %}GovConnected.changes(document.getElementById('gcRoot')){% endif %};
+</script>
+{% endblock %}

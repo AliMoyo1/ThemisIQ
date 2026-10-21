@@ -10,11 +10,15 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from core.timeutils import utcnow, to_dt
+from core.change_watch import watched
 
 from database import get_db, insert_returning_id, sql_current_date, get_current_org
+from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
+from modules.governance.entity_scope import entity_scope_sql
 
 
 import re as _re
+from core.best_effort import swallowed
 
 # helpers
 def _dict(row):
@@ -104,7 +108,7 @@ def seed_frameworks():
             if added:
                 db.commit()
         except Exception:
-            pass  # unified frameworks table may not exist yet
+            swallowed("seed_frameworks (frameworks)")  # unified frameworks table may not exist yet
     finally:
         db.close()
 
@@ -141,9 +145,12 @@ def list_audits(bu_scope=None):
         where_sql = ""
         params: list = []
         if bu_scope is not None:
-            ph = ",".join(["%s"] * len(bu_scope))
-            where_sql = f" WHERE (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
-            params = list(bu_scope)
+            if bu_scope:
+                ph = ",".join(["%s"] * len(bu_scope))
+                where_sql = f" WHERE (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+                params = list(bu_scope)
+            else:
+                where_sql = " WHERE a.business_unit_id IS NULL"
         rows = _dicts(db.execute(
             "SELECT a.*, f.name AS framework_name, f.color AS framework_color, "
             "u.full_name AS lead_name, "
@@ -258,16 +265,27 @@ def get_incident_source_for_audit(audit_id):
         db.close()
 
 
-def get_aria_policy_titles():
-    """Return a list of ARIA policy titles for AI matching."""
+def get_aria_policy_titles(actor=None):
+    """Return a list of ARIA policy titles for AI matching, scoped to the
+    calling user's org/BU (PLAN-35 T08, section 10.2) so one organization's
+    policy titles never enter another's AI-generated content. actor=None
+    is kept only for callers that predate this scoping and returns []
+    rather than silently falling back to an unscoped, cross-tenant query."""
+    if actor is None:
+        return []
     db = get_db()
     try:
+        from modules.aria.policy_access import document_scope_sql
+        scope_sql, scope_params = document_scope_sql(actor)
         rows = db.execute(
-            "SELECT title FROM aria_documents WHERE status IN ('Approved','Published','Active') "
-            "ORDER BY title"
+            f"SELECT title FROM aria_documents "
+            f"WHERE status IN ('Approved','Published','Active') AND {scope_sql} "
+            f"ORDER BY title",
+            scope_params
         ).fetchall()
         return [r["title"] for r in rows]
     except Exception:
+        swallowed("get_aria_policy_titles (aria_documents)")
         return []
     finally:
         db.close()
@@ -282,26 +300,31 @@ def get_active_regulations():
         ).fetchall()
         return [r["name"] for r in rows]
     except Exception:
+        swallowed("get_active_regulations (frameworks)")
         return []
     finally:
         db.close()
 
 
-def search_vault_for_evidence(evidence_names):
-    """Search the Evidence Vault for items matching a list of evidence item names.
+def search_vault_for_evidence(user, evidence_names):
+    """Search the Evidence Vault, within the user's scope, for items matching each evidence item name.
 
     Returns a dict: {evidence_name: [{id, title, category, status}]}
     """
+    scope_sql, scope_params = evidence_scope_sql(user)
     db = get_db()
     try:
         result = {}
         for name in evidence_names:
-            q = "%" + name.strip() + "%"
+            if not name.strip():
+                result[name] = []
+                continue
+            search_sql, search_params = evidence_search_sql(name)
             rows = db.execute(
-                "SELECT id, title, category, status FROM evidence_items "
-                "WHERE status != 'archived' AND (title LIKE %s OR tags LIKE %s) "
-                "ORDER BY updated_at DESC LIMIT 3",
-                (q, q)
+                "SELECT e.id, e.title, e.category, e.status FROM evidence_items e "
+                f"WHERE {current_library_sql()} AND {search_sql} AND {scope_sql} "
+                "ORDER BY e.updated_at DESC, e.id DESC LIMIT 3",
+                [*search_params, *scope_params],
             ).fetchall()
             result[name] = [dict(r) for r in rows]
         return result
@@ -324,12 +347,12 @@ def create_audit(data):
 
         aid = insert_returning_id(db,
             "INSERT INTO grid_audits (name, framework_id, audit_type, auditor, lead_id, start_date, end_date, audit_date,"
-            " scope, objective, criteria, methodology, is_integrated, framework_ids) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " scope, objective, criteria, methodology, is_integrated, framework_ids, business_unit_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (data.get("name", "Untitled Audit"), data.get("framework_id"), data.get("audit_type", "External"),
              data.get("auditor"), data.get("lead_id"), data.get("start_date"), data.get("end_date"),
              data.get("audit_date"), data.get("scope", ""), data.get("objective", ""),
              data.get("criteria", ""), data.get("methodology", ""),
-             is_integrated, framework_ids_json))
+             is_integrated, framework_ids_json, data.get("business_unit_id")))
         grid_fw_id = data.get("framework_id")
 
         # ── Auto-populate controls ───────────────────────────────────────────
@@ -397,8 +420,9 @@ def create_audit(data):
                         continue
                     is_mapped = db.execute(
                         "SELECT 1 FROM aria_control_mappings "
-                        "WHERE (source_control_id=%s AND target_control_id=%s) "
-                        "   OR (source_control_id=%s AND target_control_id=%s) LIMIT 1",
+                        "WHERE ((source_control_id=%s AND target_control_id=%s) "
+                        "   OR (source_control_id=%s AND target_control_id=%s)) "
+                        "AND mapping_type IN ('equivalent','ims_equivalent') LIMIT 1",
                         (ctrl_a[0], ctrl_b[0], ctrl_b[0], ctrl_a[0])
                     ).fetchone()
                     if is_mapped:
@@ -435,6 +459,7 @@ def is_audit_locked(audit_id, db=None):
     own_db = db is None
     if own_db:
         db = get_db()
+    dest = None
     try:
         row = db.execute("SELECT is_locked FROM grid_audits WHERE id=%s", (audit_id,)).fetchone()
         return bool(row and row[0])
@@ -449,6 +474,7 @@ def _assert_not_locked(audit_id, db=None):
         raise ValueError("Audit is locked and cannot be modified")
 
 
+@watched("grid", "audit")
 def update_audit(aid, data):
     db = get_db()
     try:
@@ -494,14 +520,18 @@ def delete_audit(aid):
         db.close()
 
 
-def list_controls(audit_id=None, status=None, risk_level=None):
+def list_controls(audit_id=None, status=None, risk_level=None, bu_scope=None):
     db = get_db()
     try:
         q = """SELECT c.*, u.full_name AS assignee_name,
                (SELECT COUNT(*) FROM grid_evidence_items WHERE control_id=c.id) AS evidence_total,
                (SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=c.id) AS evidence_uploaded
-               FROM grid_controls c LEFT JOIN users u ON c.assignee_id=u.id WHERE 1=1"""
+               FROM grid_controls c JOIN grid_audits a ON a.id=c.audit_id LEFT JOIN users u ON c.assignee_id=u.id WHERE 1=1"""
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join("%s" for _ in bu_scope)
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id:
             q += " AND c.audit_id=%s"; params.append(audit_id)
         if status:
@@ -572,6 +602,7 @@ def create_controls_bulk(audit_id, framework_id, controls):
     finally:
         db.close()
 
+@watched("grid", "control")
 def update_control(cid, data):
     db = get_db()
     try:
@@ -591,7 +622,7 @@ def update_control(cid, data):
     finally:
         db.close()
 
-def _auto_status_control(db, cid, explicit_status=None):
+def _auto_status_control(db, cid, explicit_status=None, *, commit=True):
     """Auto-progress a control's status based on evidence state.
 
     Completion logic:
@@ -624,18 +655,22 @@ def _auto_status_control(db, cid, explicit_status=None):
         ).fetchone()[0]
         if items_with_approval >= items_required:
             db.execute("UPDATE grid_controls SET status='Complete' WHERE id=%s AND status != 'Complete'", (cid,))
-            db.commit()
+            if commit:
+                db.commit()
         elif files_total > 0:
-            db.execute("UPDATE grid_controls SET status='In Progress' WHERE id=%s AND status NOT IN ('Complete','In Progress')", (cid,))
-            db.commit()
+            db.execute("UPDATE grid_controls SET status='In Progress' WHERE id=%s AND status != 'In Progress'", (cid,))
+            if commit:
+                db.commit()
     else:
         # No explicit items — all files must be approved
         if files_total > 0 and files_approved >= files_total:
             db.execute("UPDATE grid_controls SET status='Complete' WHERE id=%s AND status != 'Complete'", (cid,))
-            db.commit()
+            if commit:
+                db.commit()
         elif files_total > 0:
-            db.execute("UPDATE grid_controls SET status='In Progress' WHERE id=%s AND status NOT IN ('Complete','In Progress')", (cid,))
-            db.commit()
+            db.execute("UPDATE grid_controls SET status='In Progress' WHERE id=%s AND status != 'In Progress'", (cid,))
+            if commit:
+                db.commit()
 
 def delete_control(cid):
     db = get_db()
@@ -644,7 +679,7 @@ def delete_control(cid):
             "SELECT id, file_path FROM grid_evidence_files WHERE control_id=%s", (cid,)
         ).fetchall()
         eids       = [r[0] for r in file_rows]
-        file_paths = [r[1] for r in file_rows if r[1] and not str(r[1]).startswith("aria://")]
+        file_paths = [r[1] for r in file_rows if r[1] and not str(r[1]).startswith(("aria://", "vault://"))]
 
         for eid in eids:
             db.execute("DELETE FROM grid_approvals WHERE evidence_id=%s", (eid,))
@@ -658,10 +693,12 @@ def delete_control(cid):
     finally:
         db.close()
 
+    import os
+    root = Path(os.getenv("GRID_UPLOAD_DIR", "data/grid_uploads")).resolve()
     for fp_str in file_paths:
         try:
-            p = Path(fp_str)
-            if p.exists():
+            p = Path(fp_str).resolve()
+            if p.is_relative_to(root) and p.is_file():
                 p.unlink()
         except OSError:
             pass
@@ -789,6 +826,7 @@ def create_evidence_file(data):
                 )
                 db.commit()
                 _auto_status_control(db, existing["control_id"])
+                sync_grid_evidence_to_vault(replace_id)
                 return replace_id
 
         # ── Fresh upload ────────────────────────────────────────────────────
@@ -810,18 +848,164 @@ def create_evidence_file(data):
         db.close()
 
 
-def get_evidence_versions(evidence_id):
+def create_vault_backed_evidence_file(data: dict, content: bytes, user: dict) -> tuple[int, int]:
+    """Store one immutable Vault file and its GRID review reference atomically.
+
+    GRID retains approval decisions. Replacing a version proposes fresh Vault
+    links for review and never carries forward a prior approval.
+    """
+    import re
+    from modules.evidence import proof, storage
+    from modules.governance.entity_scope import entity_scope_sql
+
+    info = storage.describe(content, data.get("original_name"), data.get("mime_type"),
+                            max_bytes=50 * 1024 * 1024)
+    org_id = user.get("org_id") or get_current_org()
+    if not org_id:
+        raise ValueError("Select an organization first")
+    if len(data.get("notes") or "") > 4000:
+        raise ValueError("Notes exceed the allowed length")
+    expires_at = data.get("expires_at") or None
+    if expires_at:
+        try:
+            expires_at = datetime.strptime(expires_at, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Write expiry as YYYY-MM-DD") from None
+    db = get_db()
+    stored_path = None
+    try:
+        control_scope, scope_params = entity_scope_sql(("grid", "control"), user, "c")
+        control = db.execute(
+            "SELECT c.id, c.audit_id, a.business_unit_id FROM grid_controls c "
+            f"JOIN grid_audits a ON a.id=c.audit_id WHERE c.id=%s AND {control_scope}",
+            [data["control_id"], *scope_params],
+        ).fetchone()
+        if control is None:
+            raise LookupError("Control not found")
+        if data.get("evidence_item_id"):
+            checklist = db.execute(
+                "SELECT 1 FROM grid_evidence_items WHERE id=%s AND control_id=%s",
+                (data["evidence_item_id"], control["id"]),
+            ).fetchone()
+            if checklist is None:
+                raise LookupError("Evidence item not found")
+        previous = None
+        previous_vault = None
+        if data.get("replace_id"):
+            previous = db.execute(
+                "SELECT * FROM grid_evidence_files WHERE id=%s AND control_id=%s",
+                (data["replace_id"], control["id"]),
+            ).fetchone()
+            if previous is None:
+                raise LookupError("Evidence file not found")
+            match = re.fullmatch(r"vault://([1-9][0-9]*)", previous["file_path"] or "")
+            if match:
+                vault_scope, vault_params = evidence_scope_sql(user)
+                previous_vault = db.execute(
+                    f"SELECT e.id, e.version, e.owner_user_id FROM evidence_items e "
+                    f"WHERE e.id=%s AND e.org_id=%s AND {vault_scope}",
+                    [int(match.group(1)), org_id, *vault_params],
+                ).fetchone()
+                if previous_vault is None:
+                    raise LookupError("Vault item not found")
+        stored_name, stored_path = storage.write(content, info["extension"])
+        version = previous_vault["version"] + 1 if previous_vault else 1
+        mime = info["mime_type"]
+        category = ("report" if mime == "application/pdf" else
+                    "screenshot" if mime.startswith("image/") else "general")
+        vault_id = insert_returning_id(db,
+            "INSERT INTO evidence_items "
+            "(title, description, file_path, file_name, file_size, file_hash, mime_type, "
+            "category, tags, status, expiry_date, uploaded_by, org_id, business_unit_id, "
+            "owner_user_id, version, parent_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (info["original_name"], "GRID control evidence", stored_name, info["original_name"],
+             info["file_size"], info["file_hash"], mime, category, "grid,audit",
+             "current", expires_at, user["id"], org_id, control["business_unit_id"],
+             previous_vault["owner_user_id"] if previous_vault else user["id"],
+             version, previous_vault["id"] if previous_vault else None))
+        if previous_vault:
+            db.execute("UPDATE evidence_items SET status='superseded', updated_at=CURRENT_TIMESTAMP "
+                       "WHERE id=%s", (previous_vault["id"],))
+            proof.carry_forward(db, user, previous_vault["id"], vault_id)
+        for entity_type, entity_id in (("control", control["id"]), ("audit", control["audit_id"])):
+            present = db.execute(
+                "SELECT id FROM evidence_links WHERE evidence_id=%s AND module='grid' "
+                "AND entity_type=%s AND entity_id=%s AND deleted_at IS NULL",
+                (vault_id, entity_type, entity_id),
+            ).fetchone()
+            if present is None:
+                db.execute(
+                    "INSERT INTO evidence_links (evidence_id,module,entity_type,entity_id,linked_by) "
+                    "VALUES (%s,'grid',%s,%s,%s)",
+                    (vault_id, entity_type, entity_id, user["id"]),
+                )
+        if previous:
+            db.execute(
+                "INSERT INTO grid_evidence_versions "
+                "(evidence_id,version,filename,original_name,file_path,file_size,mime_type,"
+                "uploaded_by,status,approved_by,approved_at,notes,created_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (previous["id"], previous["version"], previous["filename"],
+                 previous["original_name"], previous["file_path"], previous["file_size"],
+                 previous["mime_type"], previous["uploaded_by"], previous["status"],
+                 previous["approved_by"], previous["approved_at"], previous["notes"],
+                 previous["created_at"]),
+            )
+            grid_id = previous["id"]
+            db.execute(
+                "UPDATE grid_evidence_files SET filename=%s,original_name=%s,file_path=%s,"
+                "file_size=%s,mime_type=%s,uploaded_by=%s,notes=%s,version=%s,"
+                "status='Uploaded',approved_by=NULL,approved_at=NULL,expiry_notified=0,"
+                "expires_at=%s,created_at=CURRENT_TIMESTAMP WHERE id=%s",
+                (stored_name, info["original_name"], f"vault://{vault_id}", info["file_size"],
+                 mime, user["id"], data.get("notes"), (previous["version"] or 1) + 1,
+                 expires_at, grid_id),
+            )
+        else:
+            grid_id = insert_returning_id(db,
+                "INSERT INTO grid_evidence_files "
+                "(control_id,evidence_item_id,filename,original_name,file_path,file_size,"
+                "mime_type,uploaded_by,notes,expires_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (control["id"], data.get("evidence_item_id"), stored_name,
+                 info["original_name"], f"vault://{vault_id}", info["file_size"], mime,
+                 user["id"], data.get("notes"), expires_at),
+            )
+        _auto_status_control(db, control["id"], commit=False)
+        db.commit()
+        stored_path = None  # the committed Vault row now owns these bytes
+        return grid_id, vault_id
+    except Exception:
+        db.rollback()
+        if stored_path is not None:
+            stored_path.unlink(missing_ok=True)
+        raise
+    finally:
+        db.close()
+
+
+def get_evidence_versions(evidence_id, org_id):
     """Return version history (oldest first) for an evidence file."""
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT ev.*, u.full_name AS uploader_name "
+            "SELECT ev.*, u.full_name AS uploader_name, x.vault_evidence_id "
             "FROM grid_evidence_versions ev "
             "LEFT JOIN users u ON ev.uploaded_by = u.id "
+            "LEFT JOIN evidence_file_crosswalk x ON x.module='grid_version' "
+            "AND x.source_id=ev.id AND x.org_id=%s "
             "WHERE ev.evidence_id = %s ORDER BY ev.version ASC",
-            (evidence_id,),
+            (org_id, evidence_id),
         ).fetchall()
-        return _dicts(rows)
+        versions = _dicts(rows)
+        for version in versions:
+            path = version.pop("file_path") or ""
+            version["storage_state"] = ("vault" if path.startswith("vault://")
+                                        else "legacy_needs_migration")
+            if version["storage_state"] == "vault" and version["vault_evidence_id"] is None:
+                pointer = path.removeprefix("vault://")
+                version["vault_evidence_id"] = int(pointer) if pointer.isascii() and pointer.isdigit() else None
+        return versions
     finally:
         db.close()
 
@@ -846,13 +1030,58 @@ def approve_evidence(eid, status, approved_by):
 def delete_evidence_file(eid):
     db = get_db()
     try:
+        file = db.execute(
+            "SELECT ef.control_id, ef.status, ef.notes, c.audit_id "
+            "FROM grid_evidence_files ef JOIN grid_controls c ON c.id=ef.control_id "
+            "WHERE ef.id=%s", (eid,)
+        ).fetchone()
+        if not file:
+            raise ValueError("Evidence file not found")
+        versioned = db.execute(
+            "SELECT 1 FROM grid_evidence_versions WHERE evidence_id=%s LIMIT 1", (eid,)
+        ).fetchone()
+        if str(file["status"] or "").lower() == "approved" or versioned:
+            raise ValueError("Reviewed or versioned evidence must be retained")
         db.execute("DELETE FROM grid_approvals WHERE evidence_id=%s", (eid,))
-        # Clean up central vault entries synced from this file.
-        # evidence_links cascades via FK when evidence_items rows are deleted.
-        db.execute(
-            "DELETE FROM evidence_items WHERE tags LIKE %s",
-            (f"%grid_evidence_id={eid}%",)
-        )
+        # Preserve the canonical Vault artifact and its history. Only the GRID
+        # claim is removed; a reused artifact can still support other claims.
+        tag = f"grid_evidence_id={eid}"
+        mirrored = db.execute(
+            "SELECT id FROM evidence_items WHERE tags LIKE %s OR tags LIKE %s",
+            (f"%{tag},%", f"%{tag}"),
+        ).fetchall()
+        marker = _re.match(r"^From Evidence Vault \(vault_evidence_id=([1-9][0-9]*),", file["notes"] or "")
+        ids = {row["id"] for row in mirrored}
+        if marker:
+            ids.add(int(marker.group(1)))
+        for vault_id in ids:
+            db.execute(
+                "UPDATE evidence_links SET deleted_at=CURRENT_TIMESTAMP "
+                "WHERE evidence_id=%s AND module='grid' AND entity_type='control' "
+                "AND entity_id=%s AND deleted_at IS NULL",
+                (vault_id, file["control_id"]),
+            )
+            remaining_grid = db.execute(
+                "SELECT 1 FROM evidence_links WHERE evidence_id=%s AND module='grid' "
+                "AND entity_type='control' AND deleted_at IS NULL LIMIT 1", (vault_id,)
+            ).fetchone()
+            if not remaining_grid:
+                db.execute(
+                    "UPDATE evidence_links SET deleted_at=CURRENT_TIMESTAMP "
+                    "WHERE evidence_id=%s AND module='grid' AND entity_type='audit' "
+                    "AND entity_id=%s AND deleted_at IS NULL",
+                    (vault_id, file["audit_id"]),
+                )
+        for row in mirrored:
+            live = db.execute(
+                "SELECT 1 FROM evidence_links WHERE evidence_id=%s AND deleted_at IS NULL LIMIT 1",
+                (row["id"],),
+            ).fetchone()
+            if not live:
+                db.execute(
+                    "UPDATE evidence_items SET status='archived' WHERE id=%s AND status!='archived'",
+                    (row["id"],),
+                )
         db.execute("DELETE FROM grid_evidence_files WHERE id=%s", (eid,))
         db.commit()
     finally:
@@ -900,7 +1129,13 @@ _NC_STATUSES   = {"open", "closed"}
 _NC_SEVERITIES = {"minor", "major", "critical"}
 
 
-def list_ncs(audit_id=None, status=None, cap_status=None):
+def list_ncs(audit_id=None, status=None, cap_status=None, bu_scope=None):
+    """bu_scope is applied via the NC's own (NOT NULL) parent audit's
+    business_unit_id -- grid_non_conformances has no BU column of its own
+    and needs none: audit_id is a required FK, so this join is always valid
+    for every row, present or future, with no backfill risk (unlike
+    bcm_incidents/sentinel_dsr in this same finding, F16, which had no
+    reliable column to scope through at all)."""
     db = get_db()
     try:
         q = (
@@ -927,12 +1162,20 @@ def list_ncs(audit_id=None, status=None, cap_status=None):
         if cap_status:
             q += " AND nc.cap_status=%s"
             params.append(cap_status)
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+            params.extend(bu_scope)
         q += " ORDER BY nc.created_at DESC"
         return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
-def get_nc(ncid):
+def get_nc(ncid, bu_scope=None):
+    """Returns None both when ncid doesn't exist and when its parent audit
+    is outside bu_scope, so a 404 built from this never confirms another
+    BU's NC id is real (same fail-closed shape as
+    modules/evidence/routes.py's _scoped_evidence_item)."""
     db = get_db()
     try:
         nc = _dict(db.execute(
@@ -940,7 +1183,7 @@ def get_nc(ncid):
             "v.full_name AS verified_by_name, "
             "m.full_name AS mgmt_response_by_name, "
             "c.control_id AS ctrl_ref, c.name AS control_name, "
-            "a.name AS audit_name "
+            "a.name AS audit_name, a.business_unit_id AS audit_business_unit_id "
             "FROM grid_non_conformances nc "
             "LEFT JOIN users u ON nc.assigned_to=u.id "
             "LEFT JOIN users v ON nc.verified_by=v.id "
@@ -948,7 +1191,11 @@ def get_nc(ncid):
             "LEFT JOIN grid_controls c ON nc.control_id=c.id "
             "LEFT JOIN grid_audits a ON nc.audit_id=a.id "
             "WHERE nc.id=%s", (ncid,)).fetchone())
-        return nc
+        if nc is None or bu_scope is None:
+            return nc
+        if nc.get("audit_business_unit_id") is None or nc["audit_business_unit_id"] in bu_scope:
+            return nc
+        return None
     finally:
         db.close()
 
@@ -971,7 +1218,13 @@ def create_nc(data):
     finally:
         db.close()
 
-def update_nc(ncid, data):
+@watched("grid", "nc")
+def update_nc(ncid, data, bu_scope=None):
+    """No-ops (returns False) if ncid's parent audit is outside bu_scope,
+    mirroring get_nc's fail-closed check -- callers must treat False as
+    HTTPException(404), never apply data anyway."""
+    if bu_scope is not None and get_nc(ncid, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         # Check if parent audit is locked
@@ -1011,6 +1264,7 @@ def update_nc(ncid, data):
                 vals,
             )
             db.commit()
+        return True
     finally:
         db.close()
 
@@ -1125,12 +1379,16 @@ def submit_mgmt_response(ncid, user_id, status, response_text=None, response_dea
         db.close()
 
 
-def delete_nc(ncid):
+def delete_nc(ncid, bu_scope=None):
+    """Returns False (caller 404s) if ncid's parent audit is outside bu_scope."""
+    if bu_scope is not None and get_nc(ncid, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         db.execute("DELETE FROM grid_nc_evidence WHERE nc_id=%s", (ncid,))
         db.execute("DELETE FROM grid_non_conformances WHERE id=%s", (ncid,))
         db.commit()
+        return True
     finally:
         db.close()
 
@@ -1267,6 +1525,7 @@ def create_vendor(data):
     finally:
         db.close()
 
+@watched("grid", "vendor")
 def update_vendor(vid, data):
     db = get_db()
     try:
@@ -1302,28 +1561,51 @@ def create_vendor_assessment(vid, data):
         db.close()
 
 
-def bulk_approve_evidence(eids, status, approved_by):
-    """Approve or reject multiple evidence files at once."""
+def bulk_approve_evidence(eids, status, approved_by, bu_scope=None):
+    """Approve or reject multiple evidence files at once.
+
+    PLAN-36 P06 discovery found this took the posted id list on trust with
+    no ownership/BU check at all -- any holder of grid.evidence.approve
+    could approve/reject any evidence file company-wide by id, regardless
+    of which audit/business unit it actually belongs to. Scoped the same
+    way grid_non_conformances' fix (F16, this session) scopes NCs: through
+    the evidence file's control's parent audit's business_unit_id (no new
+    column, control_id/audit_id are both required FKs so the join is
+    always valid). Silently skips (never applies) an out-of-scope id
+    rather than raising, since this is a bulk operation over a
+    caller-controlled list -- the caller only learns the true count
+    applied."""
     db = get_db()
     try:
         control_ids = set()
+        applied = 0
         for eid in eids:
+            if bu_scope is not None:
+                row = db.execute(
+                    "SELECT a.business_unit_id FROM grid_evidence_files ef "
+                    "JOIN grid_controls c ON ef.control_id = c.id "
+                    "JOIN grid_audits a ON c.audit_id = a.id WHERE ef.id=%s",
+                    (eid,),
+                ).fetchone()
+                if not row or (row["business_unit_id"] is not None and row["business_unit_id"] not in bu_scope):
+                    continue
             db.execute(
                 "UPDATE grid_evidence_files SET status=%s, approved_by=%s, approved_at=CURRENT_TIMESTAMP WHERE id=%s",
                 (status, approved_by, eid),
             )
+            applied += 1
             ef = db.execute("SELECT control_id FROM grid_evidence_files WHERE id=%s", (eid,)).fetchone()
             if ef:
                 control_ids.add(ef[0])
         db.commit()
         for cid in control_ids:
             _auto_status_control(db, cid)
-        return len(eids)
+        return applied
     finally:
         db.close()
 
 
-def get_all_evidence(audit_id=None, status=None, mime_type=None):
+def get_all_evidence(audit_id=None, status=None, mime_type=None, bu_scope=None, user=None):
     """Return all evidence files across audits, with control/audit context."""
     db = get_db()
     try:
@@ -1333,11 +1615,19 @@ def get_all_evidence(audit_id=None, status=None, mime_type=None):
             "a.name AS audit_name, a.status AS audit_status "
             "FROM grid_evidence_files ef "
             "LEFT JOIN users u ON ef.uploaded_by=u.id "
-            "LEFT JOIN grid_controls c ON ef.control_id=c.id "
-            "LEFT JOIN grid_audits a ON c.audit_id=a.id "
+            "JOIN grid_controls c ON ef.control_id=c.id "
+            "JOIN grid_audits a ON c.audit_id=a.id "
             "WHERE 1=1"
         )
         params = []
+        if user is not None:
+            scope_sql, scope_params = entity_scope_sql(("grid", "audit"), user, "a")
+            q += f" AND {scope_sql}"
+            params.extend(scope_params)
+        elif bu_scope is not None:
+            placeholders = ",".join("%s" for _ in bu_scope)
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id:
             q += " AND c.audit_id=%s"
             params.append(audit_id)
@@ -1508,17 +1798,31 @@ def decide_approval(approval_id, status, comments=None):
         db.close()
 
 
-def list_mappings(audit_id):
+def list_mappings(audit_id, bu_scope=None):
+    """List cross-mappings touching this audit. When bu_scope is given, a
+    mapping is only returned if BOTH sides' audits are in scope -- the
+    caller's own audit_id being in scope (checked by the route) does not by
+    itself clear the OTHER side of the mapping, which may belong to a
+    different, out-of-scope business unit's audit."""
     db = get_db()
     try:
-        return _dicts(db.execute("""
+        q = """
             SELECT m.*, s.name AS source_name, s.control_id AS source_ctrl_id,
                    t.name AS target_name, t.control_id AS target_ctrl_id
             FROM grid_control_mappings m
             JOIN grid_controls s ON m.source_control_id=s.id
+            JOIN grid_audits sa ON sa.id=s.audit_id
             JOIN grid_controls t ON m.target_control_id=t.id
-            WHERE s.audit_id=%s OR t.audit_id=%s
-        """, (audit_id, audit_id)).fetchall())
+            JOIN grid_audits ta ON ta.id=t.audit_id
+            WHERE (s.audit_id=%s OR t.audit_id=%s)
+        """
+        params = [audit_id, audit_id]
+        if bu_scope is not None:
+            placeholders = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (sa.business_unit_id IS NULL OR sa.business_unit_id IN ({placeholders}))"
+            q += f" AND (ta.business_unit_id IS NULL OR ta.business_unit_id IN ({placeholders}))"
+            params += list(bu_scope) + list(bu_scope)
+        return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
@@ -1570,13 +1874,18 @@ def list_share_links(audit_id):
     finally:
         db.close()
 
-def validate_share_link(token):
+def validate_share_link(token, recipient_email=None):
     db = get_db()
     try:
         link = _dict(db.execute("SELECT * FROM grid_share_links WHERE token=%s AND active=1", (token,)).fetchone())
         if not link:
             return None
         if link.get("expires_at") and to_dt(link["expires_at"]) < utcnow():
+            return None
+        invited_email = (link.get("auditor_email") or "").strip()
+        if invited_email and (
+            not recipient_email or invited_email.casefold() != recipient_email.casefold()
+        ):
             return None
         db.execute("UPDATE grid_share_links SET access_count=access_count+1 WHERE id=%s", (link["id"],))
         db.commit()
@@ -1710,8 +2019,8 @@ def create_report(data):
         db.close()
 
 
-def list_reports(audit_id=None, limit=50):
-    """List saved reports, optionally filtered by audit."""
+def list_reports(audit_id=None, limit=50, bu_scope=None):
+    """List saved reports, optionally filtered by audit and/or BU scope."""
     db = get_db()
     try:
         q = (
@@ -1723,6 +2032,10 @@ def list_reports(audit_id=None, limit=50):
             "WHERE 1=1"
         )
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id is not None:
             q += " AND r.audit_id=%s"
             params.append(audit_id)
@@ -1786,8 +2099,8 @@ def create_followup_audit(parent_audit_id, data):
             "INSERT INTO grid_audits "
             "(name, framework_id, audit_type, auditor, lead_id, start_date, "
             " end_date, audit_date, scope, objective, criteria, methodology, "
-            " parent_audit_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " parent_audit_id, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 name, fw_id, audit_type,
                 data.get("auditor") or parent.get("auditor"),
@@ -1799,6 +2112,7 @@ def create_followup_audit(parent_audit_id, data):
                 data.get("criteria", parent.get("criteria", "")),
                 data.get("methodology", parent.get("methodology", "")),
                 parent_audit_id,
+                parent.get("business_unit_id"),
             ),
         )
 
@@ -2159,14 +2473,20 @@ def unlock_audit(audit_id):
 # Audit program dashboard data
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_program_dashboard():
-    """
-    Multi-audit program overview: overall compliance posture,
-    per-audit stats, NC summary, trend data.
-    """
+def get_program_dashboard(bu_scope=None):
+    """Multi-audit posture, findings, and trends within the caller's BU scope."""
     db = get_db()
     try:
-        # Per-audit stats
+        scope_sql = "1=1"
+        scope_params = []
+        if bu_scope is not None:
+            if bu_scope:
+                placeholders = ",".join(["%s"] * len(bu_scope))
+                scope_sql = f"(a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+                scope_params = list(bu_scope)
+            else:
+                scope_sql = "a.business_unit_id IS NULL"
+
         audits = _dicts(db.execute(f"""
             SELECT a.id, a.name, a.status, a.audit_date, a.is_locked,
                    a.parent_audit_id,
@@ -2180,38 +2500,39 @@ def get_program_dashboard():
             LEFT JOIN grid_frameworks f ON a.framework_id=f.id
             LEFT JOIN users u ON a.lead_id=u.id
             LEFT JOIN grid_controls c ON c.audit_id=a.id
+            WHERE {scope_sql}
             GROUP BY a.id, a.name, a.status, a.audit_date, a.is_locked,
                      a.parent_audit_id, a.created_at
             ORDER BY a.created_at DESC
-        """).fetchall())
+        """, scope_params).fetchall())
 
-        for a in audits:
-            t = a.get("total_controls") or 0
-            c = a.get("complete_controls") or 0
-            a["completion_pct"] = round(c / t * 100) if t > 0 else 0
+        for audit in audits:
+            total = audit.get("total_controls") or 0
+            complete = audit.get("complete_controls") or 0
+            audit["completion_pct"] = round(complete / total * 100) if total else 0
 
-        # Aggregate totals
-        total_controls = sum(a.get("total_controls", 0) for a in audits)
-        complete_controls = sum(a.get("complete_controls", 0) for a in audits)
-        overdue_controls = sum(a.get("overdue_controls", 0) for a in audits)
+        total_controls = sum(a.get("total_controls") or 0 for a in audits)
+        complete_controls = sum(a.get("complete_controls") or 0 for a in audits)
+        overdue_controls = sum(a.get("overdue_controls") or 0 for a in audits)
         overall_pct = round(complete_controls / total_controls * 100) if total_controls else 0
 
-        # NC summary across all audits
-        nc_stats = _dict(db.execute("""
+        nc_stats = _dict(db.execute(f"""
             SELECT COUNT(*) AS total_ncs,
-                   SUM(CASE WHEN status='closed' OR cap_status='Closed' THEN 1 ELSE 0 END) AS closed_ncs,
-                   SUM(CASE WHEN severity IN ('critical','major') AND status!='closed'
-                       AND cap_status NOT IN ('Closed','Verification') THEN 1 ELSE 0 END) AS critical_open
-            FROM grid_non_conformances
-        """).fetchone()) or {}
+                   SUM(CASE WHEN nc.status='closed' OR nc.cap_status='Closed' THEN 1 ELSE 0 END) AS closed_ncs,
+                   SUM(CASE WHEN nc.severity IN ('critical','major') AND nc.status!='closed'
+                       AND nc.cap_status NOT IN ('Closed','Verification') THEN 1 ELSE 0 END) AS critical_open
+            FROM grid_non_conformances nc
+            JOIN grid_audits a ON a.id=nc.audit_id
+            WHERE {scope_sql}
+        """, scope_params).fetchone()) or {}
 
-        # Compliance score trend (last 30 snapshots per audit)
-        trends = _dicts(db.execute("""
+        trends = _dicts(db.execute(f"""
             SELECT cs.audit_id, a.name AS audit_name, cs.score, cs.created_at
             FROM grid_compliance_scores cs
             JOIN grid_audits a ON cs.audit_id=a.id
+            WHERE {scope_sql}
             ORDER BY cs.created_at DESC LIMIT 180
-        """).fetchall())
+        """, scope_params).fetchall())
 
         return {
             "total_audits": len(audits),
@@ -2219,9 +2540,9 @@ def get_program_dashboard():
             "complete_controls": complete_controls,
             "overdue_controls": overdue_controls,
             "overall_pct": overall_pct,
-            "nc_total": nc_stats.get("total_ncs", 0),
-            "nc_closed": nc_stats.get("closed_ncs", 0),
-            "nc_critical_open": nc_stats.get("critical_open", 0),
+            "nc_total": nc_stats.get("total_ncs") or 0,
+            "nc_closed": nc_stats.get("closed_ncs") or 0,
+            "nc_critical_open": nc_stats.get("critical_open") or 0,
             "audits": audits,
             "score_trends": trends,
         }
@@ -2229,14 +2550,21 @@ def get_program_dashboard():
         db.close()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+
 # ARIA policy integration
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_aria_policies(framework_name=None, control_ref=None, status="Approved"):
+def list_aria_policies(framework_name=None, control_ref=None, status="Approved", actor=None):
     """
     Fetch approved ARIA documents available for linking as GRID evidence.
     Optionally filter by framework name and control ref.
+
+    actor=None preserves the old unscoped (platform-wide) behavior for any
+    pre-existing internal caller; every HTTP-reachable caller must pass the
+    requesting user so results are scoped to their org/BU (PLAN-35 T08,
+    section 10.2) -- otherwise this picker offers every organization's
+    approved policies for linking as if they were the caller's own.
     """
     db = get_db()
     try:
@@ -2255,26 +2583,43 @@ def list_aria_policies(framework_name=None, control_ref=None, status="Approved")
         if control_ref:
             q += " AND (',' || control_ref || ',') LIKE %s"
             params.append("%," + control_ref + ",%")
+        if actor is not None:
+            from modules.aria.policy_access import document_scope_sql
+            scope_sql, scope_params = document_scope_sql(actor)
+            q += f" AND {scope_sql}"
+            params += scope_params
         q += " ORDER BY framework, control_ref, title"
         return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
 
-def attach_aria_policy_as_evidence(control_id, aria_doc_id, user_id):
+def attach_aria_policy_as_evidence(control_id, aria_doc_id, user_id, actor=None):
     """
     Create a grid_evidence_file record pointing to an ARIA policy document.
     Returns the evidence file id, or None if the ARIA doc doesn't exist.
+
+    actor=None preserves the old behavior for internal/system callers (the
+    auto-attach flows, which discover aria_doc_id by matching the document's
+    own framework/control_ref rather than accepting caller-supplied input).
+    A real HTTP caller must pass the requesting user's actor dict so an
+    out-of-scope document id cannot be attached by guessing/enumerating ids
+    (PLAN-35 T08, section 10.2).
     """
     db = get_db()
     try:
         doc = db.execute(
-            "SELECT id, title, doc_id, framework, control_ref, version "
+            "SELECT id, title, doc_id, framework, control_ref, version, "
+            "org_id, business_unit_id, policy_workflow_managed "
             "FROM aria_documents WHERE id=%s",
             (aria_doc_id,),
         ).fetchone()
         if not doc:
             return None
+        if actor is not None:
+            from modules.aria.policy_access import document_read_ok
+            if not document_read_ok(actor, dict(doc)):
+                return None
 
         # Check for duplicate — don't attach same policy twice to same control
         existing = db.execute(
@@ -2517,8 +2862,8 @@ def create_policy_request(data):
         db.close()
 
 
-def list_policy_requests(audit_id=None, status=None):
-    """List policy requests, optionally by audit and status."""
+def list_policy_requests(audit_id=None, status=None, bu_scope=None):
+    """List policy requests, optionally by audit, status, and/or BU scope."""
     db = get_db()
     try:
         q = (
@@ -2531,6 +2876,10 @@ def list_policy_requests(audit_id=None, status=None):
             "WHERE 1=1"
         )
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id is not None:
             q += " AND pr.audit_id=%s"
             params.append(audit_id)
@@ -2571,48 +2920,64 @@ def sync_grid_evidence_to_vault(grid_evidence_id, db=None):
     """
     Create or update a central evidence_items record for a GRID evidence file.
     Links it to the GRID control via evidence_links.
-    Idempotent — skips if already synced (detected via tag).
+    Idempotent: skips if already synced (detected via tag).
     """
     own_db = db is None
     if own_db:
         db = get_db()
+    dest = None
     try:
         ef = db.execute(
             "SELECT ef.*, c.audit_id, c.control_id AS ctrl_ref, c.name AS control_name, "
-            "a.name AS audit_name "
+            "a.name AS audit_name, a.business_unit_id AS audit_unit_id, "
+            "u.org_id AS uploader_org_id "
             "FROM grid_evidence_files ef "
             "JOIN grid_controls c ON ef.control_id=c.id "
             "JOIN grid_audits a ON c.audit_id=a.id "
+            "LEFT JOIN users u ON u.id=COALESCE(ef.uploaded_by,a.lead_id) "
             "WHERE ef.id=%s",
             (grid_evidence_id,),
         ).fetchone()
         if not ef:
             return None
+        ef = dict(ef)
+        org_id = ef["uploader_org_id"] or get_current_org()
+        if not org_id:
+            _vault_log.warning("GRID evidence #%d has no organization for Vault scope", grid_evidence_id)
+            return None
 
         # Check if already synced
         tag = f"grid_evidence_id={grid_evidence_id}"
         existing = db.execute(
-            "SELECT id FROM evidence_items WHERE tags LIKE %s",
-            (f"%{tag}%",),
+            "SELECT id, version, status FROM evidence_items "
+            "WHERE org_id=%s AND (tags LIKE %s OR tags LIKE %s) "
+            "ORDER BY version DESC, id DESC LIMIT 1",
+            (org_id, f"%{tag},%", f"%{tag}"),
         ).fetchone()
-        if existing:
+        if existing and existing["version"] >= (ef["version"] or 1) and existing["status"] != "archived":
             return existing[0]
 
-        # Compute file hash if file exists on disk
-        file_hash = None
+        # Legacy GRID files stay in place for audit history. The Vault gets a
+        # safe, tenant-scoped copy until readers have moved to its version ID.
+        import os
+        import shutil
+        import uuid
         file_path = ef["file_path"] or ""
-        if file_path and not file_path.startswith("aria://"):
-            from pathlib import Path
-            fp = Path(file_path)
-            if fp.exists():
-                h = _hashlib.sha256()
-                with open(fp, "rb") as f:
-                    while True:
-                        chunk = f.read(65536)
-                        if not chunk:
-                            break
-                        h.update(chunk)
-                file_hash = h.hexdigest()
+        source_root = Path(os.getenv("GRID_UPLOAD_DIR", "data/grid_uploads")).resolve()
+        source = Path(file_path).resolve() if file_path else None
+        if not source or not source.is_relative_to(source_root) or not source.is_file():
+            _vault_log.warning("GRID evidence #%d has no safe local file to mirror", grid_evidence_id)
+            return None
+        dest_root = Path(os.getenv("EVIDENCE_DIR", "data/evidence")).resolve()
+        dest_root.mkdir(parents=True, exist_ok=True)
+        stored_name = f"grid_{uuid.uuid4().hex}{source.suffix.lower()}"
+        dest = dest_root / stored_name
+        shutil.copyfile(source, dest)
+        h = _hashlib.sha256()
+        with open(dest, "rb") as copied:
+            for chunk in iter(lambda: copied.read(65536), b""):
+                h.update(chunk)
+        file_hash = h.hexdigest()
 
         # Determine category from mime type
         mime = (ef["mime_type"] or "").lower()
@@ -2626,20 +2991,21 @@ def sync_grid_evidence_to_vault(grid_evidence_id, db=None):
             category = "general"
 
         # Build descriptive tags
-        tags = f"grid,audit,{tag}"
+        tags = f"grid,audit,{tag},"
         if ef.get("ctrl_ref"):
             tags += f",{ef['ctrl_ref']}"
 
         vault_id = insert_returning_id(db,
             "INSERT INTO evidence_items "
             "(title, description, file_path, file_name, file_size, file_hash, "
-            " mime_type, category, tags, status, expiry_date, uploaded_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " mime_type, category, tags, status, expiry_date, uploaded_by, org_id, business_unit_id, "
+            " version, parent_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 ef["original_name"] or ef["filename"],
                 f"Uploaded to GRID audit '{ef['audit_name']}', "
                 f"control {ef.get('ctrl_ref', '')} ({ef.get('control_name', '')})",
-                file_path,
+                stored_name,
                 ef["original_name"] or ef["filename"],
                 ef["file_size"] or 0,
                 file_hash,
@@ -2649,8 +3015,15 @@ def sync_grid_evidence_to_vault(grid_evidence_id, db=None):
                 "current",
                 ef.get("expires_at"),
                 ef.get("uploaded_by"),
+                org_id,
+                ef.get("audit_unit_id"),
+                ef["version"] or 1,
+                existing["id"] if existing else None,
             ),
         )
+
+        if existing:
+            db.execute("UPDATE evidence_items SET status='superseded' WHERE id=%s", (existing["id"],))
 
         # Link to the GRID control
         db.execute(
@@ -2673,6 +3046,11 @@ def sync_grid_evidence_to_vault(grid_evidence_id, db=None):
         _vault_log.info("Synced GRID evidence #%d → vault #%d", grid_evidence_id, vault_id)
         return vault_id
     except Exception as exc:
+        if dest is not None:
+            try:
+                dest.unlink(missing_ok=True)
+            except OSError:
+                pass
         _vault_log.warning("sync_grid_evidence_to_vault failed for #%d: %s",
                            grid_evidence_id, exc)
         return None
@@ -2681,35 +3059,34 @@ def sync_grid_evidence_to_vault(grid_evidence_id, db=None):
             db.close()
 
 
-def list_vault_evidence(category=None, module=None, search=None, limit=100):
-    """Browse the central evidence vault with filters — used by GRID's vault picker."""
+def list_vault_evidence(user, category=None, module=None, search=None, limit=100):
+    """Browse the central evidence vault within the user's scope, with filters (GRID's vault picker)."""
+    scope_sql, scope_params = evidence_scope_sql(user)
+    search_sql, search_params = evidence_search_sql(search or "")
     db = get_db()
     try:
         q = (
             "SELECT e.*, u.full_name AS uploaded_by_name, "
-            "(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id=e.id) AS link_count "
+            "(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id=e.id AND el.deleted_at IS NULL) AS link_count "
             "FROM evidence_items e "
             "LEFT JOIN users u ON e.uploaded_by=u.id "
-            "WHERE e.status != 'archived'"
+            f"WHERE {current_library_sql()} AND {scope_sql} AND {search_sql}"
         )
-        params = []
+        params = [*scope_params, *search_params]
         if category:
             q += " AND e.category=%s"
             params.append(category)
         if module:
-            q += " AND e.id IN (SELECT evidence_id FROM evidence_links WHERE module=%s)"
+            q += " AND e.id IN (SELECT evidence_id FROM evidence_links WHERE module=%s AND deleted_at IS NULL)"
             params.append(module)
-        if search:
-            q += " AND (e.title LIKE %s OR e.tags LIKE %s OR e.description LIKE %s)"
-            params.extend([f"%{search}%"] * 3)
-        q += " ORDER BY e.updated_at DESC LIMIT %s"
+        q += " ORDER BY e.updated_at DESC, e.id DESC LIMIT %s"
         params.append(limit)
         return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
 
-def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
+def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id, user=None):
     """
     Link a central vault evidence item to a GRID control.
     Creates a grid_evidence_files record referencing the vault item,
@@ -2718,25 +3095,26 @@ def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
     """
     db = get_db()
     try:
+        from modules.evidence.scope import evidence_scope_sql, current_library_sql
+        scope, params = evidence_scope_sql(user) if user else ("1=0", [])
         # Get vault item
         item = db.execute(
-            "SELECT * FROM evidence_items WHERE id=%s AND status != 'archived'",
-            (vault_evidence_id,),
+            f"SELECT e.* FROM evidence_items e WHERE e.id=%s AND {current_library_sql()} AND {scope}",
+            [vault_evidence_id, *params],
         ).fetchone()
         if not item:
             return None
 
-        # Check if already attached to this control
+        # Check if already attached to this control. The comma makes the marker exact:
+        # "vault_evidence_id=1" is also the start of "vault_evidence_id=12".
         existing = db.execute(
             "SELECT id FROM grid_evidence_files "
             "WHERE control_id=%s AND notes LIKE %s",
-            (control_id, f"%vault_evidence_id={vault_evidence_id}%"),
+            (control_id, f"%vault_evidence_id={vault_evidence_id},%"),
         ).fetchone()
-        if existing:
-            return existing[0]
 
         # Create GRID evidence file pointing to vault item
-        grid_eid = insert_returning_id(db,
+        grid_eid = existing[0] if existing else insert_returning_id(db,
             "INSERT INTO grid_evidence_files "
             "(control_id, filename, original_name, file_path, file_size, "
             " mime_type, uploaded_by, notes, status) "
@@ -2745,20 +3123,22 @@ def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
                 control_id,
                 item["file_name"] or item["file_path"] or "vault-item",
                 item["title"],
-                item["file_path"] or f"vault://{vault_evidence_id}",
+                f"vault://{vault_evidence_id}",
                 item["file_size"] or 0,
                 item["mime_type"] or "",
                 user_id,
                 f"From Evidence Vault (vault_evidence_id={vault_evidence_id}, "
                 f"category={item['category'] or 'general'})",
-                "Approved",  # Vault items are pre-vetted
+                "Uploaded",  # GRID review is independent of Vault verification
             ),
         )
 
-        # Ensure vault link exists to this control
+        # Ensure a live vault link exists to this control, also for an attachment that already
+        # existed: the Vault may have removed the link and the GRID record is still here.
         existing_link = db.execute(
             "SELECT id FROM evidence_links "
-            "WHERE evidence_id=%s AND module='grid' AND entity_type='control' AND entity_id=%s",
+            "WHERE evidence_id=%s AND module='grid' AND entity_type='control' AND entity_id=%s "
+            "AND deleted_at IS NULL",
             (vault_evidence_id, control_id),
         ).fetchone()
         if not existing_link:
@@ -2770,7 +3150,8 @@ def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
             )
 
         db.commit()
-        _auto_status_control(db, control_id)
+        if not existing:  # a re-attach adds no evidence, so it must not move the control's status
+            _auto_status_control(db, control_id)
         return grid_eid
     finally:
         db.close()

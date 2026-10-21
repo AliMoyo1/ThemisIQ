@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_module, require_capability
 from core.shell_context import shell_ctx
+from core.rbac import has_capability
 from core.events import emit, ORM_EVENT_LOGGED, ORM_EVENT_ELEVATED, ORM_EVENT_RESOLVED
 from modules.orm import data_service as ds
 from modules.orm import ai_service as ai
@@ -45,6 +46,7 @@ async def orm_spa(request: Request):
     user = request.state.user
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
+        "orm_can_manage_controls": has_capability(user, "orm.event.manage"),
         **shell_ctx(request, active_module="orm"),
     })
 
@@ -63,10 +65,14 @@ async def orm_spa_page(request: Request, page: str):
 @require_capability("module.orm.access")
 async def api_dashboard(request: Request):
     days = int(request.query_params.get("days", 30))
-    stats = ds.get_dashboard_stats(days=days)
-    stats["departments"] = ds.get_distinct_departments()
-    stats["active_bcm_incident"] = ds.has_active_bcm_incident()
-    stats["active_sentinel_breach"] = ds.has_active_sentinel_breach()
+    user = request.state.user
+    stats = ds.get_dashboard_stats(days=days, user=user)
+    stats["departments"] = ds.get_distinct_departments(user=user)
+    stats["active_bcm_incident"] = ds.has_active_bcm_incident(user=user)
+    stats["active_sentinel_breach"] = ds.has_active_sentinel_breach(user=user)
+    # KRIs have no business-unit owner and the Indicators page is organization-wide.
+    # Declare that scope so their alerts are not mistaken for unit-only figures.
+    stats["kri_alerts_scope"] = "organization"
     stats["kri_alerts"] = _get_kri_alerts()
     # sla_overdue already included in get_dashboard_stats()
     return JSONResponse(stats)
@@ -137,9 +143,25 @@ async def api_event_create(request: Request):
     return JSONResponse({"id": eid}, status_code=201)
 
 
+def _event_in_scope_or_404(request: Request, event_id: int) -> dict:
+    """Same check api_event_detail already applies on read -- PLAN-36 P06
+    discovery found update/delete never applied it at all, so a holder of
+    the broad orm.event.manage capability could mutate/delete an event
+    entirely outside their own business-unit scope. 404, not 403: never
+    confirm an out-of-scope id exists."""
+    ev = ds.get_event(event_id)
+    if not ev:
+        raise HTTPException(404)
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and ev.get("business_unit_id") is not None and ev["business_unit_id"] not in scope:
+        raise HTTPException(404)
+    return ev
+
+
 @router.put("/api/events/{event_id}")
 @require_capability("orm.event.manage")
 async def api_event_update(request: Request, event_id: int):
+    _event_in_scope_or_404(request, event_id)
     body = await _json_body(request)
     ds.update_event(event_id, body)
     new_status = (body.get("status") or "").lower()
@@ -164,6 +186,7 @@ async def api_event_update(request: Request, event_id: int):
 @router.delete("/api/events/{event_id}")
 @require_capability("orm.event.manage")
 async def api_event_delete(request: Request, event_id: int):
+    _event_in_scope_or_404(request, event_id)
     ds.delete_event(event_id)
     return JSONResponse({"ok": True})
 
@@ -289,13 +312,11 @@ async def api_users_list(request: Request):
 @router.post("/api/ai/analyze/{event_id}")
 @require_capability("orm.ai.use")
 async def api_ai_analyze(request: Request, event_id: int):
-    ev = ds.get_event(event_id)
-    if not ev:
-        raise HTTPException(404)
+    ev = _event_in_scope_or_404(request, event_id)
     result = ai.analyze_event(ev)
-    # Save analysis back to the event
+    # The analysis fills fields the owner has left empty. It never replaces what a person wrote.
     update = {}
-    if result.get("root_cause_category"):
+    if result.get("root_cause_category") and not ev.get("root_cause_category"):
         update["root_cause_category"] = result["root_cause_category"]
     if result.get("corrective_action") and not ev.get("corrective_action"):
         update["corrective_action"] = result["corrective_action"]
@@ -310,7 +331,7 @@ async def api_ai_analyze(request: Request, event_id: int):
 @require_capability("orm.report.generate")
 async def api_ai_board_report(request: Request):
     days = int((await _json_body(request)).get("days", 30))
-    stats = ds.get_dashboard_stats(days=days)
+    stats = ds.get_dashboard_stats(days=days, user=request.state.user)
     narrative = ai.generate_trend_narrative(stats)
     return JSONResponse({"narrative": narrative, "stats": stats})
 
@@ -326,7 +347,7 @@ async def api_chat_send(request: Request):
     ds.save_chat(uid, "user", message)
     history = ds.list_chat(uid, limit=20)
     msgs = [{"role": m["role"], "content": m["content"]} for m in history]
-    stats = ds.get_dashboard_stats()
+    stats = ds.get_dashboard_stats(user=request.state.user)
     reply = ai.chat(msgs, stats=stats)
     ds.save_chat(uid, "assistant", reply, "anthropic")
     return JSONResponse({"reply": reply})
@@ -573,7 +594,7 @@ async def api_rcsa_action_delete(request: Request, action_id: int):
 
 
 @router.get("/api/export/csv")
-@require_capability("orm.event.view")
+@require_capability("module.orm.access")
 async def api_export_csv(request: Request):
     import csv
     import io
@@ -582,9 +603,11 @@ async def api_export_csv(request: Request):
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT title, event_type, severity, status, department, financial_impact, "
-            "root_cause, reporter_name, created_at, resolved_at "
-            "FROM orm_events ORDER BY created_at DESC"
+            "SELECT e.title, e.event_type, e.severity, e.status, e.department, "
+            "e.financial_impact, e.root_cause, u.full_name AS reporter_name, "
+            "e.created_at, e.resolved_at "
+            "FROM orm_events e LEFT JOIN users u ON u.id = e.reported_by "
+            "ORDER BY e.created_at DESC"
         ).fetchall()
     finally:
         db.close()

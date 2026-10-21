@@ -18,7 +18,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from database import get_db
+import core.outbound_http as oh
+from database import get_db, insert_returning_id
 from core.events import emit, ERM_RISK_ESCALATED
 
 
@@ -57,16 +58,32 @@ def _start_receiver():
 
 
 def main():
+    # PLAN-36 T05 (findings.md F07): real webhook destinations must now be
+    # HTTPS and resolve to a public address (core/outbound_http.py). This
+    # script's own loopback HTTP receiver is deliberately local, so that one
+    # check is bypassed here, the same way the automated tests do it for
+    # their own local fixtures -- the signing/delivery path this script
+    # actually verifies is unchanged.
+    oh.validate_outbound_url = lambda url: url.strip()
+
     srv = _start_receiver()
     time.sleep(0.5)
 
     # Register a webhook in the app DB subscribed to the event we'll emit.
+    # Webhook delivery is org-scoped (dispatch_event() fails closed on a
+    # webhook/event org_id mismatch -- see core/webhooks.py), so both the
+    # webhook and the emit() call below need the same org_id.
     db = get_db()
     try:
-        db.execute(
-            "INSERT INTO webhooks (name, url, secret, events, is_active, created_by) "
-            "VALUES (%s, %s, %s, %s, 1, 1)",
-            ("integration-test", RECEIVER_URL, SECRET, ERM_RISK_ESCALATED),
+        org_id = insert_returning_id(
+            db, "INSERT INTO organizations (name, slug) VALUES (%s, %s)",
+            ("Live Webhook Test Org", "live-webhook-test-org"),
+        )
+        wh_id = insert_returning_id(
+            db,
+            "INSERT INTO webhooks (name, url, secret, events, is_active, created_by, org_id) "
+            "VALUES (%s, %s, %s, %s, 1, 1, %s)",
+            ("integration-test", RECEIVER_URL, SECRET, ERM_RISK_ESCALATED, org_id),
         )
         db.commit()
     finally:
@@ -74,7 +91,7 @@ def main():
 
     # Emit the event — dispatch_event should fan it out to our receiver.
     emit(ERM_RISK_ESCALATED, "erm", "risk", 123,
-         {"score": 9, "level": "critical"}, user_id=1)
+         {"score": 9, "level": "critical"}, user_id=1, org_id=org_id)
 
     # Give the delivery a moment.
     time.sleep(2.0)
@@ -103,6 +120,16 @@ def main():
             (ERM_RISK_ESCALATED,),
         ).fetchone()
         assert log_row["c"] >= 1, "webhook_logs missing success row"
+    finally:
+        db.close()
+
+    # Clean up so slug/name uniqueness doesn't break the next manual run.
+    db = get_db()
+    try:
+        db.execute("DELETE FROM webhook_logs WHERE webhook_id=%s", (wh_id,))
+        db.execute("DELETE FROM webhooks WHERE id=%s", (wh_id,))
+        db.execute("DELETE FROM organizations WHERE id=%s", (org_id,))
+        db.commit()
     finally:
         db.close()
 

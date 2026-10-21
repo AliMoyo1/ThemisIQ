@@ -2,21 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="/static/js/premium_theme_init.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ThemisIQ — Sign In</title>
-<link rel="stylesheet" href="/static/fonts/fonts.css">
-<script>
-(function(){
-  var saved = localStorage.getItem('ofa-theme') || 'light';
-  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
-})();
-</script>
+<link rel="stylesheet" href="/static/fonts/fonts.css?v=2">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html{--particle-color-rgb:30,70,160}
 html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4fb;color:#1e293b;overflow:hidden}
-/* ── Particle canvas ── */
-#aegis-particles{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;mix-blend-mode:multiply;}
 
 /* ── Background scene ── */
 .scene{position:fixed;inset:0;z-index:0}
@@ -157,6 +149,17 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
 .corner-br{bottom:0;right:0;width:8px;height:8px;background:rgba(6,182,212,.5);animation:cornerPulse 2.2s ease-in-out infinite alternate;animation-delay:1s}
 .corner-bl{bottom:0;left:0;width:5px;height:5px;background:rgba(37,99,235,.5);animation:cornerPulse 2.3s ease-in-out infinite alternate;animation-delay:1.5s}
 @keyframes cornerPulse{0%{opacity:.3}100%{opacity:.7}}
+
+/* These are purely ambient background motion (a continuously pulsing/
+   sweeping scene, not information), so they're the clearest case for
+   prefers-reduced-motion: disable entirely rather than just slow down.
+   The mousemove-driven card tilt and spot parallax below have their own
+   JS-side guard for the same preference. */
+@media (prefers-reduced-motion:reduce){
+  .scene-top-pulse,.scene-bottom-glow,.scene-spot,.card-glow,
+  .beam-top,.beam-right,.beam-bottom,.beam-left,
+  .corner-tl,.corner-tr,.corner-br,.corner-bl{animation:none}
+}
 
 /* ── Frosted white glass card ── */
 .card{
@@ -375,11 +378,9 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
   .card-perspective{max-width:100%}
 }
 </style>
+<link rel="stylesheet" href="/static/css/premium_standalone.css?v=2">
 </head>
-<body>
-
-<!-- Particle network -->
-<canvas id="aegis-particles" aria-hidden="true"></canvas>
+<body data-premium="login">
 
 <!-- Background scene -->
 <div class="scene">
@@ -426,8 +427,8 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
                 <img src="/static/img/themisiq-logo-clear.png"
                      alt="ThemisIQ"
                      id="tiq-logo-img"
-                     onload="document.getElementById('tiq-text-area').style.display='none'"
-                     onerror="this.style.display='none';document.getElementById('tiq-svg-fallback').style.display='block'">
+                     onload="var ta=document.getElementById('tiq-text-area'); if(ta) ta.style.display='none'"
+                     onerror="this.style.display='none'; var fb=document.getElementById('tiq-svg-fallback'); if(fb) fb.style.display='block'">
               </picture>
               <!-- SVG fallback shown only if PNG not yet saved -->
               <svg id="tiq-svg-fallback" viewBox="0 0 220 190" fill="none" xmlns="http://www.w3.org/2000/svg"
@@ -691,33 +692,8 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
     submitBtn.classList.remove('loading');
     submitBtn.disabled = false;
   });
-
-  /* ── 3D card tilt ── */
-  const tilt = document.getElementById('cardTilt');
-  const MAX  = 10;
-  tilt.addEventListener('mousemove', function(e){
-    var r  = tilt.getBoundingClientRect();
-    var dx = (e.clientX - r.left - r.width  / 2) / (r.width  / 2);
-    var dy = (e.clientY - r.top  - r.height / 2) / (r.height / 2);
-    tilt.style.transform = 'rotateX(' + (-dy * MAX) + 'deg) rotateY(' + (dx * MAX) + 'deg)';
-  });
-  tilt.addEventListener('mouseleave', function(){
-    tilt.style.transform = 'rotateX(0deg) rotateY(0deg)';
-  });
-
-  /* ── Parallax glow spots on mouse ── */
-  document.addEventListener('mousemove', function(e){
-    var ox = (e.clientX / window.innerWidth  - 0.5) * 20;
-    var oy = (e.clientY / window.innerHeight - 0.5) * 20;
-    var spots = document.querySelectorAll('.scene-spot');
-    spots.forEach(function(s, i){
-      var f = i === 0 ? 1 : -1;
-      s.style.transform = 'translate(' + (ox * f) + 'px,' + (oy * f) + 'px)';
-    });
-  });
 })();
 </script>
-<script src="/static/js/aegis-particles.js"></script>
 <meta name="ph-key" content="{{ posthog_api_key }}">
 <meta name="ph-host" content="{{ posthog_host }}">
 <script>

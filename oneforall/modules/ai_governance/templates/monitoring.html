@@ -1,0 +1,23 @@
+{% extends "base_shell.html" %}
+{% block title %}Monitoring | AI Governance | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Governance</a></span> <span class="breadcrumb-current">Monitoring</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">Monitoring</h1>
+      <p class="aig-lede">Every active AI use in your scope with what needs looking at: a failed or out of date evaluation, an oversight arrangement awaiting review, a review date that has passed, an approval that needs a new decision, an overdue condition. A use with nothing recorded is shown as not measured, never as fine.</p>
+    </div>
+  </div>
+  <div id="aigPortfolio"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_overview.js?v=2"></script>
+<script>AIGov.portfolio(document.getElementById('aigPortfolio'));</script>
+{% endblock %}

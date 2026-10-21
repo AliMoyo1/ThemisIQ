@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}ThemisIQ{% endblock %}</title>
-<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/fonts/fonts.css?v=2">
+<script src="/static/js/premium_theme_init.js"></script>
+<script src="/static/js/premium_charts.js?v=1" defer></script>
 <meta name="ph-key" content="{{ posthog_api_key }}">
 <meta name="ph-host" content="{{ posthog_host }}">
 {% if user %}<meta name="ph-uid" content="{{ user.id }}" data-email="{{ user.email or '' }}" data-name="{{ user.full_name or user.username or '' }}" data-role="{{ user.role or '' }}">{% endif %}
@@ -35,8 +37,10 @@
   --text:#111827;--text-mid:#374151;--muted:#6b7280;--dim:#9ca3af;
   --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.1);
   --amber:#d97706;--amber-bg:#fffbeb;--red:#dc2626;--red-bg:#fef2f2;
+  /* Text colours for the 10px bold badges: the tints above are for fills and icons and fall below 4.5:1 as text */
+  --badge-amber:#b45309;--badge-green:#15803d;--badge-red:#b91c1c;
   --blue:#2563eb;--blue-bg:#eff6ff;--green-status:#16a34a;--green-bg:#f0fdf4;
-  --good:#16a34a;--good-soft:rgba(22,163,74,0.1);--bad:#dc2626;--bad-soft:rgba(220,38,38,0.1);
+  --good:#11803a;--good-soft:rgba(22,163,74,0.1);--bad:#dc2626;--bad-soft:rgba(220,38,38,0.1);
   --warn:#d97706;--warn-soft:rgba(217,119,6,0.1);--info:#2563eb;--info-soft:rgba(37,99,235,0.1);
   --purple:#7c3aed;--purple-soft:rgba(124,58,237,0.1);--primary:#2563eb;--primary-dark:#1d4ed8;
   --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
@@ -44,10 +48,17 @@
   --shadow-lg:0 8px 32px rgba(0,0,0,0.10),0 4px 12px rgba(0,0,0,0.06);
   --shadow-accent:0 8px 24px var(--accent-shadow);
   --radius:10px;--radius-lg:16px;--radius-xl:22px;
-  --topbar-h:60px;--icon-sidebar-w:64px;--icon-sidebar-expanded-w:208px;--sidebar-w:248px;
-  --font:'Hanken Grotesk','Space Grotesk','Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+  --topbar-h:60px;--icon-sidebar-w:64px;--icon-sidebar-expanded-w:216px;--sidebar-w:248px;
+  --font:'Manrope','DM Sans',sans-serif;--mono:'Manrope','DM Sans',sans-serif;
   --particle-color-rgb:100,140,200;
   --glass-bg:rgba(255,255,255,0.72);--glass-border:rgba(255,255,255,0.80);--glass-blur:16px;
+
+  --sb-bg-1:rgba(255,255,255,.52);--sb-bg-2:rgba(255,255,255,.30);
+  --sb-border:rgba(15,23,42,.08);--sb-sheen:rgba(255,255,255,.55);
+  --sb-text:#1e293b;--sb-text-dim:#64748b;
+  --sb-hover-bg:rgba(15,23,42,.05);--sb-divider:rgba(15,23,42,.09);
+  --sb-tooltip-bg:rgba(255,255,255,.9);--sb-tooltip-text:#1e293b;--sb-tooltip-border:rgba(15,23,42,.08);
+  --sb-shadow:14px 0 44px -20px rgba(15,23,42,.18);
 }
 
 [data-module="platform"]{
@@ -92,6 +103,12 @@
   --accent-shadow:rgba(124,58,10,0.28);--accent-rgb:124,58,10;
   --particle-color-rgb:190,88,18;    /* Dark sienna */
 }
+[data-module="ai-governance"]{
+  --accent:#53636c;--accent-mid:#43525a;--accent-light:#a7b5bc;
+  --accent-pale:#e9eef0;--accent-bg:#f1f4f5;--accent-dark:#27363e;
+  --accent-shadow:rgba(54,68,76,0.22);--accent-rgb:105,121,130;
+  --particle-color-rgb:148,163,171;
+}
 
 /* ══ DARK MODE ══ */
 [data-theme="dark"]{
@@ -100,6 +117,7 @@
   --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);
   --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.12);
   --red:#f87171;--red-bg:rgba(248,113,113,0.12);
+  --badge-amber:#fbbf24;--badge-green:#4ade80;--badge-red:#f87171;
   --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);
   --green-status:#4ade80;--green-bg:rgba(74,222,128,0.12);
   --good:#4ade80;--good-soft:rgba(74,222,128,0.12);--bad:#f87171;--bad-soft:rgba(248,113,113,0.12);
@@ -110,6 +128,13 @@
   --shadow-lg:0 8px 32px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.4);
   --shadow-accent:0 8px 24px rgba(0,0,0,0.4);
   --glass-bg:rgba(20,26,44,0.72);--glass-border:rgba(255,255,255,0.08);
+
+  --sb-bg-1:rgba(28,36,56,.52);--sb-bg-2:rgba(10,13,22,.38);
+  --sb-border:rgba(255,255,255,.08);--sb-sheen:rgba(255,255,255,.06);
+  --sb-text:#EDEFF5;--sb-text-dim:#7A8399;
+  --sb-hover-bg:rgba(255,255,255,.06);--sb-divider:rgba(255,255,255,.09);
+  --sb-tooltip-bg:rgba(24,30,48,.9);--sb-tooltip-text:#EDEFF5;--sb-tooltip-border:rgba(255,255,255,.08);
+  --sb-shadow:14px 0 44px -18px rgba(0,0,0,.6);
 }
 [data-theme="dark"] [data-module="aria"]{
   --accent-pale:rgba(125,101,39,0.15);--accent-bg:rgba(125,101,39,0.08);
@@ -129,6 +154,11 @@
 [data-theme="dark"] [data-module="orm"]{
   --accent-pale:rgba(124,58,10,0.18);--accent-bg:rgba(124,58,10,0.10);
 }
+[data-theme="dark"] [data-module="ai-governance"]{
+  --accent:#c2d0d6;--accent-mid:#d6e0e4;--accent-light:#a7b5bc;
+  --accent-pale:rgba(178,195,203,0.18);--accent-bg:rgba(178,195,203,0.09);
+  --accent-dark:#edf2f4;--accent-shadow:rgba(129,149,159,0.24);
+}
 
 /* ── Dark mode: richer ambient glow (dark bg lets colour breathe) ── */
 [data-theme="dark"] .main-content{
@@ -144,17 +174,6 @@
   opacity:0.03;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size:200px 200px;
-}
-
-/* ── Particle network canvas ── */
-#aegis-particles{
-  position:fixed;inset:0;width:100%;height:100%;
-  z-index:1;
-  pointer-events:none;
-  mix-blend-mode:multiply; /* Light mode: darkens on white → colored dots visible */
-}
-[data-theme="dark"] #aegis-particles{
-  mix-blend-mode:screen;   /* Dark mode: adds light → colored glow visible */
 }
 
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
@@ -183,71 +202,125 @@ input,select,textarea{font-family:var(--font)}
    ════════════════════════════════════════════════════════════════���═ */
 .app{display:flex;height:100vh}
 
-/* ── ICON SIDEBAR (always visible) ── */
+/* ── ICON SIDEBAR — premium glass rail (always visible, theme-aware) ── */
 .icon-sidebar{
-  width:var(--icon-sidebar-w);background:#0f172a;
+  width:var(--icon-sidebar-w);
+  background:linear-gradient(180deg,var(--sb-bg-1) 0%,var(--sb-bg-2) 100%);
+  backdrop-filter:blur(36px) saturate(180%);-webkit-backdrop-filter:blur(36px) saturate(180%);
+  border-right:1px solid var(--sb-border);
+  box-shadow:inset -1px 0 0 var(--sb-sheen),var(--sb-shadow);
   display:flex;flex-direction:column;align-items:center;
-  padding:12px 0;z-index:200;flex-shrink:0;
+  padding:18px 0 14px;z-index:200;flex-shrink:0;position:relative;
+  font-family:'Inter',var(--font);
+}
+/* Ambient glow, tinted by whichever module is active */
+.icon-sidebar::before{
+  content:'';position:absolute;top:-60px;left:-50px;width:220px;height:220px;z-index:0;
+  pointer-events:none;filter:blur(18px);
+  background:radial-gradient(circle,rgba(var(--accent-rgb),.22) 0%,transparent 70%);
+}
+/* Faint top-edge sheen for glass realism */
+.icon-sidebar::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:140px;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg,var(--sb-sheen) 0%,transparent 100%);
 }
 .icon-sidebar-logo{
-  width:44px;height:44px;border-radius:12px;
-  background:linear-gradient(145deg,#0D1B2A 0%,#1a2f48 100%);
+  width:42px;height:42px;border-radius:13px;
+  background:linear-gradient(150deg,#141B2E 0%,#0A0E19 100%);
   display:flex;align-items:center;justify-content:center;
-  margin-bottom:20px;cursor:pointer;transition:transform 0.2s;
-  box-shadow:0 4px 14px rgba(13,27,42,0.7),0 0 0 1px rgba(201,168,76,0.2);
+  margin-bottom:22px;cursor:pointer;flex-shrink:0;position:relative;z-index:1;
+  transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s ease;
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 4px 16px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.06);
   overflow:hidden;
 }
-.icon-sidebar-logo:hover{transform:scale(1.07) rotate(-2deg)}
+.icon-sidebar-logo:hover{
+  transform:scale(1.06);
+  box-shadow:0 1px 0 rgba(255,255,255,.1) inset,0 6px 22px rgba(51,92,255,.3),0 0 0 1px rgba(76,124,255,.4);
+}
 .icon-sidebar-logo svg{width:28px;height:28px}
-.icon-sidebar-nav{display:flex;flex-direction:column;gap:4px;flex:1;width:100%;padding:0 8px}
+.icon-sidebar-nav{display:flex;flex-direction:column;gap:3px;flex:1;width:100%;padding:0 10px;
+  position:relative;z-index:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.icon-sidebar-nav::-webkit-scrollbar{width:0}
 .icon-nav-item{
-  width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all 0.2s;position:relative;color:#64748b;margin:0 auto;
-  text-decoration:none;
+  width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;color:var(--sb-text-dim);margin:0 auto;text-decoration:none;
+  transition:background-color .2s ease-out,color .2s ease-out,box-shadow .2s ease-out;
 }
-.icon-nav-item:hover{background:rgba(255,255,255,0.08);color:#94a3b8}
-.icon-nav-item.active{background:var(--accent);color:white;box-shadow:0 4px 12px var(--accent-shadow),inset 0 1px 0 rgba(255,255,255,0.15)}
-.icon-nav-item svg{width:20px;height:20px}
+.icon-nav-item:hover{background:var(--sb-hover-bg);color:var(--sb-text);box-shadow:0 2px 10px rgba(0,0,0,.1)}
+.icon-nav-item:active{transform:scale(.97)}
+.icon-nav-item.active{
+  color:#fff;background:linear-gradient(135deg,#4C7CFF 0%,#335CFF 55%,#2947D6 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.25) inset,
+    0 0 0 1px rgba(120,150,255,.4),
+    0 6px 18px -4px rgba(51,92,255,.55),
+    0 2px 30px -6px rgba(51,92,255,.4);
+}
+.icon-nav-item.active:hover{
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.3) inset,
+    0 0 0 1px rgba(140,168,255,.5),
+    0 8px 22px -4px rgba(51,92,255,.65),
+    0 2px 34px -4px rgba(51,92,255,.45);
+}
+.icon-nav-item svg{width:19px;height:19px;stroke-width:1.75;flex-shrink:0}
 .icon-nav-tooltip{
-  display:none;position:absolute;left:56px;top:50%;transform:translateY(-50%);
-  background:#1e293b;color:white;font-size:12px;font-weight:600;padding:6px 12px;
-  border-radius:8px;white-space:nowrap;z-index:300;pointer-events:none;
-  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  display:none;position:absolute;left:58px;top:50%;transform:translateY(-50%);
+  background:var(--sb-tooltip-bg);color:var(--sb-tooltip-text);font-size:12px;font-weight:600;padding:7px 12px;
+  border-radius:9px;white-space:nowrap;z-index:300;pointer-events:none;letter-spacing:-.01em;
+  border:1px solid var(--sb-tooltip-border);
+  box-shadow:0 8px 24px rgba(0,0,0,.2);
+  backdrop-filter:blur(12px);
 }
-.icon-nav-item:hover .icon-nav-tooltip{display:block}
-.icon-nav-divider{width:32px;height:1px;background:rgba(255,255,255,0.08);margin:8px auto}
+.icon-nav-item:hover .icon-nav-tooltip{display:block;animation:tiqTooltipIn .15s ease-out both}
+@keyframes tiqTooltipIn{from{opacity:0;transform:translateY(-50%) translateX(-4px)}to{opacity:1;transform:translateY(-50%) translateX(0)}}
+.icon-nav-divider{width:calc(100% - 24px);height:1px;margin:10px auto;
+  background:linear-gradient(90deg,transparent 0%,var(--sb-divider) 50%,transparent 100%)}
 
 /* ── Expanding rail (hover to peek, pin to keep open) ── */
-.icon-sidebar{transition:width .22s cubic-bezier(.4,0,.2,1)}
+.icon-sidebar{transition:width .26s cubic-bezier(.4,0,.2,1)}
 @media (hover:hover){.icon-sidebar:hover{width:var(--icon-sidebar-expanded-w)}}
 .icon-sidebar.pinned{width:var(--icon-sidebar-expanded-w)}
-.icon-sidebar .nav-label{display:none;font-size:12.5px;font-weight:600;
-  white-space:nowrap;color:inherit;margin-left:10px}
+.icon-sidebar .nav-label{display:none;font-size:13px;font-weight:600;
+  white-space:nowrap;color:inherit;margin-left:11px;letter-spacing:-.01em}
 .icon-sidebar.pinned .nav-label{display:inline}
 @media (hover:hover){.icon-sidebar:hover .nav-label{display:inline}}
 .icon-sidebar.pinned .icon-nav-tooltip{display:none !important}
 @media (hover:hover){.icon-sidebar:hover .icon-nav-tooltip{display:none !important}}
-.icon-sidebar .nav-section-label{display:none;font-size:10px;font-weight:700;
-  letter-spacing:.08em;text-transform:uppercase;color:#475569;
-  padding:10px 14px 4px;align-self:flex-start}
+.icon-sidebar .nav-section-label{display:none;font-size:10.5px;font-weight:700;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--sb-text-dim);opacity:.75;
+  padding:18px 16px 8px;align-self:flex-start;font-family:'Inter',var(--font)}
+.icon-sidebar .nav-section-label:first-child{padding-top:4px}
 .icon-sidebar.pinned .nav-section-label{display:block}
 @media (hover:hover){.icon-sidebar:hover .nav-section-label{display:block}}
-.icon-sidebar .mod-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;
-  display:none;margin-left:auto}
+.icon-sidebar .mod-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:none;margin-left:auto;
+  transition:box-shadow .25s ease,transform .25s ease;
+  box-shadow:0 0 0 3px var(--sb-hover-bg),0 0 7px currentColor}
 .icon-sidebar.pinned .mod-dot{display:inline-block}
 @media (hover:hover){.icon-sidebar:hover .mod-dot{display:inline-block}}
-.icon-nav-item{justify-content:flex-start;padding-left:14px;width:100%}
+.icon-nav-item:hover .mod-dot{transform:scale(1.35);box-shadow:0 0 0 4px var(--sb-hover-bg),0 0 12px currentColor}
+/* Active item already carries its own strong pill treatment — a module-colored dot on top of the blue fill reads as a clash, so it steps aside here */
+.icon-nav-item.active .mod-dot{display:none}
+.icon-nav-item{justify-content:flex-start;padding:0 12px 0 13px;width:100%}
 .icon-sidebar:not(.pinned):not(:hover) .icon-nav-item{justify-content:center;padding-left:0}
-@media (prefers-reduced-motion:reduce){.icon-sidebar{transition:none}}
+@media (prefers-reduced-motion:reduce){.icon-sidebar,.icon-nav-item,.icon-sidebar-logo{transition:none}}
 
-.icon-sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 8px}
+.icon-sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 10px 0;
+  position:relative;z-index:1}
+.icon-sidebar-bottom::before{content:'';width:calc(100% - 4px);height:1px;margin-bottom:10px;
+  background:linear-gradient(90deg,transparent 0%,var(--sb-divider) 50%,transparent 100%)}
 .icon-sidebar-user{
-  width:36px;height:36px;border-radius:50%;
+  width:34px;height:34px;border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent-light));
-  color:white;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:transform 0.2s;position:relative;
+  color:white;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform 0.2s ease-out,box-shadow .2s ease-out;position:relative;
+  box-shadow:0 0 0 2px var(--sb-bg-2),0 0 0 3px var(--sb-border),0 4px 12px rgba(0,0,0,.25);
+  margin-top:6px;
 }
-.icon-sidebar-user:hover{transform:scale(1.1)}
+.icon-sidebar-user:hover{
+  transform:scale(1.08);
+  box-shadow:0 0 0 2px var(--sb-bg-2),0 0 0 3px rgba(var(--accent-rgb),.5),0 4px 16px rgba(0,0,0,.3);
+}
 .user-dropdown{
   display:none;position:absolute;bottom:48px;left:8px;
   background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);
@@ -272,11 +345,22 @@ input,select,textarea{font-family:var(--font)}
 }
 .module-sidebar.collapsed{width:0;overflow:hidden;opacity:0;border:none}
 .module-sidebar-header{padding:20px 16px 16px;border-bottom:1px solid var(--border)}
-.module-name{font-size:17px;font-weight:800;color:var(--accent);letter-spacing:-0.02em}
+.module-name{font-size:17px;font-weight:800;color:var(--accent-dark);letter-spacing:-0.02em}
+/* --accent-dark reads as near-black in dark mode's own dark sidebar glass
+   panel (dark text on dark background) -- --accent-light restores contrast
+   there, matching the light-mode fix's own logic in reverse. */
+[data-theme="dark"] .module-name{color:var(--accent-light)}
+/* GRID's own --accent (#059669) is 3.76:1 with white text, below the 4.5:1
+   minimum; every other module's --accent already clears it. --accent-mid
+   is GRID-specific darker green that passes; hover moves to --accent-dark
+   so the hover state still visibly darkens further. */
+[data-module="grid"] .btn-primary,
+[data-module="grid"] .nav-item.active{background:var(--accent-mid)}
+[data-module="grid"] .btn-primary:hover{background:var(--accent-dark)}
 .module-desc{font-size:11px;color:var(--muted);margin-top:3px}
 .sidebar-section{padding:16px 12px 4px}
 .sidebar-label{
-  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--dim);
+  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--muted);
   text-transform:uppercase;padding:0 8px 8px;font-family:var(--mono);
 }
 .nav-item{
@@ -351,6 +435,7 @@ input,select,textarea{font-family:var(--font)}
 .notif-panel.show{display:block}
 .notif-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
 .notif-header-title{font-size:14px;font-weight:700;color:var(--text)}
+.notif-mark-read{border:0;background:none;padding:4px 0;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer}
 .notif-list{max-height:320px;overflow-y:auto}
 .notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s}
 .notif-item:hover{background:var(--accent-bg)}
@@ -361,6 +446,8 @@ input,select,textarea{font-family:var(--font)}
 .notif-item-time{font-size:11px;color:var(--dim);margin-top:4px;font-family:var(--mono)}
 
 /* ── MAIN CONTENT AREA ── */
+.aig-return{margin:0 0 16px;font-size:13px}
+.aig-return a{color:var(--text);font-weight:600;text-decoration:underline}
 .main-content{
   flex:1;overflow-y:auto;padding:28px;
   background-color:var(--bg);
@@ -440,31 +527,34 @@ input,select,textarea{font-family:var(--font)}
 .card-body{padding:18px 20px}
 
 .data-table{width:100%;border-collapse:collapse}
-.data-table th{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;padding:10px 14px;background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table th{font-size:12px;font-family:var(--font);font-weight:700;color:var(--text-mid);text-transform:none;letter-spacing:0;padding:13px 14px;background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 .data-table td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
 .data-table tr:last-child td{border-bottom:none}
 .data-table tbody tr{cursor:pointer;transition:background 0.15s}
 .data-table tbody tr:hover{background:var(--accent-bg)}
 
 .badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;white-space:nowrap}
-.badge-critical{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
-.badge-high{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-critical{background:var(--red-bg);color:var(--badge-red);border:1px solid rgba(220,38,38,0.15)}
+.badge-high{background:var(--amber-bg);color:var(--badge-amber);border:1px solid rgba(217,119,6,0.15)}
 .badge-medium{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.15)}
-.badge-low{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
-.badge-complete{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
-.badge-progress{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
-.badge-draft{background:var(--surface3);color:var(--muted);border:1px solid var(--border)}
-.badge-overdue{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.badge-low{background:var(--green-bg);color:var(--badge-green);border:1px solid rgba(22,163,74,0.15)}
+.badge-complete{background:var(--green-bg);color:var(--badge-green);border:1px solid rgba(22,163,74,0.15)}
+.badge-progress{background:var(--amber-bg);color:var(--badge-amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-draft{background:var(--surface3);color:var(--text-mid);border:1px solid var(--border)}
+.badge-overdue{background:var(--red-bg);color:var(--badge-red);border:1px solid rgba(220,38,38,0.15)}
 .badge-accent{background:var(--accent-pale);color:var(--accent);border:1px solid rgba(0,0,0,0.06)}
 
 .filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.filter-chip{font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all 0.18s}
+.filter-chip{font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all 0.18s;font-family:inherit}
 .filter-chip.active{background:var(--accent);color:white;border-color:var(--accent);box-shadow:0 2px 8px var(--accent-shadow)}
 .filter-chip:hover:not(.active){border-color:var(--accent);color:var(--accent)}
 
 /* Modal overlay */
+/* PLAN-36 T02: .open is the canonical visible state (matches ARIA's own
+   base.html, which already used it correctly). .show stays as a
+   compatibility alias until every call site is migrated off it. */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:800;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
-.modal-overlay.show{display:flex}
+.modal-overlay.open,.modal-overlay.show{display:flex}
 .modal{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);max-width:600px;width:90%;max-height:85vh;overflow-y:auto;animation:modalIn 0.25s ease}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
 .modal-title{font-size:18px;font-weight:800;color:var(--text)}
@@ -590,20 +680,44 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 .search-result{transition:background 0.1s}
 .search-result.active{background:var(--accent-pale) !important}
 
+/* PLAN-36 T07: visually hidden until keyboard-focused, so it doesn't
+   disturb sighted-mouse layout but is the very first Tab stop. */
+.skip-link{
+  position:absolute; left:-9999px; top:0; z-index:10000;
+  padding:10px 16px; background:var(--accent); color:#fff;
+  border-radius:0 0 8px 0; font-size:13px; font-weight:600; text-decoration:underline;
+}
+.skip-link:focus{ left:0; }
+
+/* Screen-reader-only: present in the accessibility tree, never visible --
+   for a label whose text would be visually redundant (an icon already
+   conveys it) but that inputs/controls still need a real accessible name. */
+.sr-only{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
 {% block extra_styles %}{% endblock %}
+
 </style>
-<link rel="stylesheet" href="/static/css/responsive.css">
+<link rel="stylesheet" href="/static/css/responsive.css?v=b55cdd1d6f05">
+<link rel="stylesheet" href="/static/css/premium_theme.css?v=2">
 </head>
 
 <body data-module="{{ active_module | default('platform') }}">
+<!-- Loaded here, not at the end of body: it must exist before any child
+     template's inline script runs, including a bare top-level call that
+     isn't wrapped in DOMContentLoaded (PLAN-36 T06). dialog_focus.js sits
+     alongside it for the same reason -- several modules' drawers call
+     DialogFocus.trap() from a bare top-level onclick/open function. -->
+<script src="/static/js/api_client.js?v=1"></script>
+<script src="/static/js/dialog_focus.js?v=1"></script>
+
+<a href="#mainContent" class="skip-link">Skip to main content</a>
 
 <div class="app">
 
 <!-- Noise texture overlay (z-index:0, opacity:3%, mix-blend-mode:overlay) -->
 <div id="bg-noise" aria-hidden="true"></div>
-
-<!-- Particle network canvas (z-index:-1, pointer-events:none — purely decorative) -->
-<canvas id="aegis-particles" aria-hidden="true"></canvas>
 
 <!-- ═══════════════════════════════════════════════════════════════════
      ICON SIDEBAR — always visible, switches modules
@@ -687,6 +801,15 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </a>
     {% endif %}
 
+    {% if can_ai_use or can_ai_pack or can_ai_admin_nav %}
+    <a href="{{ '/ai-governance/' if can_ai_use or can_ai_admin_nav else '/ai-governance/packs' }}" class="icon-nav-item{% if active_module == 'ai-governance' %} active{% endif %}" title="AI Governance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+      <span class="icon-nav-tooltip">AI Governance</span>
+      <span class="nav-label">AI Governance</span>
+      <span class="mod-dot" style="background:#798a93"></span>
+    </a>
+    {% endif %}
+
   </div>
 
   <div class="icon-sidebar-bottom">
@@ -719,7 +842,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </a>
     {% endif %}
     {% if can_governance_settings %}
-    <a href="/governance/" class="icon-nav-item{% if active_module == 'governance' %} active{% endif %}" title="Governance Settings" style="color:#6d28d9">
+    <a href="/governance/" class="icon-nav-item gov-settings-nav{% if active_module == 'governance' %} active{% endif %}" title="Governance Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
       <span class="icon-nav-tooltip">Governance Settings — Business Units &amp; Entities</span>
       <span class="nav-label">Governance Settings</span>
@@ -738,7 +861,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         {% if is_super_admin %}<a href="/super-admin/" style="color:var(--accent)">Super Admin</a>{% endif %}
         {% if is_admin %}<a href="/admin/users">User Management</a>{% endif %}
         {% if is_admin %}<a href="/admin/frameworks">Framework Activation</a>{% endif %}
-        {% if is_admin %}<a href="/admin/logs">Audit Log</a>{% endif %}
+        {% if is_admin or can_view_audit_log %}<a href="/admin/logs">Audit Log</a>{% endif %}
         {% if is_admin %}<a href="/admin/api-keys">API Keys</a>{% endif %}
         {% if is_admin %}<a href="/admin/webhooks">Webhooks</a>{% endif %}
         {% if is_admin %}<a href="/admin/email">Email Settings</a>{% endif %}
@@ -783,10 +906,6 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       Overview
     </a>
-    <a href="/my-dashboard" class="nav-item{% if active_section == 'my-dashboard' %} active{% endif %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-      My Dashboard
-    </a>
     {% if is_admin %}
     <a href="/admin/users" class="nav-item{% if active_section == 'users' %} active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -796,13 +915,15 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M8 7h8M8 11h6"/></svg>
       Frameworks
     </a>
-    <a href="/admin/logs" class="nav-item{% if active_section == 'logs' %} active{% endif %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      Audit Log
-    </a>
     <a href="/governance/" class="nav-item{% if active_section == 'org_structure' %} active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
       Org Structure
+    </a>
+    {% endif %}
+    {% if is_admin or can_view_audit_log %}
+    <a href="/admin/logs" class="nav-item{% if active_section == 'logs' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Audit Log
     </a>
     {% endif %}
     <a href="/risk-register" class="nav-item{% if active_section == 'risks' %} active{% endif %}">
@@ -829,10 +950,12 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Calendar
     </a>
+    {% if user and user.is_super_admin %}
     <a href="/analytics" class="nav-item{% if active_section == 'analytics' %} active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Analytics
     </a>
+    {% endif %}
     <a href="/change-password" class="nav-item{% if active_section == 'password' %} active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
       Change Password
@@ -851,7 +974,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <button class="mobile-nav-toggle" onclick="toggleMobileNav()" aria-label="Open navigation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
-      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <div class="breadcrumb">
@@ -869,16 +992,17 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <div id="searchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:360px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:999;"></div>
       </div>
       <div style="position:relative">
-        <button class="topbar-icon-btn" onclick="toggleNotif()" id="notifBtn">
+        <button class="topbar-icon-btn" onclick="toggleNotif()" id="notifBtn"
+                aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="notif-dot" id="notifDot"></span>
         </button>
         <div class="notif-panel" id="notifPanel">
           <div class="notif-header">
             <span class="notif-header-title">Notifications</span>
-            <span style="font-size:11px;color:var(--accent);cursor:pointer;font-weight:600" onclick="markAllRead()">Mark all read</span>
+            <button type="button" class="notif-mark-read" onclick="markAllRead()">Mark all read</button>
           </div>
-          <div class="notif-list" id="notifList">
+          <div class="notif-list" id="notifList" role="region" aria-label="Notifications" tabindex="0">
             <div class="empty-state" style="padding:24px">
               <p>No new notifications</p>
             </div>
@@ -899,7 +1023,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   </div>
 
   <!-- MAIN CONTENT -->
-  <div class="main-content" id="mainContent">
+  <main class="main-content" id="mainContent" tabindex="-1">
     {% if license_status and license_status.days_remaining is defined %}
     {% set ls_days = license_status.days_remaining %}
     {% set ls_critical = license_status.expired or ls_days <= 7 %}
@@ -936,14 +1060,19 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       })();
     </script>
     {% endif %}
+    {% if ai_return_id %}
+    <nav class="aig-return" aria-label="Return to the AI system">
+      <a href="/ai-governance/systems/{{ ai_return_id }}#assessments">&larr; Back to the AI system</a>
+    </nav>
+    {% endif %}
     {% block content %}{% endblock %}
-  </div>
+  </main>
 </div>
 
 </div><!-- .app -->
 
 <!-- Toast container -->
-<div class="toast-container" id="toastContainer"></div>
+<div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <script>
 // ── Shell Utilities ──
@@ -1028,8 +1157,9 @@ function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.tex
 
 function toggleNotif(){
   const p = document.getElementById('notifPanel');
-  p.classList.toggle('show');
-  if(p.classList.contains('show')) loadNotifications();
+  const isOpen = p.classList.toggle('show');
+  document.getElementById('notifBtn').setAttribute('aria-expanded', String(isOpen));
+  if(isOpen) loadNotifications();
 }
 
 async function loadNotifications(){
@@ -1044,7 +1174,7 @@ async function loadNotifications(){
       return;
     }
     list.innerHTML = data.notifications.slice(0,20).map(function(n) {
-      var safeLink = (n.link||'').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
+      var safeLink = safeHref(n.link, '');
       return '<div style="padding:10px 14px;border-bottom:1px solid var(--border-soft);cursor:pointer;background:'+(n.is_read?'transparent':'var(--surface2)')+'" data-nid="'+parseInt(n.id,10)+'" data-link="'+esc(safeLink)+'">' +
         '<div style="font-size:12.5px;font-weight:'+(n.is_read?'400':'600')+';color:var(--text);">'+esc(n.title)+'</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(n.message||'')+'</div>' +
@@ -1140,6 +1270,16 @@ document.addEventListener('keydown', function(e){
   }
 });
 
+// A link the server gave, kept as it is when it is a path on this site. The earlier filter removed every character that
+// was not a letter, digit or one of a few marks, which turned "?open=control:12" into "?open=control12".
+function safeHref(link, fallback){
+  var value = String(link || '');
+  if(value.charAt(0) === '/' && value.charAt(1) !== '/' && value.indexOf('\\') < 0 && !/[\u0000-\u001f\u007f]/.test(value)){
+    return value;
+  }
+  return fallback;
+}
+
 function updateSearchActive(items, idx){
   items.forEach(function(it, i){ it.classList.toggle('active', i === idx); });
   if(idx >= 0 && items[idx]){
@@ -1167,13 +1307,16 @@ async function doGlobalSearch(q){
   } else {
     var modColors = {aria:'#6c63ff',sentinel:'#10b981',grid:'#f59e0b',bcm:'#ef4444',platform:'#94a3b8'};
     el.innerHTML = data.results.map(function(r) {
-      var safeLink = (r.link||'#').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
+      var safeLink = safeHref(r.link, '#');
+      var facts = [r.status, r.date, r.business_unit].filter(Boolean).join(' \u00b7 ');
       var mod = (r.module||'').replace(/[^a-z]/g,'');
       return '<a href="'+esc(safeLink)+'" class="search-result" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">' +
         '<span style="width:8px;height:8px;border-radius:50%;background:'+(modColors[mod]||'var(--muted)')+';flex-shrink:0;"></span>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.title)+'</div>' +
           '<div style="font-size:11px;color:var(--muted);">'+esc(r.module)+' &middot; '+esc(r.type)+(r.subtitle?' &middot; '+esc(r.subtitle):'')+'</div>' +
+          (facts?'<div style="font-size:11px;color:var(--muted);">'+esc(facts)+'</div>':'') +
+          (r.snippet?'<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.snippet)+'</div>':'') +
         '</div>' +
       '</a>';
     }).join('');
@@ -1193,7 +1336,7 @@ function showToast(message, type='success', duration=4000){
   const c = document.getElementById('toastContainer');
   const t = document.createElement('div');
   t.className = 'toast toast-' + type;
-  t.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + esc(message);
+  t.innerHTML = '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + esc(message);
   c.appendChild(t);
   setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),300)}, duration);
 }
@@ -1309,29 +1452,29 @@ setInterval(async()=>{
 {% block extra_scripts %}{% endblock %}
 
 <!-- Reminder Modal -->
-<div class="modal" id="reminderModal" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
+<div class="reminder-overlay" id="reminderModal" role="dialog" aria-modal="true" aria-labelledby="reminderTitle" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
   <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);" onclick="closeReminderModal()"></div>
-  <div style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
+  <div class="reminder-card" style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
-      <button onclick="closeReminderModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
+      <h3 id="reminderTitle" style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
+      <button type="button" aria-label="Close reminder" onclick="closeReminderModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
     </div>
     <form id="reminderForm" onsubmit="createReminder(event)">
       <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
+        <label for="remTitle" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
         <input type="text" id="remTitle" required placeholder="e.g. Review audit findings" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
       </div>
       <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Message (optional)</label>
+        <label for="remMessage" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Message (optional)</label>
         <textarea id="remMessage" rows="2" placeholder="Additional details..." style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;"></textarea>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
         <div>
-          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Date & Time</label>
+          <label for="remAt" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Date & Time</label>
           <input type="datetime-local" id="remAt" required style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
         </div>
         <div>
-          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Repeat</label>
+          <label for="remRepeat" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Repeat</label>
           <select id="remRepeat" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
             <option value="none">No repeat</option>
             <option value="daily">Daily</option>
@@ -1341,7 +1484,7 @@ setInterval(async()=>{
         </div>
       </div>
       <div style="margin-bottom:14px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Module</label>
+        <label for="remModule" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Module</label>
         <select id="remModule" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
           <option value="platform">Platform (General)</option>
           <option value="aria">Governance</option>
@@ -1388,14 +1531,10 @@ async function createReminder(e){
 
 {% include "_platform_trainer.html" %}
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     PARTICLE NETWORK BACKGROUND
-     Adapted from AetherFlow. Vanilla JS, no dependencies.
-     z-index:-1, pointer-events:none — completely non-interactive.
-     Pauses when tab is hidden; respects prefers-reduced-motion.
-     ═══════════════════════════════════════════════════════════════════ -->
-<script src="/static/js/aegis-particles.js"></script>
+
 <script src="/static/js/related_items.js"></script>
+<script src="/static/js/module_home.js"></script>
+<script src="/static/js/modal_manager.js?v=1"></script>
 
 </body>
 </html>

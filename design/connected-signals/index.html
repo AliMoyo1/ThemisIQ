@@ -1,0 +1,392 @@
+﻿<!doctype html>
+<html lang="en" data-theme="sage">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Connected Signals | ThemisIQ landing page concept</title>
+  <meta name="description" content="An interactive landing page concept for ThemisIQ: one clear view across governance, audit, resilience, privacy, and risk.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="features.css">
+  <link rel="stylesheet" href="intelligence.css">
+  <script defer src="app.js"></script>
+  <script defer src="features.js"></script>
+  <script defer src="intelligence.js"></script>
+</head>
+<body>
+  <div class="page-wrap">
+    <section class="hero-shell" id="top" aria-labelledby="hero-title">
+      <header class="site-nav">
+        <a class="wordmark" href="#top" aria-label="ThemisIQ, back to top">
+          <span class="wordmark-mark" aria-hidden="true"><span></span><span></span></span>
+          <span>Themis<span class="wordmark-iq">IQ</span></span>
+        </a>
+        <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="nav-links" aria-expanded="false" aria-label="Open navigation">
+          <span></span><span></span>
+        </button>
+        <nav class="nav-links" id="nav-links" aria-label="Main navigation" data-open="false">
+          <a href="#system">The system</a>
+          <a href="#flow">How it connects</a>
+          <a href="#modules">Modules</a>
+          <a href="#features">Features</a>
+          <a href="#intelligence">Intelligence</a>
+        </nav>
+        <div class="nav-actions">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dusk theme">
+            <span class="theme-icon" aria-hidden="true">&#9789;</span>
+            <span id="theme-label">Dusk</span>
+          </button>
+          <a class="nav-cta" href="#contact">Request a demo <span aria-hidden="true">&#8599;</span></a>
+        </div>
+      </header>
+
+      <div class="hero-main">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="live-pip" aria-hidden="true"></span> ThemisIQ / Connected GRC</div>
+          <h1 id="hero-title">Every signal.<br><span>One clear view.</span></h1>
+          <p class="hero-description">A connected home for governance, audit, resilience, privacy, and risk. Keep the right context close to every decision.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#system">Explore the platform <span aria-hidden="true">&#8599;</span></a>
+            <a class="button button-secondary" href="#flow">See how it connects <span aria-hidden="true">&#8594;</span></a>
+          </div>
+          <div class="hero-note">Six disciplines. One connected picture.</div>
+          <p class="hero-invite" id="hero-invite"><span aria-hidden="true">↗</span> Select a module to preview its dashboard</p>
+        </div>
+
+        <div class="hero-visual" id="hero-visual" aria-label="Interactive ThemisIQ product preview">
+          <div class="orb orb-one" aria-hidden="true"></div>
+          <div class="orb orb-two" aria-hidden="true"></div>
+          <svg class="signal-lines" viewBox="0 0 720 630" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M104 98 C230 105 200 246 355 315"></path>
+            <path d="M603 76 C465 108 500 255 355 315"></path>
+            <path d="M664 284 C535 270 493 302 355 315"></path>
+            <path d="M586 555 C485 502 480 379 355 315"></path>
+            <path d="M122 542 C260 480 230 373 355 315"></path>
+            <path d="M66 312 C213 301 228 323 355 315"></path>
+          </svg>
+          <div class="preview-window" id="hero-preview">
+            <div class="preview-bar">
+              <div class="preview-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+              <span id="hero-url">app.themisiq.net/command-centre</span>
+              <span class="preview-status"><i aria-hidden="true"></i> PRODUCT VIEW</span>
+            </div>
+            <img id="hero-image" src="../../landing_page/screenshot-command-centre.webp" width="1916" height="993" alt="ThemisIQ Command Centre dashboard">
+            <div class="preview-caption"><span id="hero-caption">Command Centre</span><span id="hero-index">00 / 06</span></div>
+          </div>
+          <button class="signal-token token-aria" type="button" data-select-module="aria" aria-pressed="false" style="--token-color:#7d6527"><span class="token-dot"></span> Governance</button>
+          <button class="signal-token token-grid" type="button" data-select-module="grid" aria-pressed="false" style="--token-color:#059669"><span class="token-dot"></span> Audit</button>
+          <button class="signal-token token-bcm" type="button" data-select-module="bcm" aria-pressed="false" style="--token-color:#3d4660"><span class="token-dot"></span> Resilience</button>
+          <button class="signal-token token-sentinel" type="button" data-select-module="sentinel" aria-pressed="false" style="--token-color:#3b5bdb"><span class="token-dot"></span> Privacy</button>
+          <button class="signal-token token-erm" type="button" data-select-module="erm" aria-pressed="false" style="--token-color:#881337"><span class="token-dot"></span> Enterprise risk</button>
+          <button class="signal-token token-orm" type="button" data-select-module="orm" aria-pressed="false" style="--token-color:#7c3a0a"><span class="token-dot"></span> Operations risk</button>
+          <button class="reset-view" id="reset-view" type="button">Return to Command Centre <span aria-hidden="true">&#8634;</span></button>
+        </div>
+      </div>
+      <div class="hero-bottom">
+        <div><span class="hero-bottom-index">01 / 04</span> <span>One connected operating picture</span></div>
+        <a href="#system">Scroll to explore <span aria-hidden="true">&#8595;</span></a>
+      </div>
+    </section>
+
+    <main>
+      <section class="framework-ribbon" aria-label="Frameworks represented in the platform">
+        <div class="ribbon-top"><span class="ribbon-led" aria-hidden="true"></span><span>FRAMEWORK CATALOGUE</span><span class="ribbon-top-note">Standards, connected to the work</span></div>
+        <div class="ribbon-viewport">
+          <div class="ribbon-track" id="framework-track">
+            <div class="ribbon-set" role="list" aria-label="Framework examples">
+          <span role="listitem">GDPR</span>
+          <span role="listitem">HIPAA</span>
+          <span role="listitem">ISO 14001:2015</span>
+          <span role="listitem">ISO 20000-1:2018</span>
+          <span role="listitem">ISO 22301:2019</span>
+          <span role="listitem">ISO 27001:2022</span>
+          <span role="listitem">ISO 27017:2015</span>
+          <span role="listitem">ISO 27701:2019</span>
+          <span role="listitem">ISO 31000:2018</span>
+          <span role="listitem">ISO 42001</span>
+          <span role="listitem">ISO 45001:2018</span>
+          <span role="listitem">ISO 50001:2018</span>
+          <span role="listitem">ISO 9001:2015</span>
+          <span role="listitem">PCI DSS v4.0</span>
+          <span role="listitem">SOC 2 Type II</span>
+          <span role="listitem">Zimbabwe CDPA</span>
+            </div>
+            <div class="ribbon-set" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+      <section class="intro-section section-wrap" id="system" aria-labelledby="intro-title">
+        <div class="section-kicker"><span class="kicker-dot"></span> THE SYSTEM</div>
+        <div class="intro-grid">
+          <h2 id="intro-title">Clarity moves<br><em>with the work.</em></h2>
+          <div class="intro-body">
+            <p>Policies, findings, incidents, requests, and risks are easier to understand when their context stays connected.</p>
+            <p>ThemisIQ brings six disciplines into one considered workspace, with a Command Centre shaped around what each person needs to see.</p>
+            <a class="text-link" href="#flow">Follow a signal <span aria-hidden="true">&#8599;</span></a>
+          </div>
+        </div>
+        <div class="system-strip" aria-label="Connected platform foundations">
+          <div><span>01</span><strong>Shared context</strong><small>Relevant information across the work</small></div>
+          <div><span>02</span><strong>Clear ownership</strong><small>The right view for each role</small></div>
+          <div><span>03</span><strong>Traceable action</strong><small>Evidence alongside decisions</small></div>
+        </div>
+      </section>
+
+      <section class="flow-section" id="flow" aria-labelledby="flow-title">
+        <div class="section-wrap flow-inner">
+          <div class="section-kicker section-kicker-light"><span class="kicker-dot"></span> HOW IT CONNECTS</div>
+          <div class="flow-header">
+            <h2 id="flow-title">A signal becomes<br><em>shared understanding.</em></h2>
+            <p>Explore an illustrative journey from an operational event to a clearer decision. Select each stage to see the context that matters.</p>
+          </div>
+          <div class="flow-experience">
+            <div class="flow-steps" aria-label="Illustrative signal journey">
+              <button type="button" data-flow-step="0" aria-pressed="true"><span>01</span><strong>Capture</strong><small>An event is recorded</small></button>
+              <button type="button" data-flow-step="1" aria-pressed="false"><span>02</span><strong>Connect</strong><small>Response context comes together</small></button>
+              <button type="button" data-flow-step="2" aria-pressed="false"><span>03</span><strong>Evidence</strong><small>Supporting records stay linked</small></button>
+              <button type="button" data-flow-step="3" aria-pressed="false"><span>04</span><strong>Decide</strong><small>Leaders see the wider picture</small></button>
+            </div>
+            <div class="flow-display" id="flow-display" aria-live="polite">
+              <div class="flow-display-top">
+                <span id="flow-module">OPERATIONS RISK / ORM</span>
+                <span id="flow-number">01 / 04</span>
+                <button type="button" class="flow-replay" id="flow-replay">Replay the signal <span aria-hidden="true">↻</span></button>
+              </div>
+              <div class="flow-network" id="flow-network" data-active="0" aria-label="Interactive signal path">
+                <svg class="flow-network-lines" viewBox="0 0 600 270" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="network-path path-01" d="M92 160 C155 142 156 73 225 78"></path>
+                  <path class="network-path path-12" d="M225 78 C298 77 295 181 376 176"></path>
+                  <path class="network-path path-23" d="M376 176 C446 176 440 86 510 82"></path>
+                  <circle class="network-seed seed-01" cx="92" cy="160" r="5"></circle>
+                  <circle class="network-seed seed-12" cx="225" cy="78" r="5"></circle>
+                  <circle class="network-seed seed-23" cx="376" cy="176" r="5"></circle>
+                </svg>
+                <button type="button" class="flow-node node-0" data-flow-node="0" aria-pressed="true"><span class="node-number">01</span><strong>Capture</strong><small>ORM EVENT</small></button>
+                <button type="button" class="flow-node node-1" data-flow-node="1" aria-pressed="false"><span class="node-number">02</span><strong>Connect</strong><small>BCM RESPONSE</small></button>
+                <button type="button" class="flow-node node-2" data-flow-node="2" aria-pressed="false"><span class="node-number">03</span><strong>Evidence</strong><small>SHARED RECORD</small></button>
+                <button type="button" class="flow-node node-3" data-flow-node="3" aria-pressed="false"><span class="node-number">04</span><strong>Decide</strong><small>COMMAND VIEW</small></button>
+                <div class="flow-network-readout"><i aria-hidden="true"></i><span id="flow-readout">EVENT RECORDED</span></div>
+              </div>
+              <div class="flow-display-bottom"><h3 id="flow-step-title">Start with a clear record.</h3><p id="flow-step-description">Capture the event, its owner, and its impact while the details are fresh.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="feature-section section-wrap" id="features" aria-labelledby="features-title">
+        <div class="section-kicker"><span class="kicker-dot"></span> THE PLATFORM IN MOTION</div>
+        <div class="feature-heading">
+          <h2 id="features-title">See the work.<br><em>See what connects.</em></h2>
+          <p>Choose a story to explore how ThemisIQ brings context, timing, and ownership into the same view.</p>
+        </div>
+        <div class="feature-console">
+          <div class="feature-tabs" role="tablist" aria-label="Explore platform capabilities">
+            <button type="button" class="feature-tab" id="feature-tab-privacy" role="tab" aria-controls="feature-panel" aria-selected="true" data-feature="privacy"><span class="feature-tab-num">01</span><span><strong>Privacy across jurisdictions</strong><small>Rules and response timing</small></span><span class="feature-tab-arrow" aria-hidden="true">↗</span></button>
+            <button type="button" class="feature-tab" id="feature-tab-response" role="tab" aria-controls="feature-panel" aria-selected="false" data-feature="response"><span class="feature-tab-num">02</span><span><strong>One event, connected action</strong><small>Shared signals across modules</small></span><span class="feature-tab-arrow" aria-hidden="true">↗</span></button>
+            <button type="button" class="feature-tab" id="feature-tab-evidence" role="tab" aria-controls="feature-panel" aria-selected="false" data-feature="evidence"><span class="feature-tab-num">03</span><span><strong>Evidence that stays useful</strong><small>One record, multiple contexts</small></span><span class="feature-tab-arrow" aria-hidden="true">↗</span></button>
+            <button type="button" class="feature-tab" id="feature-tab-command" role="tab" aria-controls="feature-panel" aria-selected="false" data-feature="command"><span class="feature-tab-num">04</span><span><strong>A view shaped around you</strong><small>Personal Command Centre</small></span><span class="feature-tab-arrow" aria-hidden="true">↗</span></button>
+          </div>
+          <div class="feature-panel" id="feature-panel" role="tabpanel" aria-labelledby="feature-tab-privacy">
+            <div class="feature-panel-top"><span id="feature-panel-index">01 / PRIVACY RESPONSE</span><span>INTERACTIVE PRODUCT STUDY</span></div>
+
+            <div class="feature-scene" data-scene="privacy">
+              <div class="feature-story"><span class="feature-story-tag">SENTINEL / PRIVACY</span><h3>One privacy desk.<br><em>Different rules.</em></h3><p>Pick a jurisdiction to see how the response view adapts its authority, response window, and subject-request timing.</p><span class="feature-story-note">Explore the example →</span></div>
+              <div class="privacy-demo">
+                <div class="demo-topline"><span><i class="demo-live-dot"></i> BREACH RESPONSE / EXAMPLE</span><span>05 JURISDICTIONS</span></div>
+                <div class="jurisdiction-options" role="group" aria-label="Choose an illustrative jurisdiction">
+                  <button type="button" data-jurisdiction="gdpr" aria-pressed="true">EU GDPR</button>
+                  <button type="button" data-jurisdiction="kenya" aria-pressed="false">Kenya DPA</button>
+                  <button type="button" data-jurisdiction="zimbabwe" aria-pressed="false">Zimbabwe CDPA</button>
+                  <button type="button" data-jurisdiction="popia" aria-pressed="false">South Africa POPIA</button>
+                  <button type="button" data-jurisdiction="ccpa" aria-pressed="false">California CCPA</button>
+                </div>
+                <div class="privacy-rule-grid" aria-live="polite">
+                  <div><span>Authority</span><strong id="privacy-authority">National DPA</strong></div>
+                  <div><span>Notification rule</span><strong id="privacy-window">72 h example</strong></div>
+                  <div><span>Subject requests</span><strong id="privacy-dsr">30 days</strong></div>
+                </div>
+                <div class="privacy-timer">
+                  <div><span class="timer-label">ILLUSTRATIVE TIME REMAINING</span><strong id="privacy-clock" aria-live="off">48:42:00</strong><span class="timer-caption" id="privacy-timer-caption">Based on a sample incident recorded 23 h 18 m ago</span></div>
+                  <div class="timer-orbit" aria-hidden="true"><span>72<span>H</span></span></div>
+                </div>
+                <div class="privacy-progress" aria-hidden="true"><span id="privacy-progress"></span></div>
+                <p class="demo-footnote">Illustrative interface only. Actual notification duties depend on the event and current law.</p>
+                <span class="sr-only" id="privacy-status" role="status"></span>
+              </div>
+            </div>
+
+            <div class="feature-scene" data-scene="response" hidden>
+              <div class="feature-story"><span class="feature-story-tag">CONNECTED RESPONSE</span><h3>A signal should<br><em>travel with context.</em></h3><p>A confirmed breach can create related work in enterprise risk, operations risk, and audit. The teams see their own next step from a shared event.</p><button type="button" class="feature-inline-action" id="replay-response">Replay the signal <span aria-hidden="true">↗</span></button></div>
+              <div class="response-demo" id="response-demo">
+                <div class="demo-topline"><span><i class="demo-live-dot"></i> ILLUSTRATIVE EVENT ROUTE</span><span>01 INPUT / 03 FOLLOW-UPS</span></div>
+                <div class="response-source"><span class="response-source-mark">S</span><div><small>SENTINEL / PRIVACY</small><strong>Breach confirmed</strong><span>One source record</span></div><b aria-hidden="true">↗</b></div>
+                <div class="response-connector" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="response-targets"><div class="response-target target-erm"><span>ERM</span><strong>Obligation</strong><small>Track regulatory response</small></div><div class="response-target target-orm"><span>ORM</span><strong>Event</strong><small>Assess operational impact</small></div><div class="response-target target-grid"><span>GRID</span><strong>Audit</strong><small>Review what happened</small></div></div>
+                <div class="response-caption">The example follows the platform's cross-module breach event path.</div>
+              </div>
+            </div>
+
+            <div class="feature-scene" data-scene="evidence" hidden>
+              <div class="feature-story"><span class="feature-story-tag">EVIDENCE VAULT</span><h3>Keep the proof<br><em>close to the decision.</em></h3><p>Store evidence once, link it to the work that needs it, and keep its expiry in sight. Select a link to see how one record supports different teams.</p><span class="feature-story-note">Select a linked record →</span></div>
+              <div class="evidence-demo">
+                <div class="demo-topline"><span><i class="demo-live-dot"></i> SHARED EVIDENCE / EXAMPLE</span><span>ONE FILE / MANY USES</span></div>
+                <div class="evidence-demo-file"><span class="evidence-file-icon" aria-hidden="true">▤</span><div><small>DOCUMENT / POLICY REVIEW</small><strong>Control evidence</strong><span>Fingerprint checked · expiry tracked</span></div><span class="evidence-file-status">READY</span></div>
+                <div class="evidence-demo-links" role="group" aria-label="Linked record examples"><button type="button" data-evidence-link="aria" aria-pressed="true"><i></i> ARIA control</button><button type="button" data-evidence-link="grid" aria-pressed="false"><i></i> GRID audit</button><button type="button" data-evidence-link="bcm" aria-pressed="false"><i></i> BCM incident</button></div>
+                <div class="evidence-detail" aria-live="polite"><span id="evidence-detail-label">GOVERNANCE / ARIA</span><strong id="evidence-detail-title">Proof beside the control</strong><p id="evidence-detail-body">Reviewers can open the supporting file from the control they are assessing.</p></div>
+                <div class="evidence-reminders"><span>EXPIRY REMINDERS</span><b>30 d</b><b>7 d</b><b>1 d</b></div>
+              </div>
+            </div>
+
+            <div class="feature-scene" data-scene="command" hidden>
+              <div class="feature-story"><span class="feature-story-tag">COMMAND CENTRE</span><h3>The right view<br><em>for each person.</em></h3><p>Move a card forward or tuck one away. The overview can follow the signals each role needs to see first.</p><div class="command-actions"><button type="button" class="feature-inline-action" id="move-audit" aria-pressed="false">Move audit first <span aria-hidden="true">↗</span></button><button type="button" class="feature-inline-action" id="toggle-briefing" aria-pressed="false">Hide briefing <span aria-hidden="true">↗</span></button></div></div>
+              <div class="command-demo">
+                <div class="demo-topline"><span><i class="demo-live-dot"></i> YOUR COMMAND CENTRE</span><span>LAYOUT EXAMPLE</span></div>
+                <div class="command-demo-header"><span>Good morning.</span><small>Make this view yours</small></div>
+                <div class="command-cards" id="command-cards">
+                  <div class="command-card" data-card="risk"><small>ENTERPRISE RISK</small><strong>Risk posture</strong><span><i></i><i></i><i></i></span></div>
+                  <div class="command-card" data-card="audit"><small>AUDIT</small><strong>Open work</strong><span><i></i><i></i><i></i></span></div>
+                  <div class="command-card" data-card="briefing"><small>TODAY'S BRIEFING</small><strong>What needs attention</strong><span><i></i><i></i></span></div>
+                </div>
+                <div class="command-demo-footer"><span>ARRANGE</span><span>HIDE</span><span>BRING BACK</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="intelligence-section section-wrap" id="intelligence" aria-labelledby="intelligence-title">
+        <div class="section-kicker"><span class="kicker-dot"></span> INTELLIGENCE WITH CONTEXT</div>
+        <div class="intelligence-heading">
+          <h2 id="intelligence-title">A clearer first draft.<br><em>A stronger next decision.</em></h2>
+          <p>Explore how assistance, grounded answers, external signals, and predictive risk can work with the records your teams already manage.</p>
+        </div>
+        <div class="intelligence-shell">
+          <div class="intelligence-tabs" role="tablist" aria-label="Intelligence examples">
+            <button type="button" role="tab" id="intel-tab-draft" aria-controls="intel-panel-draft" aria-selected="true" tabindex="0" data-intel-tab="draft"><span>01</span><strong>Assisted drafting</strong><small>From context to reviewable work</small></button>
+            <button type="button" role="tab" id="intel-tab-ask" aria-controls="intel-panel-ask" aria-selected="false" tabindex="-1" data-intel-tab="ask"><span>02</span><strong>Ask your policies</strong><small>Grounded answers with sources</small></button>
+            <button type="button" role="tab" id="intel-tab-context" aria-controls="intel-panel-context" aria-selected="false" tabindex="-1" data-intel-tab="context"><span>03</span><strong>External context</strong><small>Watch what may be changing</small></button>
+            <button type="button" role="tab" id="intel-tab-risk" aria-controls="intel-panel-risk" aria-selected="false" tabindex="-1" data-intel-tab="risk"><span>04</span><strong>Predictive risk</strong><small>Signals before escalation</small></button>
+          </div>
+          <div class="intelligence-stage">
+            <div class="intelligence-stage-top"><span><i></i> INTERACTIVE PLATFORM CONCEPT</span><span>ILLUSTRATIVE DATA</span></div>
+
+            <section class="intelligence-panel" id="intel-panel-draft" role="tabpanel" aria-labelledby="intel-tab-draft" data-intel-panel="draft">
+              <div class="intel-panel-intro"><span>ASSISTED AUTHORING</span><h3>Give the blank page<br><em>the right context.</em></h3><p>Start from business context, linked records, and a structured template. People still review and approve the result.</p></div>
+              <div class="intel-workspace draft-workspace">
+                <div class="intel-workspace-bar"><span><i></i> DRAFT WORKSPACE</span><span id="draft-counter">01 / 06</span></div>
+                <div class="draft-options" role="group" aria-label="Choose an illustrative draft type">
+                  <button type="button" data-draft="dpia" aria-pressed="true">DPIA</button>
+                  <button type="button" data-draft="aiia" aria-pressed="false">AIIA</button>
+                  <button type="button" data-draft="bcp" aria-pressed="false">BCP plan</button>
+                  <button type="button" data-draft="policy" aria-pressed="false">AI policy</button>
+                  <button type="button" data-draft="procedure" aria-pressed="false">Procedure</button>
+                  <button type="button" data-draft="record" aria-pressed="false">Record</button>
+                </div>
+                <div class="draft-document" aria-live="polite">
+                  <div class="draft-document-top"><span id="draft-module">SENTINEL / PRIVACY</span><span class="draft-badge" id="draft-badge">REVIEWABLE DRAFT</span></div>
+                  <h4 id="draft-title">Data protection impact assessment</h4>
+                  <p id="draft-summary">An assisted starting point for processing scope, data flows, risks, safeguards, and reviewer decisions.</p>
+                  <div class="draft-document-sections" id="draft-sections"><span>Processing overview</span><span>Risk and impact</span><span>Mitigations</span></div>
+                  <div class="draft-document-footer"><span id="draft-source">Uses assessment context and existing records</span><strong>HUMAN REVIEW REQUIRED</strong></div>
+                </div>
+                <p class="intel-disclosure" id="draft-disclosure">Illustrative document outline. Generated material requires verification and approval.</p>
+              </div>
+            </section>
+
+            <section class="intelligence-panel" id="intel-panel-ask" role="tabpanel" aria-labelledby="intel-tab-ask" data-intel-panel="ask" hidden>
+              <div class="intel-panel-intro"><span>POLICY GROUNDED AI</span><h3>Ask the question.<br><em>See the source.</em></h3><p>Ask ARIA uses your organisation's authorised policies, controls, and risk records to answer in business context. Select a sample question to see how it handles coverage.</p></div>
+              <div class="intel-workspace ask-workspace">
+                <div class="intel-workspace-bar"><span><i></i> ASK ARIA / EXAMPLE</span><span>ORGANISATION CONTEXT</span></div>
+                <div class="ask-questions" role="group" aria-label="Choose an illustrative policy question">
+                  <button type="button" data-ask="retention" aria-pressed="true">What is our retention approach?</button>
+                  <button type="button" data-ask="incident" aria-pressed="false">How do we escalate an incident?</button>
+                  <button type="button" data-ask="unknown" aria-pressed="false">What is our quantum policy?</button>
+                </div>
+                <div class="ask-conversation" aria-live="polite">
+                  <div class="ask-question"><span>YOU ASKED</span><p id="ask-question">What is our retention approach?</p></div>
+                  <div class="ask-answer"><span>ARIA RESPONSE <i></i></span><p id="ask-answer">Begin with the approved retention schedule, confirm the record category and owner, then check any hold before disposal. The exact period comes from your organisation's policy.</p></div>
+                  <div class="ask-source" id="ask-source"><span>SOURCE TYPE</span><strong>Approved policy · Retention schedule</strong><small>Sample citation card; no organisation document is displayed here.</small></div>
+                </div>
+                <p class="intel-disclosure">Example conversation only. Actual answers depend on authorised records and citation coverage.</p>
+              </div>
+            </section>
+
+            <section class="intelligence-panel" id="intel-panel-context" role="tabpanel" aria-labelledby="intel-tab-context" data-intel-panel="context" hidden>
+              <div class="intel-panel-intro"><span>ERM / EXTERNAL CONTEXT</span><h3>Know what changed<br><em>beyond your walls.</em></h3><p>When web search is configured, ERM can scan for emerging risks, verify cited sources, and turn relevant developments into reviewable context.</p></div>
+              <div class="intel-workspace context-workspace">
+                <div class="intel-workspace-bar"><span><i></i> HORIZON SCAN / EXAMPLE</span><span id="context-sector">TECHNOLOGY</span></div>
+                <div class="context-choices" role="group" aria-label="Choose an illustrative scan focus">
+                  <button type="button" data-context="technology" aria-pressed="true">Technology</button>
+                  <button type="button" data-context="operations" aria-pressed="false">Operations</button>
+                  <button type="button" data-context="privacy" aria-pressed="false">Privacy</button>
+                </div>
+                <div class="context-radar" aria-hidden="true"><span class="radar-ring"></span><span class="radar-ring"></span><span class="radar-ring"></span><span class="radar-sweep"></span><span class="radar-point point-one"></span><span class="radar-point point-two"></span><span class="radar-point point-three"></span><span class="radar-center"></span></div>
+                <div class="context-result" aria-live="polite"><span>REVIEW QUEUE</span><h4 id="context-title">Technology change</h4><p id="context-description">Review new dependencies, supplier exposure, and control coverage against the organisation's risk register.</p><div><span>Source verification</span><strong>Required before citation</strong></div></div>
+                <p class="intel-disclosure">Illustrative themes, not a live web scan. The platform labels knowledge-only fallback when web search is unavailable.</p>
+              </div>
+            </section>
+
+            <section class="intelligence-panel" id="intel-panel-risk" role="tabpanel" aria-labelledby="intel-tab-risk" data-intel-panel="risk" hidden>
+              <div class="intel-panel-intro"><span>CONNECTED RISK SIGNALS</span><h3>See the movement.<br><em>Understand the why.</em></h3><p>Predictive risk intelligence combines cross-module signals, shows their contribution, and keeps confidence visible for human review.</p></div>
+              <div class="intel-workspace risk-workspace">
+                <div class="intel-workspace-bar"><span><i></i> RISK INTELLIGENCE / EXAMPLE</span><span>SCENARIO VIEW</span></div>
+                <div class="risk-scenarios" role="group" aria-label="Choose an illustrative risk scenario">
+                  <button type="button" data-risk="baseline" aria-pressed="true">Balanced</button>
+                  <button type="button" data-risk="exercise" aria-pressed="false">Exercise overdue</button>
+                  <button type="button" data-risk="controls" aria-pressed="false">Control gaps</button>
+                </div>
+                <div class="risk-overview"><div class="risk-score"><span>ILLUSTRATIVE CHANGE</span><strong id="risk-change">+8.4%</strong><small id="risk-level">WATCH</small></div><div class="risk-domain-bars" id="risk-domain-bars"><div><span>Cyber</span><b><i data-risk-bar="cyber"></i></b><strong id="risk-cyber">12%</strong></div><div><span>Operational</span><b><i data-risk-bar="operational"></i></b><strong id="risk-operational">18%</strong></div><div><span>Compliance</span><b><i data-risk-bar="compliance"></i></b><strong id="risk-compliance">10%</strong></div></div></div>
+                <div class="risk-contributors"><span>CONNECTED INPUTS</span><div><span data-risk-signal="bcm">BCM exercise age</span><span data-risk-signal="aria">ARIA control gap</span><span data-risk-signal="sentinel">Sentinel breaches</span><span data-risk-signal="grid">GRID findings</span><span data-risk-signal="orm">ORM repeat events</span><span data-risk-signal="erm">ERM appetite</span></div></div>
+                <div class="risk-insight" aria-live="polite"><span>SIGNAL CONTRIBUTION</span><strong id="risk-driver">Review linked signals</strong><p id="risk-explanation">An example of how the platform brings continuity, control, incident, and appetite signals into one reviewable picture.</p><div><span>Confidence</span><strong id="risk-confidence">Moderate · sample completeness</strong></div></div>
+                <p class="intel-disclosure">Illustrative scenario values, not a forecast or live tenant data. Recommendations require validation.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+      <section class="modules-section section-wrap" id="modules" aria-labelledby="modules-title">
+        <div class="section-kicker"><span class="kicker-dot"></span> SIX DISCIPLINES, ONE SYSTEM</div>
+        <div class="modules-heading"><h2 id="modules-title">Explore each lens.</h2><p>Choose a discipline to see its current dashboard and the work it brings into focus.</p></div>
+        <div class="modules-layout">
+          <div class="module-list" role="tablist" aria-label="ThemisIQ modules">
+            <button type="button" id="module-tab-aria" role="tab" aria-selected="true" aria-controls="module-panel" data-select-module="aria"><span class="module-num">01</span><span class="module-name">Governance <small>ARIA</small></span><span aria-hidden="true">&#8599;</span></button>
+            <button type="button" id="module-tab-grid" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="grid"><span class="module-num">02</span><span class="module-name">Audit <small>GRID</small></span><span aria-hidden="true">&#8599;</span></button>
+            <button type="button" id="module-tab-bcm" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="bcm"><span class="module-num">03</span><span class="module-name">Resilience <small>BCM</small></span><span aria-hidden="true">&#8599;</span></button>
+            <button type="button" id="module-tab-sentinel" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="sentinel"><span class="module-num">04</span><span class="module-name">Privacy <small>SENTINEL</small></span><span aria-hidden="true">&#8599;</span></button>
+            <button type="button" id="module-tab-erm" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="erm"><span class="module-num">05</span><span class="module-name">Enterprise risk <small>ERM</small></span><span aria-hidden="true">&#8599;</span></button>
+            <button type="button" id="module-tab-orm" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="orm"><span class="module-num">06</span><span class="module-name">Operations risk <small>ORM</small></span><span aria-hidden="true">&#8599;</span></button>
+          </div>
+          <article class="module-panel" id="module-panel" role="tabpanel" aria-labelledby="module-tab-aria">
+            <div class="module-panel-header"><span id="module-eyebrow">GOVERNANCE / ARIA</span><span id="module-counter">01 / 06</span></div>
+            <div class="module-panel-copy"><h3 id="module-title">Give every control its context.</h3><p id="module-description">Bring frameworks, policies, documents, and control work into one clear governance view.</p></div>
+            <div class="module-image-frame"><div class="module-image-bar"><span class="module-image-pip"></span><span id="module-url">app.themisiq.net/aria</span><span>PRODUCT VIEW</span></div><img id="module-image" src="../../landing_page/screenshot-aria.webp" width="1916" height="997" alt="ARIA governance dashboard"></div>
+            <div class="module-capabilities" id="module-capabilities"><span>Frameworks</span><span>Policies &amp; documents</span><span>Control mapping</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="approach-section section-wrap" id="approach" aria-labelledby="approach-title">
+        <div class="section-kicker"><span class="kicker-dot"></span> MADE FOR THE ACTUAL WORK</div>
+        <div class="approach-heading"><h2 id="approach-title">Depth where it matters.<br><em>Calm everywhere else.</em></h2><p>A considered system gives the work room to breathe while keeping its evidence, ownership, and history close.</p></div>
+        <div class="approach-grid">
+          <div class="approach-card approach-card-featured">
+            <div class="approach-card-top"><span>01 / SHARED EVIDENCE</span><span class="approach-arrow" aria-hidden="true">&#8599;</span></div>
+            <div class="evidence-visual" aria-hidden="true"><div class="evidence-sheet sheet-back"></div><div class="evidence-sheet sheet-middle"></div><div class="evidence-sheet sheet-front"><span>DOCUMENT / 024</span><i></i><i></i><i></i><strong>Linked context</strong></div><span class="evidence-link link-one">POLICY</span><span class="evidence-link link-two">AUDIT</span><span class="evidence-link link-three">RISK</span></div>
+            <h3>One place for the proof.</h3><p>Evidence remains available to the teams and workflows that rely on it.</p>
+          </div>
+          <div class="approach-stack">
+            <div class="approach-card approach-card-ai"><div class="approach-card-top"><span>02 / ASSISTED INTELLIGENCE</span><span class="approach-arrow" aria-hidden="true">&#8599;</span></div><div class="ai-glyph" aria-hidden="true">&#10022;</div><h3>AI with the record in view.</h3><p>Move from a question to a useful starting point, with relevant context close at hand.</p></div>
+            <div class="approach-card approach-card-role"><div class="approach-card-top"><span>03 / SCENARIO STUDIO</span><span class="approach-arrow" aria-hidden="true">&#8599;</span></div><div class="scenario-visual" aria-hidden="true"><div><small>BASELINE</small><span class="scenario-track"><i></i></span></div><div><small>WHAT IF</small><span class="scenario-track"><i></i></span></div></div><h3>Test the what-if before it happens.</h3><p>Compare baseline and scenario impact, link the affected risks and controls, and capture a board-pack snapshot.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact-section" id="contact" aria-labelledby="contact-title"><div class="contact-inner"><span class="section-kicker section-kicker-light"><span class="kicker-dot"></span> SEE THE SYSTEM</span><h2 id="contact-title">Bring the whole picture<br><em>into focus.</em></h2><p>Explore how ThemisIQ can make connected governance, risk, and compliance work feel clearer.</p><a class="button button-light" href="https://themisiq.net/#demo">Request a demo <span aria-hidden="true">&#8599;</span></a><div class="contact-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div></div></section>
+    </main>
+
+    <footer class="site-footer"><a class="wordmark" href="#top"><span class="wordmark-mark" aria-hidden="true"><span></span><span></span></span><span>Themis<span class="wordmark-iq">IQ</span></span></a><p>Connected Signals / landing page design study</p><a href="#top">Back to top &#8593;</a></footer>
+  </div>
+</body>
+</html>

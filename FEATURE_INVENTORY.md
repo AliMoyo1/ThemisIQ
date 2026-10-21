@@ -1,6 +1,6 @@
 # One For All — Complete Feature Inventory & Status
 
-> Last updated: 2026-05-30 | Auto-generated from codebase analysis + feature tracker spreadsheet + design documents
+> Original baseline: 2026-05-30. Reconciled for selected source-verified rows on 2026-10-02. This hand-reviewed catalogue is a historical feature description; the route-level evidence is [the generated capability inventory](oneforall/docs/generated/capability_inventory.md). New PLAN-36 work is still unverified until its final regression pass. Remaining unreviewed rows and historical totals below are not current completion claims.
 
 ---
 
@@ -15,7 +15,7 @@
 | CORE-05 | Rate limiting on login | ✅ Done | IP-based restrictions |
 | CORE-06 | Security headers middleware | ✅ Done | X-Frame-Options, CSP, etc. |
 | CORE-07 | Unified shell UI | ✅ Done | base_shell.html template |
-| CORE-08 | Dark/light theme toggle | ❌ Missing | CSS variable mismatch across modules |
+| CORE-08 | Dark/light theme toggle | ✅ Implemented | base_shell.html has toggleTheme and themeToggle; visual coverage remains a separate check |
 | CORE-09 | Command centre dashboard | ✅ Done | Launcher module |
 | CORE-10 | User management | ✅ Done | Admin panel CRUD |
 | CORE-11 | Settings management | ✅ Done | settings table |
@@ -23,13 +23,13 @@
 | CORE-13 | API keys for integration | ✅ Done | api_keys table |
 | CORE-14 | Webhooks | ✅ Done | webhooks + webhook_logs tables |
 | CORE-15 | Activity timeline | ✅ Done | audit_log UI view |
-| CORE-16 | Two-factor authentication (2FA) | ❌ Missing | TOTP-based for admin accounts |
-| CORE-17 | Session management UI | ❌ Missing | View/revoke active sessions |
+| CORE-16 | Two-factor authentication (2FA) | ✅ Implemented | user_mfa table; /mfa/setup and /mfa/verify routes with optional admin policy |
+| CORE-17 | Session management UI | ⚠️ Partial | Profile lists up to 10 sessions; individual revoke control not confirmed |
 | CORE-18 | Password policy enforcement | ❌ Missing | Complexity, expiry, history |
 | CORE-19 | Account lockout after failures | ❌ Missing | 5 failures = 15 min lockout |
 | CORE-20 | Login audit dashboard | ❌ Missing | Map of failed login attempts |
 | CORE-21 | User activity reports | ❌ Missing | Who did what, when, exportable |
-| CORE-22 | Bulk user import/export | ❌ Missing | CSV for HR integration |
+| CORE-22 | Bulk user import/export | ✅ Implemented | Admin XLSX import preview/commit and XLSX export routes |
 | CORE-23 | LDAP/Active Directory integration | ❌ Missing | Corporate login |
 | CORE-24 | Password reset flow | ❌ Missing | Secure token-based reset |
 | CORE-25 | Email template editor | ❌ Missing | Customize notification emails |
@@ -158,10 +158,10 @@
 | BCM-11 | Dependency graph | ✅ Done | Nodes + edges + impact analysis |
 | BCM-12 | Automated BIA calculation | ❌ Missing | RTO/RPO algorithm engine |
 | BCM-13 | Maximum Tolerable Downtime (MTD) | ❌ Missing | Calculated MTD boundaries |
-| BCM-14 | Crisis communication templates | ❌ Missing | Pre-written response alerts |
-| BCM-15 | Emergency contact tree | ❌ Missing | Call trees with escalation |
-| BCM-16 | Exercise scenario library | ❌ Missing | Pre-built disaster injects |
-| BCM-17 | Plan activation workflow | ❌ Missing | One-click emergency launch |
+| BCM-14 | Crisis communication templates | ✅ Implemented | /bcm/api/comms CRUD |
+| BCM-15 | Emergency contact tree | ✅ Implemented | /bcm/api/contacts/tree and contact CRUD |
+| BCM-16 | Exercise scenario library | ✅ Implemented | /bcm/api/scenarios CRUD |
+| BCM-17 | Plan activation workflow | ✅ Implemented | /bcm/api/plans/{plan_id}/activate and activation history |
 | BCM-18 | Dependency impact analysis (auto) | ❌ Missing | Automated failure cascade tracing |
 | BCM-IMPL1 | Incident action items | ✅ Done | bcm_incident_actions CRUD |
 | BCM-IMPL2 | Incident decisions log | ✅ Done | bcm_incident_decisions CRUD |
@@ -214,8 +214,8 @@
 | SENT-12 | Data mapping visualization | ❌ Missing | Visual personal data flows |
 | SENT-13 | Data retention scheduler | ❌ Missing | Automated cleanup intervals |
 | SENT-14 | Legitimate interest assessment | ❌ Missing | LIA workflow template |
-| SENT-15 | Subject access request tracking | ❌ Missing | 30-day regulatory timer |
-| SENT-16 | Breach notification timer | ❌ Missing | 72-hour regulatory countdown |
+| SENT-15 | Subject access request tracking | ✅ Implemented | DSR deadline calculation and scheduled deadline checks |
+| SENT-16 | Breach notification timer | ✅ Implemented | Jurisdiction deadline calculation and scheduled breach checks |
 | SENT-IMPL1 | Vendor/Processor management | ✅ Done | AI vendor compliance checks |
 | SENT-IMPL2 | Privacy notices | ✅ Done | AI-generated drafts |
 | SENT-IMPL3 | Data controllers | ✅ Done | Registration management |
@@ -280,25 +280,6 @@
 
 ---
 
-## Summary
+## Historical baseline counts
 
-| Module | Implemented | Missing | Coverage |
-|---|---|---|---|
-| Core Platform | 22 | 10 | 69% |
-| ARIA | 22 | 12 | 65% |
-| GRID | 37 | 2 | 95% |
-| BCM | 24 | 7 | 77% |
-| Sentinel | 24 | 5 | 83% |
-| Evidence Vault | 22 | 0 | 100% |
-| **Total** | **151** | **36** | **81%** |
-
-### Critical Missing Items (should build next)
-
-1. **SENT-16**: Breach 72-hour notification timer — regulatory compliance requirement
-2. **SENT-15**: DSR 30-day timer — regulatory compliance requirement
-3. **BCM-17**: Plan activation workflow — core BCM functionality
-4. **BCM-14**: Crisis communication templates — essential for incident response
-5. **BCM-15**: Emergency contact tree — essential for incident response
-6. **CORE-16**: Two-factor authentication — security baseline for enterprise
-7. **CORE-19**: Account lockout — security baseline
-8. **SENT-12**: Data mapping visualization — visual data flow diagram
+The May 2026 counts and the old "Critical Missing Items" list have been retired because they conflict with source-verified delivered features above. Use the generated capability inventory for current registered routes, the PLAN-36 progress ledger for new unverified work, and the human-reviewed rows above for feature descriptions. Full row-by-row classification remains open; an unreviewed "Missing" cell is not evidence of absence.

@@ -16,9 +16,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     Expiring Soon <span id="badge-expiring" class="nav-badge" style="background:var(--warn-soft,#fef3c7);color:var(--warn,#d97706)"></span>
   </a>
-  <a href="#" class="nav-item" id="nav-unlinked" onclick="switchView('unlinked',this)">
+  <a href="#" class="nav-item" id="nav-unlinked" onclick="switchView('needs_filing',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-    Unlinked <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--bad,#dc2626)"></span>
+    Needs filing <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--bad,#dc2626)"></span>
   </a>
   <a href="#" class="nav-item" id="nav-archived" onclick="switchView('archived',this)" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -28,21 +28,21 @@
 <div class="sidebar-section">
   <div class="sidebar-label">Modules</div>
   <a href="#" class="nav-item" onclick="filterModule('',this)">All Modules</a>
-  <a href="#" class="nav-item" onclick="filterModule('aria',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#4f8ef7;display:inline-block"></span> ARIA
-    <span id="badge-aria" class="nav-badge" style="background:#4f8ef722;color:#4f8ef7"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-aria" onclick="filterModule('aria',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> ARIA
+    <span id="badge-aria" class="nav-badge ev-filter-badge"></span>
   </a>
-  <a href="#" class="nav-item" onclick="filterModule('grid',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span> GRID
-    <span id="badge-grid" class="nav-badge" style="background:#16a34a22;color:#16a34a"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-grid" onclick="filterModule('grid',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> GRID
+    <span id="badge-grid" class="nav-badge ev-filter-badge"></span>
   </a>
-  <a href="#" class="nav-item" onclick="filterModule('bcm',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#d97706;display:inline-block"></span> BCM
-    <span id="badge-bcm" class="nav-badge" style="background:#d9770622;color:#d97706"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-bcm" onclick="filterModule('bcm',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> BCM
+    <span id="badge-bcm" class="nav-badge ev-filter-badge"></span>
   </a>
-  <a href="#" class="nav-item" onclick="filterModule('sentinel',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#7c3aed;display:inline-block"></span> Sentinel
-    <span id="badge-sentinel" class="nav-badge" style="background:#7c3aed22;color:#7c3aed"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-sentinel" onclick="filterModule('sentinel',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> Sentinel
+    <span id="badge-sentinel" class="nav-badge ev-filter-badge"></span>
   </a>
 </div>
 <div class="sidebar-section">
@@ -96,26 +96,64 @@
 .ev-act-dot{width:8px;height:8px;border-radius:50%;margin-top:3px;flex-shrink:0}
 /* ── Tab bar in detail ── */
 .ev-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 20px}
-.ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+.ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;font-family:inherit}
 .ev-tab.active{color:var(--accent);border-color:var(--accent)}
+#evidenceGrid,#evidenceTable{scroll-margin-top:72px}
+/* ── Work views, state and review chips ── */
+.ev-search{width:100%;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px}
+.ev-work{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.ev-work-tab{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;font-family:inherit}
+.ev-work-tab.is-current{background:var(--accent);border-color:var(--accent);color:#fff}
+.ev-work-count{font-size:11px;font-weight:700;opacity:.85}
+.ev-chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--border);color:var(--text);white-space:nowrap}
+.ev-chip-good{color:#15803d;border-color:#15803d}
+.ev-chip-warn{color:#92400e;border-color:#b45309}
+.ev-chip-bad{color:#b91c1c;border-color:#b91c1c}
+.ev-chip-muted{color:var(--muted)}
+[data-theme="dark"] .ev-chip-good{color:#4ade80;border-color:#4ade80}
+[data-theme="dark"] .ev-chip-warn{color:#fbbf24;border-color:#fbbf24}
+[data-theme="dark"] .ev-chip-bad{color:#f87171;border-color:#f87171}
+.ev-review-chip{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid;white-space:nowrap}
+.ev-filter-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.ev-claims{font-size:12px;line-height:1.35}
+.ev-claims a{color:var(--accent);text-decoration:none}
+.ev-claims a:hover{text-decoration:underline}
+.ev-insights{margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
+.ev-insights>summary{padding:12px 16px;cursor:pointer;font-size:13px;font-weight:700}
+.ev-insights-body{padding:0 16px 16px}
+.ev-defs summary{cursor:pointer;font-size:12px;color:var(--accent)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
 
 <div class="topbar">
-  <span class="page-title">Evidence Repository</span>
+  <span class="page-title">Evidence Vault</span>
   <div class="topbar-actions">
-    <input type="text" id="searchInput" placeholder="Search evidence..." onkeyup="debounceSearch()" style="padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;width:220px">
-    <!-- Cards / Table toggle -->
+    <!-- List / Cards toggle -->
     <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-      <button id="btnCards" onclick="setViewMode('cards')" title="Card view" style="padding:7px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">
+      <button id="btnCards" onclick="setViewMode('cards')" title="Card view" aria-label="Card view" style="padding:7px 10px;border:none;background:var(--surface2);color:var(--muted);cursor:pointer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       </button>
-      <button id="btnTable" onclick="setViewMode('table')" title="Table view" style="padding:7px 10px;border:none;background:var(--surface2);color:var(--muted);cursor:pointer">
+      <button id="btnTable" onclick="setViewMode('table')" title="List view" aria-label="List view" style="padding:7px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       </button>
     </div>
-    <button class="btn btn-primary" onclick="document.getElementById('uploadModal').classList.add('open')">+ Upload</button>
+    <button class="btn btn-secondary" onclick="evFindOpen()">Find evidence</button>
+    {% if can_manage_legacy %}<button class="btn btn-secondary" type="button" onclick="evOpenLegacy()">Review legacy files</button>{% endif %}
+    <button class="btn btn-primary" onclick="ModalManager.open('uploadModal')">+ Upload</button>
   </div>
 </div>
+
+{% if can_manage_legacy %}
+<section id="evLegacyPanel" hidden aria-label="Historical file reconciliation" style="margin:14px 0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <h2 style="font-size:17px;margin:0">Historical file reconciliation</h2>
+    <button class="btn btn-secondary" type="button" onclick="document.getElementById('evLegacyPanel').hidden=true">Close</button>
+  </div>
+  <p style="font-size:12px;color:var(--muted)">Review one source at a time. GRID bytes are copied into the Vault and checked; BCM references need a human to identify the matching existing Vault artifact. Historical source files and module review decisions are retained.</p>
+  <div id="evLegacyStatus" role="status" aria-live="polite"></div>
+  <div id="evLegacyRows"></div>
+</section>
+{% endif %}
 
 <!-- Full-page drag-drop zone (catches drops anywhere) -->
 <div id="pageDropZone" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);align-items:center;justify-content:center;pointer-events:none">
@@ -126,30 +164,79 @@
 </div>
 
 <div class="content" style="padding:20px">
-  <!-- Stats Bar -->
-  <div id="statsBar" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px"></div>
+  <!-- Search first, so the results start at the top of the page -->
+  <label for="searchInput" class="sr-only">Search the Vault by name, tag, description or indexed file text</label>
+  <input type="search" id="searchInput" class="ev-search" placeholder="Search names, tags and file text" onkeyup="debounceSearch()" autocomplete="off">
 
-  <!-- Recently Added strip (hidden when filters active) -->
-  <div id="recentSection" style="margin-bottom:16px;display:none">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px">Recently Added</div>
-    <div class="ev-recent-strip" id="recentItems"></div>
+  <!-- Work views. Each count is the length of the list it opens. -->
+  <div id="evWork" class="ev-work" role="group" aria-label="Work views">
+    <button type="button" class="ev-work-tab is-current" id="wt-all" data-view="all" aria-pressed="true" onclick="switchView('all',document.getElementById('nav-all'))">All <span class="ev-work-count" id="wc-all"></span></button>
+    <button type="button" class="ev-work-tab" id="wt-needs_filing" data-view="needs_filing" aria-pressed="false" onclick="switchView('needs_filing',document.getElementById('nav-unlinked'))">Needs filing <span class="ev-work-count" id="wc-needs_filing"></span></button>
+    <button type="button" class="ev-work-tab" id="wt-for_review" data-view="for_review" aria-pressed="false" hidden onclick="switchView('for_review',null)">Waiting for review <span class="ev-work-count" id="wc-for_review"></span></button>
+    <button type="button" class="ev-work-tab" id="wt-review_due" data-view="review_due" aria-pressed="false" onclick="switchView('review_due',null)">Review due <span class="ev-work-count" id="wc-review_due"></span></button>
+    <a class="ev-work-tab" id="wt-requests" href="/evidence-campaigns/">Requests <span class="ev-work-count" id="wc-requests"></span></a>
+    <button type="button" class="ev-work-tab" id="wt-recent" data-view="recent" aria-pressed="false" onclick="switchView('recent',null)">Recently updated <span class="ev-work-count" id="wc-recent"></span></button>
   </div>
+  <div id="evChips" class="ev-filter-chips" aria-live="polite"></div>
 
-  <!-- Coverage Indicator -->
-  <div id="coverageBar" style="margin-bottom:16px"></div>
+  <!-- Detailed measures live here; the work summary above is what needs doing -->
+  <details class="ev-insights" id="evInsights">
+    <summary>Insights: totals, recently added and coverage</summary>
+    <div class="ev-insights-body">
+      <div id="statsBar" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:12px 0 16px"></div>
+      <div id="recentSection" style="margin-bottom:16px;display:none">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px">Recently Added</div>
+        <div class="ev-recent-strip" id="recentItems"></div>
+      </div>
+      <div id="coverageBar"></div>
+      <div id="evChecks" style="margin-top:16px"></div>
+    </div>
+  </details>
+
+  {% if can_bulk_archive %}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <button type="button" class="btn btn-secondary" id="evSelectModeBtn" onclick="evToggleSelection()">Select evidence</button>
+    <div id="evBulkBar" style="display:none;align-items:center;gap:8px" role="group" aria-label="Evidence bulk actions">
+      <span id="evSelectedCount" role="status" aria-live="polite">0 selected</span>
+      <button type="button" class="btn btn-primary" id="evBulkArchiveBtn" onclick="evBulkArchive()" disabled>Archive selected</button>
+      <button type="button" class="btn btn-secondary" onclick="evToggleSelection()">Cancel selection</button>
+    </div>
+  </div>
+  <div id="evBulkResult" role="status" aria-live="polite" style="font-size:12px;margin-bottom:10px"></div>
+  {% endif %}
+
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <label for="evSavedViews">Saved views</label>
+    <select id="evSavedViews" class="form-input" onchange="evApplySavedView(this.value)">
+      <option value="">Choose a saved view</option>
+    </select>
+    <button type="button" class="btn btn-secondary" onclick="evSaveCurrentView()">Save current filters</button>
+    <button type="button" class="btn btn-secondary" id="evDeleteViewBtn" onclick="evDeleteSavedView()" disabled>Delete my view</button>
+  </div>
+  <div id="evSavedViewStatus" role="status" aria-live="polite" style="font-size:12px;margin-bottom:10px"></div>
 
   <!-- Evidence Grid (cards) -->
   <div id="evidenceGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
 
   <!-- Evidence Table (list view) -->
-  <div id="evidenceTable" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
+  <div id="evidenceTable" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow-x:auto;position:relative">
     <table class="ev-table">
       <thead><tr>
-        <th>File</th><th>Category</th><th>Linked To</th><th>Confidence</th><th>Expiry</th><th>Status</th><th></th>
+        {% if can_bulk_archive %}<th id="evSelectHeading" style="display:none"><input type="checkbox" id="evSelectAll" aria-label="Select all visible evidence"></th>{% endif %}
+        <th scope="col">Name and source</th><th scope="col">Linked claims</th><th scope="col">Owner</th><th scope="col">Review due</th><th scope="col">State</th><th scope="col">Updated</th><th scope="col"><span class="sr-only">Download</span></th>
       </tr></thead>
       <tbody id="evidenceTableBody"></tbody>
     </table>
   </div>
+
+  <!-- Pager -->
+  <nav id="evPager" aria-label="Evidence pages" style="display:none;align-items:center;justify-content:flex-start;gap:16px;flex-wrap:wrap;margin-top:14px;margin-bottom:84px">
+    <span id="evPagerStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--muted)"></span>
+    <div id="evPagerButtons" style="display:flex;gap:8px">
+      <button type="button" class="btn btn-secondary" id="evPrevPage" onclick="evGoToPage(evPage-1)">Previous</button>
+      <button type="button" class="btn btn-secondary" id="evNextPage" onclick="evGoToPage(evPage+1)">Next</button>
+    </div>
+  </nav>
 
   <!-- Empty State -->
   <div id="emptyState" style="display:none;text-align:center;padding:60px 20px;color:var(--muted)">
@@ -166,12 +253,11 @@
 </div>
 
 <!-- Upload Modal -->
-<div class="modal" id="uploadModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px">
+<div class="modal-overlay" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="uploadModal-title">
+  <div class="modal" style="max-width:500px">
     <div class="modal-header">
-      <h3 style="margin:0;font-size:16px">Upload Evidence</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="uploadModal-title" style="margin:0;font-size:16px">Upload Evidence</h3>
+      <button class="modal-close" onclick="ModalManager.close('uploadModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
       <form id="uploadForm" onsubmit="handleUpload(event)">
@@ -192,13 +278,53 @@
             <option value="training">Training Record</option>
           </select>
         </div>
+        <fieldset style="border:1px solid var(--border);border-radius:8px;padding:12px;margin:0 0 14px">
+          <legend style="font-size:12px;font-weight:600;padding:0 4px">What does this support? <span style="font-weight:400;color:var(--muted)">(optional)</span></legend>
+          <p style="font-size:11px;color:var(--muted);margin:0 0 10px">Choose a claim now to file this evidence with it. The link will wait for an independent review.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <label style="font-size:11px">Module
+              <select id="uploadLinkModule" onchange="uploadTargetModuleChanged()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
+                <option value="">Choose module</option>
+                {% if 'aria' in user_modules %}<option value="aria">Governance</option>{% endif %}
+                {% if 'grid' in user_modules %}<option value="grid">Audit</option>{% endif %}
+                {% if 'bcm' in user_modules %}<option value="bcm">Resilience</option>{% endif %}
+                {% if 'sentinel' in user_modules %}<option value="sentinel">Privacy</option>{% endif %}
+                {% if 'erm' in user_modules %}<option value="erm">Enterprise Risk</option>{% endif %}
+                {% if can_ai_use %}<option value="governance">AI Governance</option>{% endif %}
+              </select>
+            </label>
+            <label style="font-size:11px">Record type
+              <select id="uploadLinkType" onchange="uploadTargetTypeChanged()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)"><option value="">Choose type</option></select>
+            </label>
+          </div>
+          <label for="uploadLinkSearch" style="font-size:11px">Find a record</label>
+          <input id="uploadLinkSearch" type="search" maxlength="100" placeholder="Search by name" oninput="debounceUploadTargetSearch()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
+          <div id="uploadLinkResults" role="status" style="max-height:145px;overflow-y:auto;margin-top:6px;font-size:12px;color:var(--muted)"></div>
+          <div id="uploadLinkSelected" style="display:none;align-items:center;gap:8px;margin-top:8px;padding:8px;border-radius:6px;background:var(--surface2);font-size:12px">
+            <span style="flex:1"></span><button type="button" class="btn btn-secondary" onclick="clearUploadTarget()" aria-label="Remove selected claim">Remove</button>
+          </div>
+        </fieldset>
         <div style="margin-bottom:14px">
           <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Tags (comma-separated)</label>
           <input type="text" id="uploadTags" placeholder="iso27001, access-control, ..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
         </div>
         <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Expiry / Review Date <span style="font-weight:400;opacity:.7">(optional)</span></label>
+          <label for="uploadExpiry" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Expires on <span style="font-weight:400;opacity:.7">(optional: after this date it no longer counts as current proof)</span></label>
           <input type="date" id="uploadExpiry" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        </div>
+        <div style="margin-bottom:14px">
+          <label for="uploadReviewDue" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Look at it again by <span style="font-weight:400;opacity:.7">(optional)</span></label>
+          <input type="date" id="uploadReviewDue" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <div>
+            <label for="uploadPeriodStart" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Period it covers: from</label>
+            <input type="date" id="uploadPeriodStart" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+          </div>
+          <div>
+            <label for="uploadPeriodEnd" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">to</label>
+            <input type="date" id="uploadPeriodEnd" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+          </div>
         </div>
         <div style="margin-bottom:14px">
           <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Description</label>
@@ -206,19 +332,81 @@
         </div>
         <!-- Duplicate warning (shown on 409) -->
         <div id="uploadDupeWarning" style="display:none;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%">Upload Evidence</button>
+        <button type="submit" class="btn btn-primary" id="uploadSubmit" style="width:100%">Upload Evidence</button>
       </form>
     </div>
   </div>
 </div>
 
-<!-- Link-to Modal -->
-<div class="modal" id="linkToModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px">
+<!-- Find evidence -->
+<div class="modal-overlay" id="findModal" role="dialog" aria-modal="true" aria-labelledby="findModal-title">
+  <div class="modal" style="max-width:680px">
     <div class="modal-header">
-      <h3 style="margin:0;font-size:16px">Link Evidence to Entity</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="findModal-title" style="margin:0;font-size:16px">Find evidence</h3>
+      <button class="modal-close" onclick="ModalManager.close('findModal')" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <form id="findForm" onsubmit="evFindRun(event,false)">
+        <label for="findQuestion" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Ask in your own words</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="findQuestion" class="ev-search" maxlength="300" autocomplete="off" placeholder="For example: expired test reports that are mine">
+          <button type="submit" class="btn btn-primary">Find</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin:8px 0 0">It becomes filters you can change below. Only files you may open are searched, and nothing is linked or accepted from here.</p>
+      </form>
+      <div id="findStatus" role="status" style="font-size:12px;margin:12px 0 8px;min-height:16px"></div>
+      <form id="findFilters" onsubmit="evFindRun(event,true)" style="display:none;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end">
+          <div><label for="findWords" style="font-size:11px;color:var(--muted);display:block">Words (all must match)</label>
+            <input type="text" id="findWords" maxlength="120" class="ev-search" style="padding:7px 10px;font-size:13px"></div>
+          <div><label for="findState" style="font-size:11px;color:var(--muted);display:block">State</label><select id="findState" class="ev-search" style="padding:7px 10px;font-size:13px"></select></div>
+          <div><label for="findModule" style="font-size:11px;color:var(--muted);display:block">Supports a record in</label><select id="findModule" class="ev-search" style="padding:7px 10px;font-size:13px"></select></div>
+          <div><label style="font-size:12px"><input type="checkbox" id="findMine"> Only mine</label></div>
+        </div>
+        <button type="submit" class="btn btn-secondary" style="margin-top:10px">Update the results</button>
+      </form>
+      <ul id="findResults" style="list-style:none;margin:0;padding:0"></ul>
+      <div id="findMore" style="display:none;margin-top:12px"><button type="button" class="btn btn-secondary" onclick="evFindApply()">Show all of them in the list</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Review one link -->
+<div class="modal-overlay" id="reviewModal" role="dialog" aria-modal="true" aria-labelledby="reviewModal-title">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 id="reviewModal-title" style="margin:0;font-size:16px">Review this link</h3>
+      <button class="modal-close" onclick="ModalManager.close('reviewModal')" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <form id="reviewForm" onsubmit="evSubmitReview(event)">
+        <input type="hidden" id="rvLinkId"><input type="hidden" id="rvEvidenceId"><input type="hidden" id="rvExpected">
+        <p style="margin:0 0 12px;font-size:13px">Does this version of the evidence support <strong id="rvTarget">this record</strong>?</p>
+        <fieldset style="border:none;padding:0;margin:0 0 12px">
+          <legend class="sr-only">Your conclusion</legend>
+          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="accepted"> Accept it</label>
+          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="returned"> Return it for changes</label>
+          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="rejected"> Reject it</label>
+          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="out_of_scope"> It does not apply to this record</label>
+          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="pending"> Put it back to waiting</label>
+        </fieldset>
+        <label for="rvNote" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Why (required unless you accept)</label>
+        <textarea id="rvNote" rows="3" maxlength="500" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical"></textarea>
+        <p style="font-size:11px;color:var(--muted);margin:8px 0 12px">Only you and the people who can open this record see your reasoning. The person who attached the file cannot review it.</p>
+        <div id="rvStatus" role="alert" style="font-size:12px;color:var(--bad,#dc2626);min-height:16px;margin-bottom:8px"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Save the review</button>
+      </form>
+    </div>
+  </div>
+</div>
+<input type="file" id="evVersionFile" style="display:none" aria-hidden="true" tabindex="-1">
+
+<!-- Link-to Modal -->
+<div class="modal-overlay" id="linkToModal" role="dialog" aria-modal="true" aria-labelledby="linkToModal-title">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <h3 id="linkToModal-title" style="margin:0;font-size:16px">Link Evidence to Entity</h3>
+      <button class="modal-close" onclick="ModalManager.close('linkToModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
       <input type="hidden" id="linkEvidenceId">
@@ -227,8 +415,12 @@
           <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Module</label>
           <select id="linkModule" onchange="loadEntityTypes()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
             <option value="">Select module</option>
-            <option value="aria">ARIA</option><option value="grid">GRID</option>
-            <option value="bcm">BCM</option><option value="sentinel">Sentinel</option>
+            {% if 'aria' in user_modules %}<option value="aria">Governance</option>{% endif %}
+            {% if 'grid' in user_modules %}<option value="grid">Audit</option>{% endif %}
+            {% if 'bcm' in user_modules %}<option value="bcm">Resilience</option>{% endif %}
+            {% if 'sentinel' in user_modules %}<option value="sentinel">Privacy</option>{% endif %}
+            {% if 'erm' in user_modules %}<option value="erm">Enterprise Risk</option>{% endif %}
+            {% if can_ai_use %}<option value="governance">AI Governance</option>{% endif %}
           </select>
         </div>
         <div>
@@ -250,22 +442,95 @@
 </div>
 
 <script>
-var currentView='all', currentModule='', currentCategory='', searchTimeout=null, entitySearchTimeout=null;
-var evViewMode = localStorage.getItem('ev-view-mode') || 'cards';
+var currentView='all', currentModule='', currentCategory='', currentStatus='', searchTimeout=null, entitySearchTimeout=null;
+var evPage=1, evPages=1;
+var evSavedViews=[], evUserId={{ user.id }};
+var evViewMode = localStorage.getItem('ev-view-mode') || 'table';
+var evCanReviewLinks = false, evOwnerOnly = false, evDetailItem = null, currentState = '', currentWords = '';
+var evFindFilters = null, evFindVocab = null;
+var evStateKind={needs_filing:'warn',awaiting_review:'warn',returned:'bad',expired:'bad',replaced:'muted',archived:'muted',draft:'muted',accepted:'good'};
+var evCanBulkArchive = {{ 'true' if can_bulk_archive else 'false' }};
+var evSelectionMode = false, evSelectedIds = new Set(), evVisibleIds = [];
+var evLoadSeq = 0;
 var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
   procedure:'📝',training:'🎓',general:'📄',policy_approval:'📋',
   control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
   non_conformance:'❌',risk_assessment:'🔴',incident_record:'🚨',breach_record:'🔓',
   dpia_record:'🛡️',dsr_overdue:'⏰',plan_approval:'✅'};
-var modColors={aria:'#4f8ef7',grid:'#16a34a',bcm:'#d97706',sentinel:'#7c3aed',platform:'#6b7280'};
+var modColors={aria:'#7e8062',grid:'#1a6b3a',bcm:'#8a8a5b',sentinel:'#00a5c8',erm:'#dc3c50',governance:'#0f766e',platform:'#6b7280'};
 var entityTypes={
   aria:['control','document','risk','framework'],
   grid:['audit','control','non_conformance'],
-  bcm:['plan','incident','risk','compliance_control'],
-  sentinel:['ropa','dpia','breach','dsr','vendor']
+  bcm:['plan','incident','risk','bia','compliance_control'],
+  sentinel:['ropa','dpia','breach','dsr','vendor'],
+  erm:['risk'],
+  governance:['application']
 };
 
-function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}
+{% if can_manage_legacy %}
+async function evOpenLegacy(){
+  document.getElementById('evLegacyPanel').hidden=false;
+  await evLoadLegacy();
+}
+async function evLoadLegacy(){
+  var rows=document.getElementById('evLegacyRows'),status=document.getElementById('evLegacyStatus');
+  status.textContent='Loading historical file inventory...';
+  try{
+    var data=await ApiClient.request('/evidence/api/legacy-files');
+    var groups=[
+      {title:'GRID current files',kind:'grid',items:data.grid_files||[],allowed:data.grid_access},
+      {title:'GRID historical versions',kind:'grid-versions',items:data.grid_versions||[],allowed:data.grid_access},
+      {title:'BCM file references',kind:'bcm',items:data.bcm_files||[],allowed:data.bcm_access}
+    ];
+    rows.innerHTML=groups.map(function(group){
+      if(!group.allowed)return '<h3>'+group.title+'</h3><p>Module access is required for this inventory.</p>';
+      var pending=group.items.filter(function(item){return item.state!=='vault'&&!item.vault_evidence_id;});
+      var visible=pending.slice(0,100);
+      var table=visible.length?'<table class="ev-table"><thead><tr><th>Source</th><th>State</th><th>Action</th></tr></thead><tbody>'+
+        visible.map(function(item){
+          var source='#'+Number(item.id)+' '+escHtml(item.name||item.title||'Untitled');
+          var action=(group.kind==='bcm'&&!data.bcm_reconcile)?'<span>BCM manage access required</span>':
+            (group.kind==='bcm')?
+            '<label>Matching Vault ID <input type="number" min="1" id="evLegacyVault-'+Number(item.id)+'" style="width:110px"></label> '+
+            '<button type="button" class="btn btn-secondary" data-legacy-kind="bcm" data-legacy-id="'+Number(item.id)+'">Reconcile</button>':
+            !data.grid_migrate?'<span>GRID upload access required</span>':
+            item.state==='safe_local_file'?
+              '<button type="button" class="btn btn-secondary" data-legacy-kind="'+group.kind+'" data-legacy-id="'+Number(item.id)+'">Copy to Vault</button>':
+              '<span>Manual source review required</span>';
+          return '<tr><td>'+source+'</td><td>'+escHtml(item.state)+'</td><td>'+action+'</td></tr>';
+        }).join('')+'</tbody></table>':'<p>No unresolved files in this group.</p>';
+      return '<h3 style="font-size:14px;margin:18px 0 4px">'+group.title+' ('+pending.length+' unresolved)</h3>'+
+        (pending.length>visible.length?'<p>Showing the first 100. Resolve them and refresh for the next group.</p>':'')+table;
+    }).join('');
+    status.textContent='Review each source and its Vault match before changing references.';
+  }catch(e){status.textContent=e.detail||'The historical file inventory could not be loaded.';}
+}
+document.addEventListener('click',async function(event){
+  var button=event.target.closest('[data-legacy-kind]');
+  if(!button)return;
+  var kind=button.dataset.legacyKind,id=Number(button.dataset.legacyId);
+  if(!Number.isSafeInteger(id)||id<1)return;
+  var vaultId=kind==='bcm'?Number(document.getElementById('evLegacyVault-'+id)?.value):null;
+  if(kind==='bcm'&&(!Number.isSafeInteger(vaultId)||vaultId<1)){
+    document.getElementById('evLegacyStatus').textContent='Select the matching Vault artifact first.';return;
+  }
+  if(!confirm('Review the source and confirm this one historical reference should be reconciled. Continue?'))return;
+  var url=kind==='grid'?'/evidence/api/legacy-files/grid/'+id+'/migrate':
+    kind==='grid-versions'?'/evidence/api/legacy-files/grid-versions/'+id+'/migrate':
+    '/evidence/api/legacy-files/bcm/'+id+'/reconcile';
+  button.disabled=true;
+  try{
+    await ApiClient.request(url,{method:'POST',body:kind==='bcm'?{vault_evidence_id:vaultId}:{},
+      actionId:'evidence.legacy.reconcile'});
+    await evLoadLegacy();
+    loadEvidence();loadStats();
+  }catch(e){
+    document.getElementById('evLegacyStatus').textContent=e.detail||'The reference was not changed.';
+    button.disabled=false;
+  }
+});
+{% endif %}
 function fmtSize(b){if(!b)return '0 B';var k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i];}
 function fmtDate(ts){if(!ts)return '—';try{var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
 
@@ -273,31 +538,38 @@ async function loadStats(){
   var r=await fetch('/evidence/api/stats');var s=await r.json();
   var bm=s.by_module||{};
   var exp7=s.expiring_7_days||0;
+  evCanReviewLinks=!!s.can_review_links;
   document.getElementById('statsBar').innerHTML=
-    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
+    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Total</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--text);margin-top:4px">'+s.total+'</div></div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--text);margin-top:4px">'+s.total+'</div></button>'+
     '<div class="card" style="padding:14px 18px">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Links</div>'+
       '<div style="font-size:24px;font-weight:700;color:var(--info,#4f8ef7);margin-top:4px">'+s.total_links+'</div></div>'+
-    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
+    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Expiring 30d</div>'+
       '<div style="font-size:24px;font-weight:700;color:var(--warn,#d97706);margin-top:4px">'+s.expiring_soon+'</div>'+
       (exp7?'<div style="font-size:10px;color:var(--bad,#dc2626);font-weight:600;margin-top:4px">⚠ '+exp7+' within 7 days</div>':'')+
-    '</div>'+
-    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'unlinked\',document.getElementById(\'nav-unlinked\'))">'+
-      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Unlinked</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--bad,#dc2626);margin-top:4px">'+s.unlinked+'</div></div>'+
+    '</button>'+
+    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'needs_filing\',document.getElementById(\'nav-unlinked\'))">'+
+      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Needs filing</div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--bad,#dc2626);margin-top:4px">'+s.needs_filing+'</div></button>'+
     Object.keys(bm).map(function(m){
       var c=modColors[m]||'#6b7280';
-      return '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="filterModule(\''+m+'\',null)">'+
+      return '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="filterModule(\''+m+'\',null)">'+
         '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">'+m.toUpperCase()+'</div>'+
-        '<div style="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+bm[m]+'</div></div>';
+        '<div style="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+bm[m]+'</div></button>';
     }).join('');
-  // Update sidebar badges
+  // Work views: every count is the length of the list it opens
+  function put(id,n){var node=document.getElementById(id);if(node)node.textContent=(n===null||n===undefined)?'':String(n);}
+  put('wc-all',s.total);put('wc-needs_filing',s.needs_filing);put('wc-for_review',s.for_review);
+  put('wc-review_due',s.review_due);put('wc-requests',s.open_requests);put('wc-recent',s.recently_updated);
+  var reviewTab=document.getElementById('wt-for_review');
+  if(reviewTab)reviewTab.hidden=!s.can_review_links;
+  // Sidebar badges
   var be=document.getElementById('badge-all');if(be)be.textContent=s.total||'';
   var bx=document.getElementById('badge-expiring');if(bx)bx.textContent=s.expiring_soon||'';
-  var bu=document.getElementById('badge-unlinked');if(bu)bu.textContent=s.unlinked||'';
+  var bu=document.getElementById('badge-unlinked');if(bu)bu.textContent=s.needs_filing||'';
   Object.keys(bm).forEach(function(m){var b=document.getElementById('badge-'+m);if(b)b.textContent=bm[m]||'';});
   var ba=document.getElementById('badge-archived');if(ba)ba.textContent=s.archived||'';
   var na=document.getElementById('nav-archived');
@@ -306,17 +578,16 @@ async function loadStats(){
   var recent=s.recently_added||[];
   var rs=document.getElementById('recentSection');
   var ri=document.getElementById('recentItems');
-  var isFiltered=currentView!=='all'||currentModule||currentCategory||document.getElementById('searchInput').value;
-  if(recent.length&&!isFiltered){
+  if(recent.length){
     rs.style.display='block';
     ri.innerHTML=recent.map(function(r){
       var icon=iconMap[r.category]||'📄';
       var ago=timeAgo(r.created_at);
-      return '<div class="ev-recent-card" onclick="openDetail('+r.id+')">'+
+      return '<button type="button" class="ev-recent-card" style="text-align:left;font:inherit" onclick="openDetail('+r.id+')">'+
         '<div style="font-size:18px;margin-bottom:4px">'+icon+'</div>'+
         '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(r.title)+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px">'+escHtml(r.category)+' · '+ago+'</div>'+
-      '</div>';
+      '</button>';
     }).join('');
   } else {
     rs.style.display='none';
@@ -336,18 +607,25 @@ function timeAgo(ts){
 async function loadCoverage(){
   try{
     var r=await fetch('/evidence/api/coverage');var cov=await r.json();
-    var html='<div class="card" style="padding:16px 20px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Evidence Coverage by Module</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">';
-    ['aria','grid','bcm','sentinel'].forEach(function(m){
-      var d=cov[m];if(!d)return;
-      var c=modColors[m]||'#6b7280';
-      html+='<div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="font-weight:600;color:'+c+'">'+m.toUpperCase()+'</span><span style="color:var(--muted)">'+d.with_evidence+'/'+d.total+' ('+d.pct+'%)</span></div>';
-      html+='<div class="coverage-bar"><div class="coverage-fill" style="width:'+d.pct+'%;background:'+c+'"></div></div>';
-      if(d.entities){d.entities.forEach(function(e){
-        html+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px"><span>'+e.type+'</span><span>'+e.with_evidence+'/'+e.total+'</span></div>';
-      });}
+    var dr=await fetch('/evidence/api/coverage/definitions');var defs=await dr.json();
+    var m=defs.measures||{};
+    var html='<div class="card" style="padding:16px 20px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">Evidence coverage by module</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Three different facts, counted separately. '+escHtml(defs.denominator||'')+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">';
+    ['aria','grid','bcm','sentinel','erm'].forEach(function(mod){
+      var d=cov[mod];if(!d)return;
+      var c=modColors[mod]||'#6b7280';
+      html+='<div><div style="font-weight:600;font-size:12px;margin-bottom:4px"><span class="ev-mod-dot" style="background:'+c+';margin-right:6px" aria-hidden="true"></span>'+mod.toUpperCase()+' · '+d.total+' records</div>';
+      [['linked','Has a live link'],['current','Has current proof'],['accepted','Accepted by a reviewer']].forEach(function(row){
+        var n=d[row[0]]||0,pct=d['pct_'+row[0]],measured=pct!==null&&pct!==undefined;
+        html+='<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:5px"><span>'+escHtml(row[1])+'</span><span style="color:var(--muted)">'+(measured?n+'/'+d.total+' ('+pct+'%)':'Not measured')+'</span></div>'+
+          (measured?'<div class="coverage-bar"><div class="coverage-fill" style="width:'+pct+'%;background:'+c+'"></div></div>':'');
+      });
       html+='</div>';
     });
-    html+='</div></div>';
+    html+='</div><details class="ev-defs" style="margin-top:12px"><summary>What these mean</summary><dl style="font-size:12px;margin:8px 0 0">'+
+      Object.keys(m).map(function(k){return '<dt style="font-weight:700;margin-top:6px">'+escHtml(m[k].label)+'</dt><dd style="margin:2px 0 0;color:var(--muted)">'+escHtml(m[k].means)+'</dd>';}).join('')+
+      '</dl><p style="font-size:12px;color:var(--muted)">'+escHtml(defs.exclusions||'')+' '+escHtml(defs.empty_denominator||'')+' As of '+escHtml(defs.as_of||'')+'.</p></details></div>';
     document.getElementById('coverageBar').innerHTML=html;
   }catch(e){document.getElementById('coverageBar').innerHTML='';}
 }
@@ -355,9 +633,9 @@ async function loadCoverage(){
 function expiryBadgeHtml(expiry_date){
   if(!expiry_date)return '';
   var days=Math.ceil((new Date(expiry_date)-new Date())/86400000);
-  if(days<=0)return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:#fee2e2;color:#dc2626;font-weight:600">expired</span>';
-  if(days<=7)return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:#fef2f2;color:#dc2626;font-weight:600">'+days+'d left</span>';
-  if(days<=30)return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:#fef3c7;color:#d97706;font-weight:600">'+days+'d left</span>';
+  if(days<=0)return '<span style="padding:2px 7px;border-radius:4px;font-size:11px;background:#fee2e2;color:#b91c1c;font-weight:600">expired</span>';
+  if(days<=7)return '<span style="padding:2px 7px;border-radius:4px;font-size:11px;background:#fef2f2;color:#b91c1c;font-weight:600">'+days+'d left</span>';
+  if(days<=30)return '<span style="padding:2px 7px;border-radius:4px;font-size:11px;background:#fef3c7;color:#92400e;font-weight:600">'+days+'d left</span>';
   return '';
 }
 
@@ -365,7 +643,7 @@ function confBadgeHtml(score){
   if(score===null||score===undefined)return '';
   var color=score>=80?'#16a34a':score>=50?'#d97706':'#dc2626';
   var bg=score>=80?'rgba(22,163,74,.1)':score>=50?'rgba(217,119,6,.1)':'rgba(220,38,38,.1)';
-  return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:'+bg+';color:'+color+'" title="Confidence score">'+score+'%</span>';
+  return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:'+bg+';color:'+color+'" title="Metadata health: how complete the file\'s own details are. It does not say the file proves anything.">'+score+'%</span>';
 }
 
 var _VERIFY_LABELS={
@@ -398,25 +676,118 @@ function getCsrf(){
   return m?decodeURIComponent(m[1]):'';
 }
 
+function evRenderPager(data){
+  var nav=document.getElementById('evPager');
+  evPage=data.page;evPages=data.pages;
+  if(!data.total){nav.style.display='none';return;}
+  var from=(data.page-1)*data.page_size+1;
+  var to=Math.min(data.page*data.page_size,data.total);
+  document.getElementById('evPagerStatus').textContent='Showing '+from+' to '+to+' of '+data.total;
+  document.getElementById('evPagerButtons').style.display=data.pages>1?'flex':'none';
+  [['evPrevPage',data.page<=1],['evNextPage',data.page>=data.pages]].forEach(function(spec){
+    var button=document.getElementById(spec[0]);
+    button.setAttribute('aria-disabled',spec[1]?'true':'false');
+    button.style.opacity=spec[1]?'.5':'';
+    button.style.cursor=spec[1]?'not-allowed':'';
+  });
+  nav.style.display='flex';
+}
+async function evGoToPage(n){
+  if(n<1||n>evPages||n===evPage)return;
+  evPage=n;
+  await loadEvidence();
+  var list=document.getElementById(evViewMode==='table'?'evidenceTable':'evidenceGrid');
+  if(list)list.scrollIntoView({block:'start'});
+}
+function evStateChip(state){
+  if(!state)return '';
+  return '<span class="ev-chip ev-chip-'+(evStateKind[state.key]||'muted')+'">'+escHtml(state.label)+'</span>';
+}
+function evClaimsHtml(item){
+  var parts=(item.claims||[]).map(function(c){
+    return c.url?'<a href="'+escHtml(c.url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title);
+  });
+  var rest=(item.claims_more||0);
+  var hidden=(item.claims_hidden||0);
+  if(!parts.length&&!hidden)return '<span style="color:var(--muted)">None yet</span>';
+  var out=parts.join(', ');
+  if(rest)out+=(out?' and ':'')+rest+' more';
+  if(hidden)out+=(out?', ':'')+hidden+' you cannot open';
+  return '<span class="ev-claims">'+out+'</span>';
+}
+function evActiveChips(){
+  var chips=[];
+  var labels={needs_filing:'Needs filing',unlinked:'Needs filing',for_review:'Waiting for review',review_due:'Review due',recent:'Recently updated',expiring:'Expiring soon',archived:'Archived',superseded:'Replaced versions'};
+  if(currentView&&currentView!=='all')chips.push([labels[currentView]||currentView,function(){switchView('all',document.getElementById('nav-all'));}]);
+  if(currentModule)chips.push(['Module: '+currentModule.toUpperCase(),function(){currentModule='';evPage=1;loadEvidence();}]);
+  if(currentCategory)chips.push(['Type: '+currentCategory,function(){currentCategory='';evPage=1;loadEvidence();}]);
+  if(evOwnerOnly)chips.push(['Mine',function(){evOwnerOnly=false;evPage=1;loadEvidence();}]);
+  if(currentState)chips.push(['State: '+currentState.replace(/_/g,' '),function(){currentState='';evPage=1;loadEvidence();}]);
+  if(currentWords)chips.push(['Words: '+currentWords,function(){currentWords='';evPage=1;loadEvidence();}]);
+  var q=document.getElementById('searchInput').value;
+  if(q)chips.push(['Search: '+q,function(){document.getElementById('searchInput').value='';evPage=1;loadEvidence();}]);
+  var box=document.getElementById('evChips');
+  box.innerHTML='';
+  chips.forEach(function(c){
+    var b=document.createElement('button');
+    b.type='button';b.className='ev-chip';b.style.cursor='pointer';b.style.background='var(--surface2)';
+    b.textContent=c[0]+' ×';
+    b.setAttribute('aria-label','Remove filter: '+c[0]);
+    b.addEventListener('click',c[1]);
+    box.appendChild(b);
+  });
+  if(chips.length>1){
+    var all=document.createElement('button');
+    all.type='button';all.className='btn btn-secondary';all.style.fontSize='12px';all.textContent='Clear filters';
+    all.addEventListener('click',function(){currentModule='';currentCategory='';evOwnerOnly=false;currentState='';currentWords='';document.getElementById('searchInput').value='';switchView('all',document.getElementById('nav-all'));});
+    box.appendChild(all);
+  }
+}
+function evTextMatchHtml(item){
+  if(!item.text_match)return '';
+  return '<div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:normal;line-height:1.4">'+
+    '<strong>'+escHtml(item.text_match.label)+'</strong> · '+escHtml(item.text_match.text)+'</div>';
+}
 async function loadEvidence(){
+  var loadSeq=++evLoadSeq;
   var params=new URLSearchParams();
   if(currentCategory)params.set('category',currentCategory);
+  if(currentStatus)params.set('status',currentStatus);
   if(currentModule)params.set('module',currentModule);
   if(currentView&&currentView!=='all')params.set('view',currentView);
+  if(evOwnerOnly)params.set('owner','me');
+  if(currentState)params.set('state',currentState);
+  if(currentWords)params.set('words',currentWords);
   var q=document.getElementById('searchInput').value;
   if(q)params.set('q',q);
+  params.set('page',evPage);
+  evActiveChips();
   var r=await fetch('/evidence/api/items?'+params.toString());
-  var items=await r.json();
+  var data=await r.json();
+  if(loadSeq!==evLoadSeq)return;
+  if(!data||!Array.isArray(data.items)){
+    if(typeof showToast==='function')showToast('Could not load evidence.','error');
+    return;
+  }
+  var items=data.items;
+  evRenderPager(data);
+  evSelectedIds.clear();
+  evVisibleIds=items.filter(function(item){return item.status!=='archived';}).map(function(item){return Number(item.id);});
+  evUpdateSelection();
   var grid=document.getElementById('evidenceGrid');
   var tbl=document.getElementById('evidenceTable');
   var body=document.getElementById('evidenceTableBody');
   var empty=document.getElementById('emptyState');
   if(!items.length){
-    grid.innerHTML='';tbl.style.display='none';empty.style.display='block';
+    grid.innerHTML='';body.innerHTML='';tbl.style.display='none';empty.style.display='block';
     var et=document.getElementById('emptyTitle'),es=document.getElementById('emptySub');
     if(currentView==='expiring'){et.textContent='No expiring evidence';es.textContent='No items expire within the next 30 days.';}
-    else if(currentView==='unlinked'){et.textContent='No unlinked evidence';es.textContent='All evidence is linked to at least one entity.';}
+    else if(currentView==='unlinked'||currentView==='needs_filing'){et.textContent='Nothing needs filing';es.textContent='Every current item supports at least one record.';}
+    else if(currentView==='for_review'){et.textContent='Nothing is waiting for your review';es.textContent='Links that you did not attach, and that nobody has reviewed, appear here.';}
+    else if(currentView==='review_due'){et.textContent='No review is due';es.textContent='No item has a review date in the next 30 days.';}
+    else if(currentView==='recent'){et.textContent='Nothing changed recently';es.textContent='Items updated in the last 14 days appear here.';}
     else if(currentView==='archived'){et.textContent='Archive is empty';es.textContent='No archived evidence items.';}
+    else if(q||currentModule||currentCategory||evOwnerOnly||currentState||currentWords){et.textContent='No evidence matches these filters';es.textContent='Clear a filter above to widen the list.';}
     else{et.textContent='No evidence items found';es.textContent='Upload files or drag & drop here to start';}
     return;
   }
@@ -425,23 +796,23 @@ async function loadEvidence(){
     grid.style.display='none';tbl.style.display='block';
     body.innerHTML=items.map(function(item){
       var icon=iconMap[item.category]||'📄';
-      var linkBadge=item.link_count
-        ?'<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:var(--good-soft);color:var(--good)">'+item.link_count+' link'+(item.link_count>1?'s':'')+'</span>'
-        :'<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:var(--warn-soft);color:var(--warn)">unlinked</span>';
-      var expBadge=expiryBadgeHtml(item.expiry_date);
-      var expiryCell=item.expiry_date?(expBadge||fmtDate(item.expiry_date)):'<span style="color:var(--muted)">—</span>';
-      var statusDot=item.status==='current'?'<span style="color:var(--good)">●</span>':item.status==='archived'?'<span style="color:var(--muted)">●</span>':'<span style="color:var(--warn)">●</span>';
+      var source=item.file_name?escHtml(item.file_name):'<span style="color:var(--muted)">System record, no file</span>';
+      var owner=item.owner_name?escHtml(item.owner_name):'<span style="color:var(--muted)">No owner</span>';
+      var due=item.review_due_date?fmtDate(item.review_due_date)+(item.review_due?' <span class="ev-chip ev-chip-warn">due</span>':''):'<span style="color:var(--muted)">Not set</span>';
+      var expiry=expiryBadgeHtml(item.expiry_date);
       return '<tr onclick="openDetail('+item.id+')" style="cursor:pointer">'+
-        '<td><div style="display:flex;align-items:center;gap:8px"><span>'+icon+'</span>'+
-          '<div><div style="font-weight:600;font-size:13px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
-          '<div style="font-size:10px;color:var(--muted)">'+escHtml(item.file_name||'')+'</div></div></div></td>'+
-        '<td><span style="padding:2px 8px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span></td>'+
-        '<td>'+linkBadge+'</td>'+
-        '<td>'+(item.confidence_score!=null?confBadgeHtml(item.confidence_score):'<span style="color:var(--muted);font-size:10px">—</span>')+'</td>'+
-        '<td>'+expiryCell+'</td>'+
-        '<td>'+statusDot+' <span style="font-size:11px">'+escHtml(item.status)+'</span></td>'+
+        (evSelectionMode&&evCanBulkArchive?'<td onclick="event.stopPropagation()">'+
+          (item.status==='archived'?'': '<input type="checkbox" class="ev-row-select" value="'+Number(item.id)+'" aria-label="Select '+escHtml(item.title)+'">')+'</td>':'')+
+        '<td><div style="display:flex;align-items:center;gap:8px"><span aria-hidden="true">'+icon+'</span>'+
+          '<div style="min-width:0"><div style="font-weight:600;font-size:13px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(item.title)+'">'+escHtml(item.title)+'</div>'+
+          '<div style="font-size:10px;color:var(--muted)">'+source+' · v'+escHtml(String(item.version||1))+'</div>'+evTextMatchHtml(item)+'</div></div></td>'+
+        '<td onclick="event.stopPropagation()">'+evClaimsHtml(item)+'</td>'+
+        '<td>'+owner+'</td>'+
+        '<td>'+due+'</td>'+
+        '<td>'+evStateChip(item.state)+(expiry?' '+expiry:'')+'</td>'+
+        '<td style="white-space:nowrap">'+fmtDate(item.updated_at)+'</td>'+
         '<td onclick="event.stopPropagation()">'+
-          '<button onclick="evDownload('+item.id+',false)" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer" title="Download">&#11015;</button>'+
+          (item.file_path&&item.file_size?'<button onclick="evDownload('+item.id+',false)" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer" title="Download" aria-label="Download '+escHtml(item.title)+'">&#11015;</button>':'')+
         '</td>'+
       '</tr>';
     }).join('');
@@ -449,24 +820,173 @@ async function loadEvidence(){
     tbl.style.display='none';grid.style.display='grid';
     grid.innerHTML=items.map(function(item){
       var icon=iconMap[item.category]||'📄';
-      var linkBadge=item.link_count?'<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--good-soft);color:var(--good)">'+item.link_count+' link'+(item.link_count>1?'s':'')+'</span>':'<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--warn-soft);color:var(--warn)">unlinked</span>';
-      return '<div class="card" style="padding:16px;cursor:pointer" onclick="openDetail('+item.id+')">'+
+      return '<button type="button" class="card" style="padding:16px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="openDetail('+item.id+')">'+
         '<div style="display:flex;align-items:flex-start;gap:12px">'+
           '<span style="font-size:28px">'+icon+'</span>'+
           '<div style="flex:1;min-width:0">'+
             '<div style="font-weight:600;font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+
+            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+evTextMatchHtml(item)+
             '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
               '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span>'+
-              linkBadge+expiryBadgeHtml(item.expiry_date)+(item.confidence_score!=null?confBadgeHtml(item.confidence_score):'')+
+              evStateChip(item.state)+expiryBadgeHtml(item.expiry_date)+
             '</div>'+
           '</div>'+
-        '</div></div>';
+        '</div></button>';
     }).join('');
   }
 }
 
+function evUpdateSelection(){
+  if(!evCanBulkArchive)return;
+  var count=document.getElementById('evSelectedCount');
+  var bar=document.getElementById('evBulkBar');
+  var button=document.getElementById('evSelectModeBtn');
+  var heading=document.getElementById('evSelectHeading');
+  var archive=document.getElementById('evBulkArchiveBtn');
+  count.textContent=evSelectedIds.size+' selected';
+  bar.style.display=evSelectionMode?'flex':'none';
+  button.style.display=evSelectionMode?'none':'';
+  heading.style.display=evSelectionMode?'':'none';
+  archive.disabled=evSelectedIds.size===0;
+  var all=document.getElementById('evSelectAll');
+  all.checked=evVisibleIds.length>0&&evVisibleIds.every(function(id){return evSelectedIds.has(id);});
+  all.indeterminate=evSelectedIds.size>0&&!all.checked;
+}
+function evToggleSelection(){
+  if(!evCanBulkArchive)return;
+  evSelectionMode=!evSelectionMode;
+  evSelectedIds.clear();
+  if(evSelectionMode){setViewMode('table');}
+  else{evUpdateSelection();loadEvidence();}
+}
+document.addEventListener('change',function(event){
+  if(!evSelectionMode)return;
+  if(event.target.id==='evSelectAll'){
+    evVisibleIds.forEach(function(id){
+      if(event.target.checked)evSelectedIds.add(id);
+      else evSelectedIds.delete(id);
+    });
+    document.querySelectorAll('.ev-row-select').forEach(function(input){
+      input.checked=event.target.checked;
+    });
+  }else if(event.target.matches('.ev-row-select')){
+    var id=Number(event.target.value);
+    if(event.target.checked)evSelectedIds.add(id);
+    else evSelectedIds.delete(id);
+  }else{return;}
+  evUpdateSelection();
+});
+async function evBulkArchive(){
+  if(!evCanBulkArchive||!evSelectedIds.size)return;
+  var ids=Array.from(evSelectedIds);
+  if(!confirm('Archive '+ids.length+' selected evidence item'+(ids.length===1?'':'s')+
+    '? Linked evidence will be archived with each item.'))return;
+  var button=document.getElementById('evBulkArchiveBtn');
+  var resultEl=document.getElementById('evBulkResult');
+  button.disabled=true;
+  try{
+    var key=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():
+      String(Date.now())+'-'+Math.random();
+    var result=await ApiClient.request('/evidence/api/items/bulk-archive',{
+      method:'PUT',body:{ids:ids},idempotencyKey:key,actionId:'evidence.bulk_archive'
+    });
+    var skipped=result.skipped||[];
+    resultEl.textContent=(result.applied||[]).length+' archived. '+
+      (skipped.length?skipped.length+' skipped: '+
+        skipped.map(function(row){return '#'+row.id+' '+row.reason;}).join('; '):'');
+    evSelectedIds.clear();
+    await loadEvidence();
+    if(typeof loadStats==='function')loadStats();
+  }catch(error){
+    resultEl.textContent=error.detail||'Bulk archive failed. Please retry.';
+    evUpdateSelection();
+  }
+}
+async function evLoadSavedViews(){
+  var select=document.getElementById('evSavedViews');
+  var current=select.value;
+  try{
+    var data=await ApiClient.request('/api/saved-views?module=evidence&view_key=items_list');
+    evSavedViews=data.views||[];
+    select.innerHTML='<option value="">Choose a saved view</option>'+
+      evSavedViews.map(function(view){
+        return '<option value="'+Number(view.id)+'">'+escHtml(view.name)+
+          (view.shared?' (shared)':'')+'</option>';
+      }).join('');
+    if(evSavedViews.some(function(view){return String(view.id)===current;}))select.value=current;
+    evUpdateViewDelete();
+  }catch(error){
+    document.getElementById('evSavedViewStatus').textContent=
+      error.detail||'Saved views could not be loaded.';
+  }
+}
+function evUpdateViewDelete(){
+  var chosen=Number(document.getElementById('evSavedViews').value);
+  var view=evSavedViews.find(function(v){return Number(v.id)===chosen;});
+  document.getElementById('evDeleteViewBtn').disabled=!view||Number(view.owner_user_id)!==Number(evUserId);
+}
+function evApplySavedView(rawId){
+  evUpdateViewDelete();
+  var view=evSavedViews.find(function(v){return Number(v.id)===Number(rawId);});
+  if(!view)return;
+  var filters=view.filter_params||{};
+  currentCategory=filters.category||'';
+  currentModule=filters.module||'';
+  currentStatus=filters.status||'';
+  currentView=filters.view||'all';
+  evPage=1;
+  document.getElementById('searchInput').value=filters.q||'';
+  document.querySelectorAll('.nav-item').forEach(function(node){node.classList.remove('active');});
+  var nav=document.getElementById('nav-'+currentView);
+  if(nav)nav.classList.add('active');
+  document.querySelectorAll('#evWork [data-view]').forEach(function(tab){
+    var on=tab.getAttribute('data-view')===(currentView==='unlinked'?'needs_filing':currentView);
+    tab.classList.toggle('is-current',on);
+    tab.setAttribute('aria-pressed',on?'true':'false');
+  });
+  loadEvidence();
+}
+async function evSaveCurrentView(){
+  var name=window.prompt('Name this saved view');
+  if(!name||!name.trim())return;
+  var filters={};
+  if(currentCategory)filters.category=currentCategory;
+  if(currentModule)filters.module=currentModule;
+  if(currentStatus)filters.status=currentStatus;
+  if(currentView!=='all')filters.view=currentView;
+  var query=document.getElementById('searchInput').value;
+  if(query)filters.q=query;
+  try{
+    var result=await ApiClient.request('/api/saved-views',{
+      method:'POST',actionId:'evidence.saved_view.create',
+      body:{module:'evidence',view_key:'items_list',name:name.trim(),filter_params:filters}
+    });
+    await evLoadSavedViews();
+    document.getElementById('evSavedViews').value=String(result.view.id);
+    evUpdateViewDelete();
+    document.getElementById('evSavedViewStatus').textContent='View saved.';
+  }catch(error){
+    document.getElementById('evSavedViewStatus').textContent=error.detail||'Could not save view.';
+  }
+}
+async function evDeleteSavedView(){
+  var id=Number(document.getElementById('evSavedViews').value);
+  var view=evSavedViews.find(function(v){return Number(v.id)===id;});
+  if(!view||Number(view.owner_user_id)!==Number(evUserId))return;
+  if(!confirm('Delete saved view "'+view.name+'"?'))return;
+  try{
+    await ApiClient.request('/api/saved-views/'+id,{method:'DELETE',actionId:'evidence.saved_view.delete'});
+    document.getElementById('evSavedViews').value='';
+    await evLoadSavedViews();
+    document.getElementById('evSavedViewStatus').textContent='View deleted.';
+  }catch(error){
+    document.getElementById('evSavedViewStatus').textContent=error.detail||'Could not delete view.';
+  }
+}
 function setViewMode(mode){
+  if(mode==='cards' && evSelectionMode){
+    evSelectionMode=false;evSelectedIds.clear();evUpdateSelection();
+  }
   evViewMode=mode;
   localStorage.setItem('ev-view-mode',mode);
   var bc=document.getElementById('btnCards'),bt=document.getElementById('btnTable');
@@ -510,19 +1030,34 @@ async function evDownload(eid,asPdf){
   }
 }
 
-function _resolvedLinksHtml(links,resolved,eid){
+function _resolvedLinksHtml(links,resolved,eid,item){
   if(!links.length) return '<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
+  var canReview=!!(item&&item.can_review_links&&item.status==='current');
+  var dark=document.documentElement.getAttribute('data-theme')==='dark';
+  var tone=dark?{pending:'#fbbf24',accepted:'#4ade80',returned:'#f87171',rejected:'#f87171',out_of_scope:'var(--muted)'}
+               :{pending:'#92400e',accepted:'#15803d',returned:'#b91c1c',rejected:'#b91c1c',out_of_scope:'var(--muted)'};
   return links.map(function(l,i){
     var res=resolved[i]||{};
     var mc=modColors[l.module]||'#6b7280';
-    return '<div class="ev-link-row">'+
+    var status=l.review_status||'pending';
+    var who=l.reviewed_by_name?('by '+l.reviewed_by_name+(l.reviewed_at?' on '+fmtDate(l.reviewed_at):'')):'';
+    var hint=[l.review_note,who].filter(Boolean).join(' · ');
+    var seen=!!(res.url||res.name);
+    var mine=Number(l.linked_by)===Number(evUserId)||(item&&Number(item.uploaded_by)===Number(evUserId));
+    var name=res.name||('#'+l.entity_id);
+    return '<div class="ev-link-row" style="flex-wrap:wrap">'+
       '<span class="ev-mod-dot" style="background:'+mc+'"></span>'+
       '<span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;width:56px">'+escHtml(l.module)+'</span>'+
       '<span style="font-size:10px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
-      (res.url?'<a href="'+escHtml(res.url)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(res.name||'#'+l.entity_id)+'</a>':
-               '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(res.name||'#'+l.entity_id)+'</span>')+
+      (res.url?'<a href="'+escHtml(res.url)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(name)+'</a>':
+               '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(name)+'</span>')+
+      '<span class="ev-review-chip" style="color:'+(tone[status]||'var(--muted)')+';border-color:'+(tone[status]||'var(--border)')+'" title="'+escHtml(hint)+'">'+escHtml(l.review_label||'Waiting for a reviewer')+'</span>'+
+      (l.carried_from_link_id?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="Proposed from the version this one replaced. It needs its own review.">Carried forward</span>':'')+
+      (canReview&&seen&&!mine?'<button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px" data-name="'+escHtml(name)+'" onclick="evReviewLink('+Number(l.id)+','+Number(eid)+',\''+escHtml(status)+'\',this.getAttribute(\'data-name\'))" aria-label="Review the link to '+escHtml(name)+'">Review</button>':'')+
+      (canReview&&seen&&mine?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="The person who attached the file or made the link cannot review it.">Needs another reviewer</span>':'')+
       '<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+fmtDate(l.created_at)+'</span>'+
-      '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink">✕</button>'+
+      '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink" aria-label="Unlink '+escHtml(name)+'">✕</button>'+
+      (hint?'<div style="flex-basis:100%;font-size:11px;color:var(--muted);padding-left:64px">'+escHtml(hint)+'</div>':'')+
     '</div>';
   }).join('');
 }
@@ -531,15 +1066,24 @@ async function openDetail(eid){
   _detailEid=eid;
   var r=await fetch('/evidence/api/items/'+eid);var item=await r.json();
   if(!item||item.error){return;}
+  evDetailItem=item;
   var icon=iconMap[item.category]||'\u{1F4C4}';
   var tags=(item.tags||'').split(',').filter(function(t){return t.trim();});
   var links=item.links||[];
   var mime=(item.mime_type||'').toLowerCase();
   var canPdf=isOfficeMime(mime);
+  var textState=item.text_index&&item.text_index.status;
+  var textStateLabel={indexed:'Searchable text ready',empty:'No readable text found',
+    pending:'Searchable text is being prepared',disabled:'File text indexing is not enabled',
+    unsupported:'File text is not indexed',
+    not_applicable:'No attached file to index',
+    failed:'Text indexing could not finish; metadata search still works'};
 
   var html='<div class="ev-section" style="display:flex;justify-content:space-between;align-items:flex-start">'+
     '<div><div style="font-size:18px;font-weight:700;color:var(--text)">'+icon+' '+escHtml(item.title)+'</div>'+
-    '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+escHtml(item.file_name||'')+' · '+fmtSize(item.file_size)+' · v'+escHtml(String(item.version||1))+'</div></div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+escHtml(item.file_name||'')+' · '+fmtSize(item.file_size)+' · v'+escHtml(String(item.version||1))+'</div>'+
+    '<div style="margin-top:8px">'+evStateChip(item.state)+'</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:6px">'+escHtml(textStateLabel[textState]||'Text search unavailable')+'</div></div>'+
     '<button onclick="closeDetail()" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:16px">✕</button></div>';
 
   /* Actions */
@@ -548,8 +1092,8 @@ async function openDetail(eid){
   var canDownload=hasFile||isAriaLinked;
   html+='<div class="ev-section" style="display:flex;gap:8px;flex-wrap:wrap">';
   if(canDownload){
-    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download Word</button>';
-    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
+    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download original</button>';
+    if(canPdf||isAriaLinked)html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
     if(hasFile){
       html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>';
     }
@@ -558,6 +1102,9 @@ async function openDetail(eid){
   }
   if(item.status!=='archived'){
     html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to...</button>';
+  }
+  if(item.status==='current'&&hasFile){
+    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evAddVersion('+eid+')">Add a new version</button>';
   }
   if(item.can_delete){
     if(item.status==='archived'){
@@ -578,14 +1125,15 @@ async function openDetail(eid){
   }
 
   /* Tabs: Details / History / Activity */
-  html+='<div class="ev-tabs">'+
-    '<div class="ev-tab active" id="tab-details" onclick="evShowTab(\'details\')">Details</div>'+
-    '<div class="ev-tab" id="tab-history" onclick="evShowTab(\'history\')">Versions</div>'+
-    '<div class="ev-tab" id="tab-activity" onclick="evShowTab(\'activity\')">Activity</div>'+
+  html+='<div class="ev-tabs" role="tablist">'+
+    '<button type="button" class="ev-tab active" role="tab" aria-selected="true" aria-controls="tabpane-details" id="tab-details" onclick="evShowTab(\'details\')">Details</button>'+
+    '<button type="button" class="ev-tab" role="tab" aria-selected="false" aria-controls="tabpane-history" id="tab-history" onclick="evShowTab(\'history\')">Versions</button>'+
+    '<button type="button" class="ev-tab" role="tab" aria-selected="false" aria-controls="tabpane-activity" id="tab-activity" onclick="evShowTab(\'activity\')">Activity</button>'+
   '</div>';
 
   /* Details tab */
-  html+='<div id="tabpane-details">';
+  html+='<div id="tabpane-details" role="tabpanel" aria-labelledby="tab-details">';
+  html+='<div id="evChecksItem"></div>';
 
   /* Inline-editable metadata */
   var statusOpts=['current','superseded','archived','expired','draft'].map(function(s){
@@ -612,6 +1160,9 @@ async function openDetail(eid){
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.status)+'</span>'+
         '<button class="ev-edit-btn" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')">&#9998;</button>'+
       '</div>'+
+      '<span style="color:var(--muted)">Owner</span>'+
+      '<div class="ev-editable" id="ev-field-owner_user_id"><span class="ev-field-val" style="color:var(--text)">'+escHtml(item.owner_name||'No owner')+'</span>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the owner" onclick="evInlineOwner('+eid+')">&#9998;</button></div>'+
       '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'Unknown')+'</span>'+
       '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
       '<span style="color:var(--muted)">Expiry</span>'+
@@ -621,6 +1172,15 @@ async function openDetail(eid){
         '</span>'+
         '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1">&#9998;</button>'+
       '</div>'+
+      '<span style="color:var(--muted)">Review due</span>'+
+      '<div class="ev-editable" id="ev-field-review_due_date"><span class="ev-field-val" style="color:var(--text)">'+(item.review_due_date?fmtDate(item.review_due_date):'Not set')+'</span>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the review date" onclick="evInlineEdit(\'review_due_date\','+eid+',this)">&#9998;</button></div>'+
+      '<span style="color:var(--muted)">Period from</span>'+
+      '<div class="ev-editable" id="ev-field-period_start"><span class="ev-field-val" style="color:var(--text)">'+(item.period_start?fmtDate(item.period_start):'Not set')+'</span>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the start of the period" onclick="evInlineEdit(\'period_start\','+eid+',this)">&#9998;</button></div>'+
+      '<span style="color:var(--muted)">Period to</span>'+
+      '<div class="ev-editable" id="ev-field-period_end"><span class="ev-field-val" style="color:var(--text)">'+(item.period_end?fmtDate(item.period_end):'Not set')+'</span>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the end of the period" onclick="evInlineEdit(\'period_end\','+eid+',this)">&#9998;</button></div>'+
       (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:9px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
     '</div></div>';
 
@@ -628,13 +1188,14 @@ async function openDetail(eid){
   var confScore=item.confidence_score!=null?item.confidence_score:null;
   var confColor=confScore!=null?(confScore>=80?'#16a34a':confScore>=50?'#d97706':'#dc2626'):'#94a3b8';
   var verifyLabel=item.verification_method?(_VERIFY_LABELS[item.verification_method]||item.verification_method):'Not verified';
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;align-items:center;justify-content:space-between">Confidence'+
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;align-items:center;justify-content:space-between">Metadata health'+
     (confScore!=null?'<span style="font-size:20px;font-weight:800;color:'+confColor+'">'+confScore+'%</span>':'<span style="font-size:12px;color:var(--muted)">Not scored</span>')+
   '</div>'+
   '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:12px;align-items:center">'+
     '<span style="color:var(--muted)">Verification</span>'+
     '<span style="color:var(--text)">'+escHtml(verifyLabel)+(item.verified_at?' · <span style="color:var(--muted)">'+fmtDate(item.verified_at)+'</span>':'')+'</span>'+
   '</div>'+
+  '<p style="font-size:11px;color:var(--muted);margin:8px 0 0">How complete the file\'s own details are: a method, an expiry, links and a hash. It does not say the file proves anything; only a reviewer\'s verdict on a link does.</p>'+
   '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'+
     Object.keys(_VERIFY_LABELS).map(function(m){
       var active=item.verification_method===m;
@@ -675,20 +1236,21 @@ async function openDetail(eid){
   if(links.length){
     var specs2=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
     var resolved2=[];
-    try{var rr2=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs2)));resolved2=await rr2.json();}catch(e){}
-    html+=_resolvedLinksHtml(links,resolved2,eid);
+    try{var rr2=await fetch('/evidence/api/resolve-links?evidence_id='+encodeURIComponent(eid)+'&links='+encodeURIComponent(JSON.stringify(specs2)));resolved2=await rr2.json();}catch(e){}
+    html+=_resolvedLinksHtml(links,resolved2,eid,item);
   }else{
     html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
   }
   html+='</div></div>';/* end tabpane-details */
 
   /* History tab */
-  html+='<div id="tabpane-history" style="display:none">'+
+  html+='<div id="tabpane-history" role="tabpanel" aria-labelledby="tab-history" style="display:none">'+
     '<div class="ev-section"><div id="evVersions"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
+    '<div class="ev-section"><div class="ev-section-title">What this version did to the earlier one\'s claims</div><div id="evImpact" style="font-size:12px;color:var(--muted)">Loading...</div></div>'+
   '</div>';
 
   /* Activity tab */
-  html+='<div id="tabpane-activity" style="display:none">'+
+  html+='<div id="tabpane-activity" role="tabpanel" aria-labelledby="tab-activity" style="display:none">'+
     '<div class="ev-section"><div id="evActivity"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
   '</div>';
 
@@ -702,13 +1264,40 @@ async function openDetail(eid){
     var vr=await fetch('/evidence/api/items/'+eid+'/versions');var vd=await vr.json();
     var vers=vd.versions||[];
     document.getElementById('evVersions').innerHTML=vers.length?vers.map(function(v){
+      var versionId=Number(v.id);
+      if(!Number.isSafeInteger(versionId)||versionId<=0)return '';
+      var state=v.status==='current'?'Current version':v.status==='superseded'?'Replaced version':v.status;
       return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px">'+
         '<span style="font-weight:700;color:var(--accent);font-family:monospace;min-width:28px">v'+v.version+'</span>'+
-        '<span style="color:var(--text);flex:1">'+escHtml(v.title)+'</span>'+
+        '<button type="button" style="color:var(--text);flex:1;text-align:left;background:none;border:none;cursor:pointer;font:inherit;text-decoration:underline" onclick="openDetail('+versionId+')">'+escHtml(v.title)+'</button>'+
         '<span style="color:var(--muted)">'+fmtDate(v.created_at)+'</span>'+
-        '<span class="ev-tag">'+escHtml(v.status)+'</span></div>';
+        '<span class="ev-tag">'+escHtml(state)+'</span></div>';
     }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">Single version, no history</div>';
   }catch(e){document.getElementById('evVersions').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load versions</div>';}
+
+  loadItemChecks(eid);
+
+  // What this version did to the claims the previous one supported
+  try{
+    var ir=await fetch('/evidence/api/items/'+eid+'/impact');var imp=await ir.json();
+    var box=document.getElementById('evImpact');
+    if(!imp||imp.error){box.textContent='Could not load.';}
+    else if(!imp.previous){box.textContent='This is the first version, so there is nothing it replaced.';}
+    else{
+      var sm=imp.summary||{};
+      var line='Version '+imp.previous.version+' supported '+sm.claims+' claim'+(sm.claims===1?'':'s')+'. '+
+        sm.proposed+' '+(sm.proposed===1?'was':'were')+' proposed again on this version; '+
+        sm.awaiting_review+' wait'+(sm.awaiting_review===1?'s':'')+' for a reviewer'+
+        (sm.accepted_again?' and '+sm.accepted_again+' already accepted':'')+
+        (sm.not_carried?'. '+sm.not_carried+' stayed with the earlier version (the record could not be opened or was removed)':'')+'.';
+      box.innerHTML='<p style="margin:0 0 8px;color:var(--text)">'+escHtml(line)+'</p>'+
+        (imp.claims.length?'<ul style="margin:0;padding-left:18px">'+imp.claims.map(function(c){
+          return '<li>'+(c.url?'<a href="'+escHtml(c.url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title))+
+            ': '+escHtml(c.was_label)+' then, '+escHtml(c.now_label||'not proposed again')+' now</li>';
+        }).join('')+'</ul>':'')+
+        (imp.hidden?'<p style="margin:8px 0 0">'+imp.hidden+' more claim'+(imp.hidden===1?'':'s')+' you cannot open.</p>':'');
+    }
+  }catch(e){var b2=document.getElementById('evImpact');if(b2)b2.textContent='Could not load.';}
 
   // Load activity async
   try{
@@ -733,7 +1322,9 @@ async function openDetail(eid){
 function evShowTab(tab){
   ['details','history','activity'].forEach(function(t){
     document.getElementById('tabpane-'+t).style.display=t===tab?'block':'none';
-    document.getElementById('tab-'+t).className='ev-tab'+(t===tab?' active':'');
+    var btn=document.getElementById('tab-'+t);
+    btn.className='ev-tab'+(t===tab?' active':'');
+    btn.setAttribute('aria-selected',t===tab?'true':'false');
   });
 }
 
@@ -742,8 +1333,11 @@ function evInlineEdit(field,eid,btn){
   if(!container)return;
   var currentVal=container.querySelector('.ev-field-val');
   var curText=currentVal?currentVal.textContent.trim():'';
-  var inputType=field==='expiry_date'?'date':'text';
-  var inputVal=field==='expiry_date'?(curText==='Not set'?'':curText):curText;
+  var dateFields=['expiry_date','review_due_date','period_start','period_end'];
+  var isDate=dateFields.indexOf(field)>=0;
+  var inputType=isDate?'date':'text';
+  var inputVal=isDate?'':curText;
+  if(isDate&&evDetailItem&&evDetailItem[field])inputVal=String(evDetailItem[field]).slice(0,10);
   container.innerHTML=
     '<input class="ev-inline-input" type="'+inputType+'" id="ev-input-'+field+'" value="'+escHtml(inputVal)+'" style="flex:1">'+
     '<button onclick="evSaveField(\''+field+'\','+eid+',document.getElementById(\'ev-input-'+field+'\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">Save</button>'+
@@ -757,6 +1351,29 @@ function evInlineSelect(field,eid,optsHtml){
   container.innerHTML=
     '<select class="ev-inline-input" id="ev-input-'+field+'" style="flex:1" onchange="evSaveField(\''+field+'\','+eid+',this.value)">'+optsHtml+'</select>'+
     '<button onclick="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>';
+}
+
+async function evInlineOwner(eid){
+  var container=document.getElementById('ev-field-owner_user_id');
+  if(!container)return;
+  var current=evDetailItem?evDetailItem.owner_user_id:null;
+  container.innerHTML=
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">'+
+      '<input type="search" id="ev-owner-find" class="ev-inline-input" aria-label="Find a person by name" placeholder="Find a person" autocomplete="off" style="flex:1 1 120px">'+
+      '<select class="ev-inline-input" id="ev-input-owner_user_id" aria-label="Owner" style="flex:1 1 140px" onchange="evSaveField(\'owner_user_id\','+eid+',this.value)"></select>'+
+    '</div>'+
+    '<button onclick="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)" aria-label="Cancel">&#10005;</button>';
+  var select=document.getElementById('ev-input-owner_user_id'), find=document.getElementById('ev-owner-find'), timer=null;
+  // The list is the first thirty names, or the thirty that match what was typed: an organization is larger than a list.
+  async function load(q){
+    var people=[];
+    try{var r=await fetch('/evidence/api/people'+(q?'?q='+encodeURIComponent(q):''));people=(await r.json()).items||[];}catch(e){}
+    select.innerHTML='<option value="">No owner</option>'+
+      people.map(function(p){return '<option value="'+Number(p.id)+'"'+(p.id===current?' selected':'')+'>'+escHtml(p.name)+'</option>';}).join('');
+  }
+  find.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(function(){load(find.value.trim());},250);});
+  await load('');
+  select.focus();
 }
 
 function evEditTags(eid){
@@ -773,8 +1390,12 @@ function evEditDesc(eid){
 
 async function evSaveField(field,eid,val){
   var body={};body[field]=val;
-  await fetch('/evidence/api/items/'+eid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(typeof showToast==='function')showToast('Updated '+field);
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid, { method: 'PUT', body: body, actionId: 'evidence.field.save' });
+    if(typeof showToast==='function')showToast('Updated '+field);
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Update failed','error');
+  }
   openDetail(eid);loadStats();loadEvidence();
 }
 
@@ -783,6 +1404,12 @@ function closeDetail(){
   document.getElementById('evDetailPanel').classList.remove('open');
   document.body.style.overflow='';
 }
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&document.getElementById('evDetailPanel').classList.contains('open')){
+    closeDetail();
+  }
+});
 
 async function verifyIntegrity(eid){
   var el=document.getElementById('integrityResult');
@@ -795,45 +1422,234 @@ async function verifyIntegrity(eid){
 
 async function unlinkEvidence(linkId,eid){
   if(!confirm('Remove this link?'))return;
-  await fetch('/evidence/api/links/'+linkId,{method:'DELETE'});
+  try {
+    await ApiClient.request('/evidence/api/links/'+linkId, { method: 'DELETE', actionId: 'evidence.link.remove' });
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Remove failed','error');
+    return;
+  }
   openDetail(eid);loadStats();
 }
 
 async function archiveEvidence(eid){
   if(!confirm('Archive this evidence item? It will be removed from the repository, unlinked from all modules, and moved to the archive.'))return;
-  var r=await fetch('/evidence/api/items/'+eid,{method:'DELETE'});
-  if(r.ok){
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid, { method: 'DELETE', actionId: 'evidence.archive' });
     closeDetail();loadEvidence();loadStats();
     if(typeof showToast==='function')showToast('Evidence archived and unlinked from all modules');
-  } else {
-    var d=await r.json().catch(function(){return {};});
-    if(typeof showToast==='function')showToast(d.error||'Archive failed','error');
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Archive failed','error');
   }
 }
 
 async function restoreEvidence(eid){
   if(!confirm('Restore this evidence item back to the repository?'))return;
-  var r=await fetch('/evidence/api/items/'+eid+'/restore',{method:'POST'});
-  if(r.ok){
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid+'/restore', { method: 'POST', actionId: 'evidence.restore' });
     closeDetail();loadEvidence();loadStats();
     if(typeof showToast==='function')showToast('Evidence restored to repository');
-  } else {
-    var d=await r.json().catch(function(){return {};});
-    if(typeof showToast==='function')showToast(d.error||'Restore failed','error');
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Restore failed','error');
   }
 }
 
 async function permanentDeleteEvidence(eid){
   if(!confirm('PERMANENTLY delete this evidence? This cannot be undone. The file and all records will be removed.'))return;
-  var r=await fetch('/evidence/api/items/'+eid+'/permanent',{method:'DELETE'});
-  if(r.ok){
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid+'/permanent', { method: 'DELETE', actionId: 'evidence.permanent_delete' });
     closeDetail();loadEvidence();loadStats();
     if(typeof showToast==='function')showToast('Evidence permanently deleted');
-  } else {
-    var d=await r.json().catch(function(){return {};});
-    if(typeof showToast==='function')showToast(d.error||'Delete failed','error');
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Delete failed','error');
   }
 }
+
+/* ── Quality checks ── */
+var evCheckKind={error:'bad',warning:'warn',info:'muted',suggestion:'muted'};
+async function loadChecks(){
+  var box=document.getElementById('evChecks');
+  if(!box)return;
+  try{
+    var r=await fetch('/evidence/api/inspector?limit=25');var d=await r.json();
+    if(!d||d.error){box.innerHTML='';return;}
+    var rules=d.rules||{};
+    var html='<div class="card" style="padding:16px 20px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">Quality checks</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">'+escHtml(d.note||'')+' Looked at '+d.scanned+' file'+(d.scanned===1?'':'s')+(d.limit_hit?' (the most recent)':'')+'.</div>';
+    if(!d.total){html+='<div style="font-size:12px">No known defect among the files you can open.</div>';}
+    else{
+      html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+Object.keys(d.counts).map(function(k){
+        return '<button type="button" class="ev-chip ev-chip-'+(evCheckKind[(rules[k]||{}).severity]||'muted')+'" style="cursor:pointer;background:var(--surface)" onclick="evChecksOnly(\''+escHtml(k)+'\')">'+escHtml((rules[k]||{}).label||k)+': '+Number(d.counts[k])+'</button>';
+      }).join('')+'</div><ul style="list-style:none;margin:0;padding:0">'+d.findings.map(function(f){
+        return '<li style="padding:8px 0;border-top:1px solid var(--border);font-size:12px">'+
+          '<span class="ev-chip ev-chip-'+(evCheckKind[f.severity]||'muted')+'">'+escHtml(f.title)+'</span> '+
+          '<button type="button" onclick="openDetail('+Number(f.evidence_id)+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-weight:600">'+escHtml(f.evidence_title)+'</button>'+
+          '<div style="color:var(--muted);margin-top:2px">'+escHtml(f.why)+(f.claims&&f.claims.length?' Claims: '+escHtml(f.claims.join(', '))+'.':'')+'</div></li>';
+      }).join('')+'</ul>';
+    }
+    box.innerHTML=html+'</div>';
+  }catch(e){box.innerHTML='';}
+}
+async function evChecksOnly(rule){
+  try{
+    var r=await fetch('/evidence/api/inspector?limit=25&rule='+encodeURIComponent(rule));var d=await r.json();
+    var box=document.getElementById('evChecks');
+    var first=(d.findings||[])[0];
+    if(first)openDetail(first.evidence_id);
+  }catch(e){}
+}
+async function loadItemChecks(eid){
+  var box=document.getElementById('evChecksItem');
+  if(!box)return;
+  try{
+    var r=await fetch('/evidence/api/items/'+eid+'/checks');var d=await r.json();
+    if(!d||d.error||!d.findings){box.innerHTML='';return;}
+    if(!d.findings.length){box.innerHTML='<div class="ev-section"><div class="ev-section-title">Checks</div><div style="font-size:12px;color:var(--muted)">No known defect. That is not a statement that this file is sufficient.</div></div>';return;}
+    box.innerHTML='<div class="ev-section"><div class="ev-section-title">Checks</div><ul style="list-style:none;margin:0;padding:0">'+d.findings.map(function(f){
+      var fix=f.fix||{};
+      var act={owner:'evInlineOwner('+eid+')',version:'evAddVersion('+eid+')',review_due_date:'evInlineEdit(\'review_due_date\','+eid+',null)',versions:'evShowTab(\'history\')',open:''}[fix.action]||'';
+      return '<li style="padding:6px 0;font-size:12px"><span class="ev-chip ev-chip-'+(evCheckKind[f.severity]||'muted')+'">'+escHtml(f.title)+'</span> '+escHtml(f.why)+
+        (f.claims&&f.claims.length?' Claims: '+escHtml(f.claims.join(', '))+'.':'')+
+        (act?' <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px" onclick="'+act+'">'+escHtml(fix.label||'Fix')+'</button>':'')+'</li>';
+    }).join('')+'</ul></div>';
+  }catch(e){box.innerHTML='';}
+}
+
+/* ── Find evidence ── */
+function evFindOpen(){
+  document.getElementById('findQuestion').value='';
+  document.getElementById('findStatus').textContent='';
+  document.getElementById('findResults').innerHTML='';
+  document.getElementById('findFilters').style.display='none';
+  document.getElementById('findMore').style.display='none';
+  ModalManager.open('findModal');
+  document.getElementById('findQuestion').focus();
+}
+function evFindFill(vocab){
+  function options(sel,list,blank){
+    sel.innerHTML='<option value="">'+blank+'</option>'+list.map(function(o){return '<option value="'+escHtml(o.id)+'">'+escHtml(o.label)+'</option>';}).join('');
+  }
+  options(document.getElementById('findState'),vocab.states,'Any state');
+  options(document.getElementById('findModule'),vocab.modules,'Any module');
+}
+async function evFindRun(e,edited){
+  if(e)e.preventDefault();
+  var status=document.getElementById('findStatus');
+  var body;
+  if(edited){
+    var words=document.getElementById('findWords').value.split(/\s+/).filter(Boolean);
+    body={filters:{words:words,state:document.getElementById('findState').value||undefined,module:document.getElementById('findModule').value||undefined,
+      owner:document.getElementById('findMine').checked?'me':undefined}};
+  }else{
+    var q=document.getElementById('findQuestion').value.trim();
+    if(!q){status.textContent='Write a question first.';return;}
+    body={question:q};
+  }
+  status.textContent='Looking...';
+  var d;
+  try{d=await ApiClient.request('/evidence/api/find',{method:'POST',body:body,actionId:'evidence.find'});}
+  catch(err){status.textContent=err.detail||'Could not search.';return;}
+  evFindFilters=d.filters||{};
+  if(!evFindVocab){evFindVocab=d.vocabulary;evFindFill(evFindVocab);}
+  var f=evFindFilters;
+  document.getElementById('findWords').value=(f.words||[]).join(' ');
+  document.getElementById('findState').value=f.state||'';
+  document.getElementById('findModule').value=f.module||'';
+  document.getElementById('findMine').checked=f.owner==='me';
+  document.getElementById('findFilters').style.display='block';
+  status.textContent=(d.note?d.note+' ':'')+(d.results.length?('Showing '+d.results.length+' of '+d.total+'.'):(d.message||'No accessible match.'));
+  document.getElementById('findMore').style.display=d.total>d.results.length?'block':'none';
+  document.getElementById('findResults').innerHTML=d.results.map(function(r){
+    var st=r.state?'<span class="ev-chip ev-chip-'+(evStateKind[r.state.key]||'muted')+'">'+escHtml(r.state.label)+'</span>':'';
+    var claims=(r.claims||[]).map(function(c){return escHtml(c.title);}).join(', ');
+    return '<li style="padding:10px 0;border-top:1px solid var(--border);font-size:13px">'+
+      '<button type="button" onclick="ModalManager.close(\'findModal\');openDetail('+Number(r.id)+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-weight:700;padding:0">'+escHtml(r.title)+'</button> '+st+
+      ' <span style="color:var(--muted);font-size:11px">version '+escHtml(String(r.version||1))+'</span>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml((r.why||[]).join(' · '))+
+        (r.expiry_date?' · expires '+escHtml(fmtDate(r.expiry_date)):'')+(r.review_due_date?' · review by '+escHtml(fmtDate(r.review_due_date)):'')+
+        (r.owner_name?' · owner '+escHtml(r.owner_name):'')+'</div>'+
+      evTextMatchHtml(r)+
+      (claims||r.claims_hidden?'<div style="font-size:11px;margin-top:2px">Supports: '+(claims||'')+(r.claims_hidden?(claims?', ':'')+r.claims_hidden+' you cannot open':'')+'</div>':'')+
+    '</li>';
+  }).join('');
+}
+function evFindApply(){
+  var f=evFindFilters||{};
+  currentState=f.state||'';currentModule=f.module||'';currentCategory=f.category||'';
+  evOwnerOnly=f.owner==='me';currentWords=(f.words||[]).join(' ');
+  document.getElementById('searchInput').value='';
+  ModalManager.close('findModal');
+  switchView('all',document.getElementById('nav-all'));
+}
+
+/* ── Review one link ── */
+function evReviewLink(linkId,eid,status,name){
+  document.getElementById('rvLinkId').value=linkId;
+  document.getElementById('rvEvidenceId').value=eid;
+  document.getElementById('rvExpected').value=status;
+  document.getElementById('rvTarget').textContent=name||'this record';
+  document.getElementById('rvNote').value='';
+  document.getElementById('rvStatus').textContent='';
+  document.querySelectorAll('#reviewForm input[name=rvOutcome]').forEach(function(r){r.checked=false;});
+  ModalManager.open('reviewModal');
+}
+async function evSubmitReview(e){
+  e.preventDefault();
+  var picked=document.querySelector('#reviewForm input[name=rvOutcome]:checked');
+  var status=document.getElementById('rvStatus');
+  if(!picked){status.textContent='Choose what you conclude.';return;}
+  var linkId=document.getElementById('rvLinkId').value;
+  var eid=Number(document.getElementById('rvEvidenceId').value);
+  try{
+    await ApiClient.request('/evidence/api/links/'+encodeURIComponent(linkId)+'/review',{
+      method:'POST',actionId:'evidence.link.review',
+      body:{outcome:picked.value,note:document.getElementById('rvNote').value,expected_status:document.getElementById('rvExpected').value}
+    });
+  }catch(err){
+    status.textContent=err.detail||'The review could not be saved.';
+    return;
+  }
+  ModalManager.close('reviewModal');
+  if(typeof showToast==='function')showToast('Review saved','success');
+  openDetail(eid);loadStats();loadEvidence();loadCoverage();loadChecks();
+}
+
+/* ── Add a new version of a file ── */
+function evAddVersion(eid){
+  var input=document.getElementById('evVersionFile');
+  input.dataset.eid=String(eid);
+  input.value='';
+  input.click();
+}
+document.addEventListener('DOMContentLoaded',function(){
+  var input=document.getElementById('evVersionFile');
+  if(!input)return;
+  input.addEventListener('change',async function(){
+    var file=input.files&&input.files[0];
+    var eid=Number(input.dataset.eid);
+    if(!file||!eid||!evDetailItem)return;
+    var form=new FormData();
+    form.append('file',file);
+    form.append('replace_id',String(eid));
+    form.append('title',evDetailItem.title||'');
+    form.append('category',evDetailItem.category||'general');
+    form.append('tags',evDetailItem.tags||'');
+    form.append('description',evDetailItem.description||'');
+    try{
+      var made=await ApiClient.request('/evidence/api/items',{method:'POST',body:form,actionId:'evidence.version.add'});
+      var imp=made.impact||{};
+      var msg='New version saved.';
+      if(imp.carried)msg+=' '+imp.carried+' link'+(imp.carried===1?' was':'s were')+' proposed for review.';
+      if(imp.not_carried)msg+=' '+imp.not_carried+' stayed with the earlier version.';
+      if(typeof showToast==='function')showToast(msg,'success');
+      evPage=1;
+      openDetail(made.id);loadStats();loadEvidence();loadCoverage();
+    }catch(err){
+      var text=err.detail||'The new version could not be saved.';
+      if(err.status===409&&err.body&&err.body.duplicate)text=err.body.message||'This file is already in the Vault.';
+      if(typeof showToast==='function')showToast(text,'error');
+    }
+  });
+});
 
 /* ── AI Suggest Links ── */
 async function aiSuggestLinks(eid){
@@ -869,15 +1685,16 @@ async function aiSuggestLinks(eid){
 async function applyAiLink(eid,module,entityType,entityId,btn){
   btn.disabled=true;btn.textContent='...';
   try{
-    await fetch('/evidence/api/items/'+eid+'/links',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({module:module,entity_type:entityType,entity_id:entityId})
+    await ApiClient.request('/evidence/api/items/'+eid+'/links', {
+      method: 'POST',
+      body: {module:module,entity_type:entityType,entity_id:entityId},
+      actionId: 'evidence.link.ai_apply',
     });
     btn.textContent='Linked';btn.style.background='var(--green-status)';
     openDetail(eid);loadStats();
   }catch(e){
     btn.textContent='Error';btn.disabled=false;
+    if (typeof showToast === 'function' && e.detail) showToast(e.detail, 'error');
   }
 }
 
@@ -888,14 +1705,18 @@ function openLinkToModal(eid){
   document.getElementById('linkEntityType').innerHTML='<option value="">Select type</option>';
   document.getElementById('linkSearch').value='';
   document.getElementById('linkEntityList').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';
-  document.getElementById('linkToModal').classList.add('open');
+  ModalManager.open('linkToModal');
 }
 function loadEntityTypes(){
   var mod=document.getElementById('linkModule').value;
   var sel=document.getElementById('linkEntityType');
   sel.innerHTML='<option value="">Select type</option>';
   if(mod&&entityTypes[mod]){
-    entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});
+    var labels={nc:'Nonconformance',non_conformance:'Nonconformance',bia:'Business impact assessment',
+      compliance_control:'Compliance control',ropa:'Processing activity',dpia:'Privacy impact assessment',
+      dsr:'Data subject request',application:'AI system or application'};
+    entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;
+      o.textContent=labels[t]||t.replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase();});sel.appendChild(o);});
   }
 }
 function debounceEntitySearch(){clearTimeout(entitySearchTimeout);entitySearchTimeout=setTimeout(searchEntities,300);}
@@ -906,35 +1727,126 @@ async function searchEntities(){
   var el=document.getElementById('linkEntityList');
   if(!mod||!etype){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';return;}
   var params='module='+mod+'&entity_type='+etype;if(q)params+='&q='+encodeURIComponent(q);
-  var r=await fetch('/evidence/api/search-entities?'+params);var items=await r.json();
+  var items;
+  try {
+    var r=await fetch('/evidence/api/search-entities?'+params);
+    if(!r.ok)throw new Error('Search unavailable');
+    items=await r.json();
+  } catch(e) {
+    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Entity search is unavailable. Try again shortly.</div>';
+    return;
+  }
   if(!items.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No entities found</div>';return;}
   var eid=document.getElementById('linkEvidenceId').value;
   el.innerHTML=items.map(function(e){
     var safeId=parseInt(e.id,10)||0;
-    return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="createLink('+parseInt(eid,10)+',\''+escHtml(mod)+'\',\''+escHtml(etype)+'\','+safeId+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
+    return '<button type="button" style="display:block;width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;text-align:left;font-family:inherit;background:none" onclick="createLink('+parseInt(eid,10)+',\''+escHtml(mod)+'\',\''+escHtml(etype)+'\','+safeId+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
       '<span style="font-weight:600;color:var(--text)">'+escHtml(e.name)+'</span>'+
-      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></div>';
+      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></button>';
   }).join('');
 }
 async function createLink(eid,mod,etype,entityId){
-  await fetch('/evidence/api/items/'+eid+'/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module:mod,entity_type:etype,entity_id:entityId})});
-  document.getElementById('linkToModal').classList.remove('open');
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid+'/links', {
+      method: 'POST',
+      body: {module:mod,entity_type:etype,entity_id:entityId},
+      actionId: 'evidence.link.create',
+    });
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Link failed','error');
+    return;
+  }
+  ModalManager.close('linkToModal');
   if(typeof showToast==='function')showToast('Evidence linked to '+mod+' '+etype);
   openDetail(eid);loadStats();
 }
 
 /* ── View/Filter Switching ── */
 function switchView(v,el){
-  currentView=v;
+  currentView=v;evPage=1;
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   if(el)el.classList.add('active');
+  var key=(v==='unlinked')?'needs_filing':v;
+  document.querySelectorAll('#evWork [data-view]').forEach(function(tab){
+    var on=tab.getAttribute('data-view')===key;
+    tab.classList.toggle('is-current',on);
+    tab.setAttribute('aria-pressed',on?'true':'false');
+  });
   loadEvidence();
 }
-function filterModule(m,el){currentModule=m;loadEvidence();}
-function filterCategory(c){currentCategory=c;loadEvidence();}
-function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(loadEvidence,300);}
+function filterModule(m,el){currentModule=m;evPage=1;loadEvidence();}
+function filterCategory(c){currentCategory=c;evPage=1;loadEvidence();}
+function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(function(){evPage=1;loadEvidence();},300);}
 
 /* ── Upload ── */
+var uploadTarget=null, uploadTargetTimer=null, uploadTargetSeq=0;
+function clearUploadTarget(){
+  uploadTarget=null;
+  var selected=document.getElementById('uploadLinkSelected');
+  selected.style.display='none';
+  selected.querySelector('span').textContent='';
+}
+function uploadTargetModuleChanged(){
+  clearUploadTarget();
+  var mod=document.getElementById('uploadLinkModule').value;
+  var type=document.getElementById('uploadLinkType');
+  type.replaceChildren();
+  var blank=document.createElement('option');blank.value='';blank.textContent='Choose type';type.appendChild(blank);
+  var labels={nc:'Nonconformance',non_conformance:'Nonconformance',bia:'Business impact assessment',
+    compliance_control:'Compliance control',ropa:'Processing activity',dpia:'Privacy impact assessment',
+    dsr:'Data subject request',application:'AI system or application'};
+  (entityTypes[mod]||[]).forEach(function(kind){
+    var option=document.createElement('option');option.value=kind;
+    option.textContent=labels[kind]||kind.replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase();});
+    type.appendChild(option);
+  });
+  uploadTargetTypeChanged();
+}
+function uploadTargetTypeChanged(){
+  clearUploadTarget();
+  document.getElementById('uploadLinkSearch').value='';
+  searchUploadTargets();
+}
+function debounceUploadTargetSearch(){
+  clearTimeout(uploadTargetTimer);
+  uploadTargetTimer=setTimeout(searchUploadTargets,250);
+}
+async function searchUploadTargets(){
+  var mod=document.getElementById('uploadLinkModule').value;
+  var type=document.getElementById('uploadLinkType').value;
+  var box=document.getElementById('uploadLinkResults');
+  var seq=++uploadTargetSeq;
+  box.replaceChildren();
+  if(!mod||!type)return;
+  box.textContent='Finding records...';
+  var query=new URLSearchParams({module:mod,entity_type:type,q:document.getElementById('uploadLinkSearch').value});
+  try{
+    var response=await fetch('/evidence/api/search-entities?'+query);
+    if(!response.ok)throw new Error('Search unavailable');
+    var items=await response.json();
+    if(seq!==uploadTargetSeq)return;
+    box.replaceChildren();
+    if(!items.length){box.textContent='No accessible records found';return;}
+    items.forEach(function(item){
+      var id=Number(item.id);
+      if(!Number.isSafeInteger(id)||id<=0)return;
+      var button=document.createElement('button');button.type='button';
+      button.className='btn btn-secondary';
+      button.style.cssText='display:block;width:100%;text-align:left;margin:3px 0;white-space:normal';
+      button.textContent=item.name+' (#'+id+')';
+      button.addEventListener('click',function(){
+        uploadTarget={module:mod,entity_type:type,entity_id:id};
+        var selected=document.getElementById('uploadLinkSelected');
+        selected.querySelector('span').textContent='Selected: '+item.name+' (#'+id+')';
+        selected.style.display='flex';
+        box.replaceChildren();
+      });
+      box.appendChild(button);
+    });
+  }catch(error){
+    if(seq===uploadTargetSeq)box.textContent='Record search is unavailable. You can upload without a link.';
+  }
+}
 async function handleUpload(e){
   e.preventDefault();
   document.getElementById('uploadDupeWarning').style.display='none';
@@ -946,27 +1858,54 @@ async function handleUpload(e){
   form.append('category',document.getElementById('uploadCategory').value);
   form.append('tags',document.getElementById('uploadTags').value);
   form.append('description',document.getElementById('uploadDesc').value);
-  var expiry=document.getElementById('uploadExpiry').value;
-  if(expiry)form.append('expiry_date',expiry);
-  var r=await fetch('/evidence/api/items',{method:'POST',body:form});
-  if(r.status===409){
-    var d=await r.json();
-    var warn=document.getElementById('uploadDupeWarning');
-    warn.innerHTML='⚠️ <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
-      '<div style="display:flex;gap:8px;margin-top:8px">'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="document.getElementById(\'uploadModal\').classList.remove(\'open\');openDetail('+d.existing_id+')">View Existing</button>'+
-        '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="document.getElementById(\'uploadModal\').classList.remove(\'open\');openLinkToModal('+d.existing_id+')">Link Existing</button>'+
-      '</div>';
-    warn.style.display='block';
+  if(uploadTarget){
+    form.append('link_module',uploadTarget.module);
+    form.append('link_entity_type',uploadTarget.entity_type);
+    form.append('link_entity_id',String(uploadTarget.entity_id));
+  }else if(document.getElementById('uploadLinkModule').value){
+    document.getElementById('uploadLinkResults').textContent='Select a record, or choose no module to upload without a link.';
     return;
   }
-  if(r.ok){
-    document.getElementById('uploadModal').classList.remove('open');
-    document.getElementById('uploadForm').reset();
-    document.getElementById('uploadExpiry').value='';
-    loadEvidence();loadStats();
-    if(typeof showToast==='function')showToast('Evidence uploaded','success');
+  var expiry=document.getElementById('uploadExpiry').value;
+  if(expiry)form.append('expiry_date',expiry);
+  [['uploadReviewDue','review_due_date'],['uploadPeriodStart','period_start'],['uploadPeriodEnd','period_end']].forEach(function(f){
+    var v=document.getElementById(f[0]).value;
+    if(v)form.append(f[1],v);
+  });
+  var submit=document.getElementById('uploadSubmit');submit.disabled=true;
+  try {
+    await ApiClient.request('/evidence/api/items', { method: 'POST', body: form, actionId: 'evidence.upload' });
+  } catch (e) {
+    if (e.status === 409 && e.body) {
+      var d=e.body;
+      var warn=document.getElementById('uploadDupeWarning');
+      if(d.hidden){
+        warn.textContent=d.message||'This file is already in the Vault, in a place you cannot open.';
+        warn.style.display='block';
+        return;
+      }
+      warn.innerHTML='⚠️ <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
+        '<div style="display:flex;gap:8px;margin-top:8px">'+
+          '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="ModalManager.close(\'uploadModal\');openDetail('+d.existing_id+')">View Existing</button>'+
+          '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="ModalManager.close(\'uploadModal\');openLinkToModal('+d.existing_id+')">Link Existing</button>'+
+        '</div>';
+      warn.style.display='block';
+    } else if (typeof showToast==='function') {
+      showToast(e.detail || 'Upload failed','error');
+    }
+    return;
+  } finally {
+    submit.disabled=false;
   }
+  ModalManager.close('uploadModal');
+  document.getElementById('uploadForm').reset();
+  clearUploadTarget();
+  document.getElementById('uploadLinkType').innerHTML='<option value="">Choose type</option>';
+  document.getElementById('uploadLinkResults').replaceChildren();
+  document.getElementById('uploadExpiry').value='';
+  evPage=1;
+  loadEvidence();loadStats();loadCoverage();
+  if(typeof showToast==='function')showToast('Evidence uploaded'+(form.has('link_module')?' and filed for link review':''),'success');
 }
 
 /* ── Drag-drop ── */
@@ -1004,13 +1943,13 @@ async function handleUpload(e){
     var files=e.dataTransfer&&e.dataTransfer.files;
     if(!files||!files.length)return;
     document.getElementById('uploadFile').files=files;
-    document.getElementById('uploadModal').classList.add('open');
+    ModalManager.open('uploadModal');
   });
 })();
 
 document.addEventListener('DOMContentLoaded',function(){
   setViewMode(evViewMode);  // Apply saved view mode to toggle buttons
-  loadStats();loadEvidence();loadCoverage();
+  loadStats();loadEvidence();loadCoverage();loadChecks();evLoadSavedViews();
 });
 
 /* ── PLAN-06 deep-link boot handler ── */

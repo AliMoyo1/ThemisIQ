@@ -15,6 +15,7 @@ import re
 import html as html_mod
 from datetime import datetime
 from core.timeutils import utcnow
+from database import get_current_tenant
 from pathlib import Path
 
 # ── PDF (ReportLab) ─────────────────────────────────────────────────────
@@ -58,6 +59,16 @@ LIGHT  = "#f3f4f6"
 # Reports directory (inside data/)
 REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "data/reports"))
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _report_output_dir() -> Path:
+    """Keep generated files from different organizations in separate folders."""
+    tenant = get_current_tenant() or "public"
+    if not re.fullmatch(r"[a-z0-9_-]{1,80}", tenant):
+        raise ValueError("Invalid report tenant")
+    output_dir = REPORTS_DIR / tenant
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
 
 
 def _sanitise(text: str | None) -> str:
@@ -242,7 +253,7 @@ def generate_pdf_report(audit_id: int, narrative: dict | None = None) -> dict:
     filename = f"grid-report-{audit_id}-{timestamp}.pdf"
     if not re.fullmatch(r"grid-report-\d+-\d+\.pdf", filename):
         raise ValueError("Unsafe report filename generated")
-    filepath = REPORTS_DIR / filename
+    filepath = _report_output_dir() / filename
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -541,7 +552,7 @@ def generate_docx_report(audit_id: int, narrative: dict | None = None) -> dict:
     filename = f"grid-report-{audit_id}-{timestamp}.docx"
     if not re.fullmatch(r"grid-report-\d+-\d+\.docx", filename):
         raise ValueError("Unsafe report filename generated")
-    filepath = REPORTS_DIR / filename
+    filepath = _report_output_dir() / filename
     gen_date = utcnow().strftime("%d %B %Y")
 
     doc = DocxDocument()

@@ -18,7 +18,7 @@
     position: fixed; top: var(--topbar-h); bottom: 0;
     --rail-w: var(--icon-sidebar-w);
     left: var(--rail-w);
-    z-index: 600; transform: translateX(-105%); transition: transform .22s ease-out, left .22s ease-out;
+    z-index: 600; transform: translateX(calc(-100% - var(--rail-w))); transition: transform .22s ease-out, left .22s ease-out;
     box-shadow: 8px 0 24px rgba(0,0,0,.12);
   }
   .icon-sidebar.pinned ~ .module-sidebar { --rail-w: var(--icon-sidebar-expanded-w); }

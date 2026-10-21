@@ -110,6 +110,15 @@
     </div>
   </div>
 
+  <!-- Platform tools: records the operator keeps about the platform itself, not about any organization -->
+  <div class="sa-card" style="padding:16px 20px;margin:0 0 20px">
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Platform tools</div>
+    <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+      <a href="/ai-governance/platform-features" style="color:var(--accent);font-weight:600">Platform AI features</a>
+      <span style="color:var(--muted)">Owner, limitations, incident path and review date for each first-party AI feature. No organization's content is stored here.</span>
+    </div>
+  </div>
+
   <!-- Filters -->
   <div class="filter-pills" id="filterPills">
     <div class="filter-pill active" data-filter="all" onclick="setFilter('all')">All</div>
@@ -371,9 +380,13 @@ window._currentOrg = null;
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 async function apiFetch(url, opts){
-  var res = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
-  if (res.status === 204) return {};
-  return res.json();
+  // PLAN-36 T06 (findings.md F08): never checked the response status at all
+  // -- an error body (e.g. a 403's {"detail": "..."}) was parsed and handed
+  // to the caller as if it were successful data. Delegates to the shared
+  // ApiClient, which throws on any non-2xx instead.
+  opts = opts || {};
+  var result = await ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
+  return result === null ? {} : result;
 }
 
 async function loadOrgs(){
@@ -713,7 +726,7 @@ function renderDemoChart() {
     var h = b.count === 0 ? 4 : Math.max(8, Math.round((b.count / maxCount) * 72));
     var color = b.contacted === b.count && b.count > 0 ? '#16a34a' : b.count > 0 ? '#f59e0b' : 'var(--border)';
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end" title="' + b.label + ': ' + b.count + ' request(s)">' +
-           '<div style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:3px 3px 0 0;transition:height .2s"></div>' +
+           '<div class="premium-chart-column" style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:7px 7px 2px 2px;transition:height .2s"></div>' +
            '</div>';
   }).join('');
 

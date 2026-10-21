@@ -5,7 +5,10 @@ event workflow, SLA tracking, and RCSA.
 """
 from datetime import datetime, timedelta
 from core.timeutils import utcnow
+from core.change_watch import watched
 from database import get_db, insert_returning_id
+from core.best_effort import swallowed
+from modules.governance.entity_scope import entity_scope_sql
 
 
 def _dict(row):
@@ -111,6 +114,7 @@ def create_event(data):
         db.close()
 
 
+@watched("orm", "event")
 def update_event(event_id, data):
     db = get_db()
     try:
@@ -196,6 +200,7 @@ def create_kri(data):
         db.close()
 
 
+@watched("orm", "kri")
 def update_kri(kri_id, data, user_id=None):
     db = get_db()
     try:
@@ -417,6 +422,7 @@ def get_sla_overdue_count():
         ).fetchone()
         return row[0] if row else 0
     except Exception:
+        swallowed("get_sla_overdue_count (orm_events)")
         return 0
     finally:
         db.close()
@@ -746,79 +752,86 @@ def delete_rcsa_action(action_id):
 # DASHBOARD STATS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_dashboard_stats(days=30):
-    """Stats for the ORM dashboard over the last N days."""
+def get_dashboard_stats(days=30, user=None):
+    """Stats over visible events; internal callers without a viewer keep the original scope."""
     db = get_db()
     try:
+        scope, scope_params = (entity_scope_sql(("orm", "event"), user, "e")
+                               if user is not None else ("(1 = 1)", []))
+        scoped = f" AND {scope}"
+        scope_params = tuple(scope_params)
         since = (utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
         prev_since = (utcnow() - timedelta(days=days*2)).strftime("%Y-%m-%d")
         prev_to = since
 
         def count_period(where_extra="", params=()):
             return db.execute(
-                f"SELECT COUNT(*) FROM orm_events WHERE created_at >= %s {where_extra}",
-                (since,) + params,
+                f"SELECT COUNT(*) FROM orm_events e WHERE e.created_at >= %s {where_extra}{scoped}",
+                (since,) + params + scope_params,
             ).fetchone()[0]
 
         total = count_period()
         prev_total = db.execute(
-            "SELECT COUNT(*) FROM orm_events WHERE created_at >= %s AND created_at < %s",
-            (prev_since, prev_to)
+            f"SELECT COUNT(*) FROM orm_events e WHERE e.created_at >= %s AND e.created_at < %s{scoped}",
+            (prev_since, prev_to) + scope_params
         ).fetchone()[0]
 
         fin_loss = db.execute(
-            "SELECT COALESCE(SUM(financial_impact),0) FROM orm_events WHERE created_at >= %s",
-            (since,)
+            f"SELECT COALESCE(SUM(e.financial_impact),0) FROM orm_events e WHERE e.created_at >= %s{scoped}",
+            (since,) + scope_params
         ).fetchone()[0]
         prev_fin = db.execute(
-            "SELECT COALESCE(SUM(financial_impact),0) FROM orm_events WHERE created_at >= %s AND created_at < %s",
-            (prev_since, prev_to)
+            f"SELECT COALESCE(SUM(e.financial_impact),0) FROM orm_events e WHERE e.created_at >= %s AND e.created_at < %s{scoped}",
+            (prev_since, prev_to) + scope_params
         ).fetchone()[0]
 
         customers = db.execute(
-            "SELECT COALESCE(SUM(customers_affected),0) FROM orm_events WHERE created_at >= %s",
-            (since,)
+            f"SELECT COALESCE(SUM(e.customers_affected),0) FROM orm_events e WHERE e.created_at >= %s{scoped}",
+            (since,) + scope_params
         ).fetchone()[0]
         prev_customers = db.execute(
-            "SELECT COALESCE(SUM(customers_affected),0) FROM orm_events WHERE created_at >= %s AND created_at < %s",
-            (prev_since, prev_to)
+            f"SELECT COALESCE(SUM(e.customers_affected),0) FROM orm_events e WHERE e.created_at >= %s AND e.created_at < %s{scoped}",
+            (prev_since, prev_to) + scope_params
         ).fetchone()[0]
 
         downtime_mins = db.execute(
-            "SELECT COALESCE(SUM(downtime_minutes),0) FROM orm_events WHERE created_at >= %s",
-            (since,)
+            f"SELECT COALESCE(SUM(e.downtime_minutes),0) FROM orm_events e WHERE e.created_at >= %s{scoped}",
+            (since,) + scope_params
         ).fetchone()[0]
         prev_downtime = db.execute(
-            "SELECT COALESCE(SUM(downtime_minutes),0) FROM orm_events WHERE created_at >= %s AND created_at < %s",
-            (prev_since, prev_to)
+            f"SELECT COALESCE(SUM(e.downtime_minutes),0) FROM orm_events e WHERE e.created_at >= %s AND e.created_at < %s{scoped}",
+            (prev_since, prev_to) + scope_params
         ).fetchone()[0]
 
         # By type
         type_rows = _dicts(db.execute(
-            "SELECT event_type, COUNT(*) AS cnt FROM orm_events WHERE created_at >= %s GROUP BY event_type ORDER BY cnt DESC",
-            (since,)
+            f"SELECT e.event_type, COUNT(*) AS cnt FROM orm_events e WHERE e.created_at >= %s{scoped} "
+            "GROUP BY e.event_type ORDER BY cnt DESC",
+            (since,) + scope_params
         ).fetchall())
 
         # Top 5 by financial impact
         top5 = _dicts(db.execute(
-            "SELECT id, title, event_type, financial_impact, severity FROM orm_events "
-            "WHERE created_at >= %s AND financial_impact > 0 ORDER BY financial_impact DESC LIMIT 5",
-            (since,)
+            "SELECT e.id, e.title, e.event_type, e.financial_impact, e.severity FROM orm_events e "
+            f"WHERE e.created_at >= %s AND e.financial_impact > 0{scoped} "
+            "ORDER BY e.financial_impact DESC LIMIT 5",
+            (since,) + scope_params
         ).fetchall())
 
         # Recent events
         recent = _dicts(db.execute(
-            "SELECT id, title, event_type, severity, status, financial_impact, created_at "
-            "FROM orm_events ORDER BY created_at DESC LIMIT 10"
+            "SELECT e.id, e.title, e.event_type, e.severity, e.status, e.financial_impact, e.created_at "
+            f"FROM orm_events e WHERE {scope} ORDER BY e.created_at DESC LIMIT 10",
+            scope_params
         ).fetchall())
 
         # SLA overdue count
         now_str = utcnow().strftime("%Y-%m-%d %H:%M:%S")
         sla_overdue = db.execute(
-            "SELECT COUNT(*) FROM orm_events "
-            "WHERE status NOT IN ('closed','resolved') "
-            "AND (response_due_at < %s OR resolution_due_at < %s)",
-            (now_str, now_str)
+            "SELECT COUNT(*) FROM orm_events e "
+            "WHERE e.status NOT IN ('closed','resolved') "
+            f"AND (e.response_due_at < %s OR e.resolution_due_at < %s){scoped}",
+            (now_str, now_str) + scope_params
         ).fetchone()[0]
 
         return {
@@ -840,40 +853,56 @@ def get_dashboard_stats(days=30):
         db.close()
 
 
-def get_distinct_departments():
+def get_distinct_departments(user=None):
     db = get_db()
     try:
+        scope, params = (entity_scope_sql(("orm", "event"), user, "e")
+                         if user is not None else ("(1 = 1)", []))
         rows = db.execute(
-            "SELECT DISTINCT department FROM orm_events WHERE department IS NOT NULL AND department != '' ORDER BY department"
+            "SELECT DISTINCT e.department FROM orm_events e "
+            f"WHERE e.department IS NOT NULL AND e.department != '' AND {scope} ORDER BY e.department",
+            params
         ).fetchall()
         return [r[0] for r in rows]
     finally:
         db.close()
 
 
-def has_active_bcm_incident():
+def has_active_bcm_incident(user=None):
     db = get_db()
     try:
+        scope, params = (entity_scope_sql(("bcm", "incident"), user, "b")
+                         if user is not None else ("(1 = 1)", []))
+        if scope == "(1 = 0)":
+            return None
         row = db.execute(
-            "SELECT id FROM bcm_incidents WHERE status NOT IN ('resolved','closed') LIMIT 1"
+            f"SELECT b.id FROM bcm_incidents b WHERE b.status NOT IN ('resolved','closed') AND {scope} LIMIT 1",
+            params
         ).fetchone()
         return row is not None
     except Exception:
-        return False
+        swallowed("has_active_bcm_incident (bcm_incidents)")
+        return None
     finally:
         db.close()
 
 
-def has_active_sentinel_breach():
+def has_active_sentinel_breach(user=None):
     """Check if Sentinel has any active/open breaches."""
     db = get_db()
     try:
+        scope, params = (entity_scope_sql(("sentinel", "breach"), user, "b")
+                         if user is not None else ("(1 = 1)", []))
+        if scope == "(1 = 0)":
+            return None
         row = db.execute(
-            "SELECT id FROM sentinel_breaches WHERE status NOT IN ('resolved','closed') LIMIT 1"
+            f"SELECT b.id FROM sentinel_breaches b WHERE b.status NOT IN ('resolved','closed') AND {scope} LIMIT 1",
+            params
         ).fetchone()
         return row is not None
     except Exception:
-        return False
+        swallowed("has_active_sentinel_breach (sentinel_breaches)")
+        return None
     finally:
         db.close()
 

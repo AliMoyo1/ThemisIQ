@@ -9,8 +9,11 @@ coverage mapping, plan reviews, chat messages, and reminders.
 import json
 from datetime import datetime
 from core.timeutils import utcnow
+from core.change_watch import watched
 
 from database import get_db, insert_returning_id
+from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
+from core.sql_like import ci_like, like_pattern
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -97,6 +100,7 @@ def create_bia(data):
         db.close()
 
 
+@watched("bcm", "bia")
 def update_bia(bia_id, data):
     db = get_db()
     try:
@@ -418,6 +422,7 @@ def create_risk(data):
         db.close()
 
 
+@watched("bcm", "risk")
 def update_risk(risk_id, data):
     db = get_db()
     try:
@@ -499,6 +504,7 @@ def create_plan(data):
         db.close()
 
 
+@watched("bcm", "plan")
 def update_plan(plan_id, data):
     db = get_db()
     try:
@@ -532,54 +538,92 @@ def delete_plan(plan_id):
 # INCIDENTS + COMMAND CONSOLE
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_incidents(status=None, limit=200):
+def list_incidents(status=None, limit=200, bu_scope=None):
     db = get_db()
     try:
+        where, params = [], []
         if status:
-            return _dicts(db.execute(
-                "SELECT * FROM bcm_incidents WHERE status=%s ORDER BY created_at DESC LIMIT %s",
-                (status, limit)).fetchall())
+            where.append("status=%s")
+            params.append(status)
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            where.append(f"(business_unit_id IN ({ph}) OR business_unit_id IS NULL)")
+            params.extend(bu_scope)
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+        params.append(limit)
         return _dicts(db.execute(
-            "SELECT * FROM bcm_incidents ORDER BY created_at DESC LIMIT %s", (limit,)).fetchall())
+            f"SELECT * FROM bcm_incidents {where_sql} ORDER BY created_at DESC LIMIT %s",
+            params).fetchall())
     finally:
         db.close()
 
 
-def get_incident(inc_id):
+def get_incident(inc_id, bu_scope=None):
+    """Returns None both when inc_id doesn't exist and when it's outside
+    bu_scope, so a 404 built from this never confirms another BU's incident
+    id is real (same fail-closed shape as modules/evidence/routes.py's
+    _scoped_evidence_item)."""
     db = get_db()
     try:
-        return _dict(db.execute("SELECT * FROM bcm_incidents WHERE id=%s", (inc_id,)).fetchone())
+        row = _dict(db.execute("SELECT * FROM bcm_incidents WHERE id=%s", (inc_id,)).fetchone())
+        if row is None or bu_scope is None:
+            return row
+        if row.get("business_unit_id") is None or row["business_unit_id"] in bu_scope:
+            return row
+        return None
     finally:
         db.close()
 
 
-def create_incident(data):
+def create_incident(data, actor_id=None):
+    """`actor_id` is the person declaring it: a person who names themselves commander has acknowledged by doing so."""
+    from modules.bcm import escalation
+    severity, status = data.get("severity", "medium"), data.get("status", "open")
+    clock = escalation.new_clock(severity, status, data.get("commander_user_id"), actor_id, utcnow())
     db = get_db()
     try:
         cur = insert_returning_id(db,
             """INSERT INTO bcm_incidents
                (title, description, severity, status, commander, affected_systems,
-                impact, assigned_to, declared_at)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (data.get("title"), data.get("description"), data.get("severity", "medium"),
-             data.get("status", "open"), data.get("commander"), data.get("affected_systems"),
-             data.get("impact"), data.get("assigned_to"), data.get("declared_at")))
+                impact, assigned_to, declared_at, business_unit_id, commander_user_id,
+                ack_due_at, acknowledged_at, acknowledged_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (data.get("title"), data.get("description"), severity,
+             status, data.get("commander"), data.get("affected_systems"),
+             data.get("impact"), data.get("assigned_to"), data.get("declared_at"),
+             data.get("business_unit_id"), data.get("commander_user_id"),
+             clock["ack_due_at"], clock["acknowledged_at"], clock["acknowledged_by"]))
         db.commit()
         return cur
     finally:
         db.close()
 
 
-def update_incident(inc_id, data):
+@watched("bcm", "incident")
+def update_incident(inc_id, data, bu_scope=None, actor_id=None):
+    """No-ops (returns False) if inc_id is outside bu_scope, mirroring
+    get_incident's fail-closed check -- callers must treat False as
+    HTTPException(404), never apply data anyway.
+
+    The acknowledgement clock restarts here when the commander changes or the incident is reopened, and shortens when the
+    severity is raised (modules/bcm/escalation.py); `actor_id` is the person making the change."""
+    before = get_incident(inc_id, bu_scope=bu_scope)
+    if bu_scope is not None and before is None:
+        return False
     db = get_db()
     try:
         fields, vals = [], []
         for k in ("title", "description", "severity", "status", "commander",
                   "affected_systems", "impact", "assigned_to", "declared_at",
-                  "resolved_at"):
+                  "resolved_at", "commander_user_id"):
             if k in data:
                 fields.append(f"{k}=%s")
                 vals.append(data[k])
+        if before is not None:
+            from modules.bcm import escalation
+            for column, value in escalation.clock_after_update(before, data, actor_id, utcnow()).items():
+                fields.append(f"{column}=%s")
+                vals.append(value)
         if data.get("status") == "resolved" and "resolved_at" not in data:
             fields.append("resolved_at=%s")
             vals.append(_now())
@@ -589,17 +633,46 @@ def update_incident(inc_id, data):
             vals.append(inc_id)
             db.execute(f"UPDATE bcm_incidents SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
+        return True
     finally:
         db.close()
 
 
-def delete_incident(inc_id):
+def acknowledge_incident(inc_id, user_id, now=None):
+    """Record that the incident was acknowledged by `user_id`. Returns "recorded", "already" (it was acknowledged before:
+    the first acknowledgement stands) or "closed" (it is resolved or closed, so there is nothing to acknowledge)."""
+    now = now or utcnow()
+    db = get_db()
+    try:
+        row = db.execute("SELECT status, acknowledged_at FROM bcm_incidents WHERE id=%s", (inc_id,)).fetchone()
+        if row is None or (row["status"] or "").strip().lower() in ("resolved", "closed"):
+            return "closed"
+        if row["acknowledged_at"]:
+            return "already"
+        stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        done = db.execute(
+            "UPDATE bcm_incidents SET acknowledged_at=%s, acknowledged_by=%s, updated_at=%s "
+            "WHERE id=%s AND acknowledged_at IS NULL", (stamp, user_id, stamp, inc_id))
+        if getattr(done, "rowcount", 0) != 1:
+            db.rollback()
+            return "already"
+        db.commit()
+        return "recorded"
+    finally:
+        db.close()
+
+
+def delete_incident(inc_id, bu_scope=None):
+    """Returns False (caller 404s) if inc_id is outside bu_scope."""
+    if bu_scope is not None and get_incident(inc_id, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         db.execute("DELETE FROM cross_module_links WHERE source_module='bcm' AND source_type='incident' AND source_id=%s", (inc_id,))
         db.execute("DELETE FROM cross_module_links WHERE target_module='bcm' AND target_type='incident' AND target_id=%s", (inc_id,))
         db.execute("DELETE FROM bcm_incidents WHERE id=%s", (inc_id,))
         db.commit()
+        return True
     finally:
         db.close()
 
@@ -791,37 +864,53 @@ def unlink_incident_plan(link_id):
         db.close()
 
 
-def search_vault_items(query, limit=20):
+def search_vault_items(user, query, limit=20):
+    scope_sql, scope_params = evidence_scope_sql(user)
+    search_sql, search_params = evidence_search_sql(query or "")
     db = get_db()
     try:
-        q = '%' + (query or '').strip() + '%'
         return _dicts(db.execute(
-            "SELECT id, title, category, tags, status, updated_at "
-            "FROM evidence_items WHERE status != 'archived' "
-            "AND (title LIKE %s OR tags LIKE %s OR category LIKE %s) "
-            "ORDER BY updated_at DESC LIMIT %s",
-            (q, q, q, limit)).fetchall())
+            "SELECT e.id, e.title, e.category, e.tags, e.status, e.updated_at "
+            f"FROM evidence_items e WHERE {current_library_sql()} AND {scope_sql} AND {search_sql} "
+            "ORDER BY e.updated_at DESC, e.id DESC LIMIT %s",
+            [*scope_params, *search_params, limit]).fetchall())
     finally:
         db.close()
 
 
-def list_incident_vault_links(inc_id):
+def list_incident_vault_links(inc_id, user):
+    org_id = user.get("org_id")
+    if not org_id:
+        return []
+    scope, params = evidence_scope_sql(user)
     db = get_db()
     try:
         return _dicts(db.execute(
             "SELECT e.id, e.title, e.category, e.status, e.updated_at, el.id as link_id "
             "FROM evidence_items e JOIN evidence_links el ON e.id = el.evidence_id "
-            "WHERE el.module='bcm' AND el.entity_type='incident' AND el.entity_id=%s "
+            f"WHERE el.module='bcm' AND el.entity_type='incident' AND el.entity_id=%s "
+            f"AND e.org_id=%s AND {scope} "
             "AND el.deleted_at IS NULL AND e.status != 'archived' "
             "ORDER BY el.created_at DESC",
-            (inc_id,)).fetchall())
+            [inc_id, org_id, *params]).fetchall())
     finally:
         db.close()
 
 
-def link_incident_vault_item(inc_id, evidence_id, linked_by=None):
+def link_incident_vault_item(inc_id, evidence_id, user):
+    org_id = user.get("org_id")
+    if not org_id:
+        raise LookupError("Vault artifact not found")
+    scope, params = evidence_scope_sql(user)
     db = get_db()
     try:
+        visible = db.execute(
+            f"SELECT e.id FROM evidence_items e WHERE e.id=%s AND e.org_id=%s "
+            f"AND {current_library_sql()} AND {scope}",
+            [evidence_id, org_id, *params],
+        ).fetchone()
+        if visible is None:
+            raise LookupError("Vault artifact not found")
         existing = db.execute(
             "SELECT id FROM evidence_links WHERE module='bcm' AND entity_type='incident' "
             "AND entity_id=%s AND evidence_id=%s AND deleted_at IS NULL",
@@ -831,19 +920,31 @@ def link_incident_vault_item(inc_id, evidence_id, linked_by=None):
         lid = insert_returning_id(db,
             "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) "
             "VALUES (%s,'bcm','incident',%s,%s)",
-            (evidence_id, inc_id, linked_by))
+            (evidence_id, inc_id, user["id"]))
         db.commit()
         return lid
     finally:
         db.close()
 
 
-def unlink_incident_vault_item(link_id):
+def unlink_incident_vault_item(inc_id, link_id, user):
+    org_id = user.get("org_id")
+    if not org_id:
+        raise LookupError("Vault link not found")
+    scope, params = evidence_scope_sql(user)
     db = get_db()
     try:
+        visible = db.execute(
+            "SELECT el.id FROM evidence_links el JOIN evidence_items e ON e.id=el.evidence_id "
+            f"WHERE el.id=%s AND el.module='bcm' AND el.entity_type='incident' "
+            f"AND el.entity_id=%s AND el.deleted_at IS NULL AND e.org_id=%s AND {scope}",
+            [link_id, inc_id, org_id, *params],
+        ).fetchone()
+        if visible is None:
+            raise LookupError("Vault link not found")
         db.execute(
-            "UPDATE evidence_links SET deleted_at=CURRENT_TIMESTAMP WHERE id=%s",
-            (link_id,))
+            "UPDATE evidence_links SET deleted_at=CURRENT_TIMESTAMP WHERE id=%s AND entity_id=%s",
+            (link_id, inc_id))
         db.commit()
     finally:
         db.close()
@@ -888,6 +989,7 @@ def create_exercise(data):
         db.close()
 
 
+@watched("bcm", "exercise")
 def update_exercise(ex_id, data):
     db = get_db()
     try:
@@ -966,6 +1068,7 @@ def create_vendor(data):
         db.close()
 
 
+@watched("bcm", "vendor")
 def update_vendor(vid, data):
     db = get_db()
     try:
@@ -1085,98 +1188,155 @@ def update_compliance_control(cid, data):
 def delete_compliance_control(cid):
     db = get_db()
     try:
+        if db.execute(
+            "SELECT 1 FROM bcm_compliance_evidence WHERE control_id=%s LIMIT 1", (cid,)
+        ).fetchone():
+            raise ValueError("This control has evidence history and cannot be deleted")
+        if db.execute(
+            "SELECT 1 FROM evidence_links WHERE module='bcm' AND entity_type='compliance_control' "
+            "AND entity_id=%s LIMIT 1", (cid,)
+        ).fetchone():
+            raise ValueError("This control has Vault link history and cannot be deleted")
         db.execute("DELETE FROM bcm_compliance_controls WHERE id=%s", (cid,))
         db.commit()
     finally:
         db.close()
 
 
-def list_compliance_evidence(control_id):
+def list_compliance_evidence(control_id, user):
     db = get_db()
     try:
-        return _dicts(db.execute(
-            "SELECT * FROM bcm_compliance_evidence WHERE control_id=%s ORDER BY created_at DESC",
-            (control_id,)).fetchall())
+        scope, params = evidence_scope_sql(user)
+        org_id = user.get("org_id")
+        rows = db.execute(
+            "SELECT id, control_id, title, file_path, file_type, uploaded_by, notes, created_at "
+            "FROM bcm_compliance_evidence WHERE control_id=%s AND deleted_at IS NULL "
+            "ORDER BY created_at DESC, id DESC",
+            (control_id,),
+        ).fetchall()
+        visible = []
+        for raw in rows:
+            item = dict(raw)
+            path = item.pop("file_path") or ""
+            if path.startswith("vault://"):
+                try:
+                    vault_id = int(path.removeprefix("vault://"))
+                except ValueError:
+                    continue
+                vault = db.execute(
+                    f"SELECT e.id, e.status, e.version, e.file_name FROM evidence_items e "
+                    f"WHERE e.id=%s AND e.org_id=%s AND {scope}",
+                    [vault_id, org_id, *params],
+                ).fetchone() if org_id else None
+                if vault is None:
+                    continue
+                item["vault_evidence_id"] = vault["id"]
+                item["vault_status"] = vault["status"]
+                item["vault_version"] = vault["version"]
+                item["source"] = "vault"
+            else:
+                # Legacy rows may contain untrusted paths. Show their metadata
+                # as needing migration, without exposing a path or serving it.
+                item["source"] = "legacy_needs_migration"
+            visible.append(item)
+        return visible
     finally:
         db.close()
 
 
-def create_compliance_evidence(control_id, data):
+def attach_compliance_vault_evidence(control_id, vault_id, user, title=None, notes=None):
+    org_id = user.get("org_id")
+    if not org_id:
+        raise ValueError("Select an organization first")
+    scope, params = evidence_scope_sql(user)
     db = get_db()
     try:
-        cur = insert_returning_id(db,
-            """INSERT INTO bcm_compliance_evidence
-               (control_id, title, file_path, file_type, uploaded_by, notes)
-               VALUES (%s,%s,%s,%s,%s,%s)""",
-            (control_id, data.get("title"), data.get("file_path"),
-             data.get("file_type"), data.get("uploaded_by"), data.get("notes")))
+        control = db.execute(
+            "SELECT id FROM bcm_compliance_controls WHERE id=%s", (control_id,)
+        ).fetchone()
+        vault = db.execute(
+            f"SELECT e.id, e.title, e.category FROM evidence_items e "
+            f"WHERE e.id=%s AND e.org_id=%s AND {current_library_sql()} AND {scope}",
+            [vault_id, org_id, *params],
+        ).fetchone()
+        if control is None or vault is None:
+            raise LookupError("Control or Vault artifact not found")
+        existing = db.execute(
+            "SELECT id FROM bcm_compliance_evidence WHERE control_id=%s "
+            "AND file_path=%s AND deleted_at IS NULL",
+            (control_id, f"vault://{vault_id}"),
+        ).fetchone()
+        if title is not None and not isinstance(title, str):
+            raise ValueError("Title must be text")
+        if notes is not None and not isinstance(notes, str):
+            raise ValueError("Notes must be text")
+        name = (title or vault["title"] or "").strip()
+        if not name or len(name) > 255 or len(notes or "") > 4000:
+            raise ValueError("Title or notes exceed the allowed length")
+        if existing:
+            row_id = existing["id"]
+        else:
+            row_id = insert_returning_id(db,
+                "INSERT INTO bcm_compliance_evidence "
+                "(control_id, title, file_path, file_type, uploaded_by, notes) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (control_id, name, f"vault://{vault_id}", vault["category"],
+                 user.get("full_name"), notes or ""),
+            )
+        link = db.execute(
+            "SELECT id FROM evidence_links WHERE evidence_id=%s AND module='bcm' "
+            "AND entity_type='compliance_control' AND entity_id=%s AND deleted_at IS NULL",
+            (vault_id, control_id),
+        ).fetchone()
+        if link is None:
+            db.execute(
+                "INSERT INTO evidence_links "
+                "(evidence_id, module, entity_type, entity_id, linked_by) "
+                "VALUES (%s,'bcm','compliance_control',%s,%s)",
+                (vault_id, control_id, user["id"]),
+            )
         db.commit()
-        return cur
+        return row_id
     finally:
         db.close()
 
 
-def delete_compliance_evidence(eid):
-    db = get_db()
-    try:
-        db.execute("DELETE FROM bcm_compliance_evidence WHERE id=%s", (eid,))
-        db.commit()
-    finally:
-        db.close()
-
-
-def sync_bcm_compliance_evidence_to_vault(evidence_id: int, control_id: int, user_id: int):
-    """
-    Mirror a bcm_compliance_evidence entry into the central evidence_items vault
-    and create an evidence_link to the BCM compliance control.
-    Follows the pattern of GRID's sync_grid_evidence_to_vault().
-    Returns the new evidence_items.id, or None on failure.
-    """
-    import logging
-    log = logging.getLogger("bcm.evidence_sync")
+def delete_compliance_evidence(control_id, eid, user):
     db = get_db()
     try:
         row = db.execute(
-            "SELECT * FROM bcm_compliance_evidence WHERE id=%s", (evidence_id,)
+            "SELECT file_path FROM bcm_compliance_evidence WHERE id=%s AND control_id=%s "
+            "AND deleted_at IS NULL",
+            (eid, control_id),
         ).fetchone()
-        if not row:
-            return None
-
-        ctrl = db.execute(
-            "SELECT framework, clause, title FROM bcm_compliance_controls WHERE id=%s",
-            (control_id,)
-        ).fetchone()
-
-        framework = ctrl["framework"] if ctrl else "BCM"
-        clause    = ctrl["clause"]    if ctrl else ""
-        ctrl_title = ctrl["title"]   if ctrl else ""
-
-        vault_id = insert_returning_id(db,
-            "INSERT INTO evidence_items "
-            "(title, description, file_path, category, tags, status, uploaded_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-            (
-                row["title"] or f"BCM Evidence #{evidence_id}",
-                f"BCM compliance evidence for {framework} clause {clause}: {ctrl_title}",
-                row["file_path"] or "",
-                row["file_type"] or "general",
-                f"bcm,compliance,{framework.lower().replace(' ','-')},bcm_evidence_id={evidence_id}",
-                "current",
-                user_id,
-            )
-        )
-
+        if row is None:
+            raise LookupError("Compliance evidence not found")
+        path = row["file_path"] or ""
+        if path.startswith("vault://"):
+            try:
+                vault_id = int(path.removeprefix("vault://"))
+            except ValueError:
+                raise LookupError("Compliance evidence not found") from None
+            scope, params = evidence_scope_sql(user)
+            visible = db.execute(
+                f"SELECT e.id FROM evidence_items e WHERE e.id=%s AND e.org_id=%s AND {scope}",
+                [vault_id, user.get("org_id"), *params],
+            ).fetchone()
+            if visible is None:
+                raise LookupError("Compliance evidence not found")
         db.execute(
-            "INSERT INTO evidence_links "
-            "(evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s)",
-            (vault_id, "bcm", "compliance_control", control_id, user_id)
+            "UPDATE bcm_compliance_evidence SET deleted_at=CURRENT_TIMESTAMP "
+            "WHERE id=%s AND control_id=%s AND deleted_at IS NULL",
+            (eid, control_id),
         )
+        if path.startswith("vault://"):
+            db.execute(
+                "UPDATE evidence_links SET deleted_at=CURRENT_TIMESTAMP "
+                "WHERE module='bcm' AND entity_type='compliance_control' "
+                "AND entity_id=%s AND evidence_id=%s AND deleted_at IS NULL",
+                (control_id, vault_id),
+            )
         db.commit()
-        log.info("BCM evidence #%d synced to vault as #%d", evidence_id, vault_id)
-        return vault_id
-    except Exception as e:
-        log.warning("BCM evidence sync failed: %s", e)
-        return None
     finally:
         db.close()
 
@@ -1392,8 +1552,8 @@ def search_chunks(query_terms, limit=10):
     """Simple keyword search across chunks."""
     db = get_db()
     try:
-        like_clauses = " AND ".join("content LIKE %s" for _ in query_terms)
-        params = [f"%{t}%" for t in query_terms]
+        like_clauses = " AND ".join(ci_like("content") for _ in query_terms)
+        params = [like_pattern(t) for t in query_terms]
         params.append(limit)
         return _dicts(db.execute(
             f"SELECT * FROM bcm_document_chunks WHERE {like_clauses} LIMIT %s",
@@ -2048,7 +2208,7 @@ def get_dashboard_stats():
         ).fetchone()[0]
         exercise_count     = db.execute("SELECT COUNT(*) FROM bcm_exercises").fetchone()[0]
         completed_exercises = db.execute(
-            "SELECT COUNT(*) FROM bcm_exercises WHERE status='completed'"
+            "SELECT COUNT(*) FROM bcm_exercises WHERE status IN ('completed','completed_awaiting_review','closed')"
         ).fetchone()[0]
         vendor_count       = db.execute("SELECT COUNT(*) FROM bcm_vendors WHERE status='active'").fetchone()[0]
         training_modules   = db.execute("SELECT COUNT(*) FROM bcm_training_modules WHERE status='active'").fetchone()[0]

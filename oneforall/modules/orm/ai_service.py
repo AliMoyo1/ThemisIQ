@@ -7,44 +7,34 @@ Uses the unified core.ai_client for multi-provider support
 import json
 import logging
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
+from core.ai_client import (
+    answer_json, create_message, is_configured, must_answer, provider_name, safe_json_parse,
+    wrap_user_input as _u,
+)
 
 log = logging.getLogger(__name__)
 
 
 def analyze_event(event: dict) -> dict:
-    if not is_configured():
-        return _stub_analyze(event)
-    prompt = (
-        f"Operational risk event analysis:\n\n"
-        f"Title: {_u(event.get('title', ''))}\n"
-        f"Type: {_u(event.get('event_type', ''))}\n"
-        f"Severity: {_u(event.get('severity', ''))}\n"
-        f"Description: {_u(event.get('description', ''))}\n"
-        f"Financial Impact: ${event.get('financial_impact', 0):,.0f}\n"
-        f"Customers Affected: {event.get('customers_affected', 0)}\n"
-        f"Downtime: {event.get('downtime_minutes', 0)} minutes\n\n"
-        "Provide root cause analysis and recommendations. Return JSON:\n"
-        '{"root_cause_category": "<people|process|system|external>", '
-        '"root_cause_analysis": "<2-3 sentence analysis>", '
-        '"corrective_action": "<immediate action to fix this>", '
-        '"preventive_action": "<action to prevent recurrence>"}'
-    )
-    try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
-        return safe_json_parse(text, _stub_analyze(event))
-    except Exception as exc:
-        log.error("ORM analyze failed: %s", exc)
-        return _stub_analyze(event)
-
-
-def _stub_analyze(event: dict) -> dict:
-    return {
-        "root_cause_category": "process",
-        "root_cause_analysis": f"Stub analysis for '{event.get('title', '')}'. Configure {provider_name()} API key for AI analysis.",
-        "corrective_action": "Investigate and document findings. Apply immediate fix.",
-        "preventive_action": "Review process controls and implement preventive measures.",
-    }
+    """A root cause analysis for one event. Raises AIUnavailable rather than return an analysis nobody made."""
+    with must_answer():
+        prompt = (
+            f"Operational risk event analysis:\n\n"
+            f"Title: {_u(event.get('title', ''))}\n"
+            f"Type: {_u(event.get('event_type', ''))}\n"
+            f"Severity: {_u(event.get('severity', ''))}\n"
+            f"Description: {_u(event.get('description', ''))}\n"
+            f"Financial Impact: ${event.get('financial_impact', 0):,.0f}\n"
+            f"Customers Affected: {event.get('customers_affected', 0)}\n"
+            f"Downtime: {event.get('downtime_minutes', 0)} minutes\n\n"
+            "Provide root cause analysis and recommendations. Return JSON:\n"
+            '{"root_cause_category": "<people|process|system|external>", '
+            '"root_cause_analysis": "<2-3 sentence analysis>", '
+            '"corrective_action": "<immediate action to fix this>", '
+            '"preventive_action": "<action to prevent recurrence>"}'
+        )
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="orm.analyze_event")
+        return answer_json(text, "root_cause_category", "root_cause_analysis")
 
 
 def generate_trend_narrative(stats: dict) -> str:
@@ -58,7 +48,7 @@ def generate_trend_narrative(stats: dict) -> str:
         "key incidents, and operational risk outlook. Professional tone."
     )
     try:
-        return create_message([{"role": "user", "content": prompt}], max_tokens=1000)
+        return create_message([{"role": "user", "content": prompt}], max_tokens=1000, feature="orm.generate_trend_narrative")
     except Exception as exc:
         log.error("ORM trend narrative failed: %s", exc)
         return _stub_trend_narrative(stats)
@@ -92,7 +82,7 @@ def chat(history: list, stats: dict = None) -> str:
     if stats:
         system += f"\n\nCurrent ORM stats: {json.dumps(stats, default=str)}"
     try:
-        return create_message(history, system=system, max_tokens=2048)
+        return create_message(history, system=system, max_tokens=2048, feature="orm.chat")
     except Exception as exc:
         log.error("ORM chat failed: %s", exc)
         return "Sorry, I encountered an error. Please try again."

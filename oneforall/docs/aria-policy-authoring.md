@@ -1,0 +1,381 @@
+# ARIA in-app policy authoring: operator guide
+
+Status as of 2026-09-20: built (PLAN-35 T00-T10), verification in progress
+(T11). **`ARIA_POLICY_AUTHORING_ENABLED` must remain `false` in every real
+deployment until the "Known limitations" section below is resolved or
+explicitly accepted, and until enabling it is separately authorized** --
+see `plans/PLAN-35-aria-policy-authoring-flow.md` section 15 for the full
+release-acceptance checklist this guide supports.
+
+This document is for whoever operates the app (deploys it, sets its
+environment, watches its logs), not for policy authors. It assumes you can
+already read `plans/PLAN-35-aria-policy-authoring-flow.md`; it does not
+repeat that plan's design rationale, only the parts an operator needs.
+
+## 1. What this feature is
+
+Replaces the old "AI generates a policy, it lands directly as a document"
+path with a full authoring workflow: generate or upload into an editable
+draft, build a real DOCX/PDF preview, confirm into an immutable version,
+route it for approval, publish the approved version into the Evidence
+Vault/GRID. None of this is reachable by any organization until the
+feature flag below is turned on for it.
+
+## 2. Feature flags
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `ARIA_POLICY_AUTHORING_ENABLED` | `false` | Master switch. Accepts `1`/`true`/`yes`/`on` (case-insensitive); anything else is off. |
+| `ARIA_POLICY_AUTHORING_ORG_IDS` | empty | Comma-separated organization IDs allowed to use the workflow, e.g. `ARIA_POLICY_AUTHORING_ORG_IDS=4,7`. **An empty list means no tenant is enabled, even if the master switch is on** -- this is an explicit per-org allowlist, never a blanket default-on. |
+
+Both are read by `policy_authoring_enabled_for(org_id)` in
+`modules/aria/policy_access.py`, which gates every route that advances a
+draft/version toward publication: `POST /aria/generate-policy`
+(`routes.py:api_generate_policy`), and in `routes_policy_workflow.py`,
+`api_start_revision_draft`, `api_build_policy_draft`,
+`api_confirm_policy_draft`, `api_submit_for_approval`, and
+`api_retry_publication_job` (the last four share one `_authoring_gate(actor)`
+helper). A disabled org gets a `403` with a message telling the user to
+contact their administrator, before any AI call or database write
+happens. Reading an existing draft/document, saving draft text,
+discarding/recovering a draft, and deciding/withdrawing an already-submitted
+approval are never gated -- disabling authoring stops new work from
+advancing, it does not strand work already in flight.
+
+The background publication scheduler (`modules/aria/scheduler.py`,
+`policy_publication.claim_next_job`) respects the same setting: it will
+not claim a job belonging to a currently-disabled org, filtered at the
+database query level so a disabled org's older job can never block a
+still-enabled org's newer one from being claimed. Re-enabling an org makes
+its queued jobs claimable again automatically, with no separate "resume"
+action needed.
+
+**Operator-relevant history**: these two settings existed since the
+project's earliest work on this feature but were not actually read
+anywhere in the code until 2026-09-20 -- setting `ARIA_POLICY_AUTHORING_ENABLED=false`
+did not, in fact, disable anything before that date. A first fix that same
+day only covered generation and starting a revision; a same-day follow-up
+review found it still let an already-open draft be built, confirmed,
+submitted for approval, and published while "disabled," which is the
+scope now described above. If this application has been running with an
+earlier build of this feature, its authoring and submission endpoints
+were reachable regardless of this setting. `plans/PLAN-35-aria-policy-authoring-flow.md`'s
+"T11 progress notes" and "T11 external review-fix pass" sections have the
+full account.
+
+To pilot with one organization: set both variables, restart the app, and
+confirm with a real login from a user in that organization and a second
+user in a different (or no) organization -- the second user should see the
+draft/generate entry points refuse with the "not yet enabled" message.
+
+Production preflight and apply remain fail-closed even after those variables
+are edited. The operator must repeat the exact allow-list and explicitly
+acknowledge this section's unresolved pilot limitations on both commands:
+
+```
+sudo python3 oneforall/scripts/deploy.py \
+  --authorize-aria-policy-authoring-org-ids 7 \
+  --accept-aria-policy-authoring-known-limitations
+
+sudo python3 oneforall/scripts/deploy.py --apply --restart \
+  --authorize-aria-policy-authoring-org-ids 7 \
+  --accept-aria-policy-authoring-known-limitations
+```
+
+Replace `7` with the exact authorized organization ID(s). The command-line
+IDs must exactly equal `ARIA_POLICY_AUTHORING_ORG_IDS`; order is ignored.
+Duplicates, zero, wildcards and malformed values are refused. Environment
+capture always writes authoring back to disabled/empty and cannot be combined
+with these authorization options. This deliberate friction prevents an
+ordinary deployment from silently turning a limited pilot into a blanket
+rollout. Neither option edits the environment or proves the readiness gates
+in sections 9-10; the operator must complete those separately first.
+
+## 3. Other settings
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `ARIA_POLICY_PREVIEW_SPOOL_DIR` | `<app>/data/aria_preview_spool` | Shared exchange directory with the DOCX-to-PDF converter worker. App-side only; the worker's own executable path is its own container's setting, never the app's. |
+| `ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS` | `60` | How long the app waits for a preview conversion before returning a `PREVIEW_TIMEOUT` error. The draft is never lost on timeout; the user can retry the build. |
+| `ARIA_POLICY_DRAFT_EXPIRY_DAYS` | `30` | Days of draft inactivity before it's marked expired. A save resets the clock. |
+| `ARIA_POLICY_ORPHAN_GRACE_HOURS` | `24` | Hours an unreferenced staging/artifact directory waits before being moved to trash. |
+| `ARIA_POLICY_TRASH_RETENTION_DAYS` | `7` | Days a trashed directory is kept before permanent deletion. |
+
+All four numeric settings fail app startup with a clear `RuntimeError` if
+set to zero or negative (`config.py:_validate_aria_policy_workflow_settings`)
+rather than surfacing as a confusing failure later inside a build or
+cleanup job.
+
+## 4. Background jobs
+
+`modules/aria/scheduler.py` registers two jobs at app startup,
+unconditionally -- they are always registered, whether or not any
+organization has the feature enabled:
+
+1. **Publication queue drain**, every 60 seconds. Claims and processes due
+   `aria_policy_publication_jobs` rows: copies an approved version into
+   the Evidence Vault/GRID and emits `ARIA_POLICY_PUBLISHED`.
+2. **Retention sweep**, daily at 02:00 UTC. Expires inactive drafts past
+   `ARIA_POLICY_DRAFT_EXPIRY_DAYS`, moves orphaned staging/artifact
+   directories to trash past `ARIA_POLICY_ORPHAN_GRACE_HOURS`, and
+   permanently deletes trash past `ARIA_POLICY_TRASH_RETENTION_DAYS`. Runs
+   per organization with its own referenced-paths snapshot, so one
+   organization's cleanup never touches another's live files. Guarded by a
+   real cross-process lease (`database.try_acquire_scheduler_lock`, table
+   `scheduler_locks`, 1-hour lease): the production deployment runs
+   multiple Uvicorn workers, each with its own independent scheduler
+   instance, and only one may run this sweep at a time. A worker that
+   loses the race logs it and skips that run entirely rather than
+   duplicating the work.
+
+Job 1 needs no equivalent lock: it already claims individual jobs through
+a real database lock (`policy_publication.claim_next_job`), not
+APScheduler's own same-process-only `max_instances` guard.
+
+Both jobs are safe no-ops for an organization with nothing in the
+workflow yet -- registration is not gated behind the feature flag, only
+the ability to *create* new drafts/versions is. This is intentional: it
+lets the retention sweep keep working even while the feature is off for
+everyone, so nothing accumulates unbounded before a pilot begins.
+
+## 5. Dependencies
+
+- **Vendored browser libraries** (`oneforall/static/vendor/aria-policy/`):
+  `marked` 18.0.13 (markdown parsing), `dompurify` 3.4.15 (sanitization --
+  the actual XSS defense; `marked` alone does not sanitize), `pdfjs-dist`
+  6.3.289 (in-browser PDF preview). Pinned, checksummed against jsdelivr's
+  own published per-file hashes, and recorded in that directory's
+  `MANIFEST.json`. Do not point these script tags at a CDN; a CDN-hosted
+  unpinned copy of `marked` is exactly the stored-XSS exposure this
+  vendoring replaced.
+- **LibreOffice conversion worker**: a separate, sandboxed container the
+  app talks to only through the shared spool directory -- never installed
+  into the main app image or invoked directly by app code. Full deployment
+  contract (image build, capabilities, resource limits, update procedure)
+  is `plans/PLAN-35-aria-policy-authoring-flow.md` section 7.6. The local
+  image and a real DOCX-to-PDF conversion were exercised on 2026-09-20;
+  VPS rollout and visual-fidelity acceptance remain separate gates below.
+
+## 6. Storage layout and retained files
+
+Everything lives under `ARIA_UPLOAD_DIR/policy_workflow/<org_id>/`
+(`modules/aria/policy_storage.py`). Every path stored in the database is
+relative to `ARIA_UPLOAD_DIR` and re-validated to stay inside it on every
+read (`resolve_stored_path` refuses an absolute path or a `..` segment).
+
+- Confirmed policy versions' DOCX/PDF bytes are permanent records, never
+  touched by the retention sweep.
+- Draft bodies are kept (not hard-deleted) when a draft expires, so an
+  expired draft can still be recovered/inspected; only its file references
+  are cleared.
+- Orphaned staging directories move to a trash subtree before permanent
+  deletion, giving a recovery window (`ARIA_POLICY_ORPHAN_GRACE_HOURS` +
+  `ARIA_POLICY_TRASH_RETENTION_DAYS` total).
+- The cleanup job supports a dry-run mode (counts and IDs only, no policy
+  content) -- use it before trusting a retention change on a real database.
+
+## 7. Operational scripts
+
+- **`scripts/prepare_aria_policy_workflow.py`** -- run this against any
+  database that has pre-existing `aria_documents` rows *before* enabling
+  the workflow for that organization. Dry-run by default: reports which
+  legacy rows can be unambiguously mapped to an org/owner/version, and
+  initializes `aria_document_number_sequence` from the highest existing
+  `DOC-<digits>` suffix so new allocations can't collide with un-sequenced
+  legacy numbers. `--apply-org-id N` assigns organization `N` to clean
+  NULL-org rows; it refuses if more than one organization exists in the
+  database, since the correct assignment is then genuinely ambiguous, not
+  a default. It does not backfill legacy version rows -- that adoption is
+  intentionally lazy, per document, at first revision or submission.
+- **`scripts/aria_policy_preview_worker.py`** -- the conversion worker
+  entry point referenced by the section 7.6 deployment contract.
+- **`scripts/rebuild_ask_index.py`** -- rebuilds the Ask ARIA search index
+  for every active organization (`--slug SLUG` for one; `public` is the
+  default organization). Run it once after deploying the change that put
+  `org_id` and `business_unit_id` on every index chunk: it stamps control and
+  risk chunks with the tenant that owns them and clears any stray rows an
+  earlier publication wrote into the shared `public` table. It writes only
+  derived data (`aria_ask_index`); an organization's Ask ARIA results are
+  incomplete while its own rebuild runs, which takes seconds. It needs the
+  application's environment (the same `DATABASE_URL` as the service). Exit
+  status: 0 everything rebuilt, 1 a rebuild failed, 2 `--slug` matched no
+  active organization.
+
+### VPS companion worker
+
+Production runs the web application under `themisiq-app.service`, so use
+`deploy/aria-preview/compose.vps.yml` for the converter rather than starting
+the full root Compose stack. Set `ARIA_PREVIEW_IMAGE` to the tested registry
+reference pinned as `image@sha256:<digest>`. Set
+`ARIA_POLICY_PREVIEW_SPOOL_DIR` to the same host directory in both the app
+service and the companion Compose environment (the default companion path is
+`/var/lib/themisiq/preview-spool`). Set `ARIA_PREVIEW_UID` and
+`ARIA_PREVIEW_GID` to `id -u themisiq` and `id -g themisiq` on the VPS. The
+companion uses those exact numeric IDs, matching the directory ownership
+created by the systemd deployment instead of assuming host UID/GID 1001. The
+companion has no network, drops all capabilities, runs read-only, and receives
+neither application secrets nor database access.
+
+The image generates `runtime-manifest.json` from the packages actually
+installed during its build. Its healthcheck verifies that manifest, spool
+access, and a fresh worker heartbeat without launching LibreOffice or taking
+the worker lock.
+
+Publish the production image only through the manual **ARIA preview worker
+image** GitHub Actions workflow (`.github/workflows/aria-preview-image.yml`).
+It builds from the pinned base digest, creates a minimal real DOCX, runs the
+worker with networking disabled and the production isolation controls, checks
+the resulting PDF and worker health, and only then pushes to GHCR. Copy the
+`ARIA_PREVIEW_IMAGE=ghcr.io/...@sha256:...` value from the successful job
+summary; never deploy the mutable commit tag by itself. If the GHCR package is
+private, authenticate Docker on the VPS with a read-packages credential that
+has no repository-write scope.
+
+Before starting the companion on the VPS, resolve its required numeric
+identity from the already-created app account:
+
+```
+export ARIA_PREVIEW_UID="$(id -u themisiq)"
+export ARIA_PREVIEW_GID="$(id -g themisiq)"
+export ARIA_POLICY_PREVIEW_SPOOL_DIR=/var/lib/themisiq/preview-spool
+export ARIA_PREVIEW_IMAGE='ghcr.io/.../themisiq-aria-preview@sha256:...'
+sudo env DOCKER_HOST=unix:///run/themisiq-docker.sock \
+  ARIA_PREVIEW_UID="$ARIA_PREVIEW_UID" ARIA_PREVIEW_GID="$ARIA_PREVIEW_GID" \
+  ARIA_POLICY_PREVIEW_SPOOL_DIR="$ARIA_POLICY_PREVIEW_SPOOL_DIR" \
+  ARIA_PREVIEW_IMAGE="$ARIA_PREVIEW_IMAGE" \
+  docker compose -f deploy/aria-preview/compose.vps.yml up -d
+```
+
+Enabled-authoring preflight inspects the labeled container and refuses rollout
+unless exactly one worker is healthy, digest-pinned, running as the app UID/GID,
+networkless, read-only, capability-free, resource-bounded, mounted only to the
+expected spool/tmpfs paths, and free of secret-bearing environment variables.
+
+## 8. Repair and retry: publication failures
+
+`GET /aria/api/documents/{doc_id}/publication-status` reports whether a
+document's current approved version finished publishing:
+
+- Any user with read access to the document sees `{state, needs_attention}` --
+  `needs_attention` is `true` only when the job's state is `failed`.
+- A user who can also approve or edit-any (`aria.policy.approve` /
+  `aria.policy.edit_any`) additionally sees `attempts`, `last_error`, and
+  `event_handler_status` (a publication job can be `complete` while a
+  downstream event handler still failed independently -- this surfaces
+  that too). This split is deliberate: ARIA module access alone is enough
+  to pass the read check, so internal error text is withheld from anyone
+  who isn't actually a scoped manager.
+
+To repair a failed publication: `POST /aria/api/publication-jobs/{job_id}/retry`
+(`policy_publication.retry_now`), available to the same manager
+capabilities. This does not re-run approval; it only retries the
+copy-into-evidence step for an already-approved version.
+
+## 9. Known limitations as of 2026-09-20
+
+Stated explicitly rather than assumed proven -- do not enable this feature
+against any real tenant on the strength of automated tests alone:
+
+- ~~No PostgreSQL testing was possible in this development environment.~~
+  **Schema coverage added and hardened 2026-09-20.** A production-acceptance
+  pass caught a PostgreSQL-only DDL bug that all SQLite tests were
+  structurally blind to:
+  `aria_policy_drafts` and `aria_policy_versions` have a cyclic foreign key
+  that SQLite tolerates and PostgreSQL rejects at `CREATE TABLE`, so
+  `init_db()` failed outright on real PG. Fixed (`database.py`'s
+  `_break_pg_fk_cycle` + fail-closed FK repair/validation in
+  `_run_pg_alters`) and now covered by real-PostgreSQL tests. The tests
+  validate all six workflow FKs, focused pre-workflow recovery with legacy
+  data preserved, idempotency, tenant-schema isolation, enforcement, and
+  failure when orphaned data prevents repair.
+
+  Local execution is opt-in and guarded twice: the database name must begin
+  with `themisiq_test_`, and the destructive acknowledgement must be exactly
+  `THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1`:
+
+  ```
+  docker run -d --rm --name themisiq-pg-test -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=themisiq_test_policy_schema -p 127.0.0.1:55432:5432 postgres:18
+  THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1 TEST_DATABASE_URL="postgresql://postgres:pg@localhost:55432/themisiq_test_policy_schema" python -m pytest oneforall/tests/test_postgres_init.py -v
+  ```
+
+  `.github/workflows/postgres-schema.yml` runs this gate automatically on
+  pushes to `master` and pull requests using PostgreSQL 18. This is still
+  *schema/migration* coverage, not full behavioral coverage: most workflow
+  tests continue to run on SQLite. A broader dedicated PG behavioral suite
+  and browser scenarios on a PG-backed deployment remain prerequisites for
+  production enablement. Never point `TEST_DATABASE_URL` at a real database;
+  each test wipes `public` and every `tenant_*` schema in the guarded target.
+- **Local conversion is verified; visual and VPS acceptance are not.** On
+  2026-09-20 the pinned worker image converted the real 13-page
+  `ThemisIQ_System_Manual.docx` and the strict output validator accepted the
+  resulting 71,764-byte PDF. The pages were not visually inspected for font,
+  table, header/footer, Unicode, or page-break fidelity, and the image has not
+  been published by digest or run beside `themisiq-app.service` on the VPS.
+- ~~The approval-decision UI was verified only against a fully
+  mocked-conversion draft, never a second, genuinely separate logged-in
+  approver.~~ **Resolved 2026-09-20**: a real second-user reject decision
+  and a real "start a revision" pass are now both verified live (a same-origin
+  `fetch('/logout', {method:'POST'})` reliably switches sessions despite
+  httpOnly cookies, where menu-driven logout previously did not). See
+  `plans/PLAN-35-aria-policy-authoring-flow.md`'s "T11 live verification
+  pass" notes. Still not observed live: the *approve* path specifically
+  (only *reject* was driven end-to-end) and a same-document second
+  approval round after a revision.
+- **No dedicated accessibility audit** (keyboard navigation, focus traps,
+  focus restoration after modals) has been performed on the new editor,
+  approval, or publication-status UI.
+- **No manual rapid-double-click race test** was performed against
+  Save/Build/Confirm, though each button disables itself for the duration
+  of its own in-flight request, which is the intended mechanism.
+- ~~The `ARIA_POLICY_PUBLISHED` workflow-auto-trigger handler is not
+  idempotent against a replay.~~ **Resolved 2026-09-20** (T11 second
+  review pass): a real handler-failure audit found this handler, and a
+  second one (`policy_published_handler`) missed by the first pass's own
+  check, BOTH swallowed their own failures internally, so event status
+  almost never reflected reality and a replay almost never actually ran.
+  Both now propagate genuine failures, and both are now idempotent per
+  event occurrence (`task_board.source_event_id` /
+  `workflow_instances.source_event_id`, each with a real unique index) --
+  a replay of the same event is a safe no-op, while a later, genuinely
+  new publication of the same document still gets its own task/instance.
+  `policy_publication.py`'s job is also no longer marked `'complete'` when
+  the event it emitted did not actually reach `'processed'` -- it now
+  routes through the existing retry/backoff machinery instead, so a
+  stuck delivery is actually reachable through the existing manual retry
+  action rather than invisible. See `plans/PLAN-35-aria-policy-authoring-flow.md`'s
+  "T11 second external review-fix pass" for the full account, including
+  what this did NOT build: a full outbox/per-handler-delivery-table
+  redesign (offered as the durable, complete fix; judged out of scope for
+  this pass) and closing the admin-notification's own, deliberately
+  accepted, minor duplication risk on a replay.
+- ~~The retention sweep can run concurrently on a multi-worker deployment.~~
+  **Resolved 2026-09-20**: raised a second time after being deliberately
+  deferred once (see the plan's "T11 external review-fix pass"), so fixed
+  for real this time with a generic, reusable cross-process lease
+  (`database.try_acquire_scheduler_lock`, section 4 above) rather than
+  deferred again. The other nine module schedulers sharing this exact
+  multi-worker exposure have not been migrated to use it -- that remains
+  separate, un-started work, now that the mechanism actually exists for
+  them to adopt.
+- **A genuine handler-failure-to-job-retry cycle has not been driven live
+  end to end.** The individual pieces are each verified directly (a
+  handler's own failure-tracking and idempotency guard; the scheduler
+  lock's cross-process behavior; the markdown/callback fixes, live in a
+  real browser) but a real handler actually failing, causing a real
+  publication job to be scheduled for retry, being reprocessed
+  automatically, and reaching `state='complete'` was not walked through
+  as one live scenario in this environment.
+
+## 10. Before enabling in a real deployment
+
+1. Resolve or explicitly accept every item in section 9 above.
+2. Confirm `plans/PLAN-35-aria-policy-authoring-flow.md` section 15's
+   release-acceptance checklist is satisfied.
+3. Get explicit authorization for the specific organization(s) being
+   enabled -- this is not a decision this guide or any automated process
+   makes on its own.
+4. Run `scripts/prepare_aria_policy_workflow.py` against the target
+   database first if it has any pre-existing `aria_documents` rows.
+5. Set `ARIA_POLICY_AUTHORING_ENABLED=true` and
+   `ARIA_POLICY_AUTHORING_ORG_IDS` to the authorized org ID(s) only, then
+   restart the app.

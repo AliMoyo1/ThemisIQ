@@ -16,10 +16,6 @@
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Navigation</div>
-  <a href="/my-dashboard" class="nav-item{% if active_section == 'my-dashboard' %} active{% endif %}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-    My Dashboard
-  </a>
   <a href="/" class="nav-item{% if active_section == 'overview' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     Overview
@@ -51,10 +47,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Calendar
   </a>
+  {% if user and user.is_super_admin %}
   <a href="/analytics" class="nav-item{% if active_section == 'analytics' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
     Analytics
   </a>
+  {% endif %}
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Data</div>
@@ -107,6 +105,12 @@
   <a href="/governance/" class="nav-item{% if active_section == 'org_structure' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
     Org Structure
+  </a>
+  {% endif %}
+  {% if can_manage_ai_policy %}
+  <a href="/admin/ai-policy" class="nav-item{% if active_section == 'ai-policy' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+    AI Policy
   </a>
   {% endif %}
 </div>

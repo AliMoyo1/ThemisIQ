@@ -125,10 +125,19 @@ ROLE_CHIP_TONE = {
 CAPABILITIES: dict[str, set[str]] = {
     # ── Platform ─────────────────────────────────────────────────
     "platform.manage_users":      {SUPER_ADMIN},
+    "platform.workflow.author":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "platform.report.signoff":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "platform.manage_org_users":  {SUPER_ADMIN, ORG_ADMIN},
     "platform.manage_settings":   {SUPER_ADMIN},
     "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR, GRC_OFFICER},
     "manage_frameworks":          {SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD, GRC_OFFICER},
+
+    # ── PLAN-36 P04: data-readiness and integrity centre ────────
+    # view is broader (oversight roles); acknowledging/suppressing a real
+    # finding is a more consequential action than seeing it, so it's
+    # restricted to roles actually accountable for compliance outcomes.
+    "platform.view_readiness":    {SUPER_ADMIN, ORG_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD},
+    "platform.manage_readiness":  {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
 
     # ── Governance Graph (Tier 1 T1.1): shared org structure ────
     # `view` is broad — most roles need to see BUs/departments/processes to
@@ -210,11 +219,29 @@ CAPABILITIES: dict[str, set[str]] = {
 
     # ── Evidence Vault capabilities ─────────────────────────────
     "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
+    # Saying that a version of an item supports a claim. The person who attached the file never reviews it, and the
+    # reviewer must also be able to open the claim.
+    "evidence.link.review":       {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, DPO, BCM_MANAGER, RISK_OWNER},
+    # Deciding that a record connected to a changed one needs a second look, or does not (a connected record's own owner
+    # may decide without this).
+    "governance.change.review":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, DPO, BCM_MANAGER, RISK_OWNER, ORG_ADMIN},
+
+    # ── PLAN-36 P05: evidence collection campaigns ───────────────
+    # Submitting/starting-review on one's own assigned/reviewer-of request
+    # is an object-level check (are you this request's assignee/reviewer),
+    # not a role capability -- matching aria.policy's own
+    # _draft_can_edit_document pattern. These two gate the management
+    # actions: creating/closing campaigns and requests, and deciding
+    # (accept/return) a submission.
+    "evidence.campaign.manage":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "evidence.request.review":    {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD},
 
     # ── Sentinel capabilities ────────────────────────────────────
     "sentinel.ropa.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.dpia.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.breach.manage":         {SUPER_ADMIN, DPO},
+    "sentinel.jurisdiction.draft":    {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
+    "sentinel.jurisdiction.approve":  {DPO},
     "sentinel.dsr.manage":            {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.consent.manage":        {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.vendor.manage":         {SUPER_ADMIN, DPO},
@@ -227,6 +254,8 @@ CAPABILITIES: dict[str, set[str]] = {
     # ── ERM capabilities ──────────────────────────────────────────────
     "module.erm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
     "erm.risk.manage":           {SUPER_ADMIN, RISK_OWNER},
+    "erm.acceptance.propose":    {SUPER_ADMIN, RISK_OWNER},
+    "erm.acceptance.decide":     {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "erm.risk.view":             {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
     "erm.appetite.manage":       {SUPER_ADMIN, RISK_OWNER},
     "erm.library.manage":        {SUPER_ADMIN, RISK_OWNER},
@@ -237,6 +266,12 @@ CAPABILITIES: dict[str, set[str]] = {
     "erm.kri.manage":            {SUPER_ADMIN, RISK_OWNER},
     "erm.statements.manage":     {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
     "erm.framework.manage":      {SUPER_ADMIN, RISK_OWNER},
+    # PLAN-36 P07: scenario analysis and board-pack snapshots
+    "erm.scenario.manage":       {SUPER_ADMIN, RISK_OWNER},
+    "erm.scenario.view":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
+    "erm.boardpack.generate":    {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
+    "erm.boardpack.publish":     {SUPER_ADMIN, RISK_OWNER},
+    "erm.boardpack.view":        {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
 
     # ── ORM capabilities ──────────────────────────────────────────────
     "module.orm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, BCM_MANAGER, AUDIT_LEAD},
@@ -245,6 +280,33 @@ CAPABILITIES: dict[str, set[str]] = {
     "orm.kri.manage":            {SUPER_ADMIN, RISK_OWNER},
     "orm.report.generate":       {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
     "orm.ai.use":                {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
+
+    # ── AI Governance (plans/ai-governance, ledger 05) ────────────────
+    # AI Governance is for specialist roles (owner decision, 2026-10-20): nothing in it opens for a general employee or
+    # an outside auditor. Only a narrow set reviews, links and decides. Review is the five governance.entities.manage
+    # roles plus the DPO. Decide excludes the org admin: a decision is a compliance judgement, not a tenant
+    # administration task. Existing specialist authors keep access to their own historical requests through
+    # ai_use.submit. New requests and edits use a separate specialist gate.
+    "ai_use.submit":             set(ALL_ROLES) - {EXTERNAL_AUDITOR, EMPLOYEE},
+    "ai_use.intake_create":      {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
+    "ai_use.view":               {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO, PRIVACY_ANALYST},
+    "ai_use.review":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
+    "ai_use.link":               {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
+    "ai_use.decide":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO},
+    # Review packs (plans/ai-governance/09). Issuing and revoking sit with the people who decide uses. Receiving also covers
+    # the audit roles, who need no other AI governance access to read a pack addressed to them.
+    "ai_pack.manage":            {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO},
+    "ai_pack.receive":           {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO, AUDIT_LEAD, AUDITOR, EXTERNAL_AUDITOR},
+    # The platform's own AI features: platform operators only.
+    "ai_governance.platform.manage": {SUPER_ADMIN},
+    "ai_governance.policy.manage": {SUPER_ADMIN, ORG_ADMIN},
+    # The AI impact assessment, moved from Sentinel into AI Governance (plans/ai-governance/06). View and manage are the
+    # union of the privacy team (module.sentinel.access, sentinel.dpia.manage) and the people who review AI uses
+    # (ai_use.review). Configure changes how every assessment is scored, so it stays with the privacy team plus the
+    # organization admin.
+    "ai_assessment.view":        {SUPER_ADMIN, DPO, PRIVACY_ANALYST, COMPLIANCE_MGR, GRC_OFFICER, RISK_OWNER, ORG_ADMIN},
+    "ai_assessment.manage":      {SUPER_ADMIN, DPO, PRIVACY_ANALYST, COMPLIANCE_MGR, GRC_OFFICER, RISK_OWNER, ORG_ADMIN},
+    "ai_assessment.configure":   {SUPER_ADMIN, DPO, PRIVACY_ANALYST, ORG_ADMIN},
 }
 
 

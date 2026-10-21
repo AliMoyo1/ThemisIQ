@@ -15,11 +15,13 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from config import settings
-from database import init_db, get_db, OperationalError
+from database import init_db, get_db, get_db_bypass_rls, OperationalError
+from core.ai_client import AIUnavailable
+from core.ai_policy import AIPolicyError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
     cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
-    module_audit_middleware,
+    module_audit_middleware, request_id_middleware,
 )
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
 
@@ -47,18 +49,34 @@ app = FastAPI(
 # GZip: compresses all text responses >= 1 KB automatically.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Order matters: outermost first. Security headers wrap everything,
-# CSRF origin check runs before the route handler.
-app.middleware("http")(security_headers_middleware)
-app.middleware("http")(body_size_limit_middleware)
-app.middleware("http")(cors_block_middleware)
-app.middleware("http")(csrf_origin_middleware)
-app.add_middleware(SanitizeJsonMiddleware)
-app.middleware("http")(tenant_context_middleware)
-# Innermost: closest to the route, so request.state.user (set inside
-# @require_auth/@require_capability) and the final response status are both
-# available. See core/middleware.py for why this exists.
+# Order matters: outermost first -- but registered in the OPPOSITE order
+# from that intent, because both app.middleware("http") and
+# app.add_middleware() insert at the front of Starlette's internal
+# middleware list (each new registration becomes the new head), and
+# build_middleware_stack() then wraps that list in reverse, so the LAST
+# middleware registered ends up OUTERMOST, not the first (code-review
+# finding, 2026-09-28; confirmed directly: a cross-origin rejection
+# returned 403 with no X-Request-ID or CSP headers, because with the old
+# registration order request_id/security_headers were wrapped INSIDE
+# cors_block_middleware -- a request cors_block_middleware rejects before
+# calling further inward never reaches them at all). Registering in this
+# reversed order makes the ACTUAL runtime order (outermost to innermost)
+# match the one the comment above describes: request ID wraps everything
+# (so it is set before any other middleware/handler runs and never
+# missing from a response, even an early rejection), then security
+# headers, then CSRF origin check runs before the route handler.
 app.middleware("http")(module_audit_middleware)
+app.middleware("http")(tenant_context_middleware)
+app.add_middleware(SanitizeJsonMiddleware)
+app.middleware("http")(csrf_origin_middleware)
+app.middleware("http")(cors_block_middleware)
+app.middleware("http")(body_size_limit_middleware)
+app.middleware("http")(security_headers_middleware)
+app.middleware("http")(request_id_middleware)
+# (module_audit_middleware is registered first above so it ends up
+# innermost: closest to the route, so request.state.user (set inside
+# @require_auth/@require_capability) and the final response status are
+# both available. See core/middleware.py for why this exists.)
 
 # -- Static files -------------------------------------------------------------
 os.makedirs("static", exist_ok=True)
@@ -81,8 +99,8 @@ async def startup():
     except Exception as _e:
         log.warning("aria_ask_index init skipped: %s", _e)
 
-    # Auto-seed if no users exist
-    db = get_db()
+    # Bootstrap checks the global users table before any request has an RLS scope.
+    db = get_db_bypass_rls()
     try:
         count = db.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
     finally:
@@ -96,7 +114,7 @@ async def startup():
     # Ensure the default organisation exists and all users are assigned to it.
     # This is idempotent — safe to run on every startup.
     if settings.is_postgres():
-        db3 = get_db()
+        db3 = get_db_bypass_rls()
         try:
             org = db3.execute(
                 "SELECT id FROM organizations WHERE slug = 'public'"
@@ -198,6 +216,13 @@ async def startup():
     except Exception as exc:
         log.warning("Evidence scheduler failed to start: %s", exc)
 
+    # Start ERM scheduler (weekly emerging-risk horizon scan)
+    try:
+        from modules.erm.scheduler import start_scheduler as erm_start
+        erm_start()
+    except Exception as exc:
+        log.warning("ERM scheduler failed to start: %s", exc)
+
     # Start Advisory scheduler (daily governance briefing at 05:30 UTC)
     try:
         from modules.launcher.advisory_scheduler import start_scheduler as advisory_start
@@ -226,6 +251,35 @@ async def startup():
     except Exception as exc:
         log.warning("Governance scheduler failed to start: %s", exc)
 
+    # Start ARIA policy workflow scheduler (publication queue drain every
+    # 60s, retention sweep daily at 02:00 UTC)
+    try:
+        from modules.aria.scheduler import start_scheduler as aria_policy_start
+        aria_policy_start()
+    except Exception as exc:
+        log.warning("ARIA policy scheduler failed to start: %s", exc)
+
+    # Start Readiness scheduler (data-integrity scan sweep daily at 03:30 UTC)
+    try:
+        from modules.readiness.scheduler import start_scheduler as readiness_start
+        readiness_start()
+    except Exception as exc:
+        log.warning("Readiness scheduler failed to start: %s", exc)
+
+    # Start Evidence Campaigns scheduler (overdue/reminder/recurrence sweep daily at 04:00 UTC)
+    try:
+        from modules.evidence_campaigns.scheduler import start_scheduler as evidence_campaigns_start
+        evidence_campaigns_start()
+    except Exception as exc:
+        log.warning("Evidence Campaigns scheduler failed to start: %s", exc)
+
+    # Start the event delivery sweeper (delivers stored events a crash or a failing handler left undelivered)
+    try:
+        from core.event_sweeper import start_scheduler as event_sweeper_start
+        event_sweeper_start()
+    except Exception as exc:
+        log.warning("Event delivery sweeper failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -240,11 +294,15 @@ async def startup():
         log.warning("workflow_actions due_at migration skipped: %s", exc)
 
     # ── Startup config validation ─────────────────────────────────────────────
-    _provider = (settings.AI_PROVIDER or "anthropic").lower()
-    if _provider == "anthropic" and not settings.ANTHROPIC_API_KEY:
+    from core.ai_client import (
+        is_configured as _ai_is_configured,
+        provider_name as _ai_provider_name,
+    )
+    if not _ai_is_configured():
         log.warning(
-            "ANTHROPIC_API_KEY is not set. AI features (policy generation, "
-            "risk scoring, chat) will not work until configured in .env"
+            "%s is selected but its credentials are not configured. AI features "
+            "(policy generation, risk scoring, chat) will be unavailable.",
+            _ai_provider_name(),
         )
     if not getattr(settings, "SECRET_KEY", None):
         log.warning("SECRET_KEY not set — using auto-generated key. Sessions will break on restart.")
@@ -275,6 +333,11 @@ async def shutdown():
     except Exception:
         pass
     try:
+        from modules.erm.scheduler import stop_scheduler as erm_stop
+        erm_stop()
+    except Exception:
+        pass
+    try:
         from modules.launcher.advisory_scheduler import stop_scheduler as advisory_stop
         advisory_stop()
     except Exception:
@@ -292,6 +355,26 @@ async def shutdown():
     try:
         from modules.governance.scheduler import stop_scheduler as governance_stop
         governance_stop()
+    except Exception:
+        pass
+    try:
+        from modules.aria.scheduler import stop_scheduler as aria_policy_stop
+        aria_policy_stop()
+    except Exception:
+        pass
+    try:
+        from modules.readiness.scheduler import stop_scheduler as readiness_stop
+        readiness_stop()
+    except Exception:
+        pass
+    try:
+        from modules.evidence_campaigns.scheduler import stop_scheduler as evidence_campaigns_stop
+        evidence_campaigns_stop()
+    except Exception:
+        pass
+    try:
+        from core.event_sweeper import stop_scheduler as event_sweeper_stop
+        event_sweeper_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")
@@ -366,22 +449,27 @@ async def demo_request(request: Request):
         log.error("Demo request DB insert failed: %s", exc)
 
     try:
+        import html as _html
         from core.email import send_email
         admin_to = settings.ADMIN_EMAIL or settings.SMTP_USER
         if admin_to:
-            plan_line = f"<p><strong>Plan interested in:</strong> {plan}</p>" if plan else ""
-            send_email(
+            esc = _html.escape
+            plan_line = f"<p><strong>Plan interested in:</strong> {esc(plan)}</p>" if plan else ""
+            outcome = send_email(
                 to=admin_to,
                 subject=f"Demo Request: {name} ({company or 'no company'})",
                 body_html=(
                     f"<h2>New Demo Request</h2>"
-                    f"<p><strong>Name:</strong> {name}</p>"
-                    f"<p><strong>Email:</strong> {email}</p>"
-                    f"<p><strong>Company:</strong> {company or 'Not provided'}</p>"
+                    f"<p><strong>Name:</strong> {esc(name)}</p>"
+                    f"<p><strong>Email:</strong> {esc(email)}</p>"
+                    f"<p><strong>Company:</strong> {esc(company or 'Not provided')}</p>"
                     f"{plan_line}"
                 ),
                 body_text=f"Demo request\nName: {name}\nEmail: {email}\nCompany: {company}\nPlan: {plan}",
             )
+            if not outcome.get("ok"):
+                log.warning("Demo request email was not accepted by a provider (%s); the request is saved",
+                            outcome.get("status"))
     except Exception as exc:
         log.warning("Demo request email failed (request still logged): %s", exc)
 
@@ -394,26 +482,46 @@ from modules.launcher.routes_super_admin import router as super_admin_router
 from modules.launcher.routes_api_v1 import router as api_v1_router
 from modules.launcher.routes_people import router as people_router
 from modules.aria.routes import router as aria_router
+from modules.aria.routes_policy_workflow import router as aria_policy_workflow_router
+from modules.aria.routes_workbench import router as aria_workbench_router
 from modules.grid.routes import router as grid_router
 from modules.bcm.routes import router as bcm_router
 from modules.sentinel.routes import router as sentinel_router
 from modules.evidence.routes import router as evidence_router
 from modules.erm.routes import router as erm_router
+from modules.erm.routes_scenarios import router as erm_scenarios_router
 from modules.orm.routes import router as orm_router
 from modules.governance.routes import router as governance_router
+from modules.ai_governance.routes import router as ai_governance_router
+from modules.readiness.routes import router as readiness_router
+from modules.evidence_campaigns.routes import router as evidence_campaigns_router
+from modules.saved_views.routes import router as saved_views_router
 
 app.include_router(super_admin_router)
 app.include_router(api_v1_router)
 app.include_router(launcher_router)
 app.include_router(people_router)
 app.include_router(aria_router)
+app.include_router(aria_policy_workflow_router)
+app.include_router(aria_workbench_router)
 app.include_router(grid_router)
 app.include_router(bcm_router)
 app.include_router(sentinel_router)
 app.include_router(evidence_router)
+# erm_scenarios_router MUST be included before erm_router: routes.py's own
+# generic GET /erm/{page} SPA-page catch-all (gated by _SPA_PAGES) matches
+# any single-segment path under /erm, including /erm/scenario-studio, and
+# Starlette resolves to whichever matching route was registered first.
+# Confirmed the hard way -- the literal route 404'd via the catch-all's own
+# "page not in _SPA_PAGES" check until this ordering was fixed.
+app.include_router(erm_scenarios_router)
 app.include_router(erm_router)
 app.include_router(orm_router)
 app.include_router(governance_router)
+app.include_router(ai_governance_router)
+app.include_router(readiness_router)
+app.include_router(evidence_campaigns_router)
+app.include_router(saved_views_router)
 
 
 # -- Launcher alias (themisiq.net redirects to /launcher/) -------------------
@@ -485,6 +593,20 @@ def _wants_json(request: Request) -> bool:
         return True
     xhr = request.headers.get("x-requested-with", "").lower()
     return xhr == "xmlhttprequest"
+
+@app.exception_handler(AIUnavailable)
+async def ai_unavailable_handler(request: Request, exc: AIUnavailable):
+    """A feature that needs the AI assistant and cannot have it says so, in words, and saves nothing."""
+    return JSONResponse({"detail": str(exc), "error": str(exc), "ai_unavailable": True, "reason": exc.reason},
+                        status_code=503)
+
+
+@app.exception_handler(AIPolicyError)
+async def ai_policy_handler(request: Request, exc: AIPolicyError):
+    """The organization's AI policy refused the call. The sentence is safe to show: it names no setting."""
+    return JSONResponse({"detail": str(exc), "error": str(exc), "ai_unavailable": True, "reason": exc.reason},
+                        status_code=403)
+
 
 @app.exception_handler(OperationalError)
 async def db_lock_handler(request: Request, exc: OperationalError):

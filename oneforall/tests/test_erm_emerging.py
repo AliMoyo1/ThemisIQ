@@ -148,11 +148,18 @@ def test_scan_emerging_risks_grounded_citation_cross_check(test_db, monkeypatch)
         {"url": "https://nist.gov/a", "title": "NIST Page A"},
         {"url": "https://cisa.gov/b", "title": "CISA Page B"},
     ]
-    monkeypatch.setattr(ai_mod, "create_message_web_search", lambda *a, **k: {
-        "text": json.dumps(items), "citations": citations, "searches_used": 2,
-    })
+    grounded_call = {}
+
+    def grounded_response(*args, **kwargs):
+        grounded_call.update(kwargs)
+        return {
+            "text": json.dumps(items), "citations": citations, "searches_used": 2,
+        }
+
+    monkeypatch.setattr(ai_mod, "create_message_web_search", grounded_response)
     created = ai_mod.scan_emerging_risks_grounded({"pillars": [], "frameworks": [], "top_categories": []})
     assert len(created) == 3
+    assert grounded_call["max_tokens"] == 3000
 
     rows = {r["title"]: r for r in list_emerging()}
     assert rows["Cited Risk A"]["origin"] == "ai_scan_web"
@@ -163,8 +170,10 @@ def test_scan_emerging_risks_grounded_citation_cross_check(test_db, monkeypatch)
     assert rows["Uncited Risk C"]["source_url"] is None
 
     # (b) empty citations list -> even a previously-cited-looking URL is untrusted.
+    # Fresh title (not "Cited Risk A"): the scan's dedupe guard would
+    # otherwise skip this as an existing non-dismissed item from case (a).
     monkeypatch.setattr(ai_mod, "create_message_web_search", lambda *a, **k: {
-        "text": json.dumps([items[0]]), "citations": [], "searches_used": 1,
+        "text": json.dumps([{**items[0], "title": "Cited Risk A Redux"}]), "citations": [], "searches_used": 1,
     })
     created2 = ai_mod.scan_emerging_risks_grounded({"pillars": [], "frameworks": [], "top_categories": []})
     rows2 = {r["id"]: r for r in list_emerging()}
@@ -187,26 +196,43 @@ def test_grounded_scan_falls_back_to_knowledge_only(test_db, monkeypatch):
         raise RuntimeError("Web search not enabled: org admin disabled the feature")
     monkeypatch.setattr(ai_mod, "create_message_web_search", raise_runtime)
     monkeypatch.setattr(ai_mod, "is_configured", lambda: True)
-    monkeypatch.setattr(ai_mod, "create_message", lambda *a, **k: json.dumps(
-        [{"title": "Fallback Risk", "summary": "s", "rationale": "r"}]
-    ))
+    fallback_call = {}
 
-    grounded = False
-    created_ids = []
-    try:
-        created_ids = ai_mod.scan_emerging_risks_grounded({"pillars": [], "frameworks": [], "top_categories": []})
-        grounded = bool(created_ids)
-    except Exception:
-        pass
-    if not created_ids:
-        created_ids = ai_mod.scan_emerging_risks({"pillars": [], "frameworks": [], "top_categories": []})
-        grounded = False
+    def fallback_response(*args, **kwargs):
+        fallback_call.update(kwargs)
+        return json.dumps(
+            [{"title": "Fallback Risk", "summary": "s", "rationale": "r"}]
+        )
 
-    assert grounded is False
-    assert len(created_ids) == 1
-    rows = {r["id"]: r for r in list_emerging()}
-    assert rows[created_ids[0]]["title"] == "Fallback Risk"
-    assert rows[created_ids[0]]["origin"] == "ai_scan"
+    monkeypatch.setattr(ai_mod, "create_message", fallback_response)
+
+    result = ai_mod.run_emerging_scan()
+
+    assert result == {"created": 1, "grounded": False}
+    assert fallback_call["max_tokens"] == 3000
+    rows = list_emerging()
+    assert any(r["title"] == "Fallback Risk" and r["origin"] == "ai_scan" for r in rows)
+
+
+def test_run_emerging_scan_returns_controlled_error_when_fallback_ai_fails(test_db, monkeypatch):
+    """The production content=null path must never escape as a route 500."""
+    import modules.erm.ai_service as ai_mod
+
+    monkeypatch.setattr(
+        ai_mod,
+        "create_message_web_search",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("empty grounded response")),
+    )
+    monkeypatch.setattr(ai_mod, "is_configured", lambda: True)
+    monkeypatch.setattr(
+        ai_mod,
+        "create_message",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("empty fallback response")),
+    )
+
+    result = ai_mod.run_emerging_scan()
+
+    assert result == {"created": 0, "grounded": False, "error": "ai_unavailable"}
 
 
 def test_create_message_web_search_pause_turn_continuation(monkeypatch):
@@ -223,7 +249,15 @@ def test_create_message_web_search_pause_turn_continuation(monkeypatch):
     responses = [
         {
             "stop_reason": "pause_turn",
-            "content": [{"type": "text", "text": "Part 1. "}],
+            "content": [{
+                "type": "text",
+                "text": "Part 1. ",
+                "citations": [{
+                    "type": "web_search_result_location",
+                    "url": "https://nist.gov/example",
+                    "title": "NIST example",
+                }],
+            }],
             "usage": {"input_tokens": 10, "output_tokens": 20, "server_tool_use": {"web_search_requests": 1}},
         },
         {

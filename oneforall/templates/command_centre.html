@@ -3,12 +3,17 @@
 {% block title %}Command Centre — ThemisIQ{% endblock %}
 
 {% block extra_styles %}
-<style>
+<!-- PLAN-36 T07: this block substitutes directly inside base_shell.html's
+     own already-open style tag -- a nested style tag here is invalid HTML
+     and silently truncates the outer tag's raw-text parsing at this
+     block's closing tag, dropping every rule base_shell.html defines
+     after this block (undetected until T07 added the first content
+     there). No style-tag wrapper here; bare rules only. -->
 /* ── Command Centre Dashboard Styles ── */
-.cc-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
+.cc-donut-wrap{position:relative;width:176px;height:176px;flex-shrink:0;margin:0 auto}
 .cc-donut-wrap svg{display:block;width:100%;height:100%}
 .cc-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
-.cc-donut-pct{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.cc-donut-pct{font:500 42px/1 var(--display);letter-spacing:-.05em;color:var(--text);font-variant-numeric:tabular-nums}
 .cc-donut-lbl{font-size:9px;color:var(--muted);font-weight:600;letter-spacing:1px;margin-top:3px}
 .cc-sla-stats{display:flex;gap:24px;margin-top:18px;justify-content:center}
 .cc-sla-stat{text-align:center}
@@ -67,7 +72,47 @@
   .breach-alert-row{flex-wrap:wrap;gap:8px}
   .ba-countdown{min-width:100%;text-align:left}
 }
-</style>
+
+/* Personal Command Centre canvas */
+.cc-customize-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0 12px;padding:13px 18px;border-radius:20px;background:var(--surface);box-shadow:0 12px 32px rgba(20,40,31,.06)}
+.cc-customize-toolbar strong{display:block;font:500 22px/1.15 var(--display);letter-spacing:-.025em;color:var(--text)}
+.cc-customize-toolbar span{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.cc-customizer{padding:18px 20px;margin-bottom:14px;border-radius:20px;background:var(--surface);box-shadow:0 16px 38px rgba(20,40,31,.08)}
+.cc-customizer[hidden]{display:none}
+.cc-customizer strong{font-size:14px;color:var(--text)}
+.cc-customizer p{margin:3px 0 12px;font-size:12px;color:var(--muted)}
+.cc-widget-palette{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.cc-widget-palette button{border:1px solid var(--border);border-radius:999px;background:var(--surface2);padding:7px 12px;color:var(--text);font:600 12px var(--font);cursor:pointer;transition:transform .2s,background .2s}
+.cc-widget-palette button:hover{transform:translateY(-2px);background:var(--surface3)}
+.cc-widget-palette .cc-all-added{font-size:12px;color:var(--muted)}
+.cc-dashboard-canvas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:stretch;margin-bottom:24px}
+.cc-widget{position:relative;min-width:0;grid-column:span 1;transition:filter .2s,transform .2s;animation:cc-enter .44s cubic-bezier(.2,.8,.2,1) both}
+.cc-widget[data-span="2"]{grid-column:span 2}
+.cc-widget[data-span="4"]{grid-column:span 4}
+.cc-widget[hidden]{display:none!important}
+.cc-widget-body{height:100%;min-width:0}
+.cc-widget-body>.stat-card,.cc-widget-body>.panel-card,.cc-widget-body>.card{height:100%;margin:0;box-sizing:border-box}
+.cc-widget-body>#ccModulesSection{height:100%;margin:0!important}
+.cc-widget-body>#ccModulesSection .cc-modules-grid{height:100%}
+.cc-widget[data-key="compliance"] .cc-widget-body>.stat-card{min-height:155px}
+.cc-widget-body>.stat-card{min-height:144px}
+.cc-widget-body>.panel-card{min-height:220px}
+.cc-widget[data-key="overdue_table"] .cc-widget-body>.card{min-height:250px}
+.cc-widget-tools{display:none;align-items:center;gap:5px;position:absolute;z-index:10;top:8px;right:9px;padding:4px;border-radius:12px;background:var(--surface);box-shadow:0 8px 22px rgba(10,30,25,.17)}
+.cc-editing .cc-widget-tools{display:flex}
+.cc-editing .cc-widget-body{pointer-events:none}
+.cc-widget-tools button{width:29px;height:29px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--text-mid);font:600 14px var(--font);cursor:pointer}
+.cc-widget-tools button:hover,.cc-widget-tools button:focus-visible{background:var(--surface3);color:var(--text)}
+.cc-widget-tools .cc-drag-handle{cursor:grab;touch-action:none}
+.cc-widget-tools .cc-drag-handle:active{cursor:grabbing}
+.cc-widget.cc-dragging{opacity:.55;transform:scale(.98)}
+.cc-drag-ghost{position:fixed;z-index:9999;pointer-events:none;padding:10px 15px;border-radius:14px;background:var(--accent);color:#fff;font:700 12px var(--font);box-shadow:0 16px 32px rgba(10,30,25,.26);transform:rotate(-2deg)}
+.cc-widget.cc-drop-before:before,.cc-widget.cc-drop-after:after{content:"";position:absolute;z-index:12;top:8px;bottom:8px;width:4px;border-radius:8px;background:var(--accent);box-shadow:0 0 16px var(--accent)}
+.cc-widget.cc-drop-before:before{left:-9px}.cc-widget.cc-drop-after:after{right:-9px}
+@keyframes cc-enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1100px){.cc-dashboard-canvas{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-widget[data-span="4"]{grid-column:span 2}}
+@media(max-width:620px){.cc-dashboard-canvas{grid-template-columns:minmax(0,1fr)}.cc-widget,.cc-widget[data-span="2"],.cc-widget[data-span="4"]{grid-column:span 1}.cc-customize-toolbar{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.cc-widget{animation:none!important;transition:none!important}}
 {% endblock %}
 
 {% block module_sidebar %}
@@ -110,10 +155,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Calendar
   </a>
+  {% if user and user.is_super_admin %}
   <a href="/analytics" class="nav-item{% if active_section == 'analytics' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
     Analytics
   </a>
+  {% endif %}
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Data</div>
@@ -129,6 +176,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
     Vendor Directory
   </a>
+  {% if can_ai_use %}
+  <a href="/ai-governance/" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+    AI Governance
+  </a>
+  {% endif %}
   {% if is_admin %}
   <a href="/admin/users" class="nav-item{% if active_section == 'users' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -169,7 +222,7 @@
 
 {% block content %}
 <!-- Section Header -->
-<div class="section-header animate-fade-up">
+<div class="section-header premium-dashboard-header animate-fade-up">
   <div>
     <div class="section-title">Command Centre</div>
     <div class="section-sub">Cross-module compliance overview · Last updated <span id="ccLastUpdated">—</span></div>
@@ -199,9 +252,9 @@
 
 <!-- Module Tiles Grid -->
 {% if modules %}
-<div class="animate-fade-up" style="margin-bottom:24px">
+<div id="ccModulesSection" class="animate-fade-up" style="margin-bottom:24px">
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px">Your Modules</div>
-  <div style="display:grid;grid-template-columns:repeat({{ modules|length }},1fr);gap:10px">
+  <div class="cc-modules-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px">
     {% for mod in modules %}
     {% set mod_urls = {'aria':'/aria/','grid':'/grid/','bcm':'/bcm/','sentinel':'/sentinel/','erm':'/erm/','orm':'/orm/'} %}
     <a href="{{ mod_urls.get(mod.key, '/' + mod.key + '/') }}" class="glass-module" data-glass-tilt style="text-decoration:none">
@@ -210,8 +263,6 @@
         <div style="position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.13;background:radial-gradient(circle at 15% 20%,rgba(255,255,255,.95),transparent 52%)"></div>
         <!-- Glass reflection -->
         <div style="position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.06) 25%,transparent 55%)"></div>
-        <!-- Top-edge glint -->
-        <div style="position:absolute;top:0;left:0;right:0;height:1px;z-index:4;pointer-events:none;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.55) 50%,transparent 100%)"></div>
         <!-- Bottom shimmer -->
         <div style="position:absolute;bottom:0;left:0;right:0;height:38%;z-index:1;pointer-events:none;opacity:.09;background:linear-gradient(to top,rgba(255,255,255,.3),transparent)"></div>
         <!-- Content -->
@@ -227,8 +278,102 @@
 </div>
 {% endif %}
 
+<!-- Breach Notification Countdown Alert -->
+<div id="ccBreachAlert" class="card breach-alert-card animate-fade-up" style="display:none">
+  <div class="breach-alert-header">
+    <div class="ba-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="18" height="18"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+    </div>
+    <div>
+      <div class="ba-title">Breach Notification Deadline</div>
+      <div style="font-size:11px;color:var(--muted)">Regulatory reporting countdown</div>
+    </div>
+    <span class="ba-count" id="ccBreachAlertCount">0</span>
+  </div>
+  <div class="breach-alert-list" id="ccBreachAlertList"></div>
+</div>
+
+<!-- Live widget sources move into the personalized grid when the page initializes. -->
+<div class="cc-customize-toolbar" aria-label="Dashboard layout controls">
+  <div><strong>Your view</strong><span id="ccLayoutStatus" role="status" aria-live="polite">Arrange the signals that matter to you</span></div>
+  <button type="button" class="btn btn-secondary" id="ccCustomizeBtn" aria-expanded="false" aria-controls="ccCustomizer">Customise dashboard</button>
+</div>
+<div id="ccCustomizer" class="cc-customizer" hidden>
+  <div><strong>Add cards</strong><p>Drag a handle to move a card, or use its arrows. Hidden cards can be added again here.</p></div>
+  <div id="ccWidgetPalette" class="cc-widget-palette" aria-label="Available dashboard cards"></div>
+  <button type="button" class="btn btn-secondary" id="ccResetLayout">Reset layout</button>
+</div>
+<div id="ccDashboardCanvas" class="cc-dashboard-canvas" data-modules="{{ user_modules|join(',') }}" aria-label="Customizable Command Centre cards"></div>
+
+<div id="ccUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+  <span><strong>The figures could not be read just now.</strong> A dash below means "not read", not zero.</span>
+  <button type="button" class="btn btn-secondary btn-sm" id="ccRetry">Try again</button>
+</div>
+<section id="ccFirstScreen" class="cc-first-screen" aria-labelledby="ccFirstScreenTitle" style="margin:0 0 20px">
+  <div class="dash-section-heading"><h2 id="ccFirstScreenTitle">Your day</h2><span><span id="ccFirstScreenAsOf">Read when the page opened</span> &middot; <a href="/metrics">How each figure is defined</a></span></div>
+  <div id="ccFirstScreenFailed" role="alert" style="display:none;border-left:4px solid var(--red);padding:10px 14px;margin-bottom:10px">
+    <strong>Your day could not be read just now.</strong> Nothing below is a count of zero.
+    <button type="button" class="btn btn-secondary btn-sm" id="ccFirstScreenRetry" style="margin-left:10px">Try again</button>
+  </div>
+  <div id="ccFirstScreenGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"></div>
+</section>
+<div class="dash-section-heading"><h2>At a glance</h2><span>Enterprise position today</span></div>
+<div class="stats-row premium-kpi-grid cc-primary-metrics animate-fade-up anim-1">
+  <!-- Hero: Overall Compliance — click to open ARIA -->
+  <div class="stat-card stat-card-hero" id="ccComplianceCard" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open ARIA GRC module">
+    <div class="stat-label">Overall Compliance</div>
+    <div class="stat-value" id="ccCompliancePct">—</div>
+    <div class="stat-trend up" id="ccComplianceTrend">
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
+      <span>—</span>
+    </div>
+    <div class="pbar"><div class="pbar-fill" id="ccComplianceBar" style="width:0"></div></div>
+    <div class="cc-hero-ring" aria-hidden="true"><div><strong id="ccHeroRingPct">0%</strong><span>coverage</span></div></div>
+  </div>
+
+  <!-- Active Projects — click to open Compliance Projects page -->
+  <div class="stat-card" id="ccProjectsCard" onclick="window.location.href='/projects'" style="cursor:pointer" title="View Compliance Projects">
+    <div class="stat-label">Active Projects</div>
+    <div class="stat-value" id="ccActiveProjects">—</div>
+    <div class="stat-sub" id="ccProjectsList">—</div>
+  </div>
+
+  <!-- Overdue Actions — click to scroll to table -->
+  <div class="stat-card" id="ccOverdueCard" onclick="document.getElementById('ccOverdueTable').scrollIntoView({behavior:'smooth'})" style="cursor:pointer" title="Jump to overdue items">
+    <div class="stat-label">Overdue Actions</div>
+    <div class="stat-value" id="ccOverdueCount" style="color:var(--red)">—</div>
+    <div class="stat-trend down" id="ccOverdueTrend" style="color:var(--red)">
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v6M3 7l3 3 3-3"/></svg>
+      <span>—</span>
+    </div>
+  </div>
+
+
+</div>
+
+<!-- ═══ Today's Briefing Strip ═══ -->
+<div class="cc-personal-source" id="ccPersonalSource">
+  <div class="stat-card" id="ccPendingActionsCard" onclick="window.location.href='/workflows'" style="cursor:pointer" title="Open assigned workflow actions">
+    <div class="stat-label">My Pending Actions</div><div class="stat-value" id="ccPendingActions">&mdash;</div><div class="stat-sub">Assigned to you</div>
+  </div>
+  <div class="stat-card" id="ccUnreadAlertsCard" onclick="document.getElementById('notifBtn').click()" style="cursor:pointer" title="Open your notifications">
+    <div class="stat-label">Unread Alerts</div><div class="stat-value" id="ccUnreadAlerts">&mdash;</div><div class="stat-sub">Your notifications</div>
+  </div>
+</div>
+
+<div id="briefingStrip" style="display:none;margin-bottom:16px">
+  <div class="panel-card" style="padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;padding:12px 16px;background:var(--accent);color:white;font-size:13px;font-weight:700">
+      <svg viewBox="0 0 24 24" style="width:16px;height:16px;margin-right:8px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3V3z"/><circle cx="12" cy="12" r="2"/><path d="M12 9v3l2 2"/></svg>
+      Today's Briefing
+    </div>
+    <div id="briefingItems" style="padding:8px 16px"></div>
+  </div>
+</div>
+
 <!-- ── Predictive Risk Intelligence Panel (collapsible) ── -->
-<div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;border-left:3px solid var(--pr-color,var(--muted));overflow:hidden">
+{% if user and user.is_super_admin %}
+<div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;overflow:hidden">
   <!-- Collapsed bar — always visible once loaded -->
   <div id="prBar" onclick="togglePredictiveRisk()" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
     <span style="font-size:15px;flex-shrink:0">&#128302;</span>
@@ -256,73 +401,18 @@
     </div>
   </div>
 </div>
+{% endif %}
 
-<!-- Breach Notification Countdown Alert -->
-<div id="ccBreachAlert" class="card breach-alert-card animate-fade-up" style="display:none;border-left:3px solid var(--red)">
-  <div class="breach-alert-header">
-    <div class="ba-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="18" height="18"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-    </div>
-    <div>
-      <div class="ba-title">Breach Notification Deadline</div>
-      <div style="font-size:11px;color:var(--muted)">Regulatory reporting countdown</div>
-    </div>
-    <span class="ba-count" id="ccBreachAlertCount">0</span>
-  </div>
-  <div class="breach-alert-list" id="ccBreachAlertList"></div>
-</div>
-
-<!-- ═══ Today's Briefing Strip ═══ -->
-<div id="briefingStrip" style="display:none;margin-bottom:16px">
-  <div class="panel-card" style="padding:0;overflow:hidden">
-    <div style="display:flex;align-items:center;padding:12px 16px;background:var(--accent);color:white;font-size:13px;font-weight:700">
-      <svg viewBox="0 0 24 24" style="width:16px;height:16px;margin-right:8px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3V3z"/><circle cx="12" cy="12" r="2"/><path d="M12 9v3l2 2"/></svg>
-      Today's Briefing
-    </div>
-    <div id="briefingItems" style="padding:8px 16px"></div>
-  </div>
-</div>
-
-<!-- 4 Stat Cards -->
-<div class="stats-row animate-fade-up anim-1">
-  <!-- Hero: Overall Compliance — click to open ARIA -->
-  <div class="stat-card stat-card-hero" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open ARIA GRC module">
-    <div class="stat-label">Overall Compliance</div>
-    <div class="stat-value" id="ccCompliancePct">—</div>
-    <div class="stat-trend up" id="ccComplianceTrend">
-      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
-      <span>—</span>
-    </div>
-    <div class="pbar"><div class="pbar-fill" id="ccComplianceBar" style="width:0;background:white"></div></div>
-  </div>
-
-  <!-- Active Projects — click to open Compliance Projects page -->
-  <div class="stat-card" onclick="window.location.href='/projects'" style="cursor:pointer" title="View Compliance Projects">
-    <div class="stat-label">Active Projects</div>
-    <div class="stat-value" id="ccActiveProjects">—</div>
-    <div class="stat-sub" id="ccProjectsList">—</div>
-  </div>
-
-  <!-- Overdue Actions — click to scroll to table -->
-  <div class="stat-card" onclick="document.getElementById('ccOverdueTable').scrollIntoView({behavior:'smooth'})" style="cursor:pointer" title="Jump to overdue items">
-    <div class="stat-label">Overdue Actions</div>
-    <div class="stat-value" id="ccOverdueCount" style="color:var(--red)">—</div>
-    <div class="stat-trend down" id="ccOverdueTrend" style="color:var(--red)">
-      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v6M3 7l3 3 3-3"/></svg>
-      <span>—</span>
-    </div>
-  </div>
-
+<!-- Row 2: Module-specific headline stats -->
+<div class="dash-section-heading"><h2>Operational exposure</h2><span>Signals from across the estate</span></div>
+<div class="stats-row premium-kpi-grid cc-exposure-metrics animate-fade-up anim-1">
   <!-- Critical/High ERM Risks -->
   <div class="stat-card" id="ccErmCritCard" onclick="window.location.href='/erm/'" style="cursor:pointer" title="Open Enterprise Risk Register">
     <div class="stat-label">Critical / High Risks</div>
     <div class="stat-value" id="ccErmCritHigh" style="color:var(--muted)">—</div>
     <div class="stat-sub">ERM</div>
   </div>
-</div>
 
-<!-- Row 2: Module-specific headline stats -->
-<div class="stats-row animate-fade-up anim-1" style="margin-top:0">
   <!-- Sentinel: Open Breaches -->
   <div class="stat-card" id="ccSentinelCard" onclick="window.location.href='/sentinel/'" style="cursor:pointer" title="Open Data Protection Sentinel">
     <div class="stat-label">🛡 Open Breaches</div>
@@ -353,7 +443,8 @@
 </div>
 
 <!-- Row 3: Action-oriented stats -->
-<div class="stats-row animate-fade-up anim-2" style="margin-top:0">
+<div class="dash-section-heading"><h2>Assurance workflow</h2><span>Evidence and reviews</span></div>
+<div class="stats-row premium-kpi-grid cc-workflow-metrics animate-fade-up anim-2">
   <!-- GRID: Open Findings -->
   <div class="stat-card" id="ccGridFindCard" onclick="window.location.href='/grid/'" style="cursor:pointer" title="Open Audit Management">
     <div class="stat-label">Open Audit Findings</div>
@@ -367,13 +458,13 @@
     <div class="stat-sub">Next 30 days</div>
   </div>
   <!-- Active Frameworks -->
-  <div class="stat-card" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open Governance">
+  <div class="stat-card" id="ccFrameworksCard" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open Governance">
     <div class="stat-label">Active Frameworks</div>
     <div class="stat-value" id="ccActiveFrameworks" style="color:var(--accent)">—</div>
     <div class="stat-sub">Compliance frameworks</div>
   </div>
   <!-- Evidence Collected (kept but demoted) -->
-  <div class="stat-card" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
+  <div class="stat-card" id="ccEvidenceCard" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
     <div class="stat-label">Evidence Collected</div>
     <div class="stat-value" id="ccEvidenceCount">—</div>
     <div class="stat-sub">Repository</div>
@@ -383,7 +474,7 @@
 <!-- 3-Column Cards: Module Health, SLA Performance, Recent Activity -->
 <div class="three-col animate-fade-up anim-2">
   <!-- Module Health -->
-  <div class="panel-card">
+  <div class="panel-card" id="ccModuleHealthCard">
     <div class="panel-title">Module Health</div>
     <div id="ccModuleHealth">
       <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
@@ -391,19 +482,22 @@
   </div>
 
   <!-- SLA Performance -->
-  <div class="panel-card">
+  <div class="panel-card chart-panel" id="ccSlaPanel">
     <div class="panel-title">SLA Performance</div>
-    <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="cc-chart-content">
       <div class="cc-donut-wrap">
-        <svg viewBox="0 0 140 140" id="ccSlaDonut">
-          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="10"/>
+        <svg viewBox="0 0 140 140" id="ccSlaDonut" aria-hidden="true">
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="11"/>
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--accent)" stroke-width="10"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                  transform="rotate(-90 70 70)" id="ccSlaArc" style="transition:stroke-dashoffset 1s ease"/>
+                  transform="rotate(-90 70 70)" id="ccSlaArc" style="transition:stroke-dashoffset 1s ease"><title>Met SLA: 0</title></circle>
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--red)" stroke-width="11"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="butt"
+                  transform="rotate(-90 70 70)" id="ccSlaBreachArc" style="transition:stroke-dashoffset 1s ease"><title>Breached SLA: 0</title></circle>
         </svg>
         <div class="cc-donut-center">
           <div class="cc-donut-pct" id="ccSlaPct">—</div>
-          <div class="cc-donut-lbl">ON TIME</div>
+          <div class="cc-donut-lbl" id="ccSlaCaption">RESOLVED ON TIME</div>
         </div>
       </div>
       <div class="cc-sla-stats" id="ccSlaStats">
@@ -424,7 +518,7 @@
   </div>
 
   <!-- Recent Activity -->
-  <div class="panel-card">
+  <div class="panel-card" id="ccActivityCard">
     <div class="panel-title">Recent Activity</div>
     <div id="ccRecentActivity">
       <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
@@ -435,7 +529,7 @@
 <!-- Risk Register + Workflow strip -->
 <div class="two-col animate-fade-up anim-3" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
   <!-- Open Risks -->
-  <div class="panel-card" style="cursor:pointer" onclick="window.location.href='/risk-register'" title="Open Risk Register">
+  <div class="panel-card" id="ccRisksCard" style="cursor:pointer" onclick="window.location.href='/risk-register'" title="Open Risk Register">
     <div class="panel-title">Open Risks
       <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗ Risk Register</span>
     </div>
@@ -446,7 +540,7 @@
     </div>
   </div>
   <!-- Active Workflows -->
-  <div class="panel-card" style="cursor:pointer" onclick="window.location.href='/workflows'" title="Open Workflows">
+  <div class="panel-card" id="ccWorkflowsCard" style="cursor:pointer" onclick="window.location.href='/workflows'" title="Open Workflows">
     <div class="panel-title">Active Workflows
       <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗</span>
     </div>
@@ -458,30 +552,30 @@
 </div>
 
 <!-- Overdue Action Items Table -->
-<div class="card animate-fade-up anim-4">
+<div class="card animate-fade-up anim-4" id="ccOverduePanel">
   <div class="card-header">
     <div class="card-title">Overdue Action Items</div>
   </div>
   <div class="card-body" style="padding:12px 20px 6px">
     <div class="filter-bar" id="ccModuleFilters">
-      <span class="filter-chip active" data-mod="all" onclick="filterOverdue('all',this)">All</span>
+      <button type="button" class="filter-chip active" data-mod="all" onclick="filterOverdue('all',this)">All</button>
       {% if 'aria' in user_modules %}
-      <span class="filter-chip" data-mod="aria" onclick="filterOverdue('aria',this)">ARIA</span>
+      <button type="button" class="filter-chip" data-mod="aria" onclick="filterOverdue('aria',this)">ARIA</button>
       {% endif %}
       {% if 'grid' in user_modules %}
-      <span class="filter-chip" data-mod="grid" onclick="filterOverdue('grid',this)">GRID</span>
+      <button type="button" class="filter-chip" data-mod="grid" onclick="filterOverdue('grid',this)">GRID</button>
       {% endif %}
       {% if 'bcm' in user_modules %}
-      <span class="filter-chip" data-mod="bcm" onclick="filterOverdue('bcm',this)">BCM</span>
+      <button type="button" class="filter-chip" data-mod="bcm" onclick="filterOverdue('bcm',this)">BCM</button>
       {% endif %}
       {% if 'sentinel' in user_modules %}
-      <span class="filter-chip" data-mod="sentinel" onclick="filterOverdue('sentinel',this)">Sentinel</span>
+      <button type="button" class="filter-chip" data-mod="sentinel" onclick="filterOverdue('sentinel',this)">Sentinel</button>
       {% endif %}
       {% if 'erm' in user_modules %}
-      <span class="filter-chip" data-mod="erm" onclick="filterOverdue('erm',this)">ERM</span>
+      <button type="button" class="filter-chip" data-mod="erm" onclick="filterOverdue('erm',this)">ERM</button>
       {% endif %}
       {% if 'orm' in user_modules %}
-      <span class="filter-chip" data-mod="orm" onclick="filterOverdue('orm',this)">ORM</span>
+      <button type="button" class="filter-chip" data-mod="orm" onclick="filterOverdue('orm',this)">ORM</button>
       {% endif %}
     </div>
   </div>
@@ -538,43 +632,38 @@
   function setLastUpdated(isoTs){
     const el = document.getElementById('ccLastUpdated');
     if(!el) return;
-    el.textContent = isoTs ? 'Updated ' + timeAgoShort(isoTs) : 'just now';
+    el.textContent = isoTs ? timeAgoShort(isoTs) : 'just now';
   }
 
-  // ── Placeholder / fallback data (shown until real API endpoints are created) ──
-  const fallback = {
-    compliance_pct: 78,
-    compliance_trend: '+6% from last quarter',
-    active_projects: 3,
-    projects_list: 'ISO 27001 · ISO 9001 · PCI DSS',
-    overdue_count: 7,
-    overdue_trend: '▲ 2 since last week',
-    evidence_count: 156,
-    evidence_trend: '▲ 12 this week',
-    evidence_target: 200,
-    module_health: [
-      {key:'aria', name:'ARIA',     pct:82, color:modColors.aria},
-      {key:'grid', name:'GRID',     pct:64, color:modColors.grid},
-      {key:'bcm',  name:'BCM',      pct:91, color:modColors.bcm},
-      {key:'sentinel', name:'Sentinel', pct:45, color:modColors.sentinel}
-    ],
-    sla: {pct:87, met:142, at_risk:14, breached:7},
-    activity: [
-      {text:'Policy approved',   time:'10 min ago',   module:'aria'},
-      {text:'Evidence uploaded',  time:'1 hour ago',   module:'grid'},
-      {text:'Incident resolved',  time:'3 hours ago',  module:'bcm'},
-      {text:'DPIA submitted',     time:'Yesterday',    module:'sentinel'}
-    ],
-    overdue_items: [
-      {id:'ACT-001',item:'Update access control policy',    module:'aria',     assigned:'Sarah Chen',    due:'2026-05-12', sla:'breached',  priority:'critical'},
-      {id:'ACT-002',item:'Complete SOC 2 evidence upload',  module:'grid',     assigned:'James Wilson',  due:'2026-05-14', sla:'breached',  priority:'high'},
-      {id:'ACT-003',item:'Review BCP for HQ',               module:'bcm',      assigned:'Maria Lopez',   due:'2026-05-15', sla:'at_risk',   priority:'high'},
-      {id:'ACT-004',item:'Vendor DPA renewal — Acme Corp',  module:'sentinel', assigned:'Tom Harris',    due:'2026-05-16', sla:'at_risk',   priority:'medium'},
-      {id:'ACT-005',item:'Patch management evidence',       module:'grid',     assigned:'Sarah Chen',    due:'2026-05-10', sla:'breached',  priority:'critical'},
-      {id:'ACT-006',item:'Annual DPIA — Marketing platform',module:'sentinel', assigned:'Amy Nguyen',    due:'2026-05-17', sla:'at_risk',   priority:'medium'},
-      {id:'ACT-007',item:'Risk register quarterly review',   module:'aria',     assigned:'James Wilson',  due:'2026-05-13', sla:'breached',  priority:'high'}
-    ]
-  };
+  // ── What a number says when it has no value ──
+  // A figure is shown only when the server measured it. When it could not be read, or there is nothing to measure, the card
+  // shows a dash and says which: it never shows a zero or a sample in its place.
+  let readFailed = false;
+  function metricOf(d, key){ return (d && d.metrics && d.metrics[key]) || null; }
+  function hasValue(m){ return !!m && (m.state === 'measured' || m.state === 'partial' || m.state === 'stale') && m.value !== null && m.value !== undefined; }
+  function stateWords(m){
+    if(!m) return readFailed ? 'Unavailable just now. This is not a count of zero.' : 'Not available to you.';
+    if(m.state === 'unavailable') return 'Unavailable just now. This is not a count of zero.';
+    if(m.state === 'not_measured') return 'Not measured. ' + (m.note || '');
+    if(m.state === 'partial') return 'Partial: ' + ((m.sources && m.sources.missing) || ['a source']).join(', ') + ' could not be read, so it is not counted.';
+    if(m.state === 'stale') return 'Out of date: as of ' + (m.as_of || 'an earlier time') + '.';
+    return '';
+  }
+  function put(id, m, suffix){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = hasValue(m) ? String(m.value) + (suffix || '') : '\u2014';
+    el.setAttribute('data-state', m ? m.state : (readFailed ? 'unavailable' : 'hidden'));
+    const words = ((m && m.definition) ? m.definition + ' ' : '') + stateWords(m);
+    if(m && m.state === 'measured') el.setAttribute('title', (m.definition || '').trim()); else el.setAttribute('title', words.trim());
+    if(!hasValue(m)) el.style.color = 'var(--muted)';
+  }
+  function colour(id, cardId, value, c){
+    const el = document.getElementById(id);
+    if(el) el.style.color = c;
+    const card = document.getElementById(cardId);
+    if(card) card.style.setProperty('--status-color', c);
+  }
 
   // ── Greeting: daypart + date (client-side -- the server is UTC and
   // would greet half the world with the wrong daypart) ──
@@ -590,121 +679,99 @@
 
   // ── Populate stats ──
   function populateStats(d){
-    document.getElementById('ccCompliancePct').textContent = d.compliance_pct + '%';
-    document.getElementById('ccComplianceTrend').querySelector('span').textContent = d.compliance_trend;
-    document.getElementById('ccComplianceBar').style.width = d.compliance_pct + '%';
+    const compliance = metricOf(d, 'cc.controls_implemented');
+    put('ccCompliancePct', compliance, '%');
+    document.getElementById('ccCompliancePct').style.color = '';
+    const pct = hasValue(compliance) ? Math.max(0, Math.min(100, Number(compliance.value) || 0)) : 0;
+    document.getElementById('ccComplianceBar').style.width = pct + '%';
+    const complianceCard = document.getElementById('ccComplianceCard');
+    if(complianceCard) complianceCard.style.setProperty('--compliance-pct', pct + '%');
+    const ring = document.getElementById('ccHeroRingPct');
+    if(ring) ring.textContent = hasValue(compliance) ? pct + '%' : 'n/a';
+    const trend = document.getElementById('ccComplianceTrend');
+    if(trend){
+      const x = compliance && compliance.detail;
+      trend.querySelector('span').textContent = (hasValue(compliance) && x)
+        ? x.implemented + ' of ' + x.total + ' controls implemented' + (x.approved_not_implemented ? ', ' + x.approved_not_implemented + ' approved and not yet implemented' : '')
+        : stateWords(compliance);
+    }
 
-    document.getElementById('ccActiveProjects').textContent = d.active_projects;
-    document.getElementById('ccProjectsList').textContent = d.projects_list;
+    const fw = metricOf(d, 'cc.active_frameworks');
+    put('ccActiveProjects', fw);
+    put('ccActiveFrameworks', fw);
+    const names = document.getElementById('ccProjectsList');
+    if(names) names.textContent = hasValue(fw) ? (((fw.detail && fw.detail.names) || []).join(' · ') || 'No framework is active') : stateWords(fw);
     const navProj = document.getElementById('sideNavProjects');
-    if(navProj) navProj.textContent = d.active_projects;
+    if(navProj) navProj.textContent = hasValue(fw) ? fw.value : '';
 
-    document.getElementById('ccOverdueCount').textContent = d.overdue_count;
-    document.getElementById('ccOverdueTrend').querySelector('span').textContent = d.overdue_trend;
+    const overdue = metricOf(d, 'cc.overdue_actions');
+    put('ccOverdueCount', overdue);
+    const overdueTrend = document.getElementById('ccOverdueTrend');
+    if(overdueTrend) overdueTrend.querySelector('span').textContent = (overdue && overdue.state === 'measured') ? 'Tasks past due and breached service clocks' : stateWords(overdue);
 
-    // Critical/High ERM Risks (row 1, position 4)
-    var ermCrit = d.erm_critical_high || 0;
-    var ermCritEl = document.getElementById('ccErmCritHigh');
-    var ermCritCard = document.getElementById('ccErmCritCard');
-    if(ermCritEl){
-      ermCritEl.textContent = ermCrit;
-      ermCritEl.style.color = ermCrit > 0 ? 'var(--red)' : 'var(--green-status)';
-      if(ermCritCard) ermCritCard.style.borderTop = '3px solid ' + (ermCrit > 0 ? 'var(--red)' : 'var(--green-status)');
-    }
+    const crit = metricOf(d, 'cc.critical_high_risks');
+    put('ccErmCritHigh', crit);
+    if(hasValue(crit)) colour('ccErmCritHigh', 'ccErmCritCard', crit.value, crit.value > 0 ? 'var(--red)' : 'var(--green-status)');
 
-    // Sidebar evidence count
-    var navEv = document.getElementById('sideNavEvidence');
-    if(navEv) navEv.textContent = d.evidence_count;
+    const evidence = metricOf(d, 'cc.evidence_files');
+    put('ccEvidenceCount', evidence);
+    const navEv = document.getElementById('sideNavEvidence');
+    if(navEv) navEv.textContent = hasValue(evidence) ? evidence.value : '';
 
-    // ── Module headline stats (row 2) ──
     // Sentinel open breaches
-    var sentBreaches = d.sentinel_open_breaches || 0;
-    var sentEl = document.getElementById('ccSentinelBreaches');
-    var sentCard = document.getElementById('ccSentinelCard');
-    if(sentEl){
-      sentEl.textContent = sentBreaches;
-      var sentSub = document.getElementById('ccSentinelSub');
-      if(sentBreaches > 0){
-        sentEl.style.color = d.sentinel_breach_severity === 'critical' ? 'var(--red)' : 'var(--amber)';
-        if(sentSub) sentSub.textContent = sentBreaches === 1 ? '1 active breach' : sentBreaches + ' active breaches';
-        if(sentCard) sentCard.style.borderTop = '3px solid ' + (d.sentinel_breach_severity === 'critical' ? 'var(--red)' : 'var(--amber)');
-      } else {
-        sentEl.style.color = 'var(--green-status)';
-        if(sentSub) sentSub.textContent = 'No active breaches';
-        if(sentCard) sentCard.style.borderTop = '3px solid var(--green-status)';
-      }
+    const breaches = metricOf(d, 'cc.open_breaches');
+    put('ccSentinelBreaches', breaches);
+    const sentSub = document.getElementById('ccSentinelSub');
+    if(hasValue(breaches)){
+      const worst = breaches.detail && breaches.detail.worst;
+      const c = breaches.value > 0 ? (worst === 'critical' ? 'var(--red)' : 'var(--amber)') : 'var(--green-status)';
+      colour('ccSentinelBreaches', 'ccSentinelCard', breaches.value, c);
+      if(sentSub) sentSub.textContent = breaches.value === 0 ? 'No high or critical breaches open' : (breaches.value === 1 ? '1 active breach' : breaches.value + ' active breaches');
+    } else if(sentSub){
+      sentSub.textContent = stateWords(breaches);
     }
 
-    // ERM appetite breaches
-    var ermB = d.erm_appetite_breaches || 0;
-    var ermEl = document.getElementById('ccErmBreaches');
-    var ermCard = document.getElementById('ccErmCard');
-    if(ermEl){
-      ermEl.textContent = ermB;
-      ermEl.style.color = ermB > 0 ? 'var(--red)' : 'var(--green-status)';
-      if(ermCard) ermCard.style.borderTop = '3px solid ' + (ermB > 0 ? 'var(--red)' : 'var(--green-status)');
-    }
+    const appetite = metricOf(d, 'cc.appetite_breaches');
+    put('ccErmBreaches', appetite);
+    if(hasValue(appetite)) colour('ccErmBreaches', 'ccErmCard', appetite.value, appetite.value > 0 ? 'var(--red)' : 'var(--green-status)');
 
-    // ORM open events
-    var ormEvts = d.orm_open_events || 0;
-    var ormEl = document.getElementById('ccOrmEvents');
-    var ormCard = document.getElementById('ccOrmCard');
-    if(ormEl){
-      ormEl.textContent = ormEvts;
-      ormEl.style.color = ormEvts > 5 ? 'var(--amber)' : ormEvts > 0 ? 'var(--muted)' : 'var(--green-status)';
-      if(ormCard) ormCard.style.borderTop = '3px solid ' + (ormEvts > 5 ? 'var(--amber)' : 'var(--surface3)');
-    }
+    const orm = metricOf(d, 'cc.orm_open_events');
+    put('ccOrmEvents', orm);
+    if(hasValue(orm)) colour('ccOrmEvents', 'ccOrmCard', orm.value, orm.value > 5 ? 'var(--amber)' : (orm.value > 0 ? 'var(--muted)' : 'var(--green-status)'));
 
-    // BCM active incidents
-    var bcmInc = d.bcm_active_incidents || 0;
-    var bcmEl = document.getElementById('ccBcmIncidents');
-    var bcmCard = document.getElementById('ccBcmCard');
-    if(bcmEl){
-      bcmEl.textContent = bcmInc;
-      bcmEl.style.color = bcmInc > 0 ? 'var(--red)' : 'var(--green-status)';
-      if(bcmCard) bcmCard.style.borderTop = '3px solid ' + (bcmInc > 0 ? 'var(--red)' : 'var(--green-status)');
-    }
+    const bcm = metricOf(d, 'cc.bcm_active_incidents');
+    put('ccBcmIncidents', bcm);
+    if(hasValue(bcm)) colour('ccBcmIncidents', 'ccBcmCard', bcm.value, bcm.value > 0 ? 'var(--red)' : 'var(--green-status)');
 
-    // Row 3: action-oriented stats
-    var gridFindings = d.grid_open_findings || 0;
-    var gridEl = document.getElementById('ccGridFindings');
-    var gridCard = document.getElementById('ccGridFindCard');
-    if(gridEl){
-      gridEl.textContent = gridFindings;
-      gridEl.style.color = gridFindings > 10 ? 'var(--red)' : gridFindings > 0 ? 'var(--amber)' : 'var(--green-status)';
-      if(gridCard) gridCard.style.borderTop = '3px solid ' + (gridFindings > 10 ? 'var(--red)' : gridFindings > 0 ? 'var(--amber)' : 'var(--green-status)');
-    }
+    const grid = metricOf(d, 'cc.grid_open_audit_controls');
+    put('ccGridFindings', grid);
+    if(hasValue(grid)) colour('ccGridFindings', 'ccGridFindCard', grid.value, grid.value > 10 ? 'var(--red)' : (grid.value > 0 ? 'var(--amber)' : 'var(--green-status)'));
 
-    var reviews = d.upcoming_reviews || 0;
-    var revEl = document.getElementById('ccUpcomingReviews');
-    var revCard = document.getElementById('ccReviewsCard');
-    if(revEl){
-      revEl.textContent = reviews;
-      revEl.style.color = reviews > 0 ? 'var(--amber)' : 'var(--green-status)';
-      if(revCard) revCard.style.borderTop = '3px solid ' + (reviews > 0 ? 'var(--amber)' : 'var(--green-status)');
-    }
-
-    var fws = d.ims_active_frameworks || 0;
-    var fwEl = document.getElementById('ccActiveFrameworks');
-    if(fwEl) fwEl.textContent = fws;
-
-    var evEl = document.getElementById('ccEvidenceCount');
-    if(evEl) evEl.textContent = d.evidence_count || 0;
+    const reviews = metricOf(d, 'cc.upcoming_reviews');
+    put('ccUpcomingReviews', reviews);
+    if(hasValue(reviews)) colour('ccUpcomingReviews', 'ccReviewsCard', reviews.value, reviews.value > 0 ? 'var(--amber)' : 'var(--green-status)');
 
     // Breach notification countdown alerts
     populateBreachAlerts(d.breach_alerts || []);
 
-    // ── Attention summary (greeting row) -- bound to fields this same
-    // payload already carries, no new fetch ──
-    var critHigh = d.erm_critical_high || 0;
-    var overdue = d.overdue_count || 0;
-    var attBits = [];
-    if(critHigh > 0) attBits.push(critHigh + ' critical/high risk' + (critHigh > 1 ? 's' : ''));
-    if(overdue > 0) attBits.push(overdue + ' overdue item' + (overdue > 1 ? 's' : ''));
-    var att = document.getElementById('ccAttention');
-    if(att) att.textContent = attBits.length
-      ? attBits.join(' and ') + ' need' + (critHigh + overdue === 1 ? 's' : '') + ' your attention'
-      : 'All clear. Nothing urgent today.';
+    // ── Attention summary: only claims "all clear" when everything it rests on was read ──
+    const att = document.getElementById('ccAttention');
+    if(att){
+      const parts = [crit, overdue];
+      const unread = parts.filter(m => !hasValue(m) || (m && m.state === 'partial'));
+      const critHigh = hasValue(crit) ? crit.value : 0;
+      const late = hasValue(overdue) ? overdue.value : 0;
+      const bits = [];
+      if(critHigh > 0) bits.push(critHigh + ' critical/high risk' + (critHigh > 1 ? 's' : ''));
+      if(late > 0) bits.push(late + ' overdue item' + (late > 1 ? 's' : ''));
+      if(bits.length){
+        att.textContent = bits.join(' and ') + ' need' + (critHigh + late === 1 ? 's' : '') + ' your attention' + (unread.length ? ', and some figures could not be read' : '');
+      } else if(unread.length){
+        att.textContent = 'Some figures could not be read just now, so this is not an all clear.';
+      } else {
+        att.textContent = 'All clear. Nothing urgent today.';
+      }
+    }
   }
 
   // ── Breach Notification Countdown ──
@@ -732,7 +799,7 @@
       var regLabel = esc(a.regulation) + ' / ' + esc(a.authority);
       var hoursLabel = a.breach_hours ? a.breach_hours + 'h deadline' : 'ASAP';
 
-      html += '<div class="breach-alert-row" onclick="window.location.href=\'/sentinel/#breaches\'" title="Open in Sentinel">';
+      html += '<div class="breach-alert-row" onclick="window.location.href=\'/sentinel/breaches\'" title="Open in Sentinel">';
       html += '<span class="ba-sev ' + sevCls + '">' + esc(a.severity) + '</span>';
       html += '<div class="ba-info">';
       html += '<div class="ba-info-title">' + esc(a.ref) + ': ' + esc(a.title) + '</div>';
@@ -803,51 +870,92 @@
   function populateModuleHealth(items){
     const el = document.getElementById('ccModuleHealth');
     if(!items || !items.length){
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No module data</div>';
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">' + (readFailed ? 'Not read just now' : 'No module data') + '</div>';
       return;
     }
     el.innerHTML = items.map(m => {
-      const pct = parseInt(m.pct, 10) || 0;
-      const pctColor = pct >= 80 ? 'var(--green-status)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
-      const safeColor = modColors[m.key] || 'var(--muted)';
-      const link = MODULE_LINKS[m.key] || '#';
-      return `<div class="module-health-item" style="cursor:pointer" title="Open ${esc(m.name)}"
+      const detail = m.detail || {};
+      const key = detail.module;
+      const name = detail.name || key || '';
+      const safeColor = modColors[key] || 'var(--muted)';
+      const link = MODULE_LINKS[key] || '#';
+      const measured = hasValue(m);
+      const pct = measured ? (parseInt(m.value, 10) || 0) : 0;
+      const pctColor = !measured ? 'var(--muted)' : pct >= 80 ? 'var(--green-status)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+      const words = measured ? esc(name) + ': ' + pct + '% of ' + (detail.of || '') + ' records are in their good state' : esc(name) + ': ' + esc(stateWords(m));
+      return `<div class="module-health-item" style="cursor:pointer" title="${words}"
                    onclick="window.location.href='${link}'">
         <div class="mh-dot" style="background:${safeColor}"></div>
-        <div class="mh-name">${esc(m.name)}</div>
-        <div class="mh-pct" style="color:${pctColor}">${pct}%</div>
+        <div class="mh-name">${esc(name)}</div>
+        <div class="mh-pct" style="color:${pctColor}">${measured ? pct + '%' : 'n/a'}</div>
         <div class="mh-bar"><div class="mh-bar-fill" style="width:${pct}%;background:${safeColor}"></div></div>
+        ${measured ? '' : '<span class="sr-only">' + esc(stateWords(m)) + '</span>'}
       </div>`;
     }).join('');
   }
 
   // ── Risk Register Widget ──
-  function populateRiskWidget(risk_counts, workflow_active){
-    const crit = risk_counts && risk_counts['critical'] ? risk_counts['critical'] : 0;
-    const high = risk_counts && risk_counts['high']     ? risk_counts['high']     : 0;
-    const med  = risk_counts && risk_counts['medium']   ? risk_counts['medium']   : 0;
-    const rEl = document.getElementById('ccRiskCrit'); if(rEl) rEl.textContent = crit + ' Critical';
-    const hEl = document.getElementById('ccRiskHigh'); if(hEl) hEl.textContent = high + ' High';
-    const mEl = document.getElementById('ccRiskMed');  if(mEl) mEl.textContent = med  + ' Medium';
-    const wEl = document.getElementById('ccWorkflowActive'); if(wEl) wEl.textContent = workflow_active || 0;
+  function populateRiskWidget(risks, workflows){
+    const levels = (risks && risks.detail) || {};
+    const known = hasValue(risks);
+    const text = (n, word) => (known ? (n || 0) : 'n/a') + ' ' + word;
+    const rEl = document.getElementById('ccRiskCrit'); if(rEl) rEl.textContent = text(levels.critical, 'Critical');
+    const hEl = document.getElementById('ccRiskHigh'); if(hEl) hEl.textContent = text(levels.high, 'High');
+    const mEl = document.getElementById('ccRiskMed');  if(mEl) mEl.textContent = text(levels.medium, 'Medium');
+    put('ccWorkflowActive', workflows);
   }
 
   // ── SLA Donut ──
-  function populateSLA(sla){
-    const circ = 2 * Math.PI * 56; // ~351.86
-    const offset = circ - (circ * sla.pct / 100);
-    document.getElementById('ccSlaArc').setAttribute('stroke-dashoffset', offset);
-    document.getElementById('ccSlaPct').textContent = sla.pct + '%';
-    document.getElementById('ccSlaMet').textContent = sla.met;
-    document.getElementById('ccSlaRisk').textContent = sla.at_risk;
-    document.getElementById('ccSlaBreach').textContent = sla.breached;
+  function populateSLA(m){
+    const detail = (m && m.detail) || {};
+    const known = !!m && (m.state === 'measured' || m.state === 'not_measured');
+    const met = known ? Math.max(0, Number(detail.met) || 0) : 0;
+    const breached = known ? Math.max(0, Number(detail.breached) || 0) : 0;
+    const atRisk = known ? Math.max(0, Number(detail.at_risk) || 0) : 0;
+    const resolved = met + breached;
+    const pct = resolved ? Math.round(met / resolved * 100) : 0;
+    const circ = 2 * Math.PI * 56;
+    const onTimeArc = document.getElementById('ccSlaArc');
+    const breachedArc = document.getElementById('ccSlaBreachArc');
+    onTimeArc.querySelector('title').textContent = 'Met SLA: ' + (known ? met : 'not read');
+    breachedArc.querySelector('title').textContent = 'Breached SLA: ' + (known ? breached : 'not read');
+    const caption = document.getElementById('ccSlaCaption');
+    const pctEl = document.getElementById('ccSlaPct');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function paint(){
+      onTimeArc.style.visibility = met ? 'visible' : 'hidden';
+      breachedArc.style.visibility = breached ? 'visible' : 'hidden';
+      onTimeArc.setAttribute('stroke-dashoffset', String(circ * (1 - met / (resolved || 1))));
+      breachedArc.setAttribute('transform', 'rotate(' + (-90 + 360 * met / (resolved || 1)) + ' 70 70)');
+      breachedArc.setAttribute('stroke-dashoffset', String(circ * (1 - breached / (resolved || 1))));
+    }
+    if(reduceMotion) paint();
+    else requestAnimationFrame(() => requestAnimationFrame(paint));
+    caption.textContent = !known ? (m ? 'NOT READ' : 'NOT AVAILABLE') : (resolved ? 'RESOLVED ON TIME' : 'NO RESOLVED SLAs');
+    if(pctEl._frame) cancelAnimationFrame(pctEl._frame);
+    if(!resolved || reduceMotion){
+      pctEl.textContent = resolved ? pct + '%' : String.fromCharCode(8212);
+    } else {
+      const from = Number.parseInt(pctEl.textContent, 10) || 0;
+      const began = performance.now();
+      function tick(now){
+        const t = Math.min(1, (now - began) / 850);
+        const eased = 1 - Math.pow(1 - t, 3);
+        pctEl.textContent = Math.round(from + (pct - from) * eased) + '%';
+        if(t < 1) pctEl._frame = requestAnimationFrame(tick);
+      }
+      pctEl._frame = requestAnimationFrame(tick);
+    }
+    document.getElementById('ccSlaMet').textContent = known ? met : 'n/a';
+    document.getElementById('ccSlaRisk').textContent = known ? atRisk : 'n/a';
+    document.getElementById('ccSlaBreach').textContent = known ? breached : 'n/a';
   }
 
   // ── Recent Activity Timeline ──
   function populateActivity(items){
     const el = document.getElementById('ccRecentActivity');
     if(!items || !items.length){
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">' + (readFailed ? 'Not read just now' : 'No recent activity') + '</div>';
       return;
     }
     el.innerHTML = items.map((a, i) => {
@@ -868,11 +976,14 @@
 
   // ── Overdue Table ──
   let allOverdueItems = [];
+  let overdueMetric = null;
 
   function renderOverdueTable(items){
     const body = document.getElementById('ccOverdueBody');
     if(!items || !items.length){
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No overdue items</td></tr>';
+      const unread = readFailed || (overdueMetric && !hasValue(overdueMetric));
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">' +
+        (unread ? 'The overdue items could not be read just now. This is not an empty list.' : 'No overdue items') + '</td></tr>';
       return;
     }
     body.innerHTML = items.map(row => {
@@ -900,27 +1011,51 @@
     }
   };
 
-  // ── Fetch data from API or fall back to static ──
+  // ── Fetch data from the API; when it fails, say so (never a sample) ──
+  function showUnavailable(on){
+    const banner = document.getElementById('ccUnavailable');
+    if(banner) banner.style.display = on ? 'flex' : 'none';
+  }
   async function loadDashboard(){
     let data = null;
+    readFailed = false;
     try {
       const resp = await fetch('/api/command-centre/stats');
       if(resp.ok) data = await resp.json();
     } catch(e){}
-
-    // Use real data if available, otherwise fallback
-    const d = data || fallback;
-
+    if(!data || !data.metrics){
+      readFailed = true;
+      showUnavailable(true);
+      overdueMetric = null;
+      populateStats({metrics: {}});
+      populateModuleHealth([]);
+      populateSLA(null);
+      populateActivity(null);
+      populateRiskWidget(null, null);
+      allOverdueItems = [];
+      renderOverdueTable([]);
+      const att = document.getElementById('ccAttention');
+      if(att) att.textContent = 'The figures could not be read just now. This is not an all clear.';
+      const updated = document.getElementById('ccLastUpdated');
+      if(updated) updated.textContent = 'not read';
+      loadBriefing();
+      return;
+    }
+    showUnavailable(false);
+    const d = data;
+    overdueMetric = metricOf(d, 'cc.overdue_actions');
     populateStats(d);
-    populateModuleHealth(d.module_health);
-    populateSLA(d.sla);
+    populateModuleHealth(d.health);
+    populateSLA(metricOf(d, 'cc.sla_on_time'));
     populateActivity(d.activity);
-    populateRiskWidget(d.risk_counts, d.workflow_active);
+    populateRiskWidget(metricOf(d, 'cc.open_risks'), metricOf(d, 'cc.workflows_active'));
     allOverdueItems = d.overdue_items || [];
     renderOverdueTable(allOverdueItems);
     setLastUpdated(d.fetched_at);
     loadBriefing();
   }
+  const retry = document.getElementById('ccRetry');
+  if(retry) retry.addEventListener('click', loadDashboard);
 
   // ── Today's Briefing ──
   async function loadBriefing(){
@@ -953,10 +1088,14 @@
     btn.disabled = true;
     btn.textContent = '...';
     try {
-      const resp = await fetch('/api/advisories/'+aid+'/ack', {method:'POST'});
-      if(resp.ok){ btn.parentElement.parentElement.style.opacity = '0.3'; btn.textContent = '✓'; }
-      else { btn.disabled = false; btn.textContent = '✓'; }
-    } catch(e){ btn.disabled = false; btn.textContent = '✓'; }
+      await ApiClient.request('/api/advisories/'+aid+'/ack', { method: 'POST', actionId: 'command_centre.advisory.ack' });
+      btn.parentElement.parentElement.style.opacity = '0.3';
+      btn.textContent = '✓';
+    } catch(e){
+      btn.disabled = false;
+      btn.textContent = '✓';
+      if(typeof showToast==='function')showToast(e.detail || 'Failed to acknowledge','error');
+    }
   };
 
   // ── Init ──
@@ -1004,16 +1143,13 @@ async function loadPredictiveRisk(force) {
 
   try {
     var url = '/api/predictive-risk' + (force ? '?force=1' : '');
-    var resp = await fetch(url);
-    if(!resp.ok) throw new Error('API ' + resp.status);
-    var d = await resp.json();
+    var d = await ApiClient.request(url, { actionId: 'command_centre.predictive_risk.load' });
     _prData = d;
 
     var col = PR_COLORS[d.risk_level] || PR_COLORS.low;
 
-    // Show panel, apply colour to left border
+    // Show panel and expose its status colour
     panel.style.display = 'block';
-    panel.style.borderLeftColor = col.hex;
     panel.style.setProperty('--pr-color', col.hex);
 
     // Badge in bar
@@ -1054,7 +1190,8 @@ async function loadPredictiveRisk(force) {
 }
 
 function _renderPredictivePanel(d, col) {
-  var dp = d.delta_p || 0;
+  var dp = Number(d.delta_p);
+  if(!Number.isFinite(dp)) dp = 0;
   var hist = d.history || [];
   var contribs = d.signal_contributions || {};
   var tel = d.telemetry || {};
@@ -1070,25 +1207,25 @@ function _renderPredictivePanel(d, col) {
 
   // ── Gauge arc (SVG) ──
   var circ = 251.2; // 2π×40
-  var arc  = (dp / 100) * circ;
+  var arc  = (Math.max(0, Math.min(100, Number(dp) || 0)) / 100) * circ;
   var gaugeColor = col.hex;
   var gaugeSvg =
-    '<svg viewBox="0 0 100 60" style="width:120px;height:72px;display:block;margin:0 auto">' +
+    '<svg viewBox="0 0 100 60" role="img" aria-label="Predicted risk increase: '+dp+' percent" style="width:130px;height:78px;display:block;margin:0 auto;overflow:visible">' +
     '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface3)" stroke-width="10" ' +
     'stroke-dasharray="' + (circ*0.5).toFixed(1) + ' ' + circ + '" transform="rotate(180 50 50)"/>' +
-    '<circle cx="50" cy="50" r="40" fill="none" stroke="' + gaugeColor + '" stroke-width="10" ' +
+    '<circle class="premium-gauge-arc" cx="50" cy="50" r="40" fill="none" stroke="' + gaugeColor + '" stroke-width="10" ' +
     'stroke-linecap="round" ' +
     'stroke-dasharray="' + (arc*0.5).toFixed(1) + ' ' + circ + '" transform="rotate(180 50 50)" ' +
-    'style="transition:stroke-dasharray 1s ease"/>' +
-    '<text x="50" y="46" text-anchor="middle" fill="' + gaugeColor + '" font-size="16" font-weight="800" font-family="Inter,sans-serif">+' + dp + '%</text>' +
-    '<text x="50" y="56" text-anchor="middle" fill="var(--muted)" font-size="7" font-family="Inter,sans-serif">ΔP RISK</text>' +
+    'style="filter:drop-shadow(0 3px 6px rgba(var(--accent-rgb),.2))"><title>Predicted risk increase: '+dp+'%</title></circle>' +
+    '<text x="50" y="46" text-anchor="middle" fill="' + gaugeColor + '" font-size="16" font-weight="800" font-family="Manrope,sans-serif">+' + dp + '%</text>' +
+    '<text x="50" y="56" text-anchor="middle" fill="var(--muted)" font-size="7" font-family="Manrope,sans-serif">ΔP RISK</text>' +
     '</svg>';
 
   // ── Domain bars ──
   var domains = [
     {label:'Cyber',       val:d.delta_cyber||0,       color:'var(--red,#dc2626)'},
     {label:'Operational', val:d.delta_operational||0,  color:'var(--amber,#d97706)'},
-    {label:'Compliance',  val:d.delta_compliance||0,   color:'var(--accent)'},
+    {label:'Compliance',  val:d.delta_compliance||0,   color:'var(--accent-ink)'},
   ];
   var domainHtml = domains.map(function(dm){
     return '<div style="margin-bottom:8px">' +
@@ -1097,7 +1234,7 @@ function _renderPredictivePanel(d, col) {
         '<span style="font-weight:700;color:' + dm.color + '">' + dm.val + '%</span>' +
       '</div>' +
       '<div style="height:5px;background:var(--surface3);border-radius:100px">' +
-        '<div style="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
+        '<div class="cc-predictive-fill" style="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
       '</div></div>';
   }).join('');
 
@@ -1109,7 +1246,7 @@ function _renderPredictivePanel(d, col) {
     return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px">' +
       '<span style="flex:1;color:var(--muted)">' + lbl + '</span>' +
       '<div style="width:80px;height:4px;background:var(--surface3);border-radius:100px">' +
-        '<div style="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
+        '<div class="cc-predictive-fill" style="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
       '</div>' +
       '<span style="width:30px;text-align:right;font-weight:700;color:var(--text)">' + pct + '%</span>' +
     '</div>';
@@ -1127,20 +1264,22 @@ function _renderPredictivePanel(d, col) {
     sparkHtml =
       '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">' +
       '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">7-Day Trend</div>' +
-      '<svg viewBox="0 0 200 32" style="width:100%;height:32px;display:block">' +
+      '<svg class="cc-trend-sparkline" viewBox="0 0 200 32" style="width:100%;height:32px;display:block"><title>7-day risk trend, latest '+Number(hist[hist.length-1].delta_p||0).toFixed(1)+'</title>' +
         '<polyline points="' + pts + '" fill="none" stroke="' + col.hex + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>' +
         '<polyline points="0,' + H + ' ' + pts + ' ' + W + ',' + H + '" fill="' + col.hex + '" opacity=".08"/>' +
       '</svg></div>';
   }
 
   // ── Telemetry snapshot chips ──
+  // A figure the engine did not supply is a dash. It is not 0 (no breaches) and not 100 per cent.
+  var telVal = function(v, fmt){ return (v === null || v === undefined || isNaN(Number(v))) ? 'n/a' : (fmt ? fmt(Number(v)) : String(v)); };
   var telChips = [
-    {icon:'&#128737;', label:'Breaches',    val:tel.breach_raw_count||0, link:'/sentinel/'},
-    {icon:'&#9881;',   label:'Open NCs',    val:tel.nc_count||0,         link:'/grid/'},
-    {icon:'&#9200;',   label:'BCM (days)',  val:Math.round(tel.days_since_exercise||0), link:'/bcm/'},
-    {icon:'&#9888;',   label:'Recurring Ops',val:tel.orm_recurring||0,   link:'/orm/'},
-    {icon:'&#128202;', label:'ARIA %',      val:(tel.compliance_pct||100).toFixed(0)+'%', link:'/aria/'},
-    {icon:'&#128308;', label:'Appetite',    val:tel.appetite_breaches||0, link:'/erm/'},
+    {icon:'&#128737;', label:'Breaches',    val:telVal(tel.breach_raw_count), link:'/sentinel/'},
+    {icon:'&#9881;',   label:'Open NCs',    val:telVal(tel.nc_count),         link:'/grid/'},
+    {icon:'&#9200;',   label:'BCM (days)',  val:telVal(tel.days_since_exercise, function(n){return String(Math.round(n));}), link:'/bcm/'},
+    {icon:'&#9888;',   label:'Recurring Ops',val:telVal(tel.orm_recurring),   link:'/orm/'},
+    {icon:'&#128202;', label:'ARIA %',      val:telVal(tel.compliance_pct, function(n){return n.toFixed(0)+'%';}), link:'/aria/'},
+    {icon:'&#128308;', label:'Appetite',    val:telVal(tel.appetite_breaches), link:'/erm/'},
   ];
   var chipHtml = telChips.map(function(c){
     return '<a href="' + c.link + '" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text);text-decoration:none;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
@@ -1189,7 +1328,105 @@ function _renderPredictivePanel(d, col) {
     chipHtml +
   '</div>' +
   sparkHtml +
-  advHtml;
+  advHtml +
+  // Why this number: the records behind each signal, and a place to dispute one (loaded on demand)
+  '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">' +
+    '<button type="button" class="btn btn-secondary" id="prTraceBtn" onclick="loadPredictiveTrace()">Why this number?</button>' +
+    '<div id="prTrace" role="region" aria-label="What this prediction was made from" aria-live="polite" style="margin-top:10px"></div>' +
+  '</div>';
+}
+
+// ── Why this number ──
+function _prEl(tag, props, kids){
+  var node = document.createElement(tag);
+  Object.keys(props || {}).forEach(function(k){
+    if(k === 'text') node.textContent = props[k];
+    else node.setAttribute(k, props[k]);
+  });
+  (kids || []).forEach(function(c){ if(c) node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+  return node;
+}
+
+async function loadPredictiveTrace() {
+  var host = document.getElementById('prTrace');
+  var btn = document.getElementById('prTraceBtn');
+  if(!host) return;
+  host.textContent = 'Loading...';
+  if(btn) btn.disabled = true;
+  try {
+    var id = _prData && (_prData.prediction_id || _prData.id);
+    var t = await ApiClient.request('/api/predictive-risk/trace' + (id ? '?prediction_id=' + encodeURIComponent(id) : ''),
+                                    { actionId: 'command_centre.predictive_risk.trace' });
+    host.textContent = '';
+    host.appendChild(_prEl('p', { style: 'font-size:12px;color:var(--muted);margin:0 0 8px', text:
+      'Computed ' + t.freshness.computed_at + ' from the records as they were then. ' +
+      'The number is a weighted formula, not a decision: ' + t.formula + '. ' + (t.note || '') }));
+    t.signals.forEach(function(s){
+      var box = _prEl('section', { style: 'border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px' });
+      var share = s.direction === 'lowers' ? ' (lowers the score)' :
+        (s.share_pct !== null && s.share_pct !== undefined ? ' (' + s.share_pct + '% of the score)' : '');
+      box.appendChild(_prEl('div', { style: 'font-weight:700;font-size:13px', text: s.label + share }));
+      box.appendChild(_prEl('p', { style: 'font-size:12px;margin:4px 0;color:var(--muted)', text: s.rule }));
+      box.appendChild(_prEl('p', { style: 'font-size:12px;margin:2px 0;color:var(--muted)', text: 'Period: ' + s.window +
+        '. Figure: ' + (s.figure === null || s.figure === undefined ? 'not supplied' : s.figure) +
+        ', weight ' + s.weight + ', term ' + (s.term === null || s.term === undefined ? 'n/a' : s.term) + '.' }));
+      if(t.traceable){
+        var weighted = s.records.some(function(r){ return r.weight !== null && r.weight !== undefined; });
+        var counted = s.none_found ? 'No completed exercise is on record, so this reads as 365 days.' :
+          (s.count === null || s.count === undefined) ? 'The engine did not supply the records.' :
+          s.count + (s.of ? ' of ' + s.of : '') + ' record(s) counted' +
+            (s.truncated ? '; ' + s.records.length + ' are listed' + (weighted ? ', heaviest first.' : '.') : '.');
+        box.appendChild(_prEl('p', { style: 'font-size:12px;margin:2px 0', text: counted }));
+        if(s.categories && s.categories.length){
+          box.appendChild(_prEl('p', { style: 'font-size:12px;margin:2px 0', text: 'Categories above appetite: ' + s.categories.join(', ') + '.' }));
+        }
+        if(s.records.length){
+          var list = _prEl('ul', { style: 'margin:4px 0 4px 18px;padding:0;font-size:12px' });
+          s.records.forEach(function(r){
+            var href = (typeof r.url === 'string' && r.url.charAt(0) === '/' && r.url.charAt(1) !== '/') ? r.url : '/';
+            var a = _prEl('a', { href: href, text: r.title });
+            list.appendChild(_prEl('li', {}, [a, r.weight !== null && r.weight !== undefined ? ' (weight ' + r.weight + ')' : '']));
+          });
+          box.appendChild(list);
+        }
+        if(s.not_shown){
+          box.appendChild(_prEl('p', { style: 'font-size:11px;color:var(--muted);margin:2px 0',
+            text: s.not_shown + ' listed record(s) no longer exist or are not open to you.' }));
+        }
+      }
+      (s.disputes || []).forEach(function(d){
+        box.appendChild(_prEl('p', { style: 'font-size:12px;margin:4px 0;padding:6px 8px;background:var(--surface2);border-radius:6px',
+          text: 'Disputed by ' + (d.author || 'a reviewer') + ' (' + d.created_at + '): ' + d.body }));
+      });
+      var field = _prEl('input', { type: 'text', maxlength: '1000', class: 'form-input', 'aria-label': 'Dispute the ' + s.label + ' signal',
+        placeholder: 'What is wrong with this signal?', style: 'font-size:12px;padding:7px 10px' });
+      var send = _prEl('button', { type: 'button', class: 'btn btn-secondary btn-sm', style: 'margin-top:6px', text: 'Record the dispute' });
+      send.addEventListener('click', async function(){
+        var body = field.value.trim();
+        if(!body) return;
+        send.disabled = true;
+        try {
+          await ApiClient.request('/api/predictive-risk/' + encodeURIComponent(t.prediction_id) + '/disputes',
+            { method: 'POST', body: { signal: s.key, body: body }, actionId: 'command_centre.predictive_risk.dispute' });
+          loadPredictiveTrace();
+        } catch(e){
+          send.disabled = false;
+          if(typeof showToast === 'function') showToast((e && e.detail) || 'The dispute could not be recorded', 'error');
+        }
+      });
+      var dispute = _prEl('details', { style: 'margin-top:6px' }, [
+        _prEl('summary', { style: 'cursor:pointer;font-size:12px;color:var(--muted)', text: 'Dispute this signal' }),
+        _prEl('div', { style: 'margin-top:6px' }, [field, send])]);
+      box.appendChild(dispute);
+      host.appendChild(box);
+    });
+    host.appendChild(_prEl('p', { style: 'font-size:11px;color:var(--muted)', text:
+      'A dispute is a note beside the number. It does not change the prediction, the records or the formula.' }));
+  } catch(e){
+    host.textContent = (e && e.detail) || 'The trace could not be loaded.';
+  } finally {
+    if(btn) btn.disabled = false;
+  }
 }
 
 function _hexToRgb(hex) {
@@ -1210,39 +1447,110 @@ function _prTimeAgo(ts) {
 
 async function acknowledgePrediction() {
   try {
-    var resp = await fetch('/api/predictive-risk/acknowledge', {method:'POST'});
-    if(resp.ok){
-      var btn = document.getElementById('prAckBtn');
-      if(btn) btn.style.display = 'none';
-      showToast('Risk alert acknowledged');
-    }
-  } catch(e){}
+    await ApiClient.request('/api/predictive-risk/acknowledge', { method: 'POST', actionId: 'command_centre.prediction.ack' });
+    var btn = document.getElementById('prAckBtn');
+    if(btn) btn.style.display = 'none';
+    showToast('Risk alert acknowledged');
+  } catch(e){
+    showToast(e.detail || 'Failed to acknowledge','error');
+  }
 }
+
+// ── The first screen: what needs action, what changed, what lacks proof, what can be reported ──
+(function(){
+  var grid = document.getElementById('ccFirstScreenGrid');
+  var failed = document.getElementById('ccFirstScreenFailed');
+  if(!grid) return;
+  function el(tag, props, children){
+    var node = document.createElement(tag);
+    Object.keys(props || {}).forEach(function(k){
+      if(k === 'text') node.textContent = props[k];
+      else if(k === 'style') node.setAttribute('style', props[k]);
+      else node.setAttribute(k, props[k]);
+    });
+    (children || []).forEach(function(c){ if(c) node.appendChild(c); });
+    return node;
+  }
+  function figure(value, label){
+    var shown = (value === null || value === undefined) ? 'n/a' : String(value);
+    return el('div', {style:'min-width:70px'}, [
+      el('div', {text: shown, style:'font-size:24px;font-weight:800;line-height:1.1'}),
+      el('div', {text: label, style:'font-size:11px;color:var(--muted)'})]);
+  }
+  function safeLink(url){ return (typeof url === 'string' && url.charAt(0) === '/' && url.charAt(1) !== '/') ? url : '/'; }
+  var FIGURES = {
+    action: [['overdue','Overdue'], ['needs_you','Needs you'], ['due_soon','Due soon'], ['waiting','Waiting on others']],
+    changed: [['to_look_at','To look at again'], ['unread','Unread changes']],
+    proof: [['without_proof','Without current proof'], ['waiting_review','Waiting for a reviewer']]
+  };
+  function card(p){
+    var box = el('div', {class:'panel-card', style:'padding:14px'});
+    box.appendChild(el('div', {text:p.title, style:'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:8px'}));
+    if(p.state === 'unavailable'){
+      box.appendChild(el('div', {text:'n/a', style:'font-size:24px;font-weight:800;color:var(--muted)'}));
+      box.appendChild(el('div', {text:p.note || 'This could not be read just now. That is not a count of zero.', style:'font-size:12px;color:var(--muted);margin-top:4px'}));
+      return box;
+    }
+    if(p.state === 'not_measured'){
+      box.appendChild(el('div', {text:'Not measured', style:'font-size:16px;font-weight:700;color:var(--muted)'}));
+      box.appendChild(el('div', {text:p.note || '', style:'font-size:12px;color:var(--muted);margin-top:4px'}));
+      return box;
+    }
+    if(p.key === 'report'){
+      (p.presets || []).forEach(function(r){
+        var line = el('div', {style:'margin-bottom:6px;font-size:13px'});
+        line.appendChild(el('strong', {text:r.label}));
+        line.appendChild(el('span', {text:' - ' + r.sections_open + ' of ' + r.sections_total + ' sections open to you', style:'color:var(--muted)'}));
+        box.appendChild(line);
+      });
+      box.appendChild(el('a', {href:'/reports', text:'Open Reports', class:'btn btn-secondary btn-sm'}));
+      if(p.last_run) box.appendChild(el('div', {text:'Last saved run: ' + p.last_run.name + ', ' + p.last_run.at, style:'font-size:11px;color:var(--muted);margin-top:8px'}));
+      return box;
+    }
+    var row = el('div', {style:'display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px'});
+    (FIGURES[p.key] || []).forEach(function(f){ row.appendChild(figure((p.counts || {})[f[0]], f[1])); });
+    box.appendChild(row);
+    (p.items || []).forEach(function(it){
+      box.appendChild(el('div', {style:'font-size:12px;margin-top:3px'}, [
+        el('a', {href:safeLink(it.link), text:it.title}),
+        it.label ? el('span', {text:' (' + it.label + (it.due ? ', due ' + String(it.due).slice(0, 10) : '') + ')', style:'color:var(--muted)'}) : null]));
+    });
+    if(p.state === 'partial' && p.note) box.appendChild(el('div', {text:p.note, style:'font-size:11px;color:var(--muted);margin-top:6px'}));
+    if(p.definition) box.appendChild(el('div', {text:p.definition, style:'font-size:11px;color:var(--muted);margin-top:6px'}));
+    box.appendChild(el('a', {href:safeLink(p.link), text:'Open the list', style:'display:inline-block;font-size:12px;margin-top:8px'}));
+    return box;
+  }
+  async function load(){
+    failed.style.display = 'none';
+    try{
+      var data = await ApiClient.request('/api/command-centre/first-screen', {actionId: 'command_centre.first_screen'});
+      grid.textContent = '';
+      (data.panels || []).forEach(function(p){ grid.appendChild(card(p)); });
+      var asOf = document.getElementById('ccFirstScreenAsOf');
+      if(asOf && data.as_of) asOf.textContent = 'Read ' + String(data.as_of).slice(0, 16) + ' UTC';
+    }catch(e){
+      grid.textContent = '';
+      failed.style.display = 'block';
+    }
+  }
+  var retry = document.getElementById('ccFirstScreenRetry');
+  if(retry) retry.addEventListener('click', load);
+  load();
+})();
 
 // ── Button handlers ──
 async function exportReport(){
   {% if is_admin %}
-  showToast('Generating compliance export…', 'info');
+  showToast('Generating compliance export...', 'info');
   try {
-    const def = await fetch('/api/reports/definitions', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        name: 'Compliance Export ' + new Date().toLocaleDateString('en-GB'),
-        description: 'Auto-generated full compliance export',
-        report_type: 'compliance_summary',
-        modules: 'aria,grid,bcm,sentinel',
-        parameters: {}
-      })
+    const run = await ApiClient.request('/api/reports/quick-run', {
+      method: 'POST', body: { report_type: 'compliance_summary' }, actionId: 'command_centre.export_report.run',
     });
-    if(!def.ok) throw new Error('Definition failed');
-    const {id} = await def.json();
-    const run = await fetch('/api/reports/' + id + '/run', {method: 'POST'});
-    if(!run.ok) throw new Error('Run failed');
-    showToast('Export ready — opening Reports', 'success');
-    setTimeout(() => window.location.href = '/reports', 1500);
+    if (!run || !run.run_id) throw new Error('No saved run came back');
+    showToast('Export ready, opening Reports', 'success');
+    window.location.href = '/reports?run=' + encodeURIComponent(run.run_id);
   } catch(e) {
-    showToast('Export failed — try again', 'error');
+    showToast(e.detail || 'Export failed, try again', 'error');
   }
   {% else %}
   showToast('Export requires admin access', 'info');
@@ -1250,29 +1558,19 @@ async function exportReport(){
 }
 
 async function generateBoardReport(){
-  showToast('Generating executive brief…', 'info');
+  showToast('Generating executive brief...', 'info');
   try {
-    const defResp = await fetch('/api/reports/definitions', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        name: 'Board Report ' + new Date().toLocaleDateString('en-GB'),
-        description: 'Auto-generated executive compliance brief',
-        report_type: 'executive_brief',
-        modules: 'aria,grid,bcm,sentinel',
-        parameters: {}
-      })
+    const run = await ApiClient.request('/api/reports/quick-run', {
+      method: 'POST', body: { report_type: 'preset_board' }, actionId: 'command_centre.board_report.run',
     });
-    if(!defResp.ok) throw new Error('Definition failed: ' + defResp.status);
-    const defData = await defResp.json();
-    const runResp = await fetch('/api/reports/' + defData.id + '/run', {method: 'POST'});
-    if(!runResp.ok) throw new Error('Run failed: ' + runResp.status);
-    showToast('Board report ready — opening Reports', 'success');
-    setTimeout(() => window.location.href = '/reports', 1500);
+    if (!run || !run.run_id) throw new Error('No saved run came back');
+    showToast('Board report ready, opening Reports', 'success');
+    window.location.href = '/reports?run=' + encodeURIComponent(run.run_id);
   } catch(e) {
     console.error('Board report error:', e);
-    showToast('Failed to generate board report', 'error');
+    showToast(e.detail || 'Failed to generate board report', 'error');
   }
 }
 </script>
+<script src="{{ url_for('static', path='js/command_centre_layout.js') }}"></script>
 {% endblock %}

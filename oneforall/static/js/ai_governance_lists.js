@@ -1,0 +1,594 @@
+/* AI Governance: the inventory list, a person's own requests, and the reviewers' queue.
+   Needs ai_governance_common.js and api_client.js. */
+(function (global) {
+  'use strict';
+
+  var AIGov = global.AIGov, el = AIGov.el;
+
+  // ── Inventory ─────────────────────────────────────────────────────────────
+
+  var FILTERS = ['q', 'state', 'tier', 'use_type', 'owner', 'unit', 'provider'];
+
+  AIGov.inventory = function (root, options) {
+    options = options || {};
+    var params = new URLSearchParams(global.location.search);
+    var current = { q: '', state: 'active', tier: '', use_type: '', owner: '', unit: '', provider: '', page: 1, sort: 'name' };
+    FILTERS.concat(['sort']).forEach(function (key) { if (params.get(key)) current[key] = params.get(key); });
+    current.page = parseInt(params.get('page') || '1', 10) || 1;
+
+    var filterBar = el('form', { class: 'aig-filters', role: 'search', 'aria-label': 'Filter AI systems' });
+    var status = el('div', { class: 'aig-say', role: 'status' });
+    var tableWrap = el('div', { class: 'aig-tablewrap' });
+    var pagerBox = el('div', { class: 'aig-pager' });
+    [filterBar, status, tableWrap, pagerBox].forEach(function (n) { root.appendChild(n); });
+    filterBar.addEventListener('submit', function (event) { event.preventDefault(); });
+
+    var controls = {};
+    var counter = 0;
+
+    function syncUrl() {
+      var query = {};
+      FILTERS.forEach(function (key) { if (current[key] && !(key === 'state' && current[key] === 'active')) query[key] = current[key]; });
+      if (current.page > 1) query.page = current.page;
+      if (current.sort !== 'name') query.sort = current.sort;
+      global.history.replaceState(null, '', global.location.pathname + AIGov.qs(query));
+    }
+
+    function load() {
+      var ticket = ++counter;
+      syncUrl();
+      tableWrap.setAttribute('aria-busy', 'true');
+      AIGov.say(status, 'Loading...');
+      AIGov.api('/ai-governance/api/systems' + AIGov.qs({
+        q: current.q, state: current.state, tier: current.tier, use_type: current.use_type, owner: current.owner,
+        unit: current.unit, provider: current.provider, page: current.page, sort: current.sort })).then(function (data) {
+        if (ticket !== counter) return;
+        tableWrap.removeAttribute('aria-busy');
+        AIGov.say(status, '');
+        render(data);
+      }).catch(function (err) {
+        if (ticket !== counter) return;
+        tableWrap.removeAttribute('aria-busy');
+        AIGov.clear(tableWrap);
+        AIGov.say(status, AIGov.errorText(err), 'bad');
+      });
+    }
+
+    function filtersActive() {
+      return FILTERS.some(function (key) { return current[key] && !(key === 'state' && current[key] === 'active'); });
+    }
+
+    function render(data) {
+      AIGov.clear(tableWrap);
+      AIGov.pager(pagerBox, data.page, data.pages, data.total, data.page_size, function (page) { current.page = page; load(); });
+      if (!data.items.length) {
+        var box = el('div', { class: 'aig-empty' });
+        if (filtersActive()) {
+          box.appendChild(el('p', { text: 'No AI systems match these filters.' }));
+          box.appendChild(el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Clear filters', on: { click: function () {
+            FILTERS.forEach(function (key) { current[key] = key === 'state' ? 'active' : ''; controls[key].value = current[key]; });
+            current.page = 1; load();
+          } } }));
+        } else {
+          box.appendChild(el('p', { text: 'No AI systems are registered yet.' }));
+          if (options.canRegister) box.appendChild(el('a', { class: 'btn btn-primary btn-sm', href: '/ai-governance/register', text: 'Register an AI use' }));
+        }
+        tableWrap.appendChild(box);
+        return;
+      }
+      var table = el('table', { class: 'aig-table' });
+      var headRow = el('tr', {});
+      [['name', 'Name'], [null, 'Owner'], [null, 'Business unit'], [null, 'Provider'], [null, 'Use'], ['tier', 'Tier'], ['review', 'Next review'], [null, 'Needs attention']]
+        .forEach(function (col) {
+          var th = el('th', { scope: 'col' });
+          if (col[0]) {
+            th.setAttribute('aria-sort', current.sort === col[0] ? 'ascending' : 'none');
+            th.appendChild(el('button', { type: 'button', class: 'aig-sortbtn', text: col[1], on: { click: function () {
+              current.sort = col[0]; current.page = 1; load(); } } }));
+          } else { th.textContent = col[1]; }
+          headRow.appendChild(th);
+        });
+      table.appendChild(el('thead', {}, [headRow]));
+      var body = el('tbody', {});
+      data.items.forEach(function (row) {
+        body.appendChild(el('tr', {}, [
+          el('td', {}, [el('a', { href: row.url, text: row.name }), row.active ? null : AIGov.chip('Retired', 'muted')]),
+          el('td', { text: row.owner || 'None' }),
+          el('td', { text: row.business_unit || 'Whole organization' }),
+          el('td', { text: row.vendor || 'Not recorded' }),
+          el('td', { text: row.use_type || 'Not recorded' }),
+          el('td', {}, [AIGov.tierChip(row.tier, row.tier_adopted)]),
+          el('td', { text: row.next_review_at || 'Not scheduled' }),
+          el('td', {}, row.needs_action.map(function (reason) { return AIGov.chip(reason, 'warn'); })),
+        ]));
+      });
+      table.appendChild(body);
+      tableWrap.appendChild(table);
+    }
+
+    function addSelect(key, label, options2) {
+      var select = AIGov.select(options2, current[key], 'All');
+      select.addEventListener('change', function () { current[key] = select.value; current.page = 1; load(); });
+      controls[key] = select;
+      filterBar.appendChild(AIGov.field('aigf_' + key, label, select).row);
+    }
+
+    var search = el('input', { type: 'search', value: current.q, autocomplete: 'off' });
+    search.addEventListener('input', AIGov.debounce(function () { current.q = search.value.trim(); current.page = 1; load(); }, 300));
+    controls.q = search;
+    filterBar.appendChild(AIGov.field('aigf_q', 'Search name or purpose', search).row);
+
+    var stateSelect = AIGov.select([
+      { id: 'active', name: 'Active' }, { id: 'needs_action', name: 'Needs attention' }, { id: 'review_due', name: 'Review due' },
+      { id: 'review_soon', name: 'Review due soon' }, { id: 'retired', name: 'Retired' }, { id: 'all', name: 'All' }], current.state);
+    stateSelect.addEventListener('change', function () { current.state = stateSelect.value; current.page = 1; load(); });
+    controls.state = stateSelect;
+    filterBar.appendChild(AIGov.field('aigf_state', 'Show', stateSelect).row);
+
+    AIGov.api('/ai-governance/api/systems/choices').then(function (choices) {
+      addSelect('tier', 'Tier', choices.tiers);
+      addSelect('use_type', 'Use', choices.use_types);
+      addSelect('owner', 'Owner', choices.owners);
+      addSelect('unit', 'Business unit', choices.business_units);
+      addSelect('provider', 'Provider', choices.vendors);
+    }).catch(function () { /* the list still works without its extra filters */ });
+
+    load();
+  };
+
+  // ── My requests ───────────────────────────────────────────────────────────
+
+  var STATUS_LABEL = { draft: 'Draft', submitted: 'Waiting for review', returned: 'Needs your changes', approved: 'Accepted', rejected: 'Not accepted',
+    superseded: 'Replaced by a correction' };
+  var STATUS_KIND = { draft: 'muted', submitted: 'info', returned: 'warn', approved: 'good', rejected: 'bad', superseded: 'muted' };
+  AIGov.statusChip = function (status) { return AIGov.chip(STATUS_LABEL[status] || status, STATUS_KIND[status]); };
+
+  AIGov.requests = function (root, options) {
+    options = options || {};
+    var status = el('div', { class: 'aig-say', role: 'status' });
+    var list = el('div', { class: 'aig-tablewrap' });
+    root.appendChild(status);
+    root.appendChild(list);
+    AIGov.say(status, 'Loading...');
+    AIGov.api('/ai-governance/api/requests').then(function (data) {
+      AIGov.say(status, '');
+      if (!data.items.length) {
+        list.appendChild(el('div', { class: 'aig-empty' }, [
+          el('p', { text: options.canCreate ? 'You have not described an AI use yet.' : 'No earlier AI use requests.' }),
+          options.canCreate ? el('a', { class: 'btn btn-primary btn-sm', href: '/ai-governance/register', text: 'Register an AI use' }) : null]));
+        return;
+      }
+      var table = el('table', { class: 'aig-table' }, [el('thead', {}, [el('tr', {}, ['Name', 'Status', 'Last changed', ''].map(function (h) {
+        return el('th', { scope: 'col', text: h }); }))])]);
+      var body = el('tbody', {});
+      data.items.forEach(function (row) {
+        var name = row.answers.name || 'Untitled draft';
+        var cells = [
+          el('td', {}, [el('a', { href: '/ai-governance/requests/' + row.id, text: name }),
+            row.source_kind === 'import' ? AIGov.chip('Imported from a form', 'info') : null,
+            row.revision > 1 ? AIGov.chip('Revision ' + row.revision, 'warn') : null,
+            row.status === 'returned' && row.review_note ? el('div', { class: 'aig-hint', text: 'Reviewer: ' + row.review_note }) : null,
+            row.status === 'rejected' && row.review_note ? el('div', { class: 'aig-hint', text: 'Reason: ' + row.review_note }) : null]),
+          el('td', {}, [row.closed_at ? AIGov.chip('Closed', 'muted') : AIGov.statusChip(row.status)]),
+          el('td', { text: AIGov.date(row.updated_at) }),
+          el('td', {}, [options.canCreate && row.status === 'approved' && row.application_id
+            ? el('a', { href: '/ai-governance/systems/' + row.application_id, text: 'Open the AI system' })
+            : (row.status === 'draft' || row.status === 'returned') ? el('a', { href: '/ai-governance/requests/' + row.id, text: options.canCreate ? 'Continue' : 'View' }) : null]),
+        ];
+        body.appendChild(el('tr', {}, cells));
+      });
+      table.appendChild(body);
+      list.appendChild(table);
+    }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
+  };
+
+  // The specialist's lifecycle view uses one scoped server query for rows and counts.
+  AIGov.worklist = function (root) {
+    var stages = [
+      ['', 'All'], ['new', 'New'], ['needs_clarification', 'Needs clarification'],
+      ['in_assessment', 'In assessment'], ['awaiting_decision', 'Awaiting decision'],
+      ['ready_to_respond', 'Ready to respond'], ['responded', 'Response sent'], ['closed', 'Closed']
+    ];
+    var labels = {};
+    stages.forEach(function (s) { labels[s[0]] = s[1]; });
+    var query = new URLSearchParams(global.location.search);
+    var state = { stage: labels[query.get('stage')] ? query.get('stage') : '', page: 1 };
+    var tabs = el('div', { class: 'aig-worklist-tabs', role: 'group', 'aria-label': 'Request stage' });
+    var status = el('div', { class: 'aig-say', role: 'status' });
+    var list = el('div', { class: 'aig-tablewrap' });
+    var pager = el('div', { class: 'aig-pager' });
+    [tabs, status, list, pager].forEach(function (node) { root.appendChild(node); });
+    var ticket = 0, announcement = '';
+
+    function closeControl(item) {
+      var rejection = item.stage === 'ready_to_respond' && item.status === 'rejected';
+      if (item.stage !== 'responded' && !rejection) return null;
+      var wrap = el('div', { class: 'aig-closure' });
+      var form = el('form', { hidden: true });
+      var note = el('textarea', { rows: '2', maxlength: '1000', required: true });
+      form.appendChild(AIGov.field('aigCloseNote' + item.id, 'Closure reason', note).row);
+      var channel = null, reference = null;
+      if (rejection) {
+        form.appendChild(el('p', { class: 'aig-hint', text: 'Confirm that the rejection was communicated outside ThemisIQ.' }));
+        channel = AIGov.select([{ id: 'email', name: 'Email' }, { id: 'phone', name: 'Phone' },
+          { id: 'meeting', name: 'Meeting' }, { id: 'ticket', name: 'Ticket' }, { id: 'other', name: 'Other' }], '', 'Choose channel');
+        channel.required = true;
+        reference = el('input', { type: 'text', minlength: '3', maxlength: '160', required: true });
+        form.appendChild(AIGov.field('aigCloseChannel' + item.id, 'Communication channel', channel).row);
+        form.appendChild(AIGov.field('aigCloseReference' + item.id, 'External reference', reference).row);
+      }
+      var result = el('div', { class: 'aig-say', role: 'status' });
+      var submit = el('button', { class: 'btn btn-primary btn-sm', type: 'submit', text: 'Confirm closure' });
+      form.appendChild(submit);
+      form.appendChild(result);
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submit.disabled = true;
+        AIGov.say(result, 'Saving...');
+        AIGov.api('/ai-governance/api/review/requests/' + item.id + '/close', 'POST', {
+          version: item.version, note: note.value, channel: channel ? channel.value : null,
+          reference: reference ? reference.value : null
+        }).then(function () { announcement = 'Request closed.'; load(); }).catch(function (err) {
+          submit.disabled = false;
+          AIGov.say(result, AIGov.errorText(err), 'bad');
+        });
+      });
+      wrap.appendChild(el('button', { class: 'btn btn-ghost btn-sm', type: 'button',
+        text: rejection ? 'Record response and close' : 'Close request',
+        on: { click: function () { form.hidden = !form.hidden; if (!form.hidden) note.focus(); } } }));
+      wrap.appendChild(form);
+      return wrap;
+    }
+
+    function load() {
+      var mine = ++ticket;
+      list.setAttribute('aria-busy', 'true');
+      AIGov.say(status, 'Loading request work...');
+      AIGov.api('/ai-governance/api/review/worklist' + AIGov.qs({ stage: state.stage, page: state.page })).then(function (data) {
+        if (mine !== ticket) return;
+        list.removeAttribute('aria-busy');
+        AIGov.say(status, announcement);
+        announcement = '';
+        AIGov.clear(tabs);
+        stages.forEach(function (entry) {
+          var count = entry[0] ? data.counts[entry[0]] : Object.keys(data.counts).reduce(function (n, key) { return n + data.counts[key]; }, 0);
+          tabs.appendChild(el('button', { type: 'button', class: 'btn btn-sm ' + (state.stage === entry[0] ? 'btn-primary' : 'btn-secondary'),
+            'aria-pressed': state.stage === entry[0] ? 'true' : 'false',
+            text: entry[1] + ' (' + count + ')', on: { click: function () {
+              state.stage = entry[0]; state.page = 1;
+              var url = new URL(global.location.href);
+              if (state.stage) url.searchParams.set('stage', state.stage); else url.searchParams.delete('stage');
+              global.history.replaceState(null, '', url);
+              load();
+            } } }));
+        });
+        AIGov.clear(list);
+        AIGov.pager(pager, data.page, data.pages, data.total, data.page_size, function (page) { state.page = page; load(); });
+        if (!data.items.length) {
+          list.appendChild(el('p', { class: 'aig-empty', text: state.stage ? 'No requests at this stage.' : 'No requests to review yet.' }));
+          return;
+        }
+        var table = el('table', { class: 'aig-table' }, [el('thead', {}, [el('tr', {},
+          ['Request', 'Stage', 'Source', 'Updated', 'Action'].map(function (title) { return el('th', { scope: 'col', text: title }); }))])]);
+        var body = el('tbody');
+        data.items.forEach(function (item) {
+          body.appendChild(el('tr', {}, [
+            el('td', {}, [el('a', { href: item.url, text: item.name })]),
+            el('td', {}, [el('span', { text: labels[item.stage] || item.stage }),
+              item.closure ? el('details', {}, [
+                el('summary', { text: 'Closure record' }),
+                el('p', { class: 'aig-hint', text: 'Closed ' + AIGov.date(item.closure.at) +
+                  ' via ' + (item.closure.channel || 'recorded response') +
+                  (item.closure.reference ? ', reference ' + item.closure.reference : '') + '.' }),
+                el('p', { class: 'aig-hint', text: item.closure.note || 'No reason recorded.' })
+              ]) : null]),
+            el('td', { text: item.source_kind === 'import' ? 'Imported form' : 'Entered in ThemisIQ' }),
+            el('td', { text: AIGov.date(item.updated_at) }),
+            el('td', {}, [closeControl(item)])
+          ]));
+        });
+        table.appendChild(body);
+        list.appendChild(table);
+      }).catch(function (err) {
+        if (mine !== ticket) return;
+        list.removeAttribute('aria-busy');
+        AIGov.clear(list);
+        AIGov.say(status, AIGov.errorText(err), 'bad');
+      });
+    }
+    load();
+  };
+
+  // ── Review queue ──────────────────────────────────────────────────────────
+
+  function labelled(vocab, key, value) {
+    if (Array.isArray(value)) return value.map(function (v) { return (vocab[key] || {})[v] || v; }).join(', ');
+    return (vocab[key] || {})[value] || value;
+  }
+
+  AIGov.review = function (root) {
+    var vocab = {}, units = {};
+    // Which queue: new requests, or those sent back and waiting for the requester's answer.
+    var queueStatus = new URLSearchParams(global.location.search).get('status') === 'waiting' ? 'waiting' : 'submitted';
+    var queue = el('div', { class: 'aig-queue', role: 'group', 'aria-label': queueStatus === 'waiting' ? 'Requests waiting for information' : 'Requests waiting for review' });
+    var detail = el('div', { class: 'aig-detail', tabindex: '-1' });
+    var status = el('div', { class: 'aig-say', role: 'status' });
+    root.appendChild(el('nav', { class: 'aig-tabs', 'aria-label': 'Request queues' }, [
+      el('a', { class: 'aig-tab' + (queueStatus === 'submitted' ? ' is-current' : ''), href: '/ai-governance/review',
+        'aria-current': queueStatus === 'submitted' ? 'page' : null, text: 'New' }),
+      el('a', { class: 'aig-tab' + (queueStatus === 'waiting' ? ' is-current' : ''), href: '/ai-governance/review?status=waiting',
+        'aria-current': queueStatus === 'waiting' ? 'page' : null, text: 'Waiting for information' })]));
+    root.appendChild(status);
+    root.appendChild(el('div', { class: 'aig-split' }, [queue, detail]));
+    var selected = null;
+
+    // The outcome of a decision is announced up here, outside the detail panel, so it is still there when the queue
+    // reloads and the decided request has gone from it.
+    function announce(message, href, linkText) {
+      AIGov.clear(status);
+      status.className = 'aig-say aig-say-good';
+      status.setAttribute('role', 'status');
+      status.appendChild(document.createTextNode(message + ' '));
+      if (href) status.appendChild(el('a', { href: href, text: linkText }));
+    }
+
+    function loadQueue(keepSelection, keepStatus) {
+      if (!keepStatus) AIGov.say(status, 'Loading...');
+      AIGov.api('/ai-governance/api/review/queue' + AIGov.qs({ status: queueStatus === 'waiting' ? 'waiting' : '' })).then(function (data) {
+        if (!keepStatus) AIGov.say(status, '');
+        AIGov.clear(queue);
+        if (!data.items.length) {
+          queue.appendChild(el('p', { class: 'aig-empty', text: queueStatus === 'waiting' ? 'No request is waiting for information.' : 'Nothing is waiting for review.' }));
+          AIGov.clear(detail);
+          selected = null;
+          return;
+        }
+        data.items.forEach(function (row) {
+          var button = el('button', { type: 'button', class: 'aig-queue-item' + (selected === row.id ? ' is-selected' : ''),
+            'aria-current': selected === row.id ? 'true' : null, on: { click: function () { select(row.id); } } }, [
+            el('strong', { text: row.answers.name || 'Untitled' }),
+            el('span', { class: 'aig-muted', text: (row.author_name || 'Someone') + ', ' + AIGov.date(row.submitted_at) }),
+            AIGov.tierChip(row.screening.tier, null)]);
+          queue.appendChild(button);
+        });
+        if (keepSelection && selected && data.items.some(function (r) { return r.id === selected; })) select(selected, keepStatus);
+        else if (!selected) select(data.items[0].id, keepStatus);
+      }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
+    }
+
+    // Only the latest choice may draw: a slower answer for an earlier choice must not replace the request now shown.
+    var choice = 0;
+
+    // `keepStatus` leaves the line above the queue alone: after a decision it says what happened, and the next request
+    // being shown must not wipe that out.
+    function select(id, keepStatus) {
+      selected = id;
+      var mine = ++choice;
+      [].forEach.call(queue.children, function (item, index) { item.classList.toggle('is-selected', false); });
+      if (!keepStatus) AIGov.say(status, '');
+      // The request that was shown a moment ago must not keep buttons that would decide it while another one loads.
+      AIGov.clear(detail);
+      detail.setAttribute('aria-busy', 'true');
+      detail.appendChild(el('p', { class: 'aig-muted', text: 'Loading the request...' }));
+      Promise.all([AIGov.api('/ai-governance/api/requests/' + id),
+        AIGov.api('/ai-governance/api/review/requests/' + id + '/duplicates')]).then(function (parts) {
+        if (mine !== choice) return;
+        detail.removeAttribute('aria-busy');
+        renderDetail(parts[0].intake, parts[1].items || []);
+        [].forEach.call(queue.querySelectorAll('.aig-queue-item'), function (btn) { btn.classList.remove('is-selected'); });
+        var index = [].map.call(queue.children, function (c) { return c; });
+        index.forEach(function (c) { if (c.textContent.indexOf(parts[0].intake.answers.name || 'Untitled') === 0) c.classList.add('is-selected'); });
+      }).catch(function (err) {
+        if (mine === choice) { detail.removeAttribute('aria-busy'); AIGov.clear(detail); }
+        AIGov.say(status, AIGov.errorText(err), 'bad');
+      });
+    }
+
+    function fact(label, value) {
+      return el('div', { class: 'aig-fact' }, [el('dt', { text: label }), el('dd', { text: value || 'Not answered' })]);
+    }
+
+    function renderDetail(intake, duplicates) {
+      AIGov.clear(detail);
+      var a = intake.answers, screening = intake.screening;
+      detail.appendChild(el('h2', { class: 'aig-h2', text: a.name || 'Untitled' }));
+      detail.appendChild(el('p', { class: 'aig-muted', text: (intake.source_kind === 'import' ? 'Imported by ' : 'Submitted by ')
+        + (intake.author_name || 'someone') + ' on ' + AIGov.date(intake.submitted_at)
+        + (intake.business_unit_id && units[intake.business_unit_id] ? ', ' + units[intake.business_unit_id] : '') }));
+      if (intake.source_kind === 'import' && intake.requester) {
+        var rq = intake.requester;
+        detail.appendChild(el('section', { class: 'aig-panel', 'aria-labelledby': 'aigReqH' }, [
+          el('h3', { id: 'aigReqH', class: 'aig-h3', text: 'Who asked' }),
+          el('p', { class: 'aig-muted', text: 'This came from an external form. The requester has no account and no access.'
+            + (intake.revision > 1 ? ' It is revision ' + intake.revision + ' of the same response.' : '') }),
+          el('dl', { class: 'aig-facts aig-facts-inline' }, [fact('Requester', rq.name), fact('Contact', rq.email),
+            fact('Organization or team', rq.organization), fact('Form', rq.source_form),
+            fact('Owner named in the form', rq.owner_named_in_form)])]));
+      }
+      detail.appendChild(el('dl', { class: 'aig-facts' }, [
+        fact('Purpose', a.purpose), fact('Owner', intake.owner_name), fact('How it is provided', labelled(vocab, 'deployment', a.deployment)),
+        fact('Provider', a.provider_name), fact('Intended users', a.intended_users), fact('Planned use', a.planned_use),
+        fact('Kinds of data', labelled(vocab, 'data_categories', a.data_categories)),
+        fact('Who is affected', labelled(vocab, 'affected_people', a.affected_people)),
+        fact('How much it decides', labelled(vocab, 'autonomy', a.autonomy)),
+        fact('Affects decisions about people', a.affects_decisions === true ? 'Yes' : a.affects_decisions === false ? 'No' : ''),
+        fact('Outside access', a.external_access === true ? 'Yes' : a.external_access === false ? 'No' : ''),
+        fact('Jurisdictions', labelled(vocab, 'jurisdictions', a.jurisdictions)), fact('Human oversight', a.human_oversight),
+        fact('Planned model changes', a.model_changes), fact('Target launch', a.target_launch)]));
+
+      var tierBox = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigTierH' }, [
+        el('h3', { id: 'aigTierH', class: 'aig-h3', text: 'Provisional tier' }),
+        el('p', {}, [AIGov.tierChip(screening.tier, false), ' ',
+          el('span', { class: 'aig-muted', text: 'An internal screening aid. It is not a legal classification and approves nothing. Rules ' + screening.rule_version + '.' })])]);
+      if (screening.reasons.length) tierBox.appendChild(el('ul', {}, screening.reasons.map(function (r) { return el('li', { text: r.text }); })));
+      if (screening.missing.length) tierBox.appendChild(el('p', { class: 'aig-hint', text: 'Not answered: ' + screening.missing.map(function (f) { return vocab.labels[f] || f; }).join(', ') + '.' }));
+      detail.appendChild(tierBox);
+
+      var dupBox = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigDupH' }, [el('h3', { id: 'aigDupH', class: 'aig-h3', text: 'Could this already be in the inventory?' })]);
+      if (duplicates.length) {
+        dupBox.appendChild(el('ul', {}, duplicates.map(function (d) {
+          return el('li', {}, [el('a', { href: d.url, text: d.name, target: '_blank', rel: 'noopener' }), ' ' + d.reason.toLowerCase() + (d.has_ai_profile ? ', already an AI system' : '')]);
+        })));
+      } else { dupBox.appendChild(el('p', { class: 'aig-muted', text: 'No similar application you can see.' })); }
+      detail.appendChild(dupBox);
+
+      // The review desk for a request: similar uses already in the inventory, and what the requester has been asked.
+      AIGov.precedentsPanel(detail, { subjectKind: 'request', subjectId: intake.id, canReview: true });
+      AIGov.questionsPanel(detail, { intakeId: intake.id, canAsk: true });
+
+      if (intake.status !== 'submitted') {
+        detail.appendChild(el('p', { class: 'aig-muted', text: 'This request is ' + (STATUS_LABEL[intake.status] || intake.status).toLowerCase() + '.' }));
+        return;
+      }
+      detail.appendChild(assignPanel(intake));
+      detail.appendChild(decisionForm(intake, duplicates));
+    }
+
+    // Who reviews it. Nobody named is the default and keeps the request in everyone's queue, in the app only; naming one
+    // person tells that person in the app and by email. It does not stop anyone else from reviewing.
+    function assignPanel(intake) {
+      var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigAssignH' });
+      box.appendChild(el('h3', { id: 'aigAssignH', class: 'aig-h3', text: 'Who reviews it' }));
+      var now = el('p', { class: 'aig-muted' });
+      function show(name) {
+        now.textContent = name
+          ? 'Assigned to ' + name + '. They were told in the app and by email.'
+          : 'Nobody is named. Everyone who may review it sees it in the queue, in the app only.';
+      }
+      show(intake.assigned_reviewer_name);
+      box.appendChild(now);
+      var select = el('select', {}, [el('option', { value: '', text: 'Nobody named' })]);
+      var out = el('div', { class: 'aig-say', role: 'status' });
+      AIGov.api('/ai-governance/api/review/requests/' + intake.id + '/assignees').then(function (data) {
+        (data.items || []).forEach(function (p) {
+          select.appendChild(el('option', { value: String(p.id), text: p.name,
+            selected: p.id === intake.assigned_reviewer_id ? true : null }));
+        });
+      }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
+      box.appendChild(AIGov.field('aigAssignee', 'Name the reviewer', select).row);
+      box.appendChild(el('div', { class: 'aig-actions' }, [el('button', { type: 'button', class: 'btn btn-secondary btn-sm',
+        text: 'Save', on: { click: function () {
+          AIGov.say(out, 'Saving...');
+          AIGov.api('/ai-governance/api/review/requests/' + intake.id + '/assign', 'POST',
+            { assignee_id: select.value ? parseInt(select.value, 10) : null }).then(function (data) {
+            intake.assigned_reviewer_id = data.intake.assigned_reviewer_id;
+            show(data.intake.assigned_reviewer_name);
+            AIGov.say(out, data.changed ? 'Saved.' : 'Nothing changed.', 'good');
+          }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
+        } } })]));
+      box.appendChild(out);
+      return box;
+    }
+
+    function decisionForm(intake, duplicates) {
+      var a = intake.answers;
+      var form = el('form', { class: 'aig-panel', 'aria-labelledby': 'aigDecideH', novalidate: 'novalidate' });
+      form.appendChild(el('h3', { id: 'aigDecideH', class: 'aig-h3', text: 'Your decision' }));
+      var out = el('div', { class: 'aig-say' });
+
+      var modeNew = el('input', { type: 'radio', name: 'mode', value: 'new', checked: true });
+      var modeLink = el('input', { type: 'radio', name: 'mode', value: 'link' });
+      form.appendChild(el('fieldset', { class: 'aig-fieldset' }, [el('legend', { text: 'Add to the inventory' }),
+        el('label', { class: 'aig-radio' }, [modeNew, 'Create a new application']),
+        el('label', { class: 'aig-radio' }, [modeLink, 'Link to an application that already exists'])]));
+
+      var newBox = el('div', {});
+      var name = el('input', { type: 'text', value: a.name || '', maxlength: '120' });
+      var vendor = el('input', { type: 'text', value: a.provider_name || '', maxlength: '200' });
+      var criticality = AIGov.select([{ id: 'low', name: 'Low' }, { id: 'medium', name: 'Medium' }, { id: 'high', name: 'High' }, { id: 'critical', name: 'Critical' }], 'medium');
+      [AIGov.field('aigNewName', 'Application name', name).row, AIGov.field('aigNewVendor', 'Provider (optional)', vendor).row,
+        AIGov.field('aigNewCrit', 'Criticality', criticality).row].forEach(function (r) { newBox.appendChild(r); });
+
+      var linkBox = el('div', { hidden: true });
+      var search = el('input', { type: 'search', autocomplete: 'off' });
+      var results = el('div', { class: 'aig-results', role: 'radiogroup', 'aria-label': 'Applications' });
+      linkBox.appendChild(AIGov.field('aigLinkSearch', 'Find the application', search, 'Type at least two letters.').row);
+      linkBox.appendChild(results);
+      var chosen = null;
+      function showApps(items) {
+        AIGov.clear(results);
+        if (!items.length) { results.appendChild(el('p', { class: 'aig-muted', text: 'No matching application you can open.' })); return; }
+        items.forEach(function (app) {
+          var radio = el('input', { type: 'radio', name: 'app', value: String(app.id) });
+          radio.addEventListener('change', function () { chosen = app.id; });
+          results.appendChild(el('label', { class: 'aig-radio' }, [radio, app.name]));
+        });
+      }
+      showApps(duplicates.filter(function (d) { return !d.has_ai_profile; }).map(function (d) { return { id: d.id, name: d.name }; }));
+      search.addEventListener('input', AIGov.debounce(function () {
+        if (search.value.trim().length < 2) return;
+        AIGov.api('/ai-governance/api/applications/search' + AIGov.qs({ q: search.value.trim() })).then(function (d) { showApps(d.items); });
+      }, 300));
+
+      function toggle() { newBox.hidden = !modeNew.checked; linkBox.hidden = modeNew.checked; }
+      modeNew.addEventListener('change', toggle); modeLink.addEventListener('change', toggle);
+      form.appendChild(newBox); form.appendChild(linkBox);
+
+      var tier = AIGov.select([{ id: 'lower', name: 'Lower' }, { id: 'moderate', name: 'Moderate' }, { id: 'elevated', name: 'Elevated' }], '', 'Keep the provisional tier');
+      var tierReason = el('textarea', { rows: '2', maxlength: '1000' });
+      form.appendChild(AIGov.field('aigAdopt', 'Adopt a different tier (optional)', tier, 'Say why in the box below. The tier is a screening aid; it does not approve or reject the use.').row);
+      form.appendChild(AIGov.field('aigAdoptWhy', 'Why this tier', tierReason).row);
+      var note = el('textarea', { rows: '3', maxlength: '1000' });
+      form.appendChild(AIGov.field('aigNote', 'Note to the author (required to return or reject)', note).row);
+
+      function act(path, body, done) {
+        AIGov.say(out, 'Saving...');
+        body.version = intake.version;
+        AIGov.api('/ai-governance/api/review/requests/' + intake.id + '/' + path, 'POST', body).then(function (data) {
+          var result = done(data);
+          announce(result.text, result.href, result.linkText);
+          selected = null;
+          loadQueue(false, true);
+        }).catch(function (err) {
+          var fields = AIGov.fieldErrors(err);
+          AIGov.say(out, AIGov.errorText(err) + (fields ? ' ' + Object.keys(fields).map(function (k) { return fields[k]; }).join(' ') : ''), 'bad');
+        });
+      }
+
+      var accept = el('button', { type: 'button', class: 'btn btn-primary', text: 'Accept', on: { click: function () {
+        var body = { note: note.value };
+        if (modeNew.checked) body.new_application = { name: name.value, vendor_name: vendor.value, criticality: criticality.value };
+        else if (chosen) body.application_id = chosen;
+        else { AIGov.say(out, 'Choose the application to link to.', 'bad'); return; }
+        if (tier.value) { body.adopted_tier = tier.value; body.tier_reason = tierReason.value; }
+        act('approve', body, function (data) {
+          return { text: 'Accepted. "' + (a.name || 'The AI use') + '" is now in the inventory.',
+                   href: '/ai-governance/systems/' + data.application_id, linkText: 'Open the AI system' };
+        });
+      } } });
+      var back = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Return to author', on: { click: function () {
+        act('return', { note: note.value }, function () { return { text: 'Returned to the author.' }; }); } } });
+      var reject = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Reject', on: { click: function () {
+        act('reject', { reason: note.value }, function () { return { text: 'Rejected.' }; }); } } });
+      form.appendChild(el('div', { class: 'aig-actions' }, [accept, back, reject]));
+      form.appendChild(out);
+      return form;
+    }
+
+    // Vendors and processes that were said to use AI (or nobody knows) and that no AI use covers yet.
+    var flagged = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigFlagH', hidden: true }, [
+      el('h2', { id: 'aigFlagH', class: 'aig-h3', text: 'Said to use AI, not yet registered' })]);
+    root.appendChild(flagged);
+    function loadFlagged() {
+      AIGov.api('/ai-governance/api/flags').then(function (data) {
+        if (!data.items.length) { flagged.hidden = true; return; }
+        flagged.hidden = false;
+        [].slice.call(flagged.querySelectorAll('ul')).forEach(function (n) { n.remove(); });
+        flagged.appendChild(el('ul', { class: 'aig-list' }, data.items.map(function (item) {
+          return el('li', {}, [el('span', { text: item.name }),
+            AIGov.chip(item.kind === 'vendor' ? 'Vendor' : 'Process', 'info'),
+            AIGov.chip(item.answer === 'yes' ? 'Uses AI' : 'Not sure', item.answer === 'yes' ? 'warn' : 'muted'),
+            item.note ? el('span', { class: 'aig-muted', text: item.note }) : null,
+            el('a', { class: 'btn btn-secondary btn-sm', href: item.register_url, text: 'Start a request' })]);
+        })));
+      }).catch(function () { /* the queue above is the main job of this page */ });
+    }
+
+    Promise.all([AIGov.api('/ai-governance/api/vocabulary'), AIGov.api('/ai-governance/api/business-units')]).then(function (parts) {
+      vocab = parts[0];
+      parts[1].items.forEach(function (u) { units[u.id] = u.name; });
+      loadFlagged();
+      loadQueue(false);
+    }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
+  };
+}(window));

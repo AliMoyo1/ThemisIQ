@@ -142,9 +142,18 @@ def get_session_user(token: str) -> Optional[dict]:
         licensed_modules = None
         if user["org_id"]:
             org_row = db.execute(
-                "SELECT slug, name FROM organizations WHERE id = %s",
+                "SELECT slug, name, status FROM organizations WHERE id = %s",
                 (user["org_id"],),
             ).fetchone()
+            if (
+                not user["is_super_admin"]
+                and (not org_row or org_row["status"] != "active")
+            ):
+                # Organization suspension is an access-control boundary, not
+                # only an admin-screen label. Revoke this session immediately.
+                db.execute("DELETE FROM sessions WHERE token = %s", (token_hash,))
+                db.commit()
+                return None
             if org_row:
                 org_slug = org_row["slug"]
                 org_name = org_row["name"]
@@ -181,6 +190,21 @@ def get_session_user(token: str) -> Optional[dict]:
         db.close()
 
 
+def licensed_modules_for(db, org_id) -> "list | None":
+    """The modules an organization is licensed for, as a session carries them: None when no licence is recorded (every
+    module the roles allow), an empty list when the licence has expired. For work done on a person's behalf with no
+    session, such as the summary mail."""
+    if not org_id:
+        return None
+    lic_row = db.execute(
+        "SELECT module_keys, valid_until FROM licenses WHERE org_id = %s ORDER BY id DESC LIMIT 1", (org_id,)).fetchone()
+    if not lic_row or not lic_row["module_keys"]:
+        return None
+    if lic_row["valid_until"] and lic_row["valid_until"] < utcnow().isoformat():
+        return []
+    return [m.strip() for m in lic_row["module_keys"].split(",") if m.strip()]
+
+
 def destroy_session(token: str):
     """Delete a session by its raw token."""
     if not token:
@@ -212,7 +236,9 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     try:
         user = db.execute(
             "SELECT id, username, email, full_name, password_hash, is_active, "
-            "must_change_password, avatar_initials FROM users WHERE username = %s",
+            "must_change_password, avatar_initials, org_id, "
+            "COALESCE(is_super_admin, 0) AS is_super_admin "
+            "FROM users WHERE username = %s",
             (username,),
         ).fetchone()
         if not user:
@@ -223,6 +249,13 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
             return None
         if not verify_password(password, user["password_hash"]):
             return None
+        if user["org_id"] and not user["is_super_admin"]:
+            org = db.execute(
+                "SELECT status FROM organizations WHERE id = %s",
+                (user["org_id"],),
+            ).fetchone()
+            if not org or org["status"] != "active":
+                return None
 
         roles = [
             r["role_key"]

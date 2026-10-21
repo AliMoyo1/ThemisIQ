@@ -38,7 +38,7 @@ DRILL_PG_PASSWORD = "drill_temp_password_not_for_prod"
 
 _CORE_TABLES = [
     "aria_frameworks", "aria_controls", "aria_risks", "aria_documents",
-    "sentinel_breaches", "grid_audits", "bcm_plans", "erm_risks", "orm_events",
+    "sentinel_breaches", "grid_audits", "bcm_plans", "erm_enterprise_risks", "orm_events",
 ]
 
 
@@ -174,6 +174,13 @@ def check_row_counts(container: str, prod_url: str) -> bool:
                 ok = False
             print(f"  {table:<45} {pc:>10} {dc:>10} {match:>6}")
         except Exception as exc:
+            # PLAN-36 T04: a failed query poisons the rest of that
+            # connection's transaction in PostgreSQL -- without rolling
+            # back, one genuinely missing table would cascade into every
+            # table checked after it also reporting ERR, masking which
+            # table actually caused the failure.
+            prod.rollback()
+            drill.rollback()
             print(f"  {table:<45} {'ERR':>10} {'ERR':>10} {'✗':>6}  ({exc})")
             ok = False
     prod.close()

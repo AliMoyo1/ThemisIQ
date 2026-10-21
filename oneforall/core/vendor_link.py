@@ -8,11 +8,11 @@ assessment scores for GRID, criticality/SLA for BCM).  This module provides:
       Find or create a canonical_vendors row for this company.  Call this whenever
       a vendor is created in any module; store the returned id in canonical_id.
 
-  get_cross_module_profile(db, canonical_id) → dict
-      Full cross-module summary: all module records + smart risk flags.
+  get_cross_module_profile(db, canonical_id, user) → dict
+      Cross-module summary: the module records `user` may open + smart risk flags.
 
-  get_vendor_directory(db) → list[dict]
-      All canonical vendors with module-presence summary and gap flags.
+  get_vendor_directory(db, user) → list[dict]
+      All canonical vendors with module-presence summary and gap flags, limited the same way.
 """
 from __future__ import annotations
 
@@ -59,8 +59,20 @@ def ensure_canonical(db, name: str, contact_email: str | None = None) -> int | N
         return row["id"] if row else None
 
 
-def get_cross_module_profile(db, canonical_id: int) -> dict:
-    """Return all module-specific records linked to this canonical_id, plus smart flags."""
+def _visible_sections(user) -> set:
+    """The module sections of a vendor this user may open: what each module's own vendor routes require."""
+    # Imported here because core must not import modules at load time (modules import core).
+    from modules.governance.entity_scope import may_view_kind
+    return {m for m in ("sentinel", "grid", "bcm") if may_view_kind(user, (m, "vendor"))}
+
+
+def get_cross_module_profile(db, canonical_id: int, user) -> dict:
+    """Return the module-specific records linked to this canonical_id, plus smart flags.
+
+    Only the sections `user` may open in their own module are read, and a flag that depends on a
+    section the user cannot open is left out: a hidden record must neither be shown nor read as
+    "does not exist". `user` is required so no caller can forget the scope."""
+    can = _visible_sections(user)
     result: dict = {"canonical_id": canonical_id, "modules": {}, "flags": []}
 
     # Canonical base
@@ -76,7 +88,7 @@ def get_cross_module_profile(db, canonical_id: int) -> dict:
         "services, contact_name, contact_email, ai_assessment "
         "FROM sentinel_vendors WHERE canonical_id=%s",
         (canonical_id,),
-    ).fetchone()
+    ).fetchone() if "sentinel" in can else None
     if sen:
         result["modules"]["sentinel"] = dict(sen)
 
@@ -94,7 +106,7 @@ def get_cross_module_profile(db, canonical_id: int) -> dict:
         "      ) "
         "WHERE v.canonical_id=%s",
         (canonical_id,),
-    ).fetchone()
+    ).fetchone() if "grid" in can else None
     if grid:
         rec = {k: grid[k] for k in (
             "id", "name", "risk_level", "status", "frameworks", "contract_expiry"
@@ -116,7 +128,7 @@ def get_cross_module_profile(db, canonical_id: int) -> dict:
         "contract_renewal, status, service_provided "
         "FROM bcm_vendors WHERE canonical_id=%s",
         (canonical_id,),
-    ).fetchone()
+    ).fetchone() if "bcm" in can else None
     if bcm:
         result["modules"]["bcm"] = dict(bcm)
 
@@ -130,32 +142,32 @@ def get_cross_module_profile(db, canonical_id: int) -> dict:
     dpa     = (sen_d.get("dpa_status") or "pending").lower()
     score   = (grid_d.get("latest_assessment") or {}).get("score")
 
-    if tier == 1 and dpa in ("pending", "", "not_required"):
+    if {"bcm", "sentinel"} <= can and tier == 1 and dpa in ("pending", "", "not_required"):
         result["flags"].append({
             "level": "critical",
             "msg": "Tier 1 critical vendor has no signed DPA in Privacy",
         })
-    if crit == "critical" and not sen_d:
+    if {"bcm", "sentinel"} <= can and crit == "critical" and not sen_d:
         result["flags"].append({
             "level": "high",
             "msg": "Critical BCM vendor not assessed for data processing in Privacy",
         })
-    if crit in ("high", "critical") and not grid_d:
+    if {"bcm", "grid"} <= can and crit in ("high", "critical") and not grid_d:
         result["flags"].append({
             "level": "high",
             "msg": "High-criticality vendor has no compliance audit in Audit",
         })
-    if score is not None and score < 50:
+    if "grid" in can and score is not None and score < 50:
         result["flags"].append({
             "level": "high",
             "msg": f"Low compliance audit score ({score}%) — action required",
         })
-    if dpa == "expired":
+    if "sentinel" in can and dpa == "expired":
         result["flags"].append({
             "level": "high",
             "msg": "DPA has expired — renew before sharing personal data",
         })
-    if not bcm_d and not grid_d and not sen_d:
+    if can == {"sentinel", "grid", "bcm"} and not bcm_d and not grid_d and not sen_d:
         result["flags"].append({
             "level": "info",
             "msg": "Vendor only exists in one module — consider registering in others",
@@ -164,12 +176,14 @@ def get_cross_module_profile(db, canonical_id: int) -> dict:
     return result
 
 
-def get_vendor_directory(db) -> list[dict]:
+def get_vendor_directory(db, user) -> list[dict]:
     """Return all canonical vendors with per-module presence summary.
 
     Batched: 4 queries total (canonical + sentinel + grid + bcm) regardless
-    of vendor count. Previously this fired 3*N+1 queries per call.
-    """
+    of vendor count. Previously this fired 3*N+1 queries per call. Each module's part is read
+    only when `user` may open that module's vendor records, and the coverage count and risk
+    flag are worked out from what they can see."""
+    can = _visible_sections(user)
     rows = db.execute(
         "SELECT * FROM canonical_vendors WHERE status='active' OR status IS NULL "
         "ORDER BY name"
@@ -184,21 +198,21 @@ def get_vendor_directory(db) -> list[dict]:
             "SELECT canonical_id, id, dpa_status, risk_level "
             "FROM sentinel_vendors WHERE canonical_id IS NOT NULL"
         ).fetchall()
-    }
+    } if "sentinel" in can else {}
     grid_by_cid = {
         r["canonical_id"]: dict(r)
         for r in db.execute(
             "SELECT canonical_id, id, risk_level, status "
             "FROM grid_vendors WHERE canonical_id IS NOT NULL"
         ).fetchall()
-    }
+    } if "grid" in can else {}
     bcm_by_cid = {
         r["canonical_id"]: dict(r)
         for r in db.execute(
             "SELECT canonical_id, id, tier, criticality, status "
             "FROM bcm_vendors WHERE canonical_id IS NOT NULL"
         ).fetchall()
-    }
+    } if "bcm" in can else {}
 
     out = []
     for row in rows:
@@ -214,7 +228,7 @@ def get_vendor_directory(db) -> list[dict]:
         rec["risk_flag"] = None
         if bcm and bcm.get("tier") == 1 and sen and (sen.get("dpa_status") or "pending") in ("pending", "expired"):
             rec["risk_flag"] = "critical"
-        elif bcm and (bcm.get("criticality") or "").lower() in ("high", "critical") and not grid:
+        elif bcm and "grid" in can and (bcm.get("criticality") or "").lower() in ("high", "critical") and not grid:
             rec["risk_flag"] = "high"
         elif sen and (sen.get("dpa_status") or "pending") == "expired":
             rec["risk_flag"] = "high"

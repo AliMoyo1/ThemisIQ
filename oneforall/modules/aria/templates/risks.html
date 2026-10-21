@@ -37,6 +37,7 @@
           <th style="width:80px">Level</th>
           <th>Owner</th>
           <th style="width:80px">Status</th>
+          <th>Connected</th>
         </tr>
       </thead>
       <tbody>
@@ -68,10 +69,11 @@
             <span class="badge badge-implemented">{{ risk.status }}</span>
             {% endif %}
           </td>
+          <td><a href="/governance/connected/aria/risk/{{ risk.id }}" aria-label="View connected records for {{ risk.risk_id }}">View connections</a></td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="11" style="text-align:center;padding:48px;color:var(--muted)">
+          <td colspan="12" style="text-align:center;padding:48px;color:var(--muted)">
             <div style="font-size:13px">No risks recorded yet. Click <strong>Add Risk</strong> to get started.</div>
           </td>
         </tr>

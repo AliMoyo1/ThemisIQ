@@ -1,0 +1,154 @@
+name: ARIA preview worker image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: aria-preview-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE_NAME: ghcr.io/alimoyo1/themisiq-aria-preview
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set immutable build metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "tag=${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build isolated preview worker
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build --pull \
+            --file deploy/aria-preview/Dockerfile \
+            --build-arg "ARIA_PREVIEW_WORKER_BUILD_ID=${GITHUB_SHA}" \
+            --build-arg "ARIA_PREVIEW_BUILT_AT=${{ steps.metadata.outputs.built_at }}" \
+            --tag "${{ steps.metadata.outputs.tag }}" \
+            .
+
+      - name: Create a minimal DOCX conversion job
+        shell: bash
+        env:
+          SPOOL: ${{ runner.temp }}/aria-preview-spool
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import zipfile
+          from pathlib import Path
+
+          job = Path(os.environ["SPOOL"]) / "inbox" / "release-smoke"
+          job.mkdir(parents=True, exist_ok=False)
+          parts = {
+              "[Content_Types].xml": """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+            <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+            <Default Extension="xml" ContentType="application/xml"/>
+            <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+          </Types>""",
+              "_rels/.rels": """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+            <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+          </Relationships>""",
+              "word/document.xml": """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:body><w:p><w:r><w:t>ThemisIQ ARIA preview release smoke test</w:t></w:r></w:p><w:sectPr/></w:body>
+          </w:document>""",
+          }
+          with zipfile.ZipFile(job / "input.docx", "w", zipfile.ZIP_DEFLATED) as archive:
+              for name, content in parts.items():
+                  archive.writestr(name, content)
+          (job / "manifest.json").write_text(
+              json.dumps({"deadline": time.time() + 180}), encoding="utf-8"
+          )
+          PY
+
+      - name: Run real conversion and health checks without network access
+        shell: bash
+        env:
+          SPOOL: ${{ runner.temp }}/aria-preview-spool
+        run: |
+          set -Eeuo pipefail
+          worker_uid="$(id -u)"
+          worker_gid="$(id -g)"
+          common_args=(
+            --rm
+            --network none
+            --read-only
+            --cap-drop ALL
+            --security-opt no-new-privileges
+            --pids-limit 128
+            --memory 1g
+            --memory-swap 1g
+            --cpus 1.5
+            --user "${worker_uid}:${worker_gid}"
+            --tmpfs "/tmp:rw,noexec,nosuid,nodev,size=512m,uid=${worker_uid},gid=${worker_gid}"
+            --tmpfs "/home/ariaworker:rw,noexec,nosuid,nodev,size=32m,uid=${worker_uid},gid=${worker_gid}"
+            --env HOME=/home/ariaworker
+            --env ARIA_POLICY_PREVIEW_SPOOL_DIR=/spool
+            --volume "${SPOOL}:/spool"
+          )
+          docker run "${common_args[@]}" "${{ steps.metadata.outputs.tag }}" --once
+          docker run "${common_args[@]}" "${{ steps.metadata.outputs.tag }}" --healthcheck
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["SPOOL"]) / "outbox" / "release-smoke"
+          result = json.loads((output / "result.json").read_text(encoding="utf-8"))
+          if result != {"ok": True}:
+              raise SystemExit(f"conversion failed: {result}")
+          pdf = output / "output.pdf"
+          if pdf.stat().st_size <= 0 or pdf.read_bytes()[:5] != b"%PDF-":
+              raise SystemExit("conversion produced no valid PDF")
+          print(f"real_conversion=PASS bytes={pdf.stat().st_size}")
+          PY
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish tested image and record immutable digest
+        id: publish
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          push_log="$(mktemp)"
+          trap 'rm -f "$push_log"' EXIT
+          docker push "${{ steps.metadata.outputs.tag }}" 2>&1 | tee "$push_log"
+          digest="$(sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' "$push_log" | tail -n 1)"
+          case "$digest" in
+            sha256:[0-9a-f][0-9a-f]*) ;;
+            *) echo "Published image has no immutable repository digest" >&2; exit 1 ;;
+          esac
+          image="${IMAGE_NAME}@${digest}"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Tested ARIA preview worker"
+            echo
+            echo '```text'
+            echo "ARIA_PREVIEW_IMAGE=${image}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

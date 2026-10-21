@@ -9,8 +9,10 @@ One For All — security middleware.
 """
 import hashlib
 import hmac
+import re
 import time
 import secrets
+import uuid
 from datetime import datetime
 from collections import defaultdict
 from functools import wraps
@@ -281,6 +283,55 @@ def record_ai_call(user_id: str):
         _login_attempts[key].append(time.time())
 
 
+_READINESS_SCAN_WINDOW_SECONDS = 300  # 5 minutes
+_READINESS_SCAN_MAX_PER_WINDOW = 1    # per org -- an on-demand scan is not a poll
+
+
+def check_readiness_scan_rate_limit(org_id) -> bool:
+    """Return True if this org may trigger an on-demand readiness scan
+    (task_plan.md P04: 'a Send Test action remains an explicit separately
+    authorized mutation with rate limiting' -- same principle applied to
+    the on-demand scan trigger). Same DB-backed/in-memory dual path as
+    check_ai_rate_limit, its own key prefix and threshold."""
+    key = f"readiness_scan:{org_id}"
+    if not _use_db_rate_limit():
+        now = time.time()
+        _login_attempts[key] = [t for t in _login_attempts[key] if now - t < _READINESS_SCAN_WINDOW_SECONDS]
+        return len(_login_attempts[key]) < _READINESS_SCAN_MAX_PER_WINDOW
+    try:
+        db = get_db()
+        try:
+            row = db.execute(
+                "SELECT COUNT(*) FROM rate_limit_attempts"
+                " WHERE key=%s AND attempted_at > NOW() - INTERVAL %s",
+                (key, f"{_READINESS_SCAN_WINDOW_SECONDS} seconds"),
+            ).fetchone()
+            return (row[0] if row else 0) < _READINESS_SCAN_MAX_PER_WINDOW
+        finally:
+            db.close()
+    except Exception:
+        _rl_log.warning("[readiness-scan-rate-limit] DB check failed, failing open")
+        return True
+
+
+def record_readiness_scan(org_id):
+    """Record that an on-demand readiness scan was triggered for this org."""
+    key = f"readiness_scan:{org_id}"
+    if not _use_db_rate_limit():
+        _login_attempts[key].append(time.time())
+        return
+    try:
+        db = get_db()
+        try:
+            db.execute("INSERT INTO rate_limit_attempts (key) VALUES (%s)", (key,))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        _rl_log.warning("[readiness-scan-rate-limit] DB record failed: %s", exc)
+        _login_attempts[key].append(time.time())
+
+
 # ── CSRF Origin Check ────────────────────────────────────────────────────────
 
 def _is_same_origin(request: Request) -> bool:
@@ -333,6 +384,25 @@ async def csrf_origin_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# ── Request ID ────────────────────────────────────────────────────────────────
+# PLAN-36 T06: every response carries an X-Request-ID, so a client-side error
+# (core/../static/js/api_client.js's ApiError.requestId) can be handed to an
+# operator and matched back to a specific request without guessing from a
+# timestamp. Set on request.state *before* call_next so route handlers and
+# error logging during the request can also include it.
+
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+
+async def request_id_middleware(request: Request, call_next):
+    incoming = request.headers.get("X-Request-ID", "")
+    request_id = incoming if _REQUEST_ID_RE.match(incoming) else uuid.uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 # ── Security Headers ─────────────────────────────────────────────────────────
 
 async def security_headers_middleware(request: Request, call_next):
@@ -346,7 +416,8 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if "Referrer-Policy" not in response.headers:
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     if not settings.DEBUG:
@@ -397,6 +468,7 @@ async def tenant_context_middleware(request: Request, call_next):
                 set_current_org(
                     user.get("org_id"),
                     is_super_admin=bool(user.get("is_super_admin")),
+                    user_id=user.get("id"),
                 )
         except Exception:
             pass
@@ -411,8 +483,20 @@ import html as _html
 _HTML_TAG_RE = _re.compile(r"<[^>]+>")
 
 
-def _strip_tags_deep(obj):
-    """Recursively strip HTML tags from all string values in a JSON structure."""
+_MAX_STRIP_TAGS_DEPTH = 100
+
+
+def _strip_tags_deep(obj, _depth=0):
+    """Recursively strip HTML tags from all string values in a JSON structure.
+
+    Depth is capped so a pathologically nested payload can't exhaust the
+    recursion limit; nesting beyond the cap is left unstripped rather than
+    raising, matching the fail-safe (not fail-crash) intent of this
+    middleware — downstream per-route sanitize_dict() and endpoint-level
+    validators provide the next layer of defense.
+    """
+    if _depth >= _MAX_STRIP_TAGS_DEPTH:
+        return obj
     if isinstance(obj, str):
         cleaned = _html.unescape(obj)
         cleaned = _HTML_TAG_RE.sub("", cleaned)
@@ -420,9 +504,9 @@ def _strip_tags_deep(obj):
             cleaned = cleaned[:50000]
         return cleaned
     if isinstance(obj, dict):
-        return {k: _strip_tags_deep(v) for k, v in obj.items()}
+        return {k: _strip_tags_deep(v, _depth + 1) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [_strip_tags_deep(item) for item in obj[:1000]]
+        return [_strip_tags_deep(item, _depth + 1) for item in obj[:1000]]
     return obj
 
 

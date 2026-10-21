@@ -19,6 +19,16 @@
 .gov-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
 .gov-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px}
 .gov-stat-val{font-size:24px;font-weight:700;color:var(--text)}
+@media (max-width:900px){
+  .gov-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media (max-width:600px){
+  .gov-header{flex-direction:column;align-items:stretch}
+  .gov-header .gov-btn{align-self:stretch;justify-content:center;min-height:42px;white-space:nowrap}
+  .gov-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .gov-tabs{overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin}
+  .gov-tab{flex:0 0 auto}
+}
 
 .gov-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap}
 .gov-toolbar .filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -46,7 +56,7 @@
 .tree-node:hover{border-color:var(--accent)}
 .tree-node-info{flex:1;min-width:0}
 .tree-node-name{font-weight:600;font-size:14px}
-.tree-node-code{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);background:var(--surface2);padding:1px 6px;border-radius:3px;margin-left:8px}
+.tree-node-code{font-family:var(--font);font-size:11px;color:var(--accent);background:var(--surface2);padding:1px 6px;border-radius:3px;margin-left:8px}
 .tree-node-desc{color:var(--muted);font-size:12px;margin-top:2px}
 .tree-node-actions{display:flex;gap:6px;flex-shrink:0}
 
@@ -109,6 +119,7 @@
     {% if can_assign_bu %}
     <button class="gov-tab" data-tab="people" onclick="govSwitchTab('people')">People</button>
     {% endif %}
+    <a class="gov-tab" href="/governance/changes" style="text-decoration:none">Changes to look at</a>
   </div>
 
   <!-- Business Units -->
@@ -231,6 +242,7 @@
 
 <script>
 var CAN_MANAGE = {{ 'true' if can_manage else 'false' }};
+var GOV_AI_ON = {{ 'true' if can_ai_use else 'false' }};
 var govActiveTab = 'bu';
 var govBuList = [];
 var govDeptList = [];
@@ -238,6 +250,7 @@ var govRegList = [];
 var govRegFwNames = [];
 
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c])}
+function govSafeSourceUrl(value){try{var url=new URL(value);return url.protocol==='https:'&&url.hostname&& !url.username&&!url.password?url.href:'';}catch(_){return '';}}
 function apiFetch(url, opts){return fetch(url, Object.assign({credentials:'same-origin', headers:{'Content-Type':'application/json'}}, opts||{})).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.status===204?null:r.json()})}
 
 function critBadge(c){var m={critical:'crit',high:'high',medium:'med',low:'low'};return '<span class="badge badge-'+(m[c]||'med')+'">'+esc(c||'medium')+'</span>'}
@@ -280,44 +293,18 @@ function govLoadTab(tab){
 }
 
 // ── People / BU assignment ──────────────────────────────────────────
-var _buOptionsCache = null;
-function govBuOptions(selectedId){
-  var p = _buOptionsCache ? Promise.resolve(_buOptionsCache) : apiFetch('/governance/api/business-units').then(function(list){ _buOptionsCache = list || []; return _buOptionsCache; });
-  return p.then(function(list){
-    var opts = '<option value="">— Org-wide (no unit) —</option>';
-    list.forEach(function(b){
-      opts += '<option value="'+b.id+'"'+(b.id===selectedId?' selected':'')+'>'+esc(b.name)+'</option>';
-    });
-    return opts;
-  });
-}
 function govLoadPeople(){
   var body = document.getElementById('peopleBody');
   apiFetch('/governance/api/users').then(function(users){
     if(!users || !users.length){ body.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">No users</td></tr>'; return; }
-    return Promise.all(users.map(function(u){
-      return govBuOptions(u.business_unit_id).then(function(sel){
-        return '<tr><td><strong>'+esc(u.full_name||u.username)+'</strong><div style="font-size:11px;color:var(--muted)">@'+esc(u.username)+'</div></td>'+
-          '<td style="font-size:12px;color:var(--muted)">'+esc(u.email||'')+'</td>'+
-          '<td><select class="form-input" style="max-width:240px" onchange="govAssignBu('+u.id+', this.value)">'+sel+'</select></td></tr>';
-      });
-    })).then(function(rows){ body.innerHTML = rows.join(''); });
+    var rows = users.map(function(u){
+      return '<tr><td><strong>'+esc(u.full_name||u.username)+'</strong><div style="font-size:11px;color:var(--muted)">@'+esc(u.username)+'</div></td>'+
+        '<td style="font-size:12px;color:var(--muted)">'+esc(u.email||'')+'</td>'+
+        '<td><span style="font-size:12px">'+esc(u.business_unit_name||'Unassigned')+'</span>'+
+        ' <a href="/admin/users" style="font-size:11px;margin-left:8px">Move SBU</a></td></tr>';
+    });
+    body.innerHTML = rows.join('');
   }).catch(function(){ body.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--red)">Failed to load</td></tr>'; });
-}
-function govAssignBu(uid, val){
-  fetch('/governance/api/users/'+uid+'/business-unit', {
-    method:'PATCH',
-    credentials:'same-origin',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({business_unit_id: val===''? null : parseInt(val)})
-  }).then(function(r){
-    if(!r.ok){
-      return r.json().catch(function(){ return {}; }).then(function(j){
-        if(typeof showToast==='function') showToast(j.detail||'Assignment failed','error');
-      });
-    }
-    if(typeof showToast==='function') showToast('Business unit updated');
-  }).catch(function(){ if(typeof showToast==='function') showToast('Network error','error'); });
 }
 
 // ── Summary ──────────────────────────────────────────────────────────
@@ -432,6 +419,7 @@ function govDeleteDept(id){
 
 // ── Business Processes ──────────────────────────────────────────────
 var govBpList = [];
+var govBpUsesAiBefore = '|';
 function govLoadBps(){
   var bu = document.getElementById('bpBuFilter').value;
   var dept = document.getElementById('bpDeptFilter').value;
@@ -443,10 +431,10 @@ function govLoadBps(){
     var tbody = document.getElementById('bpTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No processes yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = CAN_MANAGE ? (
+      var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/process/'+r.id+'">Connected</a> ' + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditBp('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteBp('+r.id+')">Delete</button>'
-      ) : '';
+      ) : '');
       var rto = r.rto_hours!=null ? r.rto_hours+'h' : '–';
       var rpo = r.rpo_hours!=null ? r.rpo_hours+'h' : '–';
       return '<tr>'
@@ -483,10 +471,10 @@ function govLoadApps(){
     var tbody = document.getElementById('appTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No applications yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = CAN_MANAGE ? (
+      var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/application/'+r.id+'">Connected</a> ' + (GOV_AI_ON && r.has_ai_profile ? '<a class="gov-btn ghost small" href="/ai-governance/systems/'+r.id+'">AI workspace</a> ' : '') + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditApp('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteApp('+r.id+')">Delete</button>'
-      ) : '';
+      ) : '');
       return '<tr>'
         + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.application_type || '–')+'</td>'
@@ -612,10 +600,10 @@ function govLoadDas(){
     var tbody = document.getElementById('daTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No data assets yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = CAN_MANAGE ? (
+      var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/data_asset/'+r.id+'">Connected</a> ' + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditDa('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteDa('+r.id+')">Delete</button>'
-      ) : '';
+      ) : '');
       return '<tr>'
         + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.category || '–')+'</td>'
@@ -738,15 +726,21 @@ function govOpenBpModal(row){
         + '<div class="form-group"><label>Revenue impact / hr</label><input type="number" step="1" id="bp_rev" value="'+(row&&row.revenue_impact_per_hour!=null?row.revenue_impact_per_hour:'')+'"></div>'
       + '</div>'
       + '<div class="form-group"><label>Description</label><textarea id="bp_desc" rows="3">'+esc(row?(row.description||''):'')+'</textarea></div>'
+      + (GOV_AI_ON ? '<div class="form-row">'
+        + '<div class="form-group"><label>Uses AI or embedded AI?</label><select id="bp_uses_ai"><option value="">Not asked</option><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Not sure</option></select></div>'
+        + '<div class="form-group"><label>What does the AI do?</label><input id="bp_uses_ai_note" maxlength="500" value="'+esc(row?(row.uses_ai_note||''):'')+'"></div>'
+      + '</div>' : '')
       + (isEdit ? '<div class="form-check"><input type="checkbox" id="bp_active"'+(row.is_active?' checked':'')+'><label for="bp_active">Active</label></div>' : '')
       + '<div class="modal-actions">'
         + '<button class="gov-btn ghost" onclick="govCloseModal()">Cancel</button>'
         + '<button class="gov-btn" onclick="govSaveBp('+(row?row.id:'null')+')">Save</button>'
       + '</div>'
     + '</div></div>';
+  govBpUsesAiBefore = row ? ((row.uses_ai || '') + '|' + (row.uses_ai_note || '')) : '|';
   if(isEdit){
     document.getElementById('bp_bu').value = row.business_unit_id || '';
     document.getElementById('bp_crit').value = row.criticality || 'medium';
+    if(document.getElementById('bp_uses_ai')) document.getElementById('bp_uses_ai').value = row.uses_ai || '';
     _refreshBpDeptOptions(row.business_unit_id, row.department_id);
   }
   document.getElementById('bp_bu').addEventListener('change', function(){
@@ -775,7 +769,16 @@ function govSaveBp(id){
     description: document.getElementById('bp_desc').value.trim(),
   };
   if(id) body.is_active = document.getElementById('bp_active').checked ? 1 : 0;
+  var usesAiBox = document.getElementById('bp_uses_ai');
+  var usesAi = usesAiBox ? usesAiBox.value : '', usesAiNote = usesAiBox ? document.getElementById('bp_uses_ai_note').value.trim() : '';
   apiFetch('/governance/api/business-processes' + (id ? '/'+id : ''), {method: id ? 'PUT' : 'POST', body: JSON.stringify(body)})
+    .then(res=>{
+      var pid = id || (res && res.id);
+      if(pid && usesAi && (usesAi + '|' + usesAiNote) !== govBpUsesAiBefore){
+        return apiFetch('/ai-governance/api/flags/process/'+pid, {method: 'PUT',
+          body: JSON.stringify({answer: usesAi, note: usesAiNote, source: 'Governance settings'})});
+      }
+    })
     .then(()=>{ govCloseModal(); govLoadBps(); govLoadSummary(); })
     .catch(err=>alert('Save failed: '+err.message));
 }
@@ -894,11 +897,16 @@ function govLoadReg(){
       var actions = CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditReg('+r.id+')">Edit</button> '+
         (r.status==='open' ? '<button class="gov-btn ghost small" onclick="govDismissReg('+r.id+')">Dismiss</button> ' : '')+
+        (r.ai_summary ? '<button class="gov-btn ghost small" onclick="govReviewRegAi('+r.id+')">Review AI draft</button> ' : '')+
         '<button class="gov-btn ghost small danger" onclick="govDeleteReg('+r.id+')">Delete</button>'
       ) : '';
-      var aiHint = r.ai_summary ? ' title="'+esc(r.ai_summary)+'"' : '';
+      var aiHint = r.ai_summary && r.ai_review_state==='approved' ? ' title="'+esc(r.ai_summary)+'"' : '';
+      var aiState = r.ai_review_state==='approved' ? 'Reviewed AI summary' :
+        r.ai_review_state==='rejected' ? 'AI draft rejected' :
+        r.ai_review_state==='pending' ? 'AI draft awaiting human review' : '';
+      var sourceUrl=govSafeSourceUrl(r.source_url);
       return '<tr>'
-        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(r.source_url?'<br><a href="'+esc(r.source_url)+'" target="_blank" style="font-size:11px;color:var(--accent)">Source</a>':'')+'</td>'
+        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(aiState?'<br><span style="font-size:11px;color:var(--muted)">'+aiState+'</span>':'')+(sourceUrl?'<br><a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent)">Source</a>':'')+'</td>'
         + '<td>'+esc(r.framework_name)+'</td>'
         + '<td>'+sevBadge(r.severity)+'</td>'
         + '<td>'+(r.effective_date?r.effective_date.substring(0,10):'–')+'</td>'
@@ -911,6 +919,31 @@ function govLoadReg(){
   if(!govRegFwNames.length){
     apiFetch('/governance/api/regulatory-frameworks').then(names=>{govRegFwNames=names;}).catch(()=>{});
   }
+}
+
+function govReviewRegAi(id){
+  var row = govRegList.find(r=>r.id===id);
+  if(!row || !row.ai_summary || !CAN_MANAGE) return;
+  document.getElementById('govModal').innerHTML =
+    '<div class="modal-overlay"><div class="modal-box">'+
+      '<button class="modal-close" onclick="govCloseModal()">x</button>'+
+      '<div class="modal-title">Review AI draft</div>'+
+      '<p style="font-size:12px;color:var(--muted)">Check the cited source and affected controls. This draft does not decide legal applicability.</p>'+
+      '<div style="padding:12px;background:var(--surface2);white-space:pre-wrap;font-size:13px">'+esc(row.ai_summary)+'</div>'+
+      '<div class="form-group" style="margin-top:12px"><label>Review reason</label><textarea id="reg_ai_reason" maxlength="500" rows="3"></textarea></div>'+
+      '<div class="modal-actions"><button class="gov-btn ghost" onclick="govCloseModal()">Cancel</button>'+
+        '<button class="gov-btn ghost" onclick="govDecideRegAi('+id+',\'rejected\')">Reject</button>'+
+        '<button class="gov-btn" onclick="govDecideRegAi('+id+',\'approved\')">Approve draft</button></div>'+
+    '</div></div>';
+}
+
+function govDecideRegAi(id,decision){
+  var reason = document.getElementById('reg_ai_reason').value.trim();
+  if(reason.length<10){alert('Record a review reason of at least 10 characters.');return;}
+  apiFetch('/governance/api/regulatory-updates/'+id+'/ai-review',
+    {method:'POST',body:JSON.stringify({decision:decision,reason:reason})})
+    .then(()=>{govCloseModal();govLoadReg();})
+    .catch(err=>alert('Review could not be recorded: '+err.message));
 }
 
 function govEditReg(id){var r=govRegList.find(x=>x.id===id); if(r) govOpenRegModal(r);}

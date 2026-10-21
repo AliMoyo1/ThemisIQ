@@ -9,16 +9,42 @@ Gated by governance.entities.view (read) / governance.entities.manage (write).
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from database import get_db
 
-from core.middleware import require_capability
+from core.middleware import require_auth, require_capability
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from modules.governance import data_service as ds
-from database import get_db
 
 
 router = APIRouter(prefix="/governance", tags=["governance"])
 templates = Jinja2Templates(directory=["modules/governance/templates", "templates"])
+
+
+def _may_open(request: Request, kind: str, record_id: int) -> None:
+    """404 unless the caller may open this governance record: a record in another unit does not exist for them."""
+    from modules.governance.entity_scope import describe_record
+    db = get_db()
+    try:
+        shown = describe_record(db, ("governance", kind), record_id, request.state.user)
+    finally:
+        db.close()
+    if not shown:
+        raise HTTPException(404, "Not found")
+
+
+def _unit_in_scope(request: Request, body: dict) -> None:
+    """A record is filed under, or moved to, only a unit the caller belongs to (organization wide stays allowed)."""
+    unit = body.get("business_unit_id")
+    if unit in (None, ""):
+        return
+    scope = ds.bu_scope_ids(request.state.user)
+    try:
+        in_scope = scope is None or int(unit) in scope
+    except (TypeError, ValueError):
+        in_scope = False
+    if not in_scope:
+        raise HTTPException(400, "Choose a business unit you belong to")
 
 
 async def _json_body(request: Request) -> dict:
@@ -29,6 +55,86 @@ async def _json_body(request: Request) -> dict:
     from core.sanitize import sanitize_dict
     return sanitize_dict(body)
 
+
+# ── Connected view and changes to look at ────────────────────────────────────
+
+import re as _re
+
+_SEGMENT = _re.compile(r"^[a-z][a-z_]{0,39}$")
+
+
+def _shown_or_404(request: Request, module: str, entity_type: str, entity_id: int):
+    from modules.governance import entity360
+    if not (_SEGMENT.match(module) and _SEGMENT.match(entity_type)):
+        raise HTTPException(404, "Not found")
+    db = get_db()
+    try:
+        got = entity360.get_connected(db, request.state.user, module, entity_type, entity_id)
+    finally:
+        db.close()
+    if got is None:
+        raise HTTPException(404, "Not found")
+    return got
+
+
+@router.get("/connected/{module}/{entity_type}/{entity_id}", response_class=HTMLResponse)
+@require_auth
+async def connected_page(request: Request, module: str, entity_type: str, entity_id: int):
+    _shown_or_404(request, module, entity_type, entity_id)
+    return templates.TemplateResponse(request, "connected.html", {
+        "user": request.state.user, "page_kind": "entity", "page_title": "Connected view", "module": module,
+        "entity_type": entity_type, "entity_id": entity_id, **shell_ctx(request, active_module="governance")})
+
+
+@router.get("/api/connected/{module}/{entity_type}/{entity_id}")
+@require_auth
+async def api_connected(request: Request, module: str, entity_type: str, entity_id: int):
+    response = JSONResponse(_shown_or_404(request, module, entity_type, entity_id))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/changes", response_class=HTMLResponse)
+@require_auth
+async def changes_page(request: Request):
+    return templates.TemplateResponse(request, "connected.html", {
+        "user": request.state.user, "page_kind": "changes", "page_title": "Changes to look at",
+        **shell_ctx(request, active_module="governance")})
+
+
+@router.get("/api/changes")
+@require_auth
+async def api_changes(request: Request):
+    from modules.governance import change_signals
+    db = get_db()
+    try:
+        items = change_signals.list_open(db, request.state.user)
+    finally:
+        db.close()
+    response = JSONResponse({"items": items})
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/changes/{target_id}/decide")
+@require_auth
+async def api_change_decide(request: Request, target_id: int):
+    from modules.governance import change_signals
+    body = await _json_body(request)
+    user = request.state.user
+    db = get_db()
+    try:
+        done = change_signals.decide(db, user, target_id, body.get("decision"), body.get("reason"))
+        db.commit()
+    except change_signals.SignalError as exc:
+        db.rollback()
+        return JSONResponse({"error": exc.message}, status_code=exc.status)
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    action, entity, entity_id, detail = done["audit"]
+    log_audit(user, "governance", action, entity, entity_id, details=detail)
+    return JSONResponse({"ok": True, "status": done["status"], "task_id": done["task_id"]})
 
 # ── SPA ──────────────────────────────────────────────────────────────────────
 
@@ -103,7 +209,11 @@ async def api_bu_update(request: Request, bu_id: int):
 async def api_bu_delete(request: Request, bu_id: int):
     ok = ds.delete_business_unit(bu_id)
     if not ok:
-        raise HTTPException(409, "Cannot delete — BU has children or is referenced by scoped entities")
+        raise HTTPException(
+            409,
+            "Cannot delete: the business unit has children, is referenced by records, "
+            "or has assignment or transfer history. Deactivate it instead.",
+        )
     return JSONResponse({"ok": True})
 
 
@@ -118,27 +228,11 @@ async def api_assignable_users(request: Request):
 @router.patch("/api/users/{uid}/business-unit")
 @require_capability("governance.bu.assign")
 async def api_assign_user_bu(request: Request, uid: int):
-    user = request.state.user
-    if not user.get("is_super_admin"):
-        db = get_db()
-        try:
-            target = db.execute(
-                "SELECT org_id FROM users WHERE id=%s", (uid,)
-            ).fetchone()
-        finally:
-            db.close()
-        if not target or target["org_id"] != user.get("org_id"):
-            raise HTTPException(404, "User not found")
-    body = await _json_body(request)
-    raw = body.get("business_unit_id")
-    bu_id = int(raw) if raw not in (None, "", "null") else None
-    ok = ds.assign_user_business_unit(uid, bu_id)
-    if not ok:
-        raise HTTPException(400, "Invalid or inactive business unit")
-    from core.middleware import log_audit
-    log_audit(request.state.user, "governance",
-              f"Assigned user #{uid} to business_unit {bu_id}", "user", uid)
-    return JSONResponse({"ok": True, "business_unit_id": bu_id})
+    raise HTTPException(
+        409,
+        "Direct assignment is disabled. Use Administration > Users > Move SBU "
+        "so the transfer is validated and recorded.",
+    )
 
 
 # ── Departments ─────────────────────────────────────────────────────────────
@@ -191,7 +285,7 @@ async def api_bp_list(request: Request):
     dept_id = int(p["dept_id"]) if p.get("dept_id") else None
     include_inactive = p.get("include_inactive") == "1"
     return JSONResponse(ds.list_business_processes(
-        bu_id=bu_id, dept_id=dept_id, include_inactive=include_inactive
+        bu_id=bu_id, dept_id=dept_id, include_inactive=include_inactive, user=request.state.user
     ))
 
 
@@ -201,6 +295,7 @@ async def api_bp_create(request: Request):
     body = await _json_body(request)
     if not body.get("name", "").strip():
         raise HTTPException(400, "name is required")
+    _unit_in_scope(request, body)
     new_id = ds.create_business_process(body)
     return JSONResponse({"id": new_id}, status_code=201)
 
@@ -211,6 +306,8 @@ async def api_bp_update(request: Request, bp_id: int):
     body = await _json_body(request)
     if not body.get("name", "").strip():
         raise HTTPException(400, "name is required")
+    _may_open(request, "process", bp_id)
+    _unit_in_scope(request, body)
     ds.update_business_process(bp_id, body)
     return JSONResponse({"ok": True})
 
@@ -218,6 +315,7 @@ async def api_bp_update(request: Request, bp_id: int):
 @router.delete("/api/business-processes/{bp_id}")
 @require_capability("governance.entities.manage")
 async def api_bp_delete(request: Request, bp_id: int):
+    _may_open(request, "process", bp_id)
     ds.delete_business_process(bp_id)
     return JSONResponse({"ok": True})
 
@@ -230,7 +328,7 @@ async def api_app_list(request: Request):
     p = request.query_params
     bu_id = int(p["bu_id"]) if p.get("bu_id") else None
     include_inactive = p.get("include_inactive") == "1"
-    return JSONResponse(ds.list_applications(bu_id=bu_id, include_inactive=include_inactive))
+    return JSONResponse(ds.list_applications(bu_id=bu_id, include_inactive=include_inactive, user=request.state.user))
 
 
 @router.post("/api/applications")
@@ -239,6 +337,7 @@ async def api_app_create(request: Request):
     body = await _json_body(request)
     if not body.get("name", "").strip():
         raise HTTPException(400, "name is required")
+    _unit_in_scope(request, body)
     new_id = ds.create_application(body)
     return JSONResponse({"id": new_id}, status_code=201)
 
@@ -249,6 +348,8 @@ async def api_app_update(request: Request, app_id: int):
     body = await _json_body(request)
     if not body.get("name", "").strip():
         raise HTTPException(400, "name is required")
+    _may_open(request, "application", app_id)
+    _unit_in_scope(request, body)
     ds.update_application(app_id, body)
     return JSONResponse({"ok": True})
 
@@ -256,9 +357,11 @@ async def api_app_update(request: Request, app_id: int):
 @router.delete("/api/applications/{app_id}")
 @require_capability("governance.entities.manage")
 async def api_app_delete(request: Request, app_id: int):
-    ok = ds.delete_application(app_id)
-    if not ok:
-        raise HTTPException(409, "Cannot delete — application is referenced by data assets")
+    _may_open(request, "application", app_id)
+    still = ds.application_references(app_id)
+    if still:
+        raise HTTPException(409, "Cannot delete: it still has " + ", ".join(still) + ". Retire it instead, which keeps its history.")
+    ds.delete_application(app_id)
     return JSONResponse({"ok": True})
 
 
@@ -272,7 +375,7 @@ async def api_da_list(request: Request):
     classification = p.get("classification")
     include_inactive = p.get("include_inactive") == "1"
     return JSONResponse(ds.list_data_assets(
-        bu_id=bu_id, classification=classification, include_inactive=include_inactive
+        bu_id=bu_id, classification=classification, include_inactive=include_inactive, user=request.state.user
     ))
 
 
@@ -282,6 +385,7 @@ async def api_da_create(request: Request):
     body = await _json_body(request)
     if not body.get("name", "").strip():
         raise HTTPException(400, "name is required")
+    _unit_in_scope(request, body)
     new_id = ds.create_data_asset(body)
     return JSONResponse({"id": new_id}, status_code=201)
 
@@ -292,6 +396,8 @@ async def api_da_update(request: Request, asset_id: int):
     body = await _json_body(request)
     if not body.get("name", "").strip():
         raise HTTPException(400, "name is required")
+    _may_open(request, "data_asset", asset_id)
+    _unit_in_scope(request, body)
     ds.update_data_asset(asset_id, body)
     return JSONResponse({"ok": True})
 
@@ -299,6 +405,7 @@ async def api_da_update(request: Request, asset_id: int):
 @router.delete("/api/data-assets/{asset_id}")
 @require_capability("governance.entities.manage")
 async def api_da_delete(request: Request, asset_id: int):
+    _may_open(request, "data_asset", asset_id)
     ds.delete_data_asset(asset_id)
     return JSONResponse({"ok": True})
 
@@ -394,7 +501,12 @@ async def api_reg_frameworks(request: Request):
 @require_capability("governance.entities.view")
 async def api_reg_list(request: Request):
     status = request.query_params.get("status") or None
-    return JSONResponse(ds.list_regulatory_updates(status=status))
+    rows = ds.list_regulatory_updates(status=status)
+    for row in rows:
+        if row["ai_review_state"] != "approved" and not has_capability(
+                request.state.user, "governance.entities.manage"):
+            row["ai_summary"] = None
+    return JSONResponse(rows)
 
 
 @router.post("/api/regulatory-updates")
@@ -434,6 +546,49 @@ async def api_reg_dismiss(request: Request, rid: int):
 async def api_reg_delete(request: Request, rid: int):
     ds.delete_regulatory_update(rid)
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/regulatory-updates/{rid}/ai-review")
+@require_capability("governance.entities.manage")
+async def api_regulatory_ai_review(request: Request, rid: int):
+    """Review the optional AI draft separately from deterministic drift tasks."""
+    import hashlib
+    import json
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid request body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Invalid request body")
+    decision = body.get("decision")
+    reason = str(body.get("reason") or "").strip()
+    if decision not in ("approved", "rejected") or not 10 <= len(reason) <= 500:
+        raise HTTPException(400, "Choose approve or reject and explain the review")
+    db = get_db()
+    try:
+        row = db.execute("SELECT ai_summary FROM regulatory_updates WHERE id=%s", (rid,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Update not found")
+        summary = row["ai_summary"] or ""
+        if not summary.strip():
+            raise HTTPException(409, "No AI draft awaits review")
+        digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
+        db.execute(
+            "INSERT INTO regulatory_ai_reviews "
+            "(update_id,summary_hash,decision,reason,reviewed_by) VALUES (%s,%s,%s,%s,%s) "
+            "ON CONFLICT(update_id) DO UPDATE SET summary_hash=excluded.summary_hash,"
+            "decision=excluded.decision,reason=excluded.reason,reviewed_by=excluded.reviewed_by,"
+            "reviewed_at=CURRENT_TIMESTAMP",
+            (rid, digest, decision, reason, request.state.user["id"]),
+        )
+        db.commit()
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    log_audit(request.state.user, "governance", "regulatory_ai_review", "regulatory_update", rid,
+              json.dumps({"decision": decision, "summary_hash": digest[:16]}))
+    return JSONResponse({"decision": decision})
 
 
 @router.post("/api/regulatory-updates/run-drift")

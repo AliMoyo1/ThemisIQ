@@ -7,8 +7,13 @@ These are shared, cross-module organisational entities. Every other module's
 scoped tables (risks, controls, policies, evidence, audits, plans, etc.)
 reference these via optional business_unit_id / department_id / etc. FKs.
 """
+import json
+
+from config import settings
 from database import get_db, insert_returning_id
 from core.timeutils import utcnow
+from core.change_watch import watched
+from core.best_effort import is_missing_relation, swallowed
 
 
 def _dicts(rows):
@@ -30,12 +35,16 @@ def _now():
 def bu_scope_ids(user: dict) -> "list[int] | None":
     """Return the BU-id subtree the user is confined to, or None for unrestricted.
 
-    None means: see everything (super admin or no BU assigned).
+    None means: see everything (super admin only).
+    [-1] means: no assigned BU, so only explicitly organization-wide rows
+    (business_unit_id IS NULL) are visible to existing scope queries.
     A list means: only rows whose business_unit_id is in the list, or NULL.
     The list always includes the user's own BU plus all active descendants.
     """
-    if user.get("is_super_admin") or not user.get("business_unit_id"):
+    if user.get("is_super_admin"):
         return None
+    if not user.get("business_unit_id"):
+        return [-1]
     root_id = int(user["business_unit_id"])
     db = get_db()
     try:
@@ -150,8 +159,34 @@ def update_business_unit(bu_id: int, data: dict) -> bool:
         db.close()
 
 
+# Every foreign key to business_units(id), as (table, column). A unit that any of them still references
+# is kept. tests/test_governance_delete_guards.py (SQLite) and tests/test_postgres_init.py (PostgreSQL)
+# read the schema and fail when one is missing here, so a new table cannot be forgotten.
+_BU_REFERENCES = tuple((table, "business_unit_id") for table in (
+    "erm_enterprise_risks", "orm_events", "orm_rcsa_assessments",
+    "aria_documents", "aria_controls", "grid_audits",
+    "sentinel_ropa", "sentinel_breaches", "sentinel_dpias",
+    "bcm_plans", "bcm_bia_records", "bcm_incidents",
+    "evidence_items", "task_board", "departments",
+    "business_processes", "applications", "data_assets",
+    "risk_register", "sla_instances", "workflow_instances",
+    "aria_doc_templates", "aria_document_approvals", "aria_policy_drafts",
+    "aria_policy_publication_jobs", "aria_policy_versions",
+    "bcm_exercises", "calendar_events", "erm_board_packs", "erm_scenarios",
+    "evidence_campaigns", "evidence_requests", "people_directory",
+    "readiness_findings", "sentinel_dsr", "sentinel_consent", "ai_use_intake_requests", "ai_use_decisions", "ai_evaluation_runs", "ai_regulatory_impacts", "ai_review_packs", "ai_literacy_courses", "ai_literacy_completions", "ai_import_batches", "ai_external_responses",
+    "user_business_unit_assignments",
+)) + (
+    ("business_unit_transfers", "from_business_unit_id"),
+    ("business_unit_transfers", "to_business_unit_id"),
+)
+
+
 def delete_business_unit(bu_id: int) -> bool:
     """Delete a BU only if no children and no scoped entities reference it.
+
+    Assignment and transfer history counts as a reference: it records who sat in the unit and
+    when, so a unit it names is deactivated instead of deleted.
 
     Safer than a CASCADE — governance data should be preserved. Callers can
     reassign entities to the parent BU first if they really want to delete.
@@ -164,20 +199,18 @@ def delete_business_unit(bu_id: int) -> bool:
         if children:
             return False
         # Check references — if any scoped entity uses this BU, refuse.
-        for tbl in ("erm_enterprise_risks", "orm_events", "orm_rcsa_assessments",
-                    "aria_documents", "aria_controls", "grid_audits",
-                    "sentinel_ropa", "sentinel_breaches", "sentinel_dpias",
-                    "bcm_plans", "bcm_bia_records", "bcm_incidents",
-                    "evidence_items", "task_board", "departments",
-                    "business_processes", "applications", "data_assets"):
+        for tbl, col in _BU_REFERENCES:
             try:
                 cnt = db.execute(
-                    f"SELECT COUNT(*) FROM {tbl} WHERE business_unit_id=%s", (bu_id,)
+                    f"SELECT COUNT(*) FROM {tbl} WHERE {col}=%s", (bu_id,)
                 ).fetchone()[0]
                 if cnt:
                     return False
-            except Exception:
-                # Table or column may not exist yet in older migrations — skip.
+            except Exception as exc:
+                # Only a table or column missing from an older schema may be skipped. Any other
+                # failure must not let the delete go ahead unchecked.
+                if not is_missing_relation(exc):
+                    raise
                 continue
         db.execute("DELETE FROM business_units WHERE id=%s", (bu_id,))
         db.commit()
@@ -233,7 +266,11 @@ def list_assignable_users(caller: "dict | None" = None) -> list[dict]:
 
 
 def assign_user_business_unit(uid: int, bu_id: "int | None") -> bool:
-    """Set (or clear, when bu_id is None) a user's business_unit_id.
+    """Bootstrap helper for initial data and maintenance scripts.
+
+    Interactive routes must use transfer_user_business_unit() so every move
+    receives validation, history, acknowledgements, and session revocation.
+    Set (or clear, when bu_id is None) a user's business_unit_id.
     Validates the BU exists and is active when non-null. Returns False if
     the target BU id is invalid so the route can 400."""
     db = get_db()
@@ -250,6 +287,232 @@ def assign_user_business_unit(uid: int, bu_id: "int | None") -> bool:
         )
         db.commit()
         return True
+    finally:
+        db.close()
+
+
+class BusinessUnitTransferError(ValueError):
+    """A safe, user-displayable validation failure for an SBU transfer."""
+
+
+_TRANSFER_REFERENCE_TABLES = (
+    ("erm_enterprise_risks", ("owner_id", "reviewer_id"), "ERM risks"),
+    ("task_board", ("assigned_to", "created_by"), "tasks"),
+    ("business_units", ("head_user_id",), "business units headed"),
+    ("departments", ("head_user_id",), "departments headed"),
+    ("business_processes", ("owner_user_id",), "business processes owned"),
+    ("applications", ("owner_user_id",), "applications owned"),
+    ("data_assets", ("owner_user_id",), "data assets owned"),
+)
+
+
+def _validate_transfer_context(expected_org_id: int | None) -> int:
+    if expected_org_id is None:
+        raise BusinessUnitTransferError("An organization context is required.")
+    from database import get_current_org
+    context_org_id = get_current_org()
+    if context_org_id is not None and int(context_org_id) != int(expected_org_id):
+        raise BusinessUnitTransferError("Organization context does not match the target user.")
+    return int(expected_org_id)
+
+
+def _transfer_preview_with_db(db, uid: int, to_bu_id: int, org_id: int) -> dict:
+    target = db.execute(
+        "SELECT u.id, u.username, u.full_name, u.org_id, u.created_at, "
+        "u.business_unit_id, bu.name AS current_business_unit_name "
+        "FROM users u LEFT JOIN business_units bu ON bu.id=u.business_unit_id "
+        "WHERE u.id=%s AND u.org_id=%s AND u.is_active=1 "
+        "AND u.deleted_at IS NULL",
+        (uid, org_id),
+    ).fetchone()
+    if not target:
+        raise BusinessUnitTransferError("Active user not found in this organization.")
+
+    destination = db.execute(
+        "SELECT id, name, code, parent_id FROM business_units "
+        "WHERE id=%s AND is_active=1",
+        (to_bu_id,),
+    ).fetchone()
+    if not destination:
+        raise BusinessUnitTransferError("Destination business unit is missing or inactive.")
+    if target["business_unit_id"] == destination["id"]:
+        raise BusinessUnitTransferError("The user is already assigned to that business unit.")
+
+    roles = [
+        row["role_key"]
+        for row in db.execute(
+            "SELECT role_key FROM user_roles WHERE user_id=%s ORDER BY role_key",
+            (uid,),
+        ).fetchall()
+    ]
+    impact = {}
+    for table, columns, label in _TRANSFER_REFERENCE_TABLES:
+        where = " OR ".join(f"{column}=%s" for column in columns)
+        count = db.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE {where}",
+            tuple(uid for _ in columns),
+        ).fetchone()[0]
+        if count:
+            impact[label] = int(count)
+
+    return {
+        "user": {
+            "id": target["id"],
+            "username": target["username"],
+            "full_name": target["full_name"],
+        },
+        "organization_id": org_id,
+        "current_business_unit": {
+            "id": target["business_unit_id"],
+            "name": target["current_business_unit_name"] or "Unassigned",
+        },
+        "destination_business_unit": dict(destination),
+        "roles": roles,
+        "responsibility_impact": impact,
+        "created_at": target["created_at"],
+    }
+
+
+def preview_user_business_unit_transfer(
+    uid: int, to_bu_id: int, expected_org_id: int | None
+) -> dict:
+    """Return the current assignment and responsibilities before a move."""
+    org_id = _validate_transfer_context(expected_org_id)
+    db = get_db()
+    try:
+        return _transfer_preview_with_db(db, int(uid), int(to_bu_id), org_id)
+    finally:
+        db.close()
+
+
+def transfer_user_business_unit(
+    uid: int,
+    to_bu_id: int,
+    expected_org_id: int | None,
+    actor_id: int,
+    reason: str,
+    *,
+    handover_confirmed: bool,
+    roles_reviewed: bool,
+) -> dict:
+    """Activate a same-organization SBU move as one atomic transaction.
+
+    Historical ownership references are preserved. The current authorization
+    scope, linked People Directory entry, assignment ledger, transfer record,
+    and active sessions change together or not at all.
+    """
+    org_id = _validate_transfer_context(expected_org_id)
+    reason = (reason or "").strip()
+    if len(reason) < 10:
+        raise BusinessUnitTransferError("Provide a transfer reason of at least 10 characters.")
+    if len(reason) > 1000:
+        raise BusinessUnitTransferError("Transfer reason must be 1000 characters or fewer.")
+    if not handover_confirmed:
+        raise BusinessUnitTransferError("Confirm that current responsibilities were reviewed.")
+    if not roles_reviewed:
+        raise BusinessUnitTransferError("Confirm that the user's roles were reviewed.")
+
+    uid = int(uid)
+    to_bu_id = int(to_bu_id)
+    actor_id = int(actor_id)
+    effective_at = utcnow().isoformat()
+    db = get_db()
+    try:
+        lock_sql = "SELECT id FROM users WHERE id=%s AND org_id=%s"
+        if settings.is_postgres():
+            lock_sql += " FOR UPDATE"
+        if not db.execute(lock_sql, (uid, org_id)).fetchone():
+            raise BusinessUnitTransferError("User not found in this organization.")
+
+        preview = _transfer_preview_with_db(db, uid, to_bu_id, org_id)
+        from_bu_id = preview["current_business_unit"]["id"]
+        active_assignment = db.execute(
+            "SELECT id, business_unit_id FROM user_business_unit_assignments "
+            "WHERE org_id=%s AND user_id=%s AND assignment_type='primary' "
+            "AND status='active' ORDER BY valid_from DESC LIMIT 1",
+            (org_id, uid),
+        ).fetchone()
+        if (
+            active_assignment
+            and active_assignment["business_unit_id"] != from_bu_id
+        ):
+            raise BusinessUnitTransferError(
+                "Assignment history does not match the user's current business unit."
+            )
+
+        db.execute(
+            "UPDATE user_business_unit_assignments SET status='ended', "
+            "valid_until=%s, updated_at=%s WHERE org_id=%s AND user_id=%s "
+            "AND assignment_type='primary' AND status='active'",
+            (effective_at, effective_at, org_id, uid),
+        )
+        if from_bu_id is not None and not active_assignment:
+            db.execute(
+                "INSERT INTO user_business_unit_assignments "
+                "(org_id, user_id, business_unit_id, assignment_type, valid_from, "
+                "valid_until, status, reason, requested_by, approved_by) "
+                "VALUES (%s,%s,%s,'primary',%s,%s,'ended',%s,%s,%s)",
+                (
+                    org_id,
+                    uid,
+                    from_bu_id,
+                    preview.get("created_at") or effective_at,
+                    effective_at,
+                    "Legacy assignment captured before controlled transfer",
+                    actor_id,
+                    actor_id,
+                ),
+            )
+
+        insert_returning_id(
+            db,
+            "INSERT INTO user_business_unit_assignments "
+            "(org_id, user_id, business_unit_id, assignment_type, valid_from, "
+            "status, reason, requested_by, approved_by) "
+            "VALUES (%s,%s,%s,'primary',%s,'active',%s,%s,%s)",
+            (org_id, uid, to_bu_id, effective_at, reason, actor_id, actor_id),
+        )
+        transfer_id = insert_returning_id(
+            db,
+            "INSERT INTO business_unit_transfers "
+            "(org_id, user_id, from_business_unit_id, to_business_unit_id, "
+            "effective_at, status, reason, requested_by, approved_by, "
+            "handover_confirmed, roles_reviewed, roles_snapshot, impact_snapshot, "
+            "activated_at) VALUES (%s,%s,%s,%s,%s,'completed',%s,%s,%s,1,1,%s,%s,%s)",
+            (
+                org_id,
+                uid,
+                from_bu_id,
+                to_bu_id,
+                effective_at,
+                reason,
+                actor_id,
+                actor_id,
+                json.dumps(preview["roles"], sort_keys=True),
+                json.dumps(preview["responsibility_impact"], sort_keys=True),
+                effective_at,
+            ),
+        )
+        db.execute(
+            "UPDATE users SET business_unit_id=%s, updated_at=%s WHERE id=%s AND org_id=%s",
+            (to_bu_id, effective_at, uid, org_id),
+        )
+        db.execute(
+            "UPDATE people_directory SET business_unit_id=%s, updated_at=%s WHERE user_id=%s",
+            (to_bu_id, effective_at, uid),
+        )
+        revoked = db.execute("DELETE FROM sessions WHERE user_id=%s", (uid,)).rowcount
+        db.commit()
+
+        return {
+            **preview,
+            "transfer_id": transfer_id,
+            "effective_at": effective_at,
+            "sessions_revoked": max(int(revoked or 0), 0),
+        }
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -328,7 +591,9 @@ def delete_department(dept_id: int) -> bool:
                 ).fetchone()[0]
                 if cnt:
                     return False
-            except Exception:
+            except Exception as exc:
+                if not is_missing_relation(exc):  # same rule as delete_business_unit
+                    raise
                 continue
         db.execute("DELETE FROM departments WHERE id=%s", (dept_id,))
         db.commit()
@@ -342,7 +607,8 @@ def delete_department(dept_id: int) -> bool:
 # ═════════════════════════════════════════════════════════════════════════════
 
 def list_business_processes(bu_id: int | None = None, dept_id: int | None = None,
-                             include_inactive: bool = False) -> list[dict]:
+                             include_inactive: bool = False, user: dict | None = None) -> list[dict]:
+    """With `user`, only the processes that person may open (their unit and below, plus organization wide ones)."""
     db = get_db()
     try:
         sql = ("SELECT bp.*, bu.name AS bu_name, d.name AS dept_name, "
@@ -351,6 +617,11 @@ def list_business_processes(bu_id: int | None = None, dept_id: int | None = None
                "LEFT JOIN business_units bu ON bu.id=bp.business_unit_id "
                "LEFT JOIN departments d ON d.id=bp.department_id")
         clauses, params = [], []
+        if user is not None:
+            from modules.governance.entity_scope import entity_scope_sql
+            scope, scope_params = entity_scope_sql(("governance", "process"), user, "bp")
+            clauses.append(scope)
+            params.extend(scope_params)
         if not include_inactive:
             clauses.append("bp.is_active=1")
         if bu_id:
@@ -395,6 +666,7 @@ def create_business_process(data: dict) -> int:
 def update_business_process(bp_id: int, data: dict) -> bool:
     db = get_db()
     try:
+        before = db.execute("SELECT * FROM business_processes WHERE id=%s", (bp_id,)).fetchone()
         db.execute(
             "UPDATE business_processes SET name=%s, code=%s, description=%s, "
             "business_unit_id=%s, department_id=%s, owner_user_id=%s, "
@@ -413,6 +685,14 @@ def update_business_process(bp_id: int, data: dict) -> bool:
              1 if data.get("is_active", 1) else 0,
              _now(), bp_id),
         )
+        if before is not None:
+            # What a recovery target or a criticality means to the records connected to this process: tell their owners.
+            from modules.governance import change_signals
+            change_signals.publish_process_change(db, bp_id, dict(before), {
+                "criticality": data.get("criticality", "medium"),
+                "rto_hours": data.get("rto_hours"), "rpo_hours": data.get("rpo_hours"),
+                "business_unit_id": data.get("business_unit_id"), "owner_user_id": data.get("owner_user_id"),
+                "is_active": 1 if data.get("is_active", 1) else 0})
         db.commit()
         return True
     finally:
@@ -433,17 +713,24 @@ def delete_business_process(bp_id: int) -> bool:
 # APPLICATIONS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_applications(bu_id: int | None = None, include_inactive: bool = False) -> list[dict]:
+def list_applications(bu_id: int | None = None, include_inactive: bool = False, user: dict | None = None) -> list[dict]:
+    """With `user`, only the applications that person may open (their unit and below, plus organization wide ones)."""
     db = get_db()
     try:
         sql = ("SELECT a.*, bu.name AS bu_name, d.name AS dept_name, "
                "cv.name AS vendor_name, "
+               "(SELECT 1 FROM ai_use_profiles ap WHERE ap.application_id=a.id) AS has_ai_profile, "
                "(SELECT full_name FROM users WHERE id=a.owner_user_id) AS owner_name "
                "FROM applications a "
                "LEFT JOIN business_units bu ON bu.id=a.business_unit_id "
                "LEFT JOIN departments d ON d.id=a.department_id "
                "LEFT JOIN canonical_vendors cv ON cv.id=a.vendor_id")
         clauses, params = [], []
+        if user is not None:
+            from modules.governance.entity_scope import entity_scope_sql
+            scope, scope_params = entity_scope_sql(("governance", "application"), user, "a")
+            clauses.append(scope)
+            params.extend(scope_params)
         if not include_inactive:
             clauses.append("a.is_active=1")
         if bu_id:
@@ -484,6 +771,11 @@ def create_application(data: dict) -> int:
 def update_application(app_id: int, data: dict) -> bool:
     db = get_db()
     try:
+        current = db.execute("SELECT * FROM applications WHERE id=%s", (app_id,)).fetchone()
+        if current is None:
+            return False
+        before = dict(current)
+        active = (1 if data.get("is_active") else 0) if "is_active" in data else current["is_active"]
         db.execute(
             "UPDATE applications SET name=%s, description=%s, application_type=%s, "
             "hosting=%s, vendor_id=%s, business_unit_id=%s, department_id=%s, "
@@ -497,23 +789,53 @@ def update_application(app_id: int, data: dict) -> bool:
              data.get("department_id"),
              data.get("owner_user_id"),
              data.get("criticality", "medium"),
-             1 if data.get("is_active", 1) else 0,
+             active,
              _now(), app_id),
         )
+        if active != current["is_active"]:
+            # Keep the retirement record true when the flag is flipped here instead of from the AI inventory.
+            if active:
+                db.execute("UPDATE applications SET retired_reason=NULL, retired_at=NULL, retired_by=NULL WHERE id=%s", (app_id,))
+            else:
+                db.execute("UPDATE applications SET retired_reason=%s, retired_at=%s WHERE id=%s",
+                           ("Marked inactive in Governance settings", _now(), app_id))
+        # A change to what an application is, where it runs or who provides it matters to the records connected to it.
+        from modules.governance import change_signals
+        change_signals.publish_application_change(db, app_id, before, {
+            "criticality": data.get("criticality", "medium"),
+            "hosting": data.get("hosting") or None, "vendor_id": data.get("vendor_id"),
+            "application_type": data.get("application_type") or None, "business_unit_id": data.get("business_unit_id"),
+            "owner_user_id": data.get("owner_user_id"), "is_active": active})
         db.commit()
         return True
     finally:
         db.close()
 
 
-def delete_application(app_id: int) -> bool:
+def application_references(app_id: int) -> list[str]:
+    """What still points at an application. A delete is refused while any of this exists: the application is retired
+    instead, which keeps its assessments, links and history."""
+    checks = (
+        ("data assets", "SELECT 1 FROM data_assets WHERE application_id=%s LIMIT 1", 1),
+        ("an AI profile", "SELECT 1 FROM ai_use_profiles WHERE application_id=%s LIMIT 1", 1),
+        ("an AI use request", "SELECT 1 FROM ai_use_intake_requests WHERE application_id=%s LIMIT 1", 1),
+        ("AI impact assessments", "SELECT 1 FROM sentinel_aiia WHERE application_id=%s LIMIT 1", 1),
+        ("AI management assessments", "SELECT 1 FROM aims_assessments WHERE application_id=%s LIMIT 1", 1),
+        ("related items", "SELECT 1 FROM cross_module_links WHERE (source_module='governance' AND source_type='application' "
+                          "AND source_id=%s) OR (target_module='governance' AND target_type='application' AND target_id=%s) LIMIT 1", 2),
+    )
     db = get_db()
     try:
-        cnt = db.execute(
-            "SELECT COUNT(*) FROM data_assets WHERE application_id=%s", (app_id,)
-        ).fetchone()[0]
-        if cnt:
-            return False
+        return [name for name, sql, uses in checks if db.execute(sql, (app_id,) * uses).fetchone()]
+    finally:
+        db.close()
+
+
+def delete_application(app_id: int) -> bool:
+    if application_references(app_id):
+        return False
+    db = get_db()
+    try:
         db.execute("DELETE FROM applications WHERE id=%s", (app_id,))
         db.commit()
         return True
@@ -526,7 +848,8 @@ def delete_application(app_id: int) -> bool:
 # ═════════════════════════════════════════════════════════════════════════════
 
 def list_data_assets(bu_id: int | None = None, classification: str | None = None,
-                      include_inactive: bool = False) -> list[dict]:
+                      include_inactive: bool = False, user: dict | None = None) -> list[dict]:
+    """With `user`, only the data assets that person may open (their unit and below, plus organization wide ones)."""
     db = get_db()
     try:
         sql = ("SELECT da.*, bu.name AS bu_name, a.name AS application_name, "
@@ -535,6 +858,11 @@ def list_data_assets(bu_id: int | None = None, classification: str | None = None
                "LEFT JOIN business_units bu ON bu.id=da.business_unit_id "
                "LEFT JOIN applications a ON a.id=da.application_id")
         clauses, params = [], []
+        if user is not None:
+            from modules.governance.entity_scope import entity_scope_sql
+            scope, scope_params = entity_scope_sql(("governance", "data_asset"), user, "da")
+            clauses.append(scope)
+            params.extend(scope_params)
         if not include_inactive:
             clauses.append("da.is_active=1")
         if bu_id:
@@ -579,6 +907,7 @@ def create_data_asset(data: dict) -> int:
         db.close()
 
 
+@watched("governance", "data_asset")
 def update_data_asset(asset_id: int, data: dict) -> bool:
     db = get_db()
     try:
@@ -736,12 +1065,14 @@ def get_governance_summary() -> dict:
                     f"SELECT COUNT(*) FROM {table} WHERE is_active=1"
                 ).fetchone()[0]
             except Exception:
+                swallowed("get_governance_summary")
                 counts[label] = 0
         try:
             counts["open_regulatory_updates"] = db.execute(
                 "SELECT COUNT(*) FROM regulatory_updates WHERE status='open'"
             ).fetchone()[0]
         except Exception:
+            swallowed("get_governance_summary (regulatory_updates)")
             counts["open_regulatory_updates"] = 0
         return counts
     finally:
@@ -761,18 +1092,30 @@ _TASK_TITLE_MAX = 255
 
 
 def list_regulatory_updates(status: str | None = None) -> list:
+    import hashlib
     db = get_db()
     try:
         if status:
             rows = db.execute(
-                "SELECT * FROM regulatory_updates WHERE status=%s ORDER BY created_at DESC",
+                "SELECT r.*,v.summary_hash,v.decision AS review_decision,v.reviewed_by,v.reviewed_at "
+                "FROM regulatory_updates r LEFT JOIN regulatory_ai_reviews v ON v.update_id=r.id "
+                "WHERE r.status=%s ORDER BY r.created_at DESC",
                 (status,)
             ).fetchall()
         else:
             rows = db.execute(
-                "SELECT * FROM regulatory_updates ORDER BY created_at DESC"
+                "SELECT r.*,v.summary_hash,v.decision AS review_decision,v.reviewed_by,v.reviewed_at "
+                "FROM regulatory_updates r LEFT JOIN regulatory_ai_reviews v ON v.update_id=r.id "
+                "ORDER BY r.created_at DESC"
             ).fetchall()
-        return _dicts(rows)
+        items = _dicts(rows)
+        for item in items:
+            digest = hashlib.sha256((item["ai_summary"] or "").encode("utf-8")).hexdigest()
+            reviewed = bool(item["ai_summary"] and item["summary_hash"] == digest)
+            item["ai_review_state"] = item["review_decision"] if reviewed else "pending"
+            if not item["ai_summary"]:
+                item["ai_review_state"] = "none"
+        return items
     finally:
         db.close()
 
@@ -812,7 +1155,8 @@ def update_regulatory_update(rid: int, data: dict) -> bool:
             severity = "info"
         db.execute(
             "UPDATE regulatory_updates SET framework_name=%s, title=%s, summary=%s, "
-            "source_url=%s, effective_date=%s, affected_refs=%s, severity=%s, updated_at=%s "
+            "source_url=%s, effective_date=%s, affected_refs=%s, severity=%s, updated_at=%s, "
+            "status='open',ai_summary=NULL,matched_count=NULL,processed_at=NULL "
             "WHERE id=%s",
             (data.get("framework_name", "").strip(),
              data.get("title", "").strip(),
@@ -875,6 +1219,7 @@ def _task_exists_by_title(db, title: str) -> bool:
         ).fetchone()
         return row is not None
     except Exception:
+        swallowed("_task_exists_by_title (task_board)")
         return False
 
 
@@ -962,7 +1307,8 @@ def run_drift_check(db, update_id: int | None = None) -> dict:
                         "Under 120 words."
                     )
                     ai_text = create_message(
-                        [{"role": "user", "content": prompt}], max_tokens=200
+                        [{"role": "user", "content": prompt}], max_tokens=200,
+                        feature="governance.run_drift_check",
                     )
                     db.execute(
                         "UPDATE regulatory_updates SET ai_summary=%s WHERE id=%s",

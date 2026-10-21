@@ -96,7 +96,8 @@ def _init_test_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             evidence_id INTEGER NOT NULL, module TEXT NOT NULL,
             entity_type TEXT NOT NULL, entity_id INTEGER NOT NULL,
-            linked_by INTEGER, created_at TEXT DEFAULT (datetime('now'))
+            linked_by INTEGER, created_at TEXT DEFAULT (datetime('now')),
+            deleted_at TEXT
         );
         CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,8 +113,21 @@ def _init_test_db():
             scored_at TEXT DEFAULT (datetime('now')),
             UNIQUE(control_id)
         );
+        CREATE TABLE IF NOT EXISTS erm_risk_frameworks (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                    TEXT NOT NULL,
+            description             TEXT,
+            is_active               INTEGER DEFAULT 0,
+            is_default              INTEGER DEFAULT 0,
+            source                  TEXT DEFAULT 'built_in',
+            default_residual_factor REAL DEFAULT 0.2,
+            created_at              TEXT DEFAULT (datetime('now')),
+            updated_at              TEXT DEFAULT (datetime('now'))
+        );
         INSERT OR IGNORE INTO users (id, username, full_name) VALUES (1, 'test', 'Test User');
         INSERT OR IGNORE INTO business_units (id, name) VALUES (1, 'Default BU');
+        INSERT INTO erm_risk_frameworks (name, is_active, is_default, source, default_residual_factor)
+            VALUES ('Built-in', 1, 1, 'built_in', 0.2);
         """
     )
     from database import _SqliteConnWrapper

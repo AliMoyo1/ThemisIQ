@@ -173,10 +173,13 @@ def bulk_create_controls(framework_id: int, controls_data: list[dict],
     """Bulk insert controls for a framework. Returns count inserted."""
     db = get_db()
     try:
+        before = db.execute(
+            "SELECT total_controls FROM frameworks WHERE id = %s", (framework_id,)
+        ).fetchone()
         count = 0
         for ctrl in controls_data:
             try:
-                db.execute(
+                changed = db.execute(
                     "INSERT INTO controls (framework_id, ref, name, description, "
                     "category, doc_type, priority, last_updated) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
@@ -191,7 +194,7 @@ def bulk_create_controls(framework_id: int, controls_data: list[dict],
                         utcnow().isoformat(),
                     ),
                 )
-                count += 1
+                count += max(changed.rowcount, 0)
             except Exception as e:
                 log.warning("Failed to insert control %s: %s", ctrl.get("ref"), e)
         # Update count
@@ -201,6 +204,13 @@ def bulk_create_controls(framework_id: int, controls_data: list[dict],
             "updated_at = %s WHERE id = %s",
             (framework_id, utcnow().isoformat(), framework_id),
         )
+        if before is not None:
+            after = db.execute(
+                "SELECT total_controls FROM frameworks WHERE id = %s", (framework_id,)
+            ).fetchone()
+            from modules.governance.change_signals import publish_record_change
+            publish_record_change(db, ("aria", "framework"), framework_id,
+                                  dict(before), dict(after), kind="framework_controls_imported")
         db.commit()
 
         emit("framework.controls_populated", source_module="platform",
@@ -215,10 +225,16 @@ def update_control_status(control_id: int, status: str, user_id: int = None) -> 
     """Update a control's status."""
     db = get_db()
     try:
+        before = db.execute("SELECT * FROM controls WHERE id = %s", (control_id,)).fetchone()
+        if before is None:
+            return False
         db.execute(
             "UPDATE controls SET status = %s, last_updated = %s WHERE id = %s",
             (status, utcnow().isoformat(), control_id),
         )
+        after = db.execute("SELECT * FROM controls WHERE id = %s", (control_id,)).fetchone()
+        from modules.governance.change_signals import publish_record_change
+        publish_record_change(db, ("aria", "control"), control_id, dict(before), dict(after))
         db.commit()
 
         row = db.execute(
@@ -236,52 +252,6 @@ def update_control_status(control_id: int, status: str, user_id: int = None) -> 
         db.close()
 
 
-# ── Cross-module links ──────────────────────────────────────────────────────
-
-def create_link(source_module: str, source_type: str, source_id: int,
-                target_module: str, target_type: str, target_id: int,
-                relationship: str = "related", user_id: int = None) -> int:
-    """Create a cross-module link."""
-    db = get_db()
-    try:
-        cursor = insert_returning_id(db,
-            "INSERT INTO cross_module_links (source_module, source_type, source_id, "
-            "target_module, target_type, target_id, relationship, created_by) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (source_module, source_type, source_id,
-             target_module, target_type, target_id, relationship, user_id),
-        )
-        db.commit()
-        return cursor
-    finally:
-        db.close()
-
-
-def get_links(module: str, entity_type: str, entity_id: int) -> list[dict]:
-    """Get all cross-module links for an entity (as source or target)."""
-    db = get_db()
-    try:
-        rows = db.execute(
-            "SELECT id, source_module, source_type, source_id, "
-            "target_module, target_type, target_id, relationship, created_at "
-            "FROM cross_module_links "
-            "WHERE (source_module = %s AND source_type = %s AND source_id = %s) "
-            "   OR (target_module = %s AND target_type = %s AND target_id = %s) "
-            "ORDER BY created_at DESC",
-            (module, entity_type, entity_id, module, entity_type, entity_id),
-        ).fetchall()
-        return [
-            {
-                "id": r[0], "source_module": r[1], "source_type": r[2],
-                "source_id": r[3], "target_module": r[4], "target_type": r[5],
-                "target_id": r[6], "relationship": r[7], "created_at": r[8],
-            }
-            for r in rows
-        ]
-    finally:
-        db.close()
-
-
 # ── Stats ───────────────────────────────────────────────────────────────────
 
 def get_framework_stats() -> dict:
@@ -292,7 +262,7 @@ def get_framework_stats() -> dict:
         active = db.execute("SELECT COUNT(*) FROM frameworks WHERE is_active=1").fetchone()[0]
         total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
         compliant = db.execute(
-            "SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Compliant','Complete')"
+            "SELECT COUNT(*) FROM controls WHERE status = 'Implemented'"
         ).fetchone()[0]
         return {
             "total_frameworks": total,

@@ -9,7 +9,7 @@ Available actions (backed by ThemisIQ API v1):
   list_risks    - /api/v1/risks (module: erm)
   list_breaches - /api/v1/breaches (module: sentinel)
   list_audits   - /api/v1/audits (module: grid)
-  qa            - LLM Q&A only (no module required)
+  qa            - LLM Q&A (general, or explicitly module-scoped by topic)
   draft_breach  - LLM drafting, no live API call (module: sentinel)
 """
 from __future__ import annotations
@@ -60,6 +60,15 @@ def parse(wa_user_id: str, text: str, allowed_modules: set[str]) -> Intent:
     if "audit" in t and ("open" in t or "list" in t or "all" in t or "status" in t or "progress" in t):
         status = "In Progress" if "progress" in t or "open" in t else None
         return _gate("list_audits", {"status": status}, allowed_modules)
+
+    # DPIA records are Sentinel data. The dedicated API list action is not
+    # part of this bridge build yet, but the topic must still pass through the
+    # same module gate before it reaches Q&A; otherwise a restricted ERM-only
+    # user can turn a Sentinel request into an unrestricted default intent.
+    if "dpia" in t and ("open" in t or "list" in t or "all" in t or "status" in t):
+        if "sentinel" not in allowed_modules:
+            return Intent("denied", {"needed": "sentinel"}, "none")
+        return Intent("qa", {"question": text.strip()}, "sentinel")
 
     if "draft breach" in t or "draft notification" in t:
         inc = _extract_after(t, ("incident", "for incident", "id")) or ""

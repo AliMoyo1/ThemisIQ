@@ -37,6 +37,8 @@ from core.events import (
     emit, ARIA_POLICY_PUBLISHED, ARIA_POLICY_UPDATED,
     ARIA_RISK_CREATED, ARIA_RISK_ESCALATED, ARIA_CONTROL_UPDATED,
 )
+from core.ai_client import is_configured as ai_is_configured
+from modules.aria.policy_access import document_scope_sql, template_scope_sql
 
 router = APIRouter(prefix="/aria", tags=["aria"])
 templates = Jinja2Templates(directory=["modules/aria/templates", "templates"])
@@ -45,6 +47,8 @@ templates = Jinja2Templates(directory=["modules/aria/templates", "templates"])
 templates.env.globals["has_capability"] = has_capability
 templates.env.globals["has_role"] = has_role
 from core.timeutils import format_dt as _format_dt
+from core.sql_like import ci_like, like_pattern
+from core.best_effort import swallowed
 templates.env.filters["format_dt"] = _format_dt
 templates.env.globals["ROLE_LABELS"] = ROLE_LABELS
 templates.env.filters["tojson"] = lambda v: Markup(json.dumps(
@@ -59,6 +63,21 @@ def _aria_render(request: Request, template: str, context: dict,
     context.update(shell_ctx(request, active_module="aria",
                              active_section=active_section))
     return templates.TemplateResponse(request, template, context)
+
+
+def _publish_form_change(db, entity_type: str, record_id: int, before: dict) -> None:
+    """Tell confirmed linked records about material ARIA edits after the form save."""
+    table = {"document": "aria_documents", "risk": "aria_risks"}[entity_type]
+    try:
+        from modules.governance import change_signals
+        after = db.execute(f"SELECT * FROM {table} WHERE id=%s", (record_id,)).fetchone()
+        if after is not None:
+            change_signals.publish_record_change(
+                db, ("aria", entity_type), record_id, before, dict(after))
+            db.commit()
+    except Exception:
+        db.rollback()
+        swallowed(f"ARIA {entity_type} change signal")
 
 # -- Cross-framework mapping (static reference data) -------------------------
 
@@ -159,11 +178,19 @@ def _can_edit_control(user, control=None):
 
 
 def _can_approve_policy(user, doc):
-    """Check approval capability with separation-of-duties enforcement."""
+    """Check approval capability with separation-of-duties enforcement.
+
+    PLAN-35 T08: removed the prior `platform.manage_users` override that
+    let an admin approve their own document. Section 5.1's confirmed
+    decision is "Approval override: None in this release, including for
+    super administrators" -- there is deliberately no exception here for
+    any capability, matching policy_access.can_decide's own no-override
+    rule for the new managed-document approval flow. This function still
+    only applies to the legacy, free-text-owner-based path for documents
+    that predate/aren't using that flow.
+    """
     if not has_capability(user, "aria.policy.approve"):
         return False
-    if has_capability(user, "platform.manage_users"):
-        return True
     doc_owner = (doc.get("owner") or "").strip().lower()
     uname = (user.get("username") or "").strip().lower()
     fname = (user.get("full_name") or "").strip().lower()
@@ -335,17 +362,20 @@ async def frameworks_list(request: Request):
         # Document coverage per framework
         doc_counts = {}
         try:
+            from modules.aria.policy_access import document_scope_sql
+            _scope_sql, _scope_params = document_scope_sql(user)
             doc_rows = db.execute(
-                "SELECT framework, COUNT(*) as cnt, "
-                "COUNT(DISTINCT control_ref) as ctrl_covered "
-                "FROM aria_documents GROUP BY framework"
+                f"SELECT framework, COUNT(*) as cnt, "
+                f"COUNT(DISTINCT control_ref) as ctrl_covered "
+                f"FROM aria_documents WHERE {_scope_sql} GROUP BY framework",
+                _scope_params
             ).fetchall()
             for dr in doc_rows:
                 doc_counts[dr["framework"]] = {
                     "docs": dr["cnt"], "ctrls_covered": dr["ctrl_covered"]
                 }
         except Exception:
-            pass
+            swallowed("frameworks_list (aria_documents)")
 
         # Evidence counts per framework
         ev_counts = {}
@@ -355,12 +385,13 @@ async def frameworks_list(request: Request):
                 "FROM evidence_links el "
                 "JOIN controls c ON c.id = el.entity_id "
                 "WHERE el.module = 'aria' AND el.entity_type = 'control' "
+                "AND el.deleted_at IS NULL "
                 "GROUP BY c.framework_id"
             ).fetchall()
             for er in ev_rows:
                 ev_counts[er["framework_id"]] = er["ev_count"]
         except Exception:
-            pass
+            swallowed("frameworks_list (evidence_links)")
 
         # IMS mapping counts per framework (how many controls are mapped to another fw)
         mapped_counts = {}
@@ -369,14 +400,16 @@ async def frameworks_list(request: Request):
                 "SELECT c.framework_id, COUNT(DISTINCT c.id) as mapped "
                 "FROM controls c "
                 "WHERE c.framework_id IN (SELECT id FROM frameworks WHERE is_active=1) "
-                "AND (c.id IN (SELECT source_control_id FROM aria_control_mappings) "
-                "     OR c.id IN (SELECT target_control_id FROM aria_control_mappings)) "
+                "AND (c.id IN (SELECT source_control_id FROM aria_control_mappings "
+                "              WHERE mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')) "
+                "     OR c.id IN (SELECT target_control_id FROM aria_control_mappings "
+                "                 WHERE mapping_type IN ('equivalent','related','ims_equivalent','covers','partial'))) "
                 "GROUP BY c.framework_id"
             ).fetchall()
             for mr in map_rows:
                 mapped_counts[mr["framework_id"]] = mr["mapped"]
         except Exception:
-            pass
+            swallowed("frameworks_list (controls)")
 
         fw_list = []
         fw_ids = [fw["id"] for fw in frameworks]
@@ -412,7 +445,8 @@ async def frameworks_list(request: Request):
         if len(fw_ids) >= 2:
             try:
                 total_mappings = db.execute(
-                    "SELECT COUNT(*) FROM aria_control_mappings"
+                    "SELECT COUNT(*) FROM aria_control_mappings "
+                    "WHERE mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')"
                 ).fetchone()[0]
                 total_ctrls = sum(f["total"] for f in fw_list)
                 total_mapped = sum(f["mapped_controls"] for f in fw_list)
@@ -423,7 +457,7 @@ async def frameworks_list(request: Request):
                     "mapped_controls": total_mapped,
                 }
             except Exception:
-                pass
+                swallowed("frameworks_list (aria_control_mappings)")
     finally:
         db.close()
     return _aria_render(request, "frameworks.html", {
@@ -467,6 +501,7 @@ async def framework_detail(request: Request, fw_id: int,
         q = ("SELECT c.*, "
              "(SELECT COUNT(*) FROM evidence_links el "
              " WHERE el.module='aria' AND el.entity_type='control' AND el.entity_id=c.id"
+             " AND el.deleted_at IS NULL"
              ") AS evidence_count "
              "FROM controls c WHERE c.framework_id=%s")
         params = [fw_id]
@@ -480,8 +515,8 @@ async def framework_detail(request: Request, fw_id: int,
             q += " AND c.category=%s"
             params.append(category)
         if search:
-            q += " AND (c.name LIKE %s OR c.ref LIKE %s OR c.description LIKE %s)"
-            params += ["%" + search + "%", "%" + search + "%", "%" + search + "%"]
+            q += f" AND ({ci_like('c.name')} OR {ci_like('c.ref')} OR {ci_like('c.description')})"
+            params += [like_pattern(search)] * 3
         q += " ORDER BY c.ref"
         controls = db.execute(q, params).fetchall()
 
@@ -513,6 +548,55 @@ async def framework_detail(request: Request, fw_id: int,
 
 
 # -- Control Update -----------------------------------------------------------
+
+@router.post("/api/controls/bulk-update")
+@require_module("aria")
+async def bulk_update_controls(request: Request):
+    """Apply a bounded set of authorized edits and publish one signal per changed control."""
+    from modules.governance.change_signals import publish_record_change
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid request body"}, status_code=400)
+    edits = body.get("edits") if isinstance(body, dict) else None
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 100:
+        return JSONResponse({"error": "Choose 1 to 100 control edits"}, status_code=400)
+    user = request.state.user
+    allowed = {"status", "owner", "version"}
+    db = get_db()
+    try:
+        seen = set()
+        pending = []
+        for edit in edits:
+            if not isinstance(edit, dict) or type(edit.get("id")) is not int or edit["id"] < 1:
+                return JSONResponse({"error": "Every edit needs a valid control ID"}, status_code=400)
+            cid = edit["id"]
+            changes = {key: value for key, value in edit.items() if key != "id"}
+            if cid in seen or not changes or set(changes) - allowed:
+                return JSONResponse({"error": "Duplicate control or unsupported edit"}, status_code=400)
+            seen.add(cid)
+            if any(not isinstance(value, str) or not value.strip() or len(value) > 200
+                   for value in changes.values()):
+                return JSONResponse({"error": "Edits must be nonempty text of at most 200 characters"}, status_code=400)
+            old = db.execute("SELECT * FROM controls WHERE id=%s", (cid,)).fetchone()
+            if old is None or not _can_edit_control(user, dict(old)):
+                return JSONResponse({"error": "Control not found or not editable"}, status_code=404)
+            pending.append((cid, dict(old), {key: _s(value) for key, value in changes.items()}))
+        for cid, before, changes in pending:
+            fields = list(changes)
+            assignments = ", ".join(f"{field}=%s" for field in fields)
+            db.execute(f"UPDATE controls SET {assignments},last_updated=%s WHERE id=%s",
+                       [*(changes[field] for field in fields), utcnow().strftime("%Y-%m-%d"), cid])
+            after = db.execute("SELECT * FROM controls WHERE id=%s", (cid,)).fetchone()
+            publish_record_change(db, ("aria", "control"), cid, before, dict(after))
+        db.commit()
+        return JSONResponse({"updated": len(pending)})
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 @router.post("/control/{ctrl_id}/update")
 @require_module("aria")
@@ -564,6 +648,12 @@ async def update_control(request: Request, ctrl_id: int,
             old_status = old["status"] or ""
             log_audit(user, "aria", "Updated control to '" + str(status) + "'",
                       "control", ctrl_id, old_status)
+            # The records connected to this control are told what changed in it; each owner decides whether it matters.
+            from modules.governance import change_signals
+            fresh = db.execute("SELECT * FROM controls WHERE id=%s", (ctrl_id,)).fetchone()
+            if fresh is not None:
+                change_signals.publish_record_change(db, ("aria", "control"), ctrl_id, dict(old), dict(fresh))
+                db.commit()
 
             # Emit control updated event when status changes
             if status and status != old_status:
@@ -646,7 +736,7 @@ async def api_dashboard(request: Request):
     try:
         row = db.execute(
             "SELECT COUNT(*) as total, "
-            "SUM(CASE WHEN status IN ('Implemented','Approved') THEN 1 ELSE 0 END) as compliant "
+            "SUM(CASE WHEN status = 'Implemented' THEN 1 ELSE 0 END) as compliant "
             "FROM controls c JOIN frameworks f ON f.id=c.framework_id WHERE f.is_active=1"
         ).fetchone()
         total = row["total"] or 0
@@ -700,6 +790,9 @@ async def api_controls(request: Request, fw_id: int):
 @require_module("aria")
 async def api_force_seed_controls(request: Request, fw_id: int):
     """Force-seed controls for a specific framework."""
+    user = request.state.user
+    if not has_capability(user, "aria.control.update_any"):
+        return JSONResponse({"error": "Not authorized"}, status_code=403)
     db = get_db()
     try:
         fw = db.execute(
@@ -743,7 +836,7 @@ async def api_force_seed_controls(request: Request, fw_id: int):
         count = 0
         for ctrl in seed_data:
             try:
-                db.execute(
+                changed = db.execute(
                     "INSERT INTO controls "
                     "(framework_id, ref, name, description, category, "
                     "doc_type, priority, last_updated) "
@@ -759,10 +852,9 @@ async def api_force_seed_controls(request: Request, fw_id: int):
                         utcnow().isoformat(),
                     ),
                 )
-                count += 1
+                count += max(changed.rowcount, 0)
             except Exception as e:
                 log.warning("Force-seed insert error: %s", e)
-        db.commit()
 
         # Update total
         final_count = db.execute(
@@ -773,6 +865,11 @@ async def api_force_seed_controls(request: Request, fw_id: int):
             "UPDATE frameworks SET total_controls=%s WHERE id=%s",
             (final_count, fw_id),
         )
+        from modules.governance.change_signals import publish_record_change
+        publish_record_change(db, ("aria", "framework"), fw_id,
+                              {"total_controls": existing},
+                              {"total_controls": final_count},
+                              kind="framework_controls_imported")
         db.commit()
 
         log.info("Force-seeded %d controls for '%s' (fw_id=%d)",
@@ -825,13 +922,23 @@ async def documents_page(request: Request,
                          framework: str = "", status: str = "",
                          doc_type: str = "", search: str = ""):
     user = request.state.user
+    scope_sql, scope_params = document_scope_sql(user)
     db = get_db()
     try:
         q = ("SELECT id, doc_id, framework, control_ref, title, doc_type, "
              "version, status, owner, approver, effective_date, review_date, "
-             "location, comments, created_at, updated_at "
-             "FROM aria_documents WHERE 1=1")
-        params = []
+             "location, comments, created_at, updated_at, "
+             # PLAN-35 T10: openEditModal's "download current file" row and
+             # the managed-workflow UI both need these -- previously absent
+             # from this SELECT, so file_path/branded_file_path/template_id
+             # were always undefined on the row handed to the modal and
+             # that row never appeared, and the modal had no way to tell a
+             # managed document from a legacy one at all.
+             "file_path, branded_file_path, template_id, "
+             "org_id, business_unit_id, owner_user_id, "
+             "policy_workflow_managed, current_policy_version_id "
+             f"FROM aria_documents WHERE {scope_sql}")
+        params = list(scope_params)
         if framework:
             q += " AND framework LIKE %s"
             params.append("%" + framework + "%")
@@ -842,8 +949,8 @@ async def documents_page(request: Request,
             q += " AND doc_type=%s"
             params.append(doc_type)
         if search:
-            q += " AND (title LIKE %s OR control_ref LIKE %s OR owner LIKE %s)"
-            params += ["%" + search + "%"] * 3
+            q += f" AND ({ci_like('title')} OR {ci_like('control_ref')} OR {ci_like('owner')})"
+            params += [like_pattern(search)] * 3
         q += " ORDER BY framework, doc_id"
         docs = [dict(r) for r in db.execute(q, params).fetchall()]
 
@@ -851,23 +958,28 @@ async def documents_page(request: Request,
             "SELECT id, name FROM frameworks WHERE is_active = 1 ORDER BY name"
         ).fetchall()
 
-        total = db.execute("SELECT COUNT(*) FROM aria_documents").fetchone()[0]
+        total = db.execute(
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql}", scope_params
+        ).fetchone()[0]
         approved = db.execute(
-            "SELECT COUNT(*) FROM aria_documents WHERE status='Approved'"
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} AND status='Approved'",
+            scope_params,
         ).fetchone()[0]
         draft = db.execute(
-            "SELECT COUNT(*) FROM aria_documents WHERE status='Draft'"
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} AND status='Draft'",
+            scope_params,
         ).fetchone()[0]
         ai_gen = db.execute(
-            "SELECT COUNT(*) FROM aria_documents "
-            "WHERE comments LIKE '%AI Generated%'"
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} "
+            "AND comments LIKE %s",
+            [*scope_params, "%AI Generated%"],
         ).fetchone()[0]
         in_30 = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
         review_due = db.execute(
-            "SELECT COUNT(*) FROM aria_documents "
-            "WHERE review_date IS NOT NULL AND review_date != '' "
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} "
+            "AND review_date IS NOT NULL AND review_date != '' "
             "AND status != 'Retired' AND review_date <= %s",
-            (in_30,),
+            [*scope_params, in_30],
         ).fetchone()[0]
     finally:
         db.close()
@@ -914,26 +1026,33 @@ async def add_document(request: Request,
             {"error": "You need policy author or compliance manager role."},
             403,
         )
-    if status == "Approved" and not has_capability(user, "aria.policy.approve"):
-        status = "Draft"
+    # PLAN-35 T08: "Add/import document... create Draft only" (section
+    # 10.1). Creating a document as Approved directly, bypassing review
+    # entirely, used to be reachable by anyone holding aria.policy.approve;
+    # that capability governs DECIDING a submission, not skipping one.
+    status = "Draft"
 
+    from modules.aria.policy_access import reserve_document_number
     db = get_db()
     try:
-        max_num = db.execute(
-            "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
-            "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
-        ).fetchone()[0]
-        doc_id = "DOC-%04d" % (max_num + 1)
+        doc_id = reserve_document_number(db, is_postgres=settings.is_postgres())
         now = datetime.now().isoformat()
+        # PLAN-35 T08 (section 10.1): "explicit owner/org/BU" -- a document
+        # created here is not policy_workflow_managed (it keeps the old
+        # direct-edit behavior), but it must still be scoped to the
+        # creator's own org/BU rather than left org_id=NULL, which would
+        # make it "legacy" and visible platform-wide to every organization.
         new_id = insert_returning_id(db,"""
             INSERT INTO aria_documents
             (doc_id, framework, control_ref, title, doc_type, version, status,
              owner, approver, effective_date, review_date, location, comments,
-             created_at, updated_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             org_id, business_unit_id, owner_user_id, created_at, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (doc_id, framework, control_ref, title, doc_type, version, status,
               owner, approver, effective_date or None, review_date or None,
-              location, comments, now, now))
+              location, comments,
+              user.get("org_id"), user.get("business_unit_id"), user["id"],
+              now, now))
         db.commit()
 
         if review_date:
@@ -951,20 +1070,9 @@ async def add_document(request: Request,
             except Exception:
                 pass  # Never let GRID auto-attach break ARIA saves
 
-        # Emit policy published event when created as Approved
-        if status == "Approved":
-            emit(
-                ARIA_POLICY_PUBLISHED,
-                source_module="aria",
-                entity_type="document",
-                entity_id=new_id,
-                payload={
-                    "doc_id": doc_id, "title": title,
-                    "doc_type": doc_type, "framework": framework,
-                    "control_ref": control_ref, "version": version,
-                },
-                user_id=user["id"],
-            )
+        # No ARIA_POLICY_PUBLISHED emit here: status is always Draft now
+        # (see above), so this path never creates an already-approved
+        # document. Approval publishes through decide_approval instead.
     finally:
         db.close()
 
@@ -1016,16 +1124,22 @@ async def upload_new_document(
         return JSONResponse(
             {"error": "You need policy author or compliance manager role."}, 403
         )
-    if status == "Approved" and not has_capability(user, "aria.policy.approve"):
-        status = "Draft"
+    # PLAN-35 T08 (section 10.1): "Add/import document ... create Draft
+    # only" -- this route used to let anyone holding aria.policy.approve
+    # create an already-Approved document straight from a file upload,
+    # bypassing review entirely, exactly like add_document did before its
+    # own T08 fix. That capability governs DECIDING a submission, not
+    # skipping one.
+    status = "Draft"
 
+    from modules.aria.policy_access import reserve_document_number
     db = get_db()
     try:
-        max_num = db.execute(
-            "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
-            "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
-        ).fetchone()[0]
-        doc_id = "DOC-%04d" % (max_num + 1)
+        # PLAN-35 T08: SUBSTRING(doc_id FROM 5) is PostgreSQL-only syntax
+        # and raises sqlite3.OperationalError on real SQLite -- this route
+        # could never have worked against the dev database. Use the shared,
+        # race-safe allocator instead (also used by add_document).
+        doc_id = reserve_document_number(db, is_postgres=settings.is_postgres())
         now = datetime.now().isoformat()
 
         stored_name = None
@@ -1050,17 +1164,22 @@ async def upload_new_document(
             else "[" + source_tag + "]"
         )
 
+        # PLAN-35 T08 (section 10.1): explicit owner/org/BU, scoped to the
+        # creator, instead of leaving org_id NULL (platform-wide legacy
+        # visibility) -- mirrors the same fix in add_document.
         new_id = insert_returning_id(db, """
             INSERT INTO aria_documents
             (doc_id, framework, control_ref, title, doc_type, version, status,
              owner, approver, effective_date, review_date, location, comments,
-             file_path, file_name, file_size, created_at, updated_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             file_path, file_name, file_size,
+             org_id, business_unit_id, owner_user_id, created_at, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             doc_id, framework, control_ref, title, doc_type, version, status,
             owner, approver, effective_date or None, review_date or None,
             location, comments_tagged,
-            stored_name, orig_filename, file_size, now, now,
+            stored_name, orig_filename, file_size,
+            user.get("org_id"), user.get("business_unit_id"), user["id"], now, now,
         ))
         db.commit()
 
@@ -1078,16 +1197,9 @@ async def upload_new_document(
             )
             db.commit()
 
-        if status == "Approved":
-            emit(
-                ARIA_POLICY_PUBLISHED,
-                source_module="aria", entity_type="document", entity_id=new_id,
-                payload={
-                    "doc_id": doc_id, "title": title, "doc_type": doc_type,
-                    "framework": framework, "version": version,
-                },
-                user_id=user["id"],
-            )
+        # No ARIA_POLICY_PUBLISHED emit here: status is always Draft now
+        # (see above), so this path never creates an already-approved
+        # document. Approval publishes through decide_approval instead.
     finally:
         db.close()
 
@@ -1122,11 +1234,25 @@ async def update_document(request: Request, doc_id: str,
         if not existing:
             return JSONResponse({"error": "Document not found"}, 404)
         doc = dict(existing)
+        # PLAN-35 T08: this route had no org/BU scope check at all.
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
 
-        is_own = (doc.get("owner") or "").strip().lower() in (
-            (user.get("full_name") or "").strip().lower(),
-            (user.get("username") or "").strip().lower(),
-        )
+        # PLAN-35 T08: prefer owner_user_id (a real account) over the
+        # free-text owner display field for the actual authorization
+        # decision -- a legacy record with no owner_user_id yet still
+        # falls back to the free-text comparison. This closes a real gap:
+        # free text alone let anyone whose name happened to match the
+        # owner string claim ownership, coincidentally or not.
+        owner_uid = doc.get("owner_user_id")
+        if owner_uid is not None:
+            is_own = int(owner_uid) == int(user["id"])
+        else:
+            is_own = (doc.get("owner") or "").strip().lower() in (
+                (user.get("full_name") or "").strip().lower(),
+                (user.get("username") or "").strip().lower(),
+            )
         can_edit = has_capability(user, "aria.policy.edit_any") or (
             has_capability(user, "aria.policy.edit_own") and is_own
         )
@@ -1136,7 +1262,33 @@ async def update_document(request: Request, doc_id: str,
                 403,
             )
 
-        if status == "Approved" and status != doc.get("status"):
+        # PLAN-35 T08 (section 10.1): a managed document's actual content
+        # lifecycle -- status, version, owner, approver -- belongs to the
+        # draft/confirm/submit/decide flow exclusively. This generic form
+        # only ever touches non-content metadata on a managed record, and
+        # only once nothing is pending review.
+        is_managed = bool(doc.get("policy_workflow_managed"))
+        if is_managed:
+            attempted_content_fields = [
+                name for name, val in
+                (("status", status), ("version", version), ("owner", owner), ("approver", approver))
+                if val is not None
+            ]
+            if attempted_content_fields:
+                return JSONResponse({
+                    "error": "This document is managed by the policy workflow. "
+                             f"{', '.join(attempted_content_fields)} can only change through "
+                             "a draft, submission, and approval -- start a revision instead.",
+                }, 409)
+            pending = db.execute(
+                "SELECT id FROM aria_document_approvals WHERE document_id=%s AND status='pending'",
+                (doc["id"],),
+            ).fetchone()
+            if pending:
+                return JSONResponse({
+                    "error": "This document has a pending approval; metadata is locked until it is decided.",
+                }, 409)
+        elif status == "Approved" and status != doc.get("status"):
             if not _can_approve_policy(user, doc):
                 return JSONResponse({
                     "error": "You cannot approve this document. "
@@ -1163,6 +1315,8 @@ async def update_document(request: Request, doc_id: str,
                 params,
             )
             db.commit()
+
+            _publish_form_change(db, "document", doc["id"], doc)
 
             if review_date and review_date != (doc.get("review_date") or ""):
                 _schedule_review_reminder(
@@ -1221,6 +1375,31 @@ async def delete_document(request: Request, doc_id: str):
         )
     db = get_db()
     try:
+        # PLAN-35 T08 (section 10.1): this route had no org/BU scope check
+        # at all -- anyone holding the delete capability could hard-delete
+        # any organization's document by doc_id.
+        existing = db.execute(
+            "SELECT * FROM aria_documents WHERE doc_id=%s", (doc_id,)
+        ).fetchone()
+        if not existing:
+            return JSONResponse({"error": "Document not found"}, 404)
+        doc = dict(existing)
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
+
+        # Section 10.1: "Managed records use soft archive and state guards."
+        # Soft archive is not implemented yet (tracked separately) -- until
+        # it exists, refusing outright is the safe interim state. The old
+        # behavior (unconditional hard delete of an approved, audited
+        # compliance record) is exactly the bypass this task closes; there
+        # is no safe legacy-style fallback to leave open here.
+        if doc.get("policy_workflow_managed"):
+            return JSONResponse({
+                "error": "This document is managed by the policy workflow and "
+                         "cannot be deleted here. Archiving is not yet available.",
+            }, 409)
+
         db.execute("DELETE FROM aria_documents WHERE doc_id=%s", (doc_id,))
         db.commit()
         log_audit(user, "aria", "Deleted document " + doc_id,
@@ -1380,7 +1559,7 @@ def _schedule_review_reminder(db, doc_int_id: int, doc_id: str, title: str,
             if row:
                 email = (row["email"] or "").strip()
         except Exception:
-            pass
+            swallowed("_schedule_review_reminder (users)")
     if not email:
         return
     from datetime import date, timedelta
@@ -1440,6 +1619,20 @@ async def upload_document_revision(request: Request, doc_id: str,
         if not doc:
             return JSONResponse({"error": "Document not found"}, 404)
         doc = dict(doc)
+        # PLAN-35 T08: this route had no org/BU scope check at all.
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
+
+        # PLAN-35 T08 (section 10.1): "Upload revision | Managed document
+        # routes to the upload-candidate flow." A managed document's file
+        # only ever changes through a draft build + confirm, never a
+        # direct file replace -- fail before writing anything to disk.
+        if doc.get("policy_workflow_managed"):
+            return JSONResponse({
+                "error": "This document is managed by the policy workflow. "
+                         "Start a revision draft and build it instead of uploading a file directly.",
+            }, 409)
 
         ARIA_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         stored_name = f"{uuid.uuid4().hex}{ext}"
@@ -1532,13 +1725,22 @@ async def upload_document_revision(request: Request, doc_id: str,
 async def download_document(request: Request, doc_id: str):
     """Download the current document file (uploaded revision or branded version)."""
     from fastapi.responses import FileResponse as FR
+    from modules.aria.policy_access import document_read_ok
+    user = request.state.user
     db = get_db()
     try:
         doc = db.execute(
-            "SELECT file_path, file_name, branded_file_path, title "
+            "SELECT file_path, file_name, branded_file_path, title, "
+            "org_id, business_unit_id, policy_workflow_managed "
             "FROM aria_documents WHERE doc_id=%s", (doc_id,)
         ).fetchone()
         if not doc:
+            raise HTTPException(404, "Document not found")
+        doc = dict(doc)
+        # PLAN-35 T08: this endpoint had no scope check at all -- any
+        # authenticated ARIA user could download any document's file
+        # regardless of organization or business unit.
+        if not document_read_ok(user, doc):
             raise HTTPException(404, "Document not found")
 
         # Prefer branded version, fall back to uploaded file
@@ -1546,8 +1748,11 @@ async def download_document(request: Request, doc_id: str):
         if not fp_str:
             raise HTTPException(404, "No file uploaded for this document yet")
 
+        # PLAN-35 T08: resolve + is_relative_to, not a string prefix check
+        # (a string check can be fooled by a sibling directory sharing a
+        # prefix, e.g. "aria_uploads_evil" vs "aria_uploads").
         fp = (ARIA_UPLOAD_DIR / fp_str).resolve()
-        if not str(fp).startswith(str(ARIA_UPLOAD_DIR.resolve())):
+        if not fp.is_relative_to(ARIA_UPLOAD_DIR.resolve()):
             raise HTTPException(403, "Access denied")
         if not fp.exists():
             raise HTTPException(404, "File not found on disk")
@@ -1571,17 +1776,28 @@ async def download_document(request: Request, doc_id: str):
 @require_module("aria")
 async def document_revisions(request: Request, doc_id: str):
     """Get revision history for a document."""
+    from modules.aria.policy_access import document_read_ok
+    user = request.state.user
     db = get_db()
     try:
-        doc = db.execute("SELECT id FROM aria_documents WHERE doc_id=%s", (doc_id,)).fetchone()
+        doc = db.execute(
+            "SELECT id, org_id, business_unit_id, policy_workflow_managed "
+            "FROM aria_documents WHERE doc_id=%s", (doc_id,)
+        ).fetchone()
         if not doc:
+            return JSONResponse({"error": "Document not found"}, 404)
+        doc = dict(doc)
+        # PLAN-35 T08 (section 10.2, "ARIA ... history"): this endpoint had
+        # no scope check -- any authenticated ARIA user could pull another
+        # organization's revision history by doc_id alone.
+        if not document_read_ok(user, doc):
             return JSONResponse({"error": "Document not found"}, 404)
         rows = db.execute(
             "SELECT r.*, u.full_name AS uploaded_by_name "
             "FROM aria_doc_revisions r "
             "LEFT JOIN users u ON r.uploaded_by=u.id "
             "WHERE r.document_id=%s ORDER BY r.created_at DESC",
-            (doc[0],),
+            (doc["id"],),
         ).fetchall()
     finally:
         db.close()
@@ -1593,15 +1809,19 @@ async def document_revisions(request: Request, doc_id: str):
 @router.get("/templates", response_class=HTMLResponse)
 @require_module("aria")
 async def templates_page(request: Request):
-    """Template management page."""
+    """Template management page. Shows retired templates too (management
+    view), unlike api_templates_list's picker."""
     user = request.state.user
+    scope_sql, scope_params = template_scope_sql(user, include_inactive=True)
     db = get_db()
     try:
         tpls = [dict(r) for r in db.execute(
             "SELECT t.*, u.full_name AS created_by_name "
             "FROM aria_doc_templates t "
             "LEFT JOIN users u ON t.created_by=u.id "
-            "ORDER BY t.is_default DESC, t.name"
+            f"WHERE {scope_sql} "
+            "ORDER BY t.is_default DESC, t.name",
+            scope_params,
         ).fetchall()]
     finally:
         db.close()
@@ -1613,14 +1833,18 @@ async def templates_page(request: Request):
 @router.get("/api/templates")
 @require_module("aria")
 async def api_templates_list(request: Request):
-    """List all document templates."""
+    """List active, in-scope document templates (the apply-template picker;
+    retired or out-of-scope templates are not offered)."""
+    scope_sql, scope_params = template_scope_sql(request.state.user)
     db = get_db()
     try:
         rows = db.execute(
             "SELECT t.*, u.full_name AS created_by_name "
             "FROM aria_doc_templates t "
             "LEFT JOIN users u ON t.created_by=u.id "
-            "ORDER BY t.is_default DESC, t.name"
+            f"WHERE {scope_sql} "
+            "ORDER BY t.is_default DESC, t.name",
+            scope_params,
         ).fetchall()
     finally:
         db.close()
@@ -1658,14 +1882,18 @@ async def api_templates_upload(request: Request,
                 "UPDATE aria_doc_templates SET is_default=0 WHERE doc_type=%s",
                 (doc_type,),
             )
+        # PLAN-35 T08 (section 10.1, "Template ... Same organization/BU
+        # authorization"): without an explicit org/BU, every new template
+        # defaulted to org_id NULL -- template_scope_sql's legacy branch --
+        # meaning it stayed visible and usable platform-wide forever.
         tid = insert_returning_id(db,
             "INSERT INTO aria_doc_templates "
             "(name, description, doc_type, file_path, file_name, file_size, "
-            " is_default, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            " is_default, created_by, org_id, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (name.strip(), description.strip(), doc_type, stored,
              file.filename, len(content), int(is_default == "1"),
-             user["id"]),
+             user["id"], user.get("org_id"), user.get("business_unit_id")),
         )
         db.commit()
         log_audit(user, "aria", f"Uploaded template: {name}", "template", tid)
@@ -1677,21 +1905,27 @@ async def api_templates_upload(request: Request,
 @router.delete("/api/templates/{tid}")
 @require_capability("aria.policy.delete")
 async def api_templates_delete(request: Request, tid: int):
-    """Delete a branding template."""
+    """Retire a branding template (soft; the file and row are kept so
+    documents that already reference this template_id keep their history
+    and can still be re-downloaded)."""
     user = request.state.user
     db = get_db()
     try:
-        row = db.execute("SELECT file_path FROM aria_doc_templates WHERE id=%s", (tid,)).fetchone()
-        if row and row[0]:
-            fp = ARIA_TEMPLATE_DIR / row[0]
-            try:
-                if fp.exists():
-                    fp.unlink()
-            except OSError:
-                pass
-        db.execute("DELETE FROM aria_doc_templates WHERE id=%s", (tid,))
+        # PLAN-35 T08 (section 10.1): this route had no scope check at all
+        # (any user holding aria.policy.delete could remove any
+        # organization's template) and hard-deleted the row and file even
+        # though existing documents may still reference this template_id
+        # for their own history.
+        _tpl_scope_sql, _tpl_scope_params = template_scope_sql(user, include_inactive=True)
+        row = db.execute(
+            f"SELECT t.id FROM aria_doc_templates t WHERE t.id=%s AND {_tpl_scope_sql}",
+            (tid, *_tpl_scope_params),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "Template not found"}, 404)
+        db.execute("UPDATE aria_doc_templates SET is_active=0 WHERE id=%s", (tid,))
         db.commit()
-        log_audit(user, "aria", f"Deleted template #{tid}", "template", tid)
+        log_audit(user, "aria", f"Retired template #{tid}", "template", tid)
     finally:
         db.close()
     return JSONResponse({"ok": True})
@@ -1702,17 +1936,23 @@ async def api_templates_delete(request: Request, tid: int):
 async def api_templates_download(request: Request, tid: int):
     """Download a template file."""
     from fastapi.responses import FileResponse as FR
+    # PLAN-35 T08 (section 10.1): this route had no scope check at all.
+    _tpl_scope_sql, _tpl_scope_params = template_scope_sql(request.state.user, include_inactive=True)
     db = get_db()
     try:
         row = db.execute(
-            "SELECT file_path, file_name FROM aria_doc_templates WHERE id=%s", (tid,)
+            f"SELECT t.file_path, t.file_name FROM aria_doc_templates t "
+            f"WHERE t.id=%s AND {_tpl_scope_sql}",
+            (tid, *_tpl_scope_params),
         ).fetchone()
         if not row:
             raise HTTPException(404, "Template not found")
     finally:
         db.close()
+    # PLAN-35 T08: resolve + is_relative_to, not a string prefix check (see
+    # the identical fix in download_document).
     fp = (ARIA_TEMPLATE_DIR / row["file_path"]).resolve()
-    if not str(fp).startswith(str(ARIA_TEMPLATE_DIR.resolve())):
+    if not fp.is_relative_to(ARIA_TEMPLATE_DIR.resolve()):
         raise HTTPException(403, "Access denied")
     if not fp.exists():
         raise HTTPException(404, "Template file missing")
@@ -1734,11 +1974,33 @@ async def apply_template_to_document(request: Request, doc_id: str,
         if not doc:
             return JSONResponse({"error": "Document not found"}, 404)
         doc = dict(doc)
+        # PLAN-35 T08: this route had no org/BU scope check at all.
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
+
+        # PLAN-35 T08 (section 10.1): "Apply template | For managed
+        # records, operate only on an editable draft/candidate creation
+        # flow. Never rebrand approved/pending files in place." Managed
+        # documents brand through build_draft; this endpoint would
+        # otherwise silently rewrite an approved document's branded file.
+        if doc.get("policy_workflow_managed"):
+            return JSONResponse({
+                "error": "This document is managed by the policy workflow. "
+                         "Build a draft with the chosen template instead of applying one directly.",
+            }, 409)
 
         if not doc.get("file_path"):
             return JSONResponse({"error": "No uploaded file to apply template to"}, 400)
 
-        tpl = db.execute("SELECT * FROM aria_doc_templates WHERE id=%s", (template_id,)).fetchone()
+        # PLAN-35 T08: the template lookup itself had no scope check, so a
+        # legacy document owner could apply another organization's private
+        # branding template (and its logo) to their own document.
+        _tpl_scope_sql, _tpl_scope_params = template_scope_sql(user)
+        tpl = db.execute(
+            f"SELECT * FROM aria_doc_templates t WHERE t.id=%s AND {_tpl_scope_sql}",
+            (template_id, *_tpl_scope_params),
+        ).fetchone()
         if not tpl:
             return JSONResponse({"error": "Template not found"}, 404)
         tpl = dict(tpl)
@@ -1888,6 +2150,7 @@ async def update_risk(request: Request, risk_id: int,
             params.append(risk_id)
             db.execute("UPDATE aria_risks SET " + ", ".join(updates) + " WHERE id=%s", params)
             db.commit()
+            _publish_form_change(db, "risk", risk_id, dict(old))
             log_audit(user, "aria", f"Updated risk #{risk_id} status={status}",
                       "risk", risk_id, old["risk_id"])
 
@@ -1932,6 +2195,7 @@ async def mapping_page(request: Request):
         db.close()
     return _aria_render(request, "mapping.html", {
         "user": user, "module": "aria",
+        "can_review_mapping": has_capability(user, "aria.control.update_any"),
         "frameworks": [dict(r) for r in active_frameworks],
         # Legacy static mapping kept for display-only fallback
         "static_mapping": CROSS_MAPPING,
@@ -1958,7 +2222,7 @@ async def api_list_control_mappings(request: Request):
             params = [fw1, fw1]
 
         rows = db.execute(f"""
-            SELECT m.id, m.mapping_type, m.notes, m.confidence, m.created_at,
+            SELECT m.id, m.mapping_type, m.notes, m.confidence, m.created_at, m.created_by,
                    sf.id AS source_fw_id, sf.name AS source_fw_name,
                    sc.id AS source_ctrl_id, sc.ref AS source_ref, sc.name AS source_name,
                    tf.id AS target_fw_id, tf.name AS target_fw_name,
@@ -1996,6 +2260,8 @@ async def api_framework_controls(request: Request, fw_id: int):
 async def api_create_control_mapping(request: Request):
     """Create a new cross-framework control mapping."""
     user = request.state.user
+    if not has_capability(user, "aria.control.update_any"):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
     from core.sanitize import sanitize_dict as _sd
     try:
         body = _sd(await request.json())
@@ -2006,6 +2272,8 @@ async def api_create_control_mapping(request: Request):
     mapping_type   = body.get("mapping_type", "equivalent")
     notes          = body.get("notes", "")
 
+    if mapping_type not in ("equivalent", "related", "covers", "partial"):
+        return JSONResponse({"error": "Invalid mapping type"}, status_code=400)
     if not source_ctrl_id or not target_ctrl_id:
         return JSONResponse({"ok": False, "error": "source_control_id and target_control_id are required"}, status_code=400)
     if source_ctrl_id == target_ctrl_id:
@@ -2046,6 +2314,8 @@ async def api_create_control_mapping(request: Request):
 @require_module("aria")
 async def api_delete_control_mapping(request: Request, mapping_id: int):
     """Delete a control mapping by ID."""
+    if not has_capability(request.state.user, "aria.control.update_any"):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         db.execute("DELETE FROM aria_control_mappings WHERE id=%s", (mapping_id,))
@@ -2053,6 +2323,56 @@ async def api_delete_control_mapping(request: Request, mapping_id: int):
     finally:
         db.close()
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/control-mappings/{mapping_id}/review")
+@require_module("aria")
+async def api_review_control_mapping(request: Request, mapping_id: int):
+    """A second specialist accepts or rejects a proposed mapping before IMS uses it."""
+    user = request.state.user
+    if not has_capability(user, "aria.control.update_any"):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid request body"}, status_code=400)
+    decision = body.get("decision") if isinstance(body, dict) else None
+    reason = str(body.get("reason") or "").strip() if isinstance(body, dict) else ""
+    if decision not in ("accept", "reject") or not 10 <= len(reason) <= 500:
+        return JSONResponse({"error": "Choose accept or reject and give a reason of 10 to 500 characters"},
+                            status_code=400)
+    db = get_db()
+    try:
+        row = db.execute("SELECT mapping_type,notes,created_by FROM aria_control_mappings WHERE id=%s",
+                         (mapping_id,)).fetchone()
+        if row is None:
+            return JSONResponse({"error": "Mapping not found"}, status_code=404)
+        if row["mapping_type"] != "proposed":
+            return JSONResponse({"error": "Mapping is no longer awaiting review"}, status_code=409)
+        if row["created_by"] == user["id"]:
+            return JSONResponse({"error": "The proposer cannot review this mapping"}, status_code=403)
+        try:
+            proposal = json.loads(row["notes"] or "{}")
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "Mapping proposal is invalid"}, status_code=409)
+        suggested = proposal.get("suggested_type")
+        if suggested not in ("equivalent", "related"):
+            return JSONResponse({"error": "Mapping proposal is invalid"}, status_code=409)
+        proposal.update({"decision": decision, "reason": reason, "reviewed_by": user["id"],
+                         "reviewed_at": utcnow().isoformat()})
+        changed = db.execute(
+            "UPDATE aria_control_mappings SET mapping_type=%s,notes=%s "
+            "WHERE id=%s AND mapping_type='proposed'",
+            (suggested if decision == "accept" else "rejected", json.dumps(proposal), mapping_id),
+        ).rowcount
+        if changed != 1:
+            return JSONResponse({"error": "Mapping changed during review"}, status_code=409)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "aria", "control_mapping_review", "control_mapping", mapping_id,
+              f"decision={decision}")
+    return JSONResponse({"ok": True, "decision": decision})
 
 
 @router.post("/api/control-mappings/auto-generate")
@@ -2065,6 +2385,8 @@ async def api_auto_generate_mappings(request: Request):
     """
     try:
         user = request.state.user
+        if not has_capability(user, "aria.control.update_any"):
+            return JSONResponse({"ok": False, "error": "Forbidden"}, status_code=403)
         try:
             from core.sanitize import sanitize_dict as _sd
             body = _sd(await request.json())
@@ -2143,13 +2465,16 @@ async def api_ims_status(request: Request):
 
             doc_refs = set()
             try:
+                _scope_sql, _scope_params = document_scope_sql(request.state.user)
                 doc_rows = db.execute(
-                    "SELECT DISTINCT framework, control_ref FROM aria_documents"
+                    f"SELECT DISTINCT framework, control_ref FROM aria_documents "
+                    f"WHERE {_scope_sql}",
+                    _scope_params
                 ).fetchall()
                 for dr in doc_rows:
                     doc_refs.add((dr["framework"], dr["control_ref"]))
             except Exception:
-                pass
+                swallowed("api_ims_status (aria_documents)")
         finally:
             db.close()
 
@@ -2346,7 +2671,7 @@ async def ai_generator_page(request: Request):
                     inserted = 0
                     for ctrl in seed_data:
                         try:
-                            db.execute(
+                            changed = db.execute(
                                 "INSERT INTO controls "
                                 "(framework_id, ref, name, description, "
                                 "category, doc_type, priority, last_updated)"
@@ -2362,11 +2687,10 @@ async def ai_generator_page(request: Request):
                                     utcnow().isoformat(),
                                 ),
                             )
-                            inserted += 1
+                            inserted += max(changed.rowcount, 0)
                         except Exception as ins_err:
                             log.warning("  Insert failed ref=%s: %s",
                                         ctrl.get("ref"), ins_err)
-                    db.commit()
                     log.info("  Inserted %d controls", inserted)
 
                     # Update framework total
@@ -2376,6 +2700,14 @@ async def ai_generator_page(request: Request):
                         "WHERE framework_id = %s) WHERE id = %s",
                         (fw_id, fw_id),
                     )
+                    final_total = db.execute(
+                        "SELECT total_controls FROM frameworks WHERE id=%s", (fw_id,),
+                    ).fetchone()[0]
+                    from modules.governance.change_signals import publish_record_change
+                    publish_record_change(db, ("aria", "framework"), fw_id,
+                                          {"total_controls": fw["total_controls"]},
+                                          {"total_controls": final_total},
+                                          kind="framework_controls_imported")
                     db.commit()
 
                     # Re-fetch
@@ -2401,27 +2733,39 @@ async def ai_generator_page(request: Request):
         db.close()
 
     # ── Document stats & recent docs ──────────────────────────────────────────
+    # PLAN-35 T08 (section 10.2: "Generator recent documents/stats"): none
+    # of these queries were scoped -- "recent_docs" in particular showed
+    # every organization's 5 most recently updated policy titles to anyone
+    # who opened this page.
+    _gen_scope_sql, _gen_scope_params = document_scope_sql(user)
     db3 = get_db()
     try:
         doc_rows = db3.execute(
-            "SELECT framework, COUNT(*) as cnt FROM aria_documents GROUP BY framework"
+            f"SELECT framework, COUNT(*) as cnt FROM aria_documents "
+            f"WHERE {_gen_scope_sql} GROUP BY framework",
+            _gen_scope_params
         ).fetchall()
         docs_by_fw_map = {r["framework"]: r["cnt"] for r in doc_rows}
         total_docs = sum(docs_by_fw_map.values())
 
         controls_with_docs = db3.execute(
-            "SELECT COUNT(DISTINCT control_ref || '|' || framework) FROM aria_documents"
+            f"SELECT COUNT(DISTINCT control_ref || '|' || framework) FROM aria_documents "
+            f"WHERE {_gen_scope_sql}",
+            _gen_scope_params
         ).fetchone()[0]
 
         recent_docs = [dict(r) for r in db3.execute(
-            "SELECT doc_id, title, framework, doc_type, control_ref, updated_at "
-            "FROM aria_documents ORDER BY updated_at DESC LIMIT 5"
+            f"SELECT doc_id, title, framework, doc_type, control_ref, updated_at "
+            f"FROM aria_documents WHERE {_gen_scope_sql} ORDER BY updated_at DESC LIMIT 5",
+            _gen_scope_params
         ).fetchall()]
 
         doc_ctrl_ref_set = [
             r["framework"] + "|" + r["control_ref"]
             for r in db3.execute(
-                "SELECT DISTINCT framework, control_ref FROM aria_documents"
+                f"SELECT DISTINCT framework, control_ref FROM aria_documents "
+                f"WHERE {_gen_scope_sql}",
+                _gen_scope_params
             ).fetchall()
         ]
     finally:
@@ -2430,20 +2774,19 @@ async def ai_generator_page(request: Request):
     # ── AI provider label ──────────────────────────────────────────────────────
     _provider_key = (settings.AI_PROVIDER or "anthropic").lower()
     _ollama_model = getattr(settings, "OLLAMA_MODEL", "llama3.2")
+    _openrouter_model = getattr(
+        settings, "OPENROUTER_MODEL", "z-ai/glm-5.3-flash"
+    )
     ai_provider_label = {
         "anthropic":       "Claude (Anthropic)",
+        "openrouter":      f"OpenRouter · {_openrouter_model}",
         "openai":          f"GPT-4o (OpenAI)",
         "deepseek":        "DeepSeek Chat",
         "ollama":          f"Ollama · {_ollama_model}",
         "gemini":          "Gemini (Google)",
     }.get(_provider_key, "Claude (Anthropic)")
 
-    api_configured = bool(
-        settings.ANTHROPIC_API_KEY or
-        getattr(settings, "OPENAI_API_KEY", "") or
-        getattr(settings, "DEEPSEEK_API_KEY", "") or
-        _provider_key == "ollama"
-    )
+    api_configured = ai_is_configured()
 
     return _aria_render(request, "ai_generator.html", {
         "user": user, "module": "aria",
@@ -2468,7 +2811,10 @@ async def api_generate_policy(request: Request,
                               org_name: str = Form("Your Organisation"),
                               doc_type_override: str = Form(""),
                               integrated_framework_id: str = Form(""),
-                              custom_instructions: str = Form("")):
+                              custom_instructions: str = Form(""),
+                              request_id: str = Form(""),
+                              target_business_unit_id: str = Form(""),
+                              org_wide: bool = Form(False)):
     """Generate a governance document for a control.
 
     Set integrated_framework_id to a framework ID (or comma-separated IDs) to
@@ -2486,6 +2832,21 @@ async def api_generate_policy(request: Request,
     if not has_capability(user, "aria.policy.generate_ai"):
         return JSONResponse({
             "error": "You need Policy Author or Compliance Manager role."
+        }, 403)
+    # PLAN-35 T11: the flag existed since T00 but nothing ever actually read
+    # it (confirmed by grepping the whole tree) -- ARIA_POLICY_AUTHORING_ENABLED
+    # did not, in fact, disable anything. Gated here at the route rather
+    # than inside create_draft_from_generation: this is a tenant-level
+    # feature-availability check, the same kind require_capability's own
+    # licence check already makes at the route layer, not an object-level
+    # authorization rule -- and gating inside the service function broke
+    # essentially every one of this workflow's ~350 existing tests, all of
+    # which call it directly with no reason to know about a rollout flag.
+    from modules.aria.policy_access import policy_authoring_enabled_for
+    if not policy_authoring_enabled_for(user.get("org_id")):
+        return JSONResponse({
+            "error": "In-app policy authoring is not yet enabled for your organization. "
+                     "Contact your administrator."
         }, 403)
     if not check_ai_rate_limit(str(user["id"])):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
@@ -2511,12 +2872,14 @@ async def api_generate_policy(request: Request,
                     JOIN controls c   ON c.id = m.target_control_id
                     JOIN frameworks f ON f.id = m.target_framework_id
                     WHERE m.source_control_id = %s AND m.target_framework_id = %s
+                      AND m.mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')
                     UNION
                     SELECT c.ref, c.name, c.description, f.name AS fw_name
                     FROM aria_control_mappings m
                     JOIN controls c   ON c.id = m.source_control_id
                     JOIN frameworks f ON f.id = m.source_framework_id
                     WHERE m.target_control_id = %s AND m.source_framework_id = %s
+                      AND m.mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')
                 """, (control_id, tfw_id, control_id, tfw_id)).fetchall()
                 for row in mapped:
                     integrated_frameworks.append({
@@ -2559,59 +2922,43 @@ async def api_generate_policy(request: Request,
                     fw_names.append(extra["framework"])
         fw_label = ", ".join(fw_names)
 
+        from modules.aria import policy_workflow_service as _pws
+        bu_id_int = int(target_business_unit_id) if target_business_unit_id.strip().isdigit() else None
         db = get_db()
         try:
             db.execute(
                 "UPDATE controls SET last_updated=%s WHERE id=%s",
                 (datetime.now().strftime("%Y-%m-%d"), control_id),
             )
-            existing = db.execute(
-                "SELECT doc_id FROM aria_documents "
-                "WHERE control_ref=%s AND framework=%s",
-                (ctrl["ref"], ctrl["fw_name"]),
-            ).fetchone()
-            now = datetime.now().isoformat()
-            policy_body = result.get("content", "")
-            if existing:
-                old_ver = db.execute(
-                    "SELECT version FROM aria_documents WHERE doc_id=%s",
-                    (existing["doc_id"],),
-                ).fetchone()["version"]
-                try:
-                    parts = old_ver.split(".")
-                    new_ver = parts[0] + "." + str(int(parts[1]) + 1)
-                except (IndexError, ValueError):
-                    new_ver = "1.1"
-                db.execute("""
-                    UPDATE aria_documents
-                    SET framework=%s, version=%s, status='Draft', updated_at=%s,
-                        comments='AI Generated -- updated ' || %s,
-                        body=%s
-                    WHERE doc_id=%s
-                """, (fw_label, new_ver, now, datetime.now().strftime("%Y-%m-%d"),
-                      policy_body, existing["doc_id"]))
-            else:
-                max_num = db.execute(
-                    "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
-                    "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
-                ).fetchone()[0]
-                doc_id = "DOC-%04d" % (max_num + 1)
-                db.execute("""
-                    INSERT INTO aria_documents
-                    (doc_id, framework, control_ref, title, doc_type,
-                     version, status, owner, created_at, updated_at,
-                     comments, body)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (doc_id, fw_label, ctrl["ref"],
-                      ctrl["name"] + " -- " + resolved_doc_type,
-                      resolved_doc_type, "1.0", "Draft",
-                      user.get("full_name", ""),
-                      now, now,
-                      "AI Generated on " + datetime.now().strftime("%Y-%m-%d"),
-                      policy_body))
-            db.commit()
+            try:
+                draft = _pws.create_draft_from_generation(
+                    db, user,
+                    control=dict(ctrl),
+                    generated_content=result.get("content", ""),
+                    org_name=org_name,
+                    doc_type=resolved_doc_type,
+                    framework_label=fw_label,
+                    integrated_controls=integrated_frameworks,
+                    request_id=request_id.strip() or None,
+                    target_business_unit_id=bu_id_int,
+                    org_wide=org_wide,
+                )
+            except _pws.PolicyWorkflowError as exc:
+                db.rollback()
+                # A successful AI response must not be reported as a
+                # successful save if persistence actually failed (section 8).
+                return JSONResponse({
+                    "success": False,
+                    "error": f"Content generated but not saved: {exc.message}",
+                    "content": result.get("content", ""),
+                }, status_code=exc.http_status)
         finally:
             db.close()
+
+        result["draft_id"] = draft["id"]
+        result["state"] = draft["state"]
+        result["lock_version"] = draft["lock_version"]
+        result["resume_url"] = f"/aria/ai-generator?draft={draft['id']}"
 
     return JSONResponse(result)
 
@@ -2658,14 +3005,8 @@ async def api_gap_analysis(request: Request,
 async def export_word(request: Request, control_id: str = Form(""), content: str = Form(...), org_name: str = Form("Your Organisation")):
     """Convert AI-generated policy markdown to a .docx download."""
     control_id, org_name = _s(control_id), _s(org_name)
-    from docx import Document
-    from docx.shared import Pt, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.name = "Calibri"
-    style.font.size = Pt(11)
+    import re as _re
+    from modules.aria.branding_engine import build_policy_docx
 
     db = get_db()
     try:
@@ -2675,81 +3016,7 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
 
     ctrl_label = f"{ctrl_row['ref']} - {ctrl_row['name']}" if ctrl_row else "Policy Document"
 
-    heading = doc.add_heading(f"{org_name}", level=0)
-    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    sub = doc.add_heading(ctrl_label, level=1)
-    sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
-
-    doc.add_paragraph("")
-
-    import re as _re
-
-    def _add_formatted_runs(paragraph, text):
-        """Parse inline markdown (bold, italic) into Word runs."""
-        parts = _re.split(r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*)', text)
-        for part in parts:
-            if not part:
-                continue
-            if part.startswith("***") and part.endswith("***"):
-                run = paragraph.add_run(part[3:-3])
-                run.bold = True
-                run.italic = True
-            elif part.startswith("**") and part.endswith("**"):
-                run = paragraph.add_run(part[2:-2])
-                run.bold = True
-            elif part.startswith("*") and part.endswith("*"):
-                run = paragraph.add_run(part[1:-1])
-                run.italic = True
-            else:
-                paragraph.add_run(part)
-
-    lines = content.splitlines()
-    i = 0
-    while i < len(lines):
-        stripped = lines[i].rstrip()
-
-        if stripped.startswith("### "):
-            doc.add_heading(stripped[4:], level=3)
-        elif stripped.startswith("## "):
-            doc.add_heading(stripped[3:], level=2)
-        elif stripped.startswith("# "):
-            doc.add_heading(stripped[2:], level=1)
-        elif stripped.startswith("- ") or stripped.startswith("* "):
-            p = doc.add_paragraph(style="List Bullet")
-            _add_formatted_runs(p, stripped[2:])
-        elif _re.match(r'^\d+[\.\)]\s', stripped):
-            p = doc.add_paragraph(style="List Number")
-            _add_formatted_runs(p, _re.sub(r'^\d+[\.\)]\s', '', stripped))
-        elif stripped.startswith("|") and stripped.endswith("|"):
-            table_lines = []
-            while i < len(lines) and lines[i].rstrip().startswith("|") and lines[i].rstrip().endswith("|"):
-                row_text = lines[i].rstrip()
-                if not _re.match(r'^\|[\s\-:|]+\|$', row_text):
-                    cells = [c.strip() for c in row_text.strip("|").split("|")]
-                    table_lines.append(cells)
-                i += 1
-            if table_lines:
-                cols = max(len(r) for r in table_lines)
-                tbl = doc.add_table(rows=len(table_lines), cols=cols, style="Table Grid")
-                for ri, row_cells in enumerate(table_lines):
-                    for ci, cell_text in enumerate(row_cells):
-                        if ci < cols:
-                            cell = tbl.cell(ri, ci)
-                            cell.text = ""
-                            p = cell.paragraphs[0]
-                            _add_formatted_runs(p, cell_text)
-                            if ri == 0:
-                                for run in p.runs:
-                                    run.bold = True
-            continue
-        elif stripped == "":
-            doc.add_paragraph("")
-        else:
-            p = doc.add_paragraph()
-            _add_formatted_runs(p, stripped)
-
-        i += 1
+    doc = build_policy_docx(content, org_name=org_name, control_label=ctrl_label, include_preamble=True)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -2787,11 +3054,15 @@ async def ask_page(request: Request):
             WHERE username=%s
             ORDER BY id DESC LIMIT 12
         """, (user["username"],)).fetchall()
-        suggestions_rows = db.execute("""
+        # PLAN-35 T08 (section 10.2, "Ask ARIA suggestions"): unscoped, so
+        # a suggested question could quote another organization's policy
+        # title to any user who opened this page.
+        _ask_scope_sql, _ask_scope_params = document_scope_sql(user)
+        suggestions_rows = db.execute(f"""
             SELECT title FROM aria_documents
-            WHERE body IS NOT NULL AND length(body) > 200
+            WHERE body IS NOT NULL AND length(body) > 200 AND {_ask_scope_sql}
             ORDER BY RANDOM() LIMIT 5
-        """).fetchall()
+        """, _ask_scope_params).fetchall()
     finally:
         db.close()
 
@@ -2808,9 +3079,8 @@ async def ask_page(request: Request):
     # ── Stats for the header strip ─────────────────────────────────────────
     db2 = get_db()
     try:
-        total_indexed = db2.execute(
-            "SELECT COUNT(*) FROM aria_ask_index"
-        ).fetchone()[0]
+        from modules.aria.ask_service import indexed_count
+        total_indexed = indexed_count(user)
         total_asked = db2.execute(
             "SELECT COUNT(*) FROM aria_ask_log WHERE username=%s",
             (user["username"],)
@@ -2832,6 +3102,7 @@ async def ask_page(request: Request):
             "SELECT name FROM frameworks WHERE is_active=1 ORDER BY name"
         ).fetchall()
     except Exception:
+        swallowed("ask_page (aria_ask_log)")
         total_indexed = 0; total_asked = 0; covered_pct = 0
         helpful_pct = None; frameworks_list = []
     finally:
@@ -2840,8 +3111,12 @@ async def ask_page(request: Request):
     from config import settings as _cfg
     _provider_key = (getattr(_cfg, 'AI_PROVIDER', '') or 'anthropic').lower()
     _ollama_m = getattr(_cfg, 'OLLAMA_MODEL', 'llama3.2')
+    _openrouter_m = getattr(
+        _cfg, 'OPENROUTER_MODEL', 'z-ai/glm-5.3-flash'
+    )
     ai_provider_label = {
         "anthropic": "Claude",
+        "openrouter": f"OpenRouter · {_openrouter_m}",
         "openai":    "GPT-4o",
         "deepseek":  "DeepSeek",
         "ollama":    f"Ollama · {_ollama_m}",

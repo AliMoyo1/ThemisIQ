@@ -25,6 +25,7 @@ from core.notifications import notify_connectors
 from database import get_db_background as get_db  # handlers must fail-fast, never queue behind user writes
 from database import insert_returning_id
 from config import settings
+from core.best_effort import swallowed
 
 log = logging.getLogger("oneforall.handlers")
 
@@ -32,52 +33,71 @@ log = logging.getLogger("oneforall.handlers")
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _notify(db, user_id, module, title, message, link=None):
-    """Insert a notification row. Logs failures but never raises — handlers
-    must not crash on notification delivery problems."""
+    """Insert a notification row and report whether it succeeded.
+
+    Callers may still choose best-effort behavior by ignoring the return value,
+    while transactional handlers can fail and retry instead of claiming that a
+    notification-dependent operation completed when the insert was lost.
+    """
     if not user_id:
-        return
+        return True
     try:
         db.execute(
             "INSERT INTO notifications (user_id, module, title, message, link) "
             "VALUES (%s, %s, %s, %s, %s)",
             (user_id, module, title, message, link),
         )
+        return True
     except Exception as exc:
         log.warning(
             "Failed to insert notification (user=%s, module=%s, title=%r): %s",
             user_id, module, title, exc,
         )
+        return False
 
 
-def _notify_admins(db, module, title, message, link=None):
-    """Send a notification to every admin/super_admin user. Logs failures."""
+def _notify_admins(db, module, title, message, link=None) -> bool:
+    """Send a notification to every admin/super_admin user. Logs failures
+    and never raises. Returns whether the lookup/dispatch itself completed
+    without error (existing callers that ignore the return value are
+    unaffected -- this was always None/falsy on the same failure path
+    before, just never checked)."""
     try:
         rows = db.execute(
             "SELECT DISTINCT u.id FROM users u "
             "JOIN user_roles ur ON u.id = ur.user_id "
             "WHERE ur.role_key IN ('super_admin', 'admin') AND u.is_active = 1"
         ).fetchall()
+        completed = True
         for r in rows:
-            _notify(db, r[0], module, title, message, link)
+            if not _notify(db, r[0], module, title, message, link):
+                completed = False
+        return completed
     except Exception as exc:
         log.warning(
             "Failed to dispatch admin notification (module=%s, title=%r): %s",
             module, title, exc,
         )
+        return False
 
 
 def _insert_risk(db, title, description, source_module, entity_type,
                  entity_id, category, likelihood, impact, risk_level,
                  user_id):
-    """Insert into risk_register.  Returns lastrowid or None."""
+    """Insert into risk_register.  Returns lastrowid or None.
+
+    The risk belongs to the business unit of the record it came from (a breach, an incident...), else to
+    the unit of the user whose action raised it, else to nobody (organization wide)."""
+    from modules.governance.entity_scope import owner_unit
     try:
+        unit = owner_unit(db, source_module, entity_type, entity_id, user_id=user_id)
         cur = insert_returning_id(db,
             "INSERT INTO risk_register (title, description, source_module, "
             "source_entity_type, source_entity_id, category, likelihood, impact, "
-            "risk_level, status, created_by) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "risk_level, status, created_by, business_unit_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (title, description, source_module, entity_type, entity_id,
-             category, likelihood, impact, risk_level, "open", user_id),
+             category, likelihood, impact, risk_level, "open", user_id, unit),
         )
         return cur
     except Exception as exc:
@@ -86,9 +106,33 @@ def _insert_risk(db, title, description, source_module, entity_type,
 
 
 def _insert_task(db, title, description, module, entity_type, entity_id,
-                 priority, user_id):
-    """Insert into task_board.  Returns lastrowid or None."""
+                 priority, user_id, source_event_id=None):
+    """Insert into task_board. Returns lastrowid, an existing row's id (see
+    source_event_id below), or None on failure.
+
+    source_event_id (PLAN-35 T11 review fix): pass the id of the events row
+    that triggered this task when the caller might be replayed for the
+    exact same event occurrence (core/events.py's emit() now reruns a
+    handler whose delivery never reached 'processed', not just one that
+    never started) -- without it, a replay created a second, duplicate
+    task every time. Omit it (the default, and every pre-existing caller)
+    for a plain, unguarded insert, unchanged from before."""
     try:
+        if source_event_id is not None:
+            cur = insert_returning_id(db,
+                "INSERT INTO task_board (title, description, module, entity_type, "
+                "entity_id, priority, status, created_by, source_event_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING",
+                (title, description, module, entity_type, entity_id,
+                 priority, "todo", user_id, source_event_id),
+            )
+            if cur is None:
+                existing = db.execute(
+                    "SELECT id FROM task_board WHERE source_event_id=%s", (source_event_id,)
+                ).fetchone()
+                return existing[0] if existing else None
+            return cur
         cur = insert_returning_id(db,
             "INSERT INTO task_board (title, description, module, entity_type, "
             "entity_id, priority, status, created_by) "
@@ -144,7 +188,7 @@ def _check_and_emit_appetite_breach(db, category, user_id=None):
     try:
         row = db.execute(
             "SELECT MAX(COALESCE(rrr, likelihood * impact)) AS max_score FROM erm_enterprise_risks "
-            "WHERE category=%s AND status NOT IN ('closed','accepted')",
+            "WHERE category=%s AND status != 'closed'",
             (category,)
         ).fetchone()
         current_score = row["max_score"] if row and row["max_score"] else 0
@@ -351,21 +395,57 @@ def flag_risk_on_control_failure(event_type, source_module, entity_type,
 
 @on("aria.policy.published")
 def policy_published_handler(event_type, source_module, entity_type,
-                             entity_id, payload, user_id, **kw):
+                             entity_id, payload, user_id, event_id=None, **kw):
     """
     When ARIA publishes a policy:
     - Create a task to review evidence alignment
     - Link the policy to its framework via cross_module_links
+    - Sync the document to the Evidence Vault (legacy documents only --
+      see the version_id branch below)
     - Notify admins
+
+    PLAN-35 T11 review fix: every one of the four steps above used to be
+    called without checking its own result, and the whole function body
+    was wrapped in a blanket except that only logged -- so events.emit()
+    always saw this handler as "successful" and marked the event
+    'processed' even when task creation, cross-module linking, or the
+    admin notification silently failed underneath. Now the managed-publication
+    branch (the one PLAN-35 policies actually take) collects each step's
+    real outcome and raises once, after attempting all of them, if any
+    failed -- so a genuine failure reaches emit()'s handler loop and the
+    event is correctly retried later instead of hiding it forever. Nothing
+    commits when that happens (the finally below closes the connection
+    without a prior commit, which rolls back this attempt's partial work),
+    so a retry starts clean rather than layering a second attempt on top
+    of a half-done first one. event_id (new, passed by emit() -- every
+    handler already accepts **kw, so this is safe for the other 49) makes
+    the task-creation retry idempotent via _insert_task's source_event_id;
+    the cross-module link is already idempotent on its own (core/links.py's
+    ON CONFLICT DO NOTHING), and the admin notification is intentionally
+    NOT deduplicated -- redundant admin notifications on a rare replay are
+    an acceptable, minor annoyance next to the alternative of never
+    surfacing the retry at all.
     """
+    # PLAN-35 T09 (section 10.3): "For managed-version events, existing
+    # policy handlers must read the specified snapshot or delegate to this
+    # adapter. Avoid calling both the old mutable-document Vault copy and
+    # the new copy." A managed publication's payload carries version_id --
+    # policy_publication.py's job already copied that exact version into
+    # the Evidence Vault (keyed by aria_policy_version_id, never
+    # overwriting an earlier version's row) before emitting this event, so
+    # the legacy vault-sync block below must not run a second, competing
+    # copy keyed by the mutable document id instead.
+    is_managed_publication = payload.get("version_id") is not None
+
     db = get_db()
     try:
         title = payload.get("title", f"Policy #{entity_id}")
         framework = payload.get("framework", "")
         control_ref = payload.get("control_ref", "")
+        failures = []
 
         # Task: review evidence alignment for the new policy
-        _insert_task(
+        task_id = _insert_task(
             db,
             title=f"Review evidence for: {title}",
             description=(
@@ -373,10 +453,12 @@ def policy_published_handler(event_type, source_module, entity_type,
                 f"Verify that supporting evidence is linked and up to date."
             ),
             module="aria", entity_type="document", entity_id=entity_id,
-            priority="high", user_id=user_id,
+            priority="high", user_id=user_id, source_event_id=event_id,
         )
+        if task_id is None:
+            failures.append("review task")
 
-        # Cross-module link: policy → evidence vault (available for linking)
+        # Cross-module link: policy → matching GRID controls
         if control_ref:
             refs = [r.strip() for r in control_ref.split(",") if r.strip()]
             for ref in refs:
@@ -385,13 +467,36 @@ def policy_published_handler(event_type, source_module, entity_type,
                     (ref,)
                 ).fetchone()
                 if ctrl_row:
-                    create_cross_module_link(
+                    link_id = create_cross_module_link(
                         "aria", "document", entity_id,
                         "grid", "control", ctrl_row[0],
                         relationship="implements", user_id=user_id, db=db,
                     )
+                    if link_id is None:
+                        failures.append(f"GRID link for control {ref}")
 
-        # ── Sync full policy document to Evidence Vault ─────────────
+        if is_managed_publication:
+            notified = _notify_admins(
+                db, "aria",
+                f"Policy Published: {title}",
+                f"ARIA policy '{title}' approved (version {payload.get('version')}) "
+                f"— synced to the Evidence Vault.",
+                "/aria/#documents",
+            )
+            if not notified:
+                failures.append("admin notification")
+
+            if failures:
+                raise RuntimeError(
+                    f"policy_published_handler: {', '.join(failures)} did not complete "
+                    f"for document {entity_id}."
+                )
+            db.commit()
+            log.info("Handled managed policy published for '%s' (id=%d, version_id=%s)",
+                      title, entity_id, payload.get("version_id"))
+            return
+
+        # ── Sync full policy document to Evidence Vault (legacy path) ───
         doc_row = db.execute(
             "SELECT doc_id, title, doc_type, version, "
             "       file_path, branded_file_path, file_name "
@@ -401,12 +506,19 @@ def policy_published_handler(event_type, source_module, entity_type,
 
         try:
             import hashlib as _hashlib
+            import os as _os
             import shutil as _shutil
             from pathlib import Path as _Path
             import uuid as _uuid
 
-            aria_dir = _Path(os.environ.get("ARIA_UPLOAD_DIR", "data/aria_uploads"))
-            ev_dir = _Path(os.environ.get("EVIDENCE_DIR", "data/evidence"))
+            # This block previously called the bare name `os`, which this
+            # file never imports at module level -- every legacy policy
+            # publication has been silently failing to sync to the
+            # Evidence Vault, caught by this function's own broad except
+            # below and only ever logged. Discovered directly by testing
+            # this handler for the first time (PLAN-35 T09).
+            aria_dir = _Path(_os.environ.get("ARIA_UPLOAD_DIR", "data/aria_uploads"))
+            ev_dir = _Path(_os.environ.get("EVIDENCE_DIR", "data/evidence"))
             ev_dir.mkdir(parents=True, exist_ok=True)
 
             src_rel = None
@@ -499,17 +611,33 @@ def policy_published_handler(event_type, source_module, entity_type,
             log.info("Synced ARIA policy '%s' → vault #%d (%s bytes)", title, vault_id, ev_size)
         except Exception as ev_exc:
             log.warning("Failed to sync ARIA policy to vault: %s", ev_exc)
+            # Retry-safe to surface: the existing_vault lookup just above
+            # already makes this block a find-or-update, not a blind
+            # insert, so a replay after this failure cannot duplicate it.
+            failures.append("legacy evidence vault sync")
 
-        _notify_admins(
+        notified = _notify_admins(
             db, "aria",
             f"Policy Published: {title}",
             f"ARIA policy '{title}' approved — added to Evidence Vault.",
             "/aria/#documents",
         )
+        if not notified:
+            failures.append("admin notification")
+
+        if failures:
+            raise RuntimeError(
+                f"policy_published_handler: {', '.join(failures)} did not complete "
+                f"for document {entity_id}."
+            )
         db.commit()
         log.info("Handled policy published for '%s' (id=%d)", title, entity_id)
     except Exception as e:
         log.warning("policy_published_handler error: %s", e)
+        raise  # PLAN-35 T11 review fix: let emit() see a genuine failure
+        # instead of silently absorbing it -- an unresolved failure here
+        # used to make events.emit() mark the event 'processed' regardless
+        # of what actually happened inside this handler.
     finally:
         db.close()
 
@@ -997,6 +1125,7 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
 
         matches = db.execute(q, params).fetchall()
 
+        notification_failures = []
         for m in matches:
             db.execute(
                 "UPDATE grid_policy_requests "
@@ -1005,13 +1134,21 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
                 (entity_id, m["id"]),
             )
             # Notify the requestor
-            _notify(
+            notified = _notify(
                 db, m["requested_by"], "grid",
                 f"Policy Available: {title}",
                 f"The policy '{title}' you requested for audit "
                 f"'{m['audit_name'] or ''}' has been published in ARIA. "
                 f"You can now attach it as evidence.",
                 "/grid/#evidence",
+            )
+            if not notified:
+                notification_failures.append(m["id"])
+
+        if notification_failures:
+            raise RuntimeError(
+                "requestor notification failed for GRID policy request(s): "
+                + ", ".join(str(request_id) for request_id in notification_failures)
             )
 
         if matches:
@@ -1020,6 +1157,11 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
                      len(matches), title)
     except Exception as e:
         log.warning("auto_resolve_grid_policy_requests error: %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         db.close()
 
@@ -1732,16 +1874,20 @@ def breach_triggers_bcm_incident(event_type, source_module, entity_type,
         # Map Sentinel severity → BCM severity tier
         bcm_sev  = {"critical": "critical", "high": "major", "medium": "significant"}.get(severity, "major")
 
+        # An incident opened this way has no commander, so its acknowledgement clock starts now: if nobody takes it, the
+        # BCM managers are told (modules/bcm/escalation.py).
+        from core.timeutils import utcnow
+        from modules.bcm import escalation
         incident_id = insert_returning_id(db,
             "INSERT INTO bcm_incidents "
-            "(title, description, severity, status, started_at, created_at, updated_at) "
-            "VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+            "(title, description, severity, status, started_at, created_at, updated_at, ack_due_at) "
+            "VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s)",
             (
                 f"DATA BREACH: {title}",
                 f"Automatically escalated from Sentinel breach #{entity_id}. "
                 f"Severity: {severity}. Activate relevant BCM plan and initiate "
                 f"crisis communications protocol.",
-                bcm_sev, "open",
+                bcm_sev, "open", escalation.due_from(bcm_sev, utcnow()),
             ),
         )
         db.commit()
@@ -2495,7 +2641,7 @@ def breach_resolved_closes_linked_risks(event_type, source_module, entity_type,
       3. Close the BCM incident that was auto-created from this breach
       4. Notify risk owners and admins
     The appetite framework recalculates automatically on next load because
-    get_appetite_status() queries WHERE status NOT IN ('closed','accepted').
+    get_appetite_status() queries WHERE status != 'closed'.
     """
     db = get_db()
     try:
@@ -2508,7 +2654,7 @@ def breach_resolved_closes_linked_risks(event_type, source_module, entity_type,
         erm_rows = db.execute(
             "SELECT id, title, category, owner_id FROM erm_enterprise_risks "
             "WHERE source_module='sentinel' AND source_risk_id=%s "
-            "AND status NOT IN ('closed','accepted')",
+            "AND status != 'closed'",
             (entity_id,),
         ).fetchall()
 
@@ -2657,7 +2803,7 @@ def erm_risk_closed_checks_appetite(event_type, source_module, entity_type,
         max_score = appetite["max_score"]
         current_max = db.execute(
             "SELECT MAX(COALESCE(rrr, likelihood*impact)) FROM erm_enterprise_risks "
-            "WHERE category=%s AND status NOT IN ('closed','accepted')",
+            "WHERE category=%s AND status != 'closed'",
             (category,),
         ).fetchone()[0] or 0
 
@@ -2810,6 +2956,11 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
         if existing:
             return
 
+        risk = db.execute("SELECT business_unit_id FROM erm_enterprise_risks WHERE id = %s",
+                          (erm_risk_id,)).fetchone()
+        if risk is None:
+            return
+
         title = payload.get("title", f"ERM Data Breach Risk #{erm_risk_id}")
         severity = (payload.get("severity") or "high").lower()
         # Map ERM likelihood/impact score to breach severity
@@ -2838,7 +2989,7 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
             ),
             "notification_required": 1,
         }
-        breach_id = create_breach(breach_data)
+        breach_id = create_breach(breach_data, business_unit_id=risk["business_unit_id"])
 
         create_cross_module_link(
             "erm", "enterprise_risk", erm_risk_id,
@@ -2903,7 +3054,7 @@ def appetite_breach_notify(event_type, source_module, entity_type,
         # Notify owners of risks in that category
         rows = db.execute(
             "SELECT DISTINCT owner_id FROM erm_enterprise_risks "
-            "WHERE category=%s AND status NOT IN ('closed','accepted') AND owner_id IS NOT NULL",
+            "WHERE category=%s AND status != 'closed' AND owner_id IS NOT NULL",
             (category,)
         ).fetchall()
         for row in rows:
@@ -2954,91 +3105,187 @@ _WORKFLOW_TRIGGER_MAP = {
 
 
 def _auto_trigger_workflows(db, event_type: str, source_module: str,
-                            entity_type: str, entity_id: int, user_id: int) -> None:
-    """Start workflow instances for any active definitions that match this event."""
+                            entity_type: str, entity_id: int, user_id: int,
+                            event_id: int | None = None,
+                            org_id: int | None = None) -> None:
+    """Start workflow instances for any active definitions that match this
+    event.
+
+    PLAN-35 T11 review fix: this used to unconditionally INSERT a new
+    workflow_instances row (no idempotency at all) and swallow every
+    exception itself, so events.emit() could never see this fail -- and if
+    it now DID see a failure and replayed the handler, a plain reinsert
+    would have created a duplicate instance for the exact same event
+    occurrence. event_id (passed by every workflow_trigger_on_* wrapper
+    below, itself passed through from emit()) fixes both at once: ON
+    CONFLICT DO NOTHING keyed on (definition_id, event_id) makes a replay
+    of this exact event a safe no-op per definition, and the outer swallow
+    is gone so a genuine failure (a bad steps_json, a DB error) now
+    propagates to emit()'s handler loop instead of being logged and
+    forgotten. entity_id alone would be the wrong key: a document
+    published again after a later revision must still get its own new
+    instance, not be silently deduplicated against its first publication --
+    only (definition_id, event_id) identifies "this exact attempt already
+    ran", which is the only thing an idempotency check should ever mean
+    here. event_id is optional (default None) so any future direct caller
+    that has no event to correlate against still gets a plain, unguarded
+    insert, unchanged from before.
+    """
     trigger = _WORKFLOW_TRIGGER_MAP.get(event_type)
     if not trigger:
         return
     trigger_module, trigger_action = trigger
-    try:
-        defns = db.execute(
-            "SELECT id, name, steps_json FROM workflow_definitions "
-            "WHERE is_active = 1 AND trigger_module = %s AND trigger_action = %s",
-            (trigger_module, trigger_action)
-        ).fetchall()
-        if not defns:
-            return
+    actor_org = None
+    if user_id is not None:
+        actor = db.execute("SELECT org_id FROM users WHERE id=%s", (user_id,)).fetchone()
+        actor_org = actor["org_id"] if actor else None
+    if org_id is not None and actor_org is not None and org_id != actor_org:
+        raise ValueError("Workflow event organization differs from actor organization")
+    tenant_id = org_id if org_id is not None else actor_org
+    if tenant_id is None:
+        # No trustworthy tenant: do not fan out an event to every definition.
+        return
+    defns = db.execute(
+        "SELECT wd.id, wd.name, wd.steps_json FROM workflow_definitions wd "
+        "JOIN users creator ON creator.id=wd.created_by "
+        "WHERE wd.is_active=1 AND wd.trigger_module=%s AND wd.trigger_action=%s "
+        "AND creator.org_id=%s",
+        (trigger_module, trigger_action, tenant_id)
+    ).fetchall()
+    if not defns:
+        return
 
-        from database import insert_returning_id
-        import json as _json
+    from database import insert_returning_id
+    from modules.governance.entity_scope import owner_unit
+    import json as _json
 
-        for defn in defns:
+    # Every instance of this event belongs to the unit of the record it is about, else of the user who acted.
+    unit = owner_unit(db, source_module, entity_type, entity_id, user_id=user_id)
+    for defn in defns:
+        # Parse before inserting anything. A malformed definition must leave no
+        # committed "active" instance that a retry then mistakes for success.
+        steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
+        if not isinstance(steps, list):
+            raise ValueError(f"Workflow definition {defn['id']} steps_json must be a list.")
+
+        existing_instance = False
+        if event_id is not None:
             iid = insert_returning_id(
                 db,
                 "INSERT INTO workflow_instances "
-                "(definition_id, entity_module, entity_type, entity_id, started_by) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (defn["id"], source_module, entity_type, entity_id, user_id)
+                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, source_event_id, "
+                "business_unit_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (definition_id, source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING",
+                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id, event_id, unit)
             )
-            db.commit()
-            steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
-            if steps:
+            if iid is None:
+                # A previous attempt may have committed an instance before it
+                # failed to create step zero. Locate and heal that partial row;
+                # only a complete instance is a safe replay no-op.
+                row = db.execute(
+                    "SELECT id FROM workflow_instances "
+                    "WHERE definition_id=%s AND source_event_id=%s",
+                    (defn["id"], event_id),
+                ).fetchone()
+                if not row:
+                    raise RuntimeError(
+                        f"Workflow instance conflict for definition {defn['id']} "
+                        "but no existing instance was found."
+                    )
+                iid = row["id"]
+                existing_instance = True
+        else:
+            iid = insert_returning_id(
+                db,
+                "INSERT INTO workflow_instances "
+                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, business_unit_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id, unit)
+            )
+
+        if steps:
+            action = None
+            if existing_instance:
+                action = db.execute(
+                    "SELECT id FROM workflow_actions "
+                    "WHERE instance_id=%s AND step_index=0 LIMIT 1",
+                    (iid,),
+                ).fetchone()
+            if not action:
+                # _create_step_action commits both the uncommitted instance and
+                # its first action together. If it raises, neither survives.
                 from modules.launcher.routes_workflows import _create_step_action
                 _create_step_action(db, iid, 0, steps[0], defn["name"])
-            log.info(
-                "Auto-triggered workflow '%s' (instance=%d) for %s/%s/%d",
-                defn["name"], iid, source_module, entity_type, entity_id
-            )
-    except Exception as exc:
-        log.warning("_auto_trigger_workflows failed for %s: %s", event_type, exc)
+        elif not existing_instance:
+            db.commit()
+        log.info(
+            "Auto-triggered workflow '%s' (instance=%d) for %s/%s/%d",
+            defn["name"], iid, source_module, entity_type, entity_id
+        )
 
 
 @on(ARIA_POLICY_PUBLISHED)
 def workflow_trigger_on_aria_policy(event_type, source_module, entity_type,
-                                    entity_id, payload, user_id, **kw):
+                                    entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
+    except Exception as exc:
+        log.warning("workflow_trigger_on_aria_policy failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(BCM_INCIDENT_DECLARED)
 def workflow_trigger_on_bcm_incident(event_type, source_module, entity_type,
-                                     entity_id, payload, user_id, **kw):
+                                     entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
+    except Exception as exc:
+        log.warning("workflow_trigger_on_bcm_incident failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(SENTINEL_BREACH_CONFIRMED)
 def workflow_trigger_on_sentinel_breach(event_type, source_module, entity_type,
-                                        entity_id, payload, user_id, **kw):
+                                        entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
+    except Exception as exc:
+        log.warning("workflow_trigger_on_sentinel_breach failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(ERM_RISK_ESCALATED)
 def workflow_trigger_on_erm_risk(event_type, source_module, entity_type,
-                                 entity_id, payload, user_id, **kw):
+                                 entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
+    except Exception as exc:
+        log.warning("workflow_trigger_on_erm_risk failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(GRID_AUDIT_COMPLETED)
 def workflow_trigger_on_grid_audit(event_type, source_module, entity_type,
-                                   entity_id, payload, user_id, **kw):
+                                   entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
+    except Exception as exc:
+        log.warning("workflow_trigger_on_grid_audit failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
@@ -3090,6 +3337,7 @@ def recompute_effectiveness_on_status_change(event_type, source_module, entity_t
                         cid = row[0]
                         break
                 except Exception:
+                    swallowed("recompute_effectiveness_on_status_change")
                     continue
         if not cid:
             return

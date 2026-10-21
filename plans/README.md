@@ -1,5 +1,7 @@
 # Execution Plans — ranked by leverage
 
+> **Current entry point (2026-10-07):** [Plan portfolio and dependency map](ROADMAP-2026-10.md). The rounds below are a historical execution record. Their status text and original file lists can be stale; reconcile the checkout and each plan's latest progress record before treating any item as shipped. The portfolio links the newer [connected compliance proposal](PLAN-37-connected-compliance-experience.md), [Evidence Vault plan](../design/evidence-vault/PLAN.md), [VerifyWise-inspired plans](verifywise-features/README.md), and [CISO Assistant-inspired plans](ciso-assistant-features/README.md).
+
 Each PLAN-*.md in this folder is self-contained: goal, exact files,
 ordered steps, edge cases, and verifiable acceptance criteria. They are
 written to be executed top-to-bottom without needing to ask questions.
@@ -241,6 +243,22 @@ acceptance criteria) and written to be executed without further questions.
 Standing constraints below still apply (no em dashes, one-command-per-step for
 VPS, verify with py_compile + pytest + live browser + cleanup, no commit until
 the slice's acceptance criteria pass).
+
+## ARIA policy authoring (PLAN-35)
+
+| Plan | Status | Scope |
+|---|---|---|
+| [PLAN-35](PLAN-35-aria-policy-authoring-flow.md) | T00-T10 DONE; T11 (release verification) in progress as of 2026-09-20 | Separate authoring drafts, immutable policy versions, local branded PDF preview, named approvals, organization/BU authorization, legacy-route guards, publication/cleanup recovery, and ordered tasks with verification gates |
+
+Execute PLAN-35 in its T00-T11 order. Its execution ledger (section 16)
+distinguishes planned work from verified completion — read each task's
+"detailed notes" subsection there, not just the top-line checklists, before
+trusting what's actually proven. The feature stays behind
+`ARIA_POLICY_AUTHORING_ENABLED=false` (see `oneforall/docs/aria-policy-authoring.md`)
+until T11's remaining items close: real (non-mocked) document conversion,
+isolated PostgreSQL checks (no PG instance has been available in this
+development environment), and the second-approver browser scenario are
+still outstanding.
 
 ## Recommended execution order
 

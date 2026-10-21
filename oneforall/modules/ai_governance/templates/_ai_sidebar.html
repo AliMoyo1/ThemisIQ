@@ -1,0 +1,76 @@
+
+<div class="module-sidebar-header">
+  <div class="module-name">AI Governance</div>
+  <div class="module-desc">What needs action, and the record behind it</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Work</div>
+  {% if can_ai_use or can_ai_admin_nav %}
+  <a href="/ai-governance/" class="nav-item{% if active_section == 'overview' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+    Overview
+  </a>
+  {% endif %}
+  {% if can_review %}
+  <a href="/ai-governance/review" class="nav-item{% if active_section == 'review' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    Requests
+  </a>
+  {% elif can_ai_request_history %}
+  <a href="/ai-governance/requests" class="nav-item{% if active_section == 'requests' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    My requests
+  </a>
+  {% endif %}
+  {% if can_ai_use or can_ai_admin_nav %}
+  <a href="/ai-governance/systems" class="nav-item{% if active_section == 'inventory' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+    AI systems
+  </a>
+  {% endif %}
+  {% if can_review or can_decide %}
+  <a href="/ai-governance/decisions" class="nav-item{% if active_section == 'decisions' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M5 7l7-4 7 4"/><path d="M5 7l-3 7a4 3 0 008 0z"/><path d="M19 7l-3 7a4 3 0 008 0z"/></svg>
+    Reviews and decisions
+  </a>
+  {% endif %}
+  {% if can_ai_use or can_ai_admin_nav %}
+  <a href="/ai-governance/monitoring" class="nav-item{% if active_section == 'monitoring' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+    Monitoring
+  </a>
+  {% endif %}
+  {% if can_manage_pack or can_receive_pack %}
+  <a href="/ai-governance/packs" class="nav-item{% if active_section == 'packs' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 12h10M7 15h6"/></svg>
+    Review packs
+  </a>
+  {% endif %}
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Also</div>
+  {% if can_assess %}
+  <a href="/ai-governance/assessments" class="nav-item{% if active_section == 'assessments' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M4 4h9"/><path d="M4 9h5"/><path d="M4 14h5"/><path d="M4 19h12"/></svg>
+    Impact assessments
+  </a>
+  {% endif %}
+  {% if can_review %}
+  <a href="/ai-governance/regulatory" class="nav-item{% if active_section == 'regulatory' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+    Regulatory changes
+  </a>
+  {% endif %}
+  {% if can_register %}
+  <a href="/ai-governance/register" class="nav-item{% if active_section == 'register' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+    Register an AI use
+  </a>
+  {% if can_review %}
+  <a href="/ai-governance/requests" class="nav-item{% if active_section == 'requests' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    My requests
+  </a>
+  {% endif %}
+  {% endif %}
+</div>

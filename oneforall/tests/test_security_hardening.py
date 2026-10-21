@@ -63,6 +63,7 @@ def _seed():
 def test_audit_isolation_list_audit_scoped_org1():
     """list_audit(org_id=1) must return ONLY org-1 rows (no cross-tenant leak)."""
     con = _seed()
+    orig_get_db = ds.get_db
     ds.get_db = lambda: con  # type: ignore[assignment]
     try:
         rows = ds.list_audit(limit=50, org_id=1)
@@ -71,11 +72,12 @@ def test_audit_isolation_list_audit_scoped_org1():
         assert "did X (org A)" in [r["action"] for r in rows]
         assert "did Y (org B)" not in [r["action"] for r in rows]
     finally:
-        ds.get_db = getattr(ds, "_orig_get_db", ds.get_db)
+        ds.get_db = orig_get_db
 
 
 def test_audit_isolation_list_audit_scoped_org2():
     con = _seed()
+    orig_get_db = ds.get_db
     ds.get_db = lambda: con  # type: ignore[assignment]
     try:
         rows = ds.list_audit(limit=50, org_id=2)
@@ -83,15 +85,16 @@ def test_audit_isolation_list_audit_scoped_org2():
         assert "did Y (org B)" in [r["action"] for r in rows]
         assert "did X (org A)" not in [r["action"] for r in rows]
     finally:
-        ds.get_db = getattr(ds, "_orig_get_db", ds.get_db)
+        ds.get_db = orig_get_db
 
 
 def test_audit_unscoped_returns_all():
     """Without org_id, the helper returns every row (used only for true super-admins)."""
     con = _seed()
+    orig_get_db = ds.get_db
     ds.get_db = lambda: con  # type: ignore[assignment]
     try:
         rows = ds.list_audit(limit=50)
         assert len(rows) == 2
     finally:
-        ds.get_db = getattr(ds, "_orig_get_db", ds.get_db)
+        ds.get_db = orig_get_db

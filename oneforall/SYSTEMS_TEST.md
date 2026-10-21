@@ -918,11 +918,560 @@ read-only against real data).
 
 ---
 
+## Pass 8 — Remaining persona RBAC sweep (audit_lead, risk_owner, bcm_manager, grc_officer, org_admin, employee)
+
+**Status: COMPLETE.** Finding fixed same session, verified live, full pytest pass.
+
+**Method:** for each role, created a temporary user holding only that role,
+logged in for real, confirmed the Command Centre module tiles matched
+`core/rbac.py`'s `module.*.access` grants exactly, then hit a handful of
+routes directly via authenticated `fetch()` to confirm enforcement matches
+the UI (not just hidden in nav) — both the routes that should succeed and
+the ones that should 403. All 6 temporary users and their sessions were
+deleted after.
+
+**Results:**
+
+| Persona | Modules shown (matched rbac.py) | Route-level checks | Result |
+|---|---|---|---|
+| audit_lead | Governance, Audit, Enterprise Risk, Operations Risk | GRID/ERM read: 200; BCM/Sentinel: 403; framework-manage: 403 | Clean |
+| risk_owner | Governance, Resilience, Enterprise Risk, Operations Risk | BCM: 200; GRID/Sentinel: 403; framework POST reached validation (400, not 403) | Clean |
+| bcm_manager | Resilience, Enterprise Risk, Operations Risk | BCM: 200; ARIA/GRID/Sentinel: 403; framework POST: 403 (correctly distinct from risk_owner's 400) | Clean |
+| grc_officer | Governance, Audit, Resilience, Privacy, Enterprise Risk (no Operations Risk — rbac.py doesn't grant `module.orm.access` to this role) | ARIA/GRID/BCM/Sentinel: 200; ORM: 403; `/admin/users`: 403 | **1 finding, fixed** — see below |
+| org_admin | none (pure user-admin role, no module access by design) | `/admin/users`: 200; every module route: 403; `/admin/logs`: 403 (correctly still blocked post-fix); `/governance/`: 200 | Clean. Also re-confirmed PLAN-30's SUPER_ADMIN-escalation block is still intact. |
+| employee | Governance, Resilience | ARIA/BCM: 200; GRID/Sentinel/ERM/ORM/admin: 403 | Clean |
+
+**Finding — `platform.view_audit_log` capability declared but never enforced.**
+`core/rbac.py` grants this capability to `{SUPER_ADMIN, COMPLIANCE_MGR, DPO,
+EXTERNAL_AUDITOR, GRC_OFFICER}`, but `grep` across the whole codebase showed
+zero call sites actually checking it — all three audit-log routes
+(`GET /admin/logs`, `GET /admin/api/logs`, `GET /admin/api/logs/export`)
+were gated on `platform.manage_users` instead (SUPER_ADMIN only), and the
+nav link's visibility (`is_admin` in `shell_context.py`) used the same wrong
+flag. Net effect: compliance_manager, dpo, external_auditor, and
+grc_officer could not view the audit log at all, contradicting the
+permission model's own stated intent. Confirmed the underlying query
+already does correct org-isolation for non-super-admins before widening
+access, so the fix doesn't reopen the earlier tenant-isolation bug.
+
+**Fix:**
+- `modules/launcher/routes_admin.py`: all 3 routes now check
+  `platform.view_audit_log` instead of `platform.manage_users`.
+- `core/shell_context.py`: added `can_view_audit_log` context flag.
+- `templates/base_shell.html`: both Audit Log nav links (user dropdown and
+  the admin sidebar list) now show on `is_admin or can_view_audit_log`;
+  pulled the sidebar link out of the blanket `is_admin` block it was
+  incorrectly bundled into so User Management/Frameworks/Org Structure
+  stay admin-only.
+
+**Verified live:** grc_officer now gets 200 on all three routes and the nav
+link renders; org_admin (which correctly lacks `platform.view_audit_log`)
+still gets 403 and no link, confirming the fix didn't over-widen access.
+`python -m py_compile` clean on both touched Python files. Full `pytest
+tests/` — 200 passed, 0 failed.
+
+**Not fixed, flagged only:** while investigating, noticed the "Framework
+Activation" nav link is also gated on `is_admin` even though the actual
+`/admin/frameworks` page route only requires `@require_auth` (any logged-in
+user) and the real capability that matters, `manage_frameworks`, is granted
+to a broader set (SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD, GRC_OFFICER).
+This is a narrower, lower-severity version of the same nav-lags-behind-
+capability pattern, but not a security hole (page is already open, just
+under-promoted), so left alone rather than scope-creeping into a full nav
+audit. Worth a dedicated pass if that link's discoverability matters.
+
+---
+
+## Pass 9 — Load/performance testing
+
+**Status: COMPLETE.** Finding fixed same session, verified live, full pytest pass.
+
+**Method:** wrote a real concurrent-load script (`httpx.AsyncClient`, `asyncio.gather`,
+not the senior-backend skill's `api_load_tester.py` stub — that script turned out
+to be an unfilled template with no actual logic). Logged in for real as a temporary
+super_admin test user, then fired 25 concurrent requests per endpoint against 15
+representative routes (health/ready, Command Centre, all 6 module index pages, a
+few API/data routes), 3 rounds. Caveat stated up front: this is against the local
+SQLite dev DB, not the production PostgreSQL setup, so absolute numbers aren't
+representative of production capacity — this pass is about catching pathologically
+slow routes and outright crashes/errors under concurrency, not capacity planning.
+
+**Result:** 1,125 requests total, **zero errors, zero non-200 responses** across
+every endpoint and every round. No crashes, no timeouts.
+
+**Finding:** `/grid/` was a consistent, reproducible outlier — averaging
+~2050-2190ms across all 3 rounds, roughly 3-4x slower than every sibling module
+page (aria/bcm/erm/sentinel/orm all landed in the 550-860ms range). Root-caused
+by comparing `modules/grid/routes.py` against every other module: every other
+module builds its `Jinja2Templates` instance **once at module import time**
+(`sentinel/routes.py` even has an explicit comment: "Templates instantiated once
+at module load — not per-request"). `grid_index()` was the one route that
+constructed a brand-new `Jinja2Templates(directory=[tpl_dir, "templates"])`
+**inside the request handler itself**, re-parsing/re-initializing the Jinja2
+environment (including the shared `templates/` directory containing
+`base_shell.html`) on every single request to the GRID module's index page.
+Ruled out template file size (grid's `index.html` is 247KB, smaller than
+sentinel's 295KB and erm's 280KB, both of which were fast), template directory
+file count (grid has 3 files, same as the fast bcm/sentinel), and the
+`require_module`/`shell_ctx` shared infrastructure (identical for every module,
+so couldn't explain a grid-specific slowdown) before landing on the actual
+differentiator.
+
+**Fix:** moved the `Jinja2Templates` construction in `modules/grid/routes.py` to
+module scope (right after `router = APIRouter(...)`, matching every sibling
+module's pattern exactly, including copying sentinel's explanatory comment),
+and updated `grid_index()` to use the shared instance instead of building its own.
+
+**Verified live:** re-ran the load test against `/grid/`, `/bcm/`, `/erm/`,
+`/aria/` after a full dev-server restart (not just relying on the `--reload`
+watcher, per this session's earlier documented false-negative with it). `/grid/`
+now lands at 655-1036ms across 2 rounds, statistically indistinguishable from
+its siblings (651-971ms) — the ~1200-1500ms gap is gone. `python -m py_compile`
+clean. Full `pytest tests/` still green (200/200). Temporary load-test user and
+its sessions/roles deleted after.
+
+---
+
+## Pass 10 — Malformed-input / injection fuzzing
+
+**Status: COMPLETE.** 3 findings fixed same session, verified live, full pytest pass.
+
+**Method:** wrote a real fuzzing script (`httpx.AsyncClient`, same login-via-
+scraped-CSRF-token pattern as Pass 9's load test) against a temporary
+super_admin test user. Targeted a representative set of endpoints rather
+than every route: `POST /erm/api/risks` (create+update) for XSS/SQLi/type-
+confusion payloads in free-text and numeric fields, `POST
+/erm/api/frameworks/import` for a deep-nesting regression test against the
+existing taxonomy depth-20 guard, the global 5MB body-size-limit
+middleware, and `POST /evidence/api/items` for path-traversal +
+XSS-in-filename via upload. All fuzz-created risks/evidence were swept up
+and deleted after each run — the cleanup step queries the DB directly by
+`created_by` rather than relying on an in-memory id list, so it stays
+robust even if the script itself crashes mid-run (which happened once,
+see below).
+
+**Clean (no finding):**
+- **Stored XSS** — `<script>`, `<img onerror>`, `<svg onload>`, `<iframe
+  src=javascript:>` etc. in ERM risk title/description all came back with
+  tags fully stripped at storage time (`core/sanitize.py`'s
+  `sanitize_dict()`, applied to every JSON body via each module's
+  `_json_body()` helper). Evidence upload filenames containing `<script>`
+  tags are stored raw but rendered through a `textContent`-round-trip
+  `escHtml()` before ever touching the DOM (`evidence_index.html:268`) —
+  correctly escaped.
+- **SQLi** — `' OR '1'='1`, `'; DROP TABLE users; --`, UNION-based
+  extraction attempts, etc. in both a POST body field and a GET filter
+  query param all came back as inert literal strings (201 Created with the
+  payload stored verbatim as a title, or a clean empty-result 200 on the
+  filter) — parameterized queries hold. Confirmed the `users` table
+  survived intact by querying it directly afterward (a same-session
+  re-login check in the script itself gave a false alarm here — see below).
+- **Path traversal** — uploaded a file with filename
+  `../../../../etc/<script>alert(1)</script>.pdf`. Upload/download
+  round-tripped correctly with matching bytes; on-disk storage uses a
+  server-generated `uuid4().hex` + extension (`evidence/routes.py:219`),
+  never the user-supplied name, so the traversal segments never reach the
+  filesystem layer.
+
+**Finding 1 — `sanitize_dict()` had no recursion depth cap.**
+A JSON payload nested ~500 levels deep (well within what a client can
+trivially construct, and tiny in byte size so it sails under the 5MB
+body-size limit) crashed `POST /erm/api/frameworks/import` with an
+unhandled `RecursionError` inside `core/sanitize.py:68`, producing a
+generic 500 instead of the clean, purpose-built "taxonomy nesting exceeds
+20 levels" 400 that `validate_framework_payload`'s own depth-20 guard was
+specifically built to return — that guard never got a chance to run
+because sanitization crashed first, earlier in the request pipeline. The
+global ASGI-level `SanitizeJsonMiddleware._strip_tags_deep()` has the same
+unbounded-recursion shape but already caught `RecursionError` — silently
+*failing open* (passing the original unsanitized body through) rather than
+rejecting cleanly, which isn't independently exploitable today (every
+endpoint that accepts nested data also enforces its own shallower depth
+cap) but is the same underlying gap.
+
+**Fix:** added a depth parameter (cap 100, well above the app's own
+deepest legitimate structure at 20, well below Python's ~1000 recursion
+limit) to both `sanitize_dict()` (`core/sanitize.py`) and
+`_strip_tags_deep()` (`core/middleware.py`). Past the cap, both now return
+the substructure unchanged and stop recursing rather than raising —
+consistent with the existing "cap and continue" pattern already used for
+breadth (`_strip_tags_deep` already truncated lists to 1000 items and
+strings to 50,000 chars). This lets `validate_framework_payload`'s own
+depth-20 check run and reject cleanly, which is where domain-specific
+validation belongs.
+
+**Finding 2 — ERM risk `likelihood`/`impact` accepted any JSON value.**
+`_compute_scores()` in `erm/data_service.py` does bare `int(L) * int(I)`
+with no validation. A string (`"not_a_number"`), a list (`[1,2,3]`), or
+`None` cast fine or crashed unpredictably (`int("not_a_number")` and
+`int([1,2,3])` both raised unhandled `ValueError`/`TypeError` → 500), and
+out-of-range integers like `999999` or `-5` were silently accepted and
+stored (201) even though the risk matrix and every band lookup assume
+values 1-5 — a risk record with `likelihood=999999` is silently
+meaningless (would never match any matrix cell, never resolve to a
+band). Same unguarded `int(data.get("likelihood", 3))` pattern existed
+independently in `modules/launcher/routes_risks.py`'s risk-register create
+and update handlers (a second, separate risk-tracking surface).
+`bcm/data_service.py`'s equivalent (`_risk_scale_value`) was already
+hardened against this — it falls back to 1 on unparseable input by design
+— so BCM was not affected.
+
+**Fix:** added `_validate_score_fields()` in `modules/erm/routes.py`
+(checked for `likelihood`, `impact`, `residual_likelihood`,
+`residual_impact` in both create and update) and `_validate_score()` in
+`modules/launcher/routes_risks.py` (create and update) — both reject
+non-integer or out-of-1-5-range values with a clean 400 before the value
+reaches score arithmetic, while still letting an absent/`None` field fall
+through to its existing default (unchanged prior behavior).
+
+**Finding 3 — Evidence permanent-delete never removed the file from disk.**
+`api_evidence_permanent_delete` (`evidence/routes.py:393`, pre-fix) did
+`fp = Path(item["file_path"])` directly — `file_path` in the DB is just a
+bare UUID filename (e.g. `a1b2c3....pdf`), not prefixed with
+`EVIDENCE_DIR`. Since the app's working directory is `oneforall/` (not
+`oneforall/data/evidence/`), `fp.exists()` checked the wrong location
+every time, silently found nothing (swallowed by a bare `except Exception:
+pass`), and skipped the `unlink()`. The DB row was correctly deleted but
+the physical file was never removed — every "permanently deleted" evidence
+item has actually been leaking its file on disk indefinitely. Notable on a
+compliance/evidence-retention platform specifically, since "permanent
+delete" implies to the user that the artifact is actually gone. Confirmed
+empirically: uploaded a file, checked it existed at
+`data/evidence/<uuid>.pdf`, ran archive + permanent-delete via the real
+API, confirmed the file was still sitting there afterward.
+
+**Fix:** changed the path construction to `(EVIDENCE_DIR /
+item["file_path"]).resolve()` with the same `startswith(EVIDENCE_DIR)`
+prefix guard already used by the download/preview endpoints in the same
+file, for consistency (not fixing an active traversal exploit — upload
+already guarantees a safe UUID-based name — just matching the established
+defensive pattern).
+
+**Also observed, not a bug:** submitting the oversized 6MB body and the
+first deep-taxonomy attempt initially surfaced as raw `httpx` transport
+exceptions in the fuzz script rather than clean HTTP responses. Traced
+this to keep-alive connection reuse racing against the 500s from Findings
+1-2 earlier in the same run, not an independent issue — after the fixes
+above, a full re-run with no preceding server errors got a clean `413
+{"detail":"Request body too large."}` and clean `400` responses for both
+taxonomy depths on the first attempt. The fuzz script's own
+"re-login after SQLi" sanity check also reported a false-alarm failure
+both times it ran — an artifact of attempting to re-scrape a CSRF token
+while already authenticated (same class of issue documented earlier this
+session for the employee-persona login flow), not a real DB integrity
+problem; `users` table integrity was independently confirmed via a direct
+query.
+
+**Verified live:** re-ran the full fuzz suite against a freshly restarted
+dev server (not relying on `--reload`) after all three fixes. Type-
+confusion cases now return clean `400`s with a specific message;
+`likelihood=None` still creates successfully (201, unchanged default
+behavior). Both the depth-25 boundary case and the depth-500 stress case
+now return `400` with the full `validate_framework_payload` error list,
+confirmed to include `"taxonomy nesting exceeds 20 levels"` — the
+originally-implemented depth guard now actually reachable and working as
+designed. Oversized body: clean `413`. Evidence permanent-delete:
+re-verified file removal now succeeds (`exists=False` post-delete).
+`python -m py_compile` clean on all 5 touched files
+(`core/sanitize.py`, `core/middleware.py`, `modules/evidence/routes.py`,
+`modules/erm/routes.py`, `modules/launcher/routes_risks.py`). Full
+`pytest tests/` — 200 passed, 0 failed. Temporary fuzz-test user and all
+fuzz-created risks/evidence deleted after.
+
+---
+
+## Pass 11 — Notifications
+
+**Status: COMPLETE.** 1 high-impact finding (2 distinct bugs) fixed same session, verified live, full pytest pass.
+
+**Method:** identified two separate systems both called "notifications": the in-app bell
+(`GET/POST/DELETE /api/notifications*` in `routes_platform.py`, backed by the `notifications`
+table) and outbound Slack/Teams/WhatsApp webhooks (`core/notifications.py`). Focused on the
+bell first since it's the everyday user-facing surface, then light-touch-checked the webhook
+connectors. Created a temporary `risk_owner`-role test user (a role with zero other holders in
+this dev DB, so test notifications never touched a real account) plus a throwaway 2-step
+workflow definition, then drove the full lifecycle live: start instance → approve step 1 →
+approve step 2 (completes) → check bell contents → mark-read → mark-all-read → dismiss.
+
+**Finding — every notification-creating code path referenced a `category` column that
+doesn't exist on `notifications`.** The table's real columns are `id, user_id, module, title,
+message, link, is_read, created_at` — there is no `category`. Six call sites across three
+files used `category` anyway: `_create_step_action`'s "Action Required" notification and the
+workflow delegate/complete/reject/return-for-revision notifications (5 sites in
+`modules/launcher/routes_workflows.py`), the task-assignment notification
+(`modules/launcher/routes_platform.py`), and both the SELECT dedup-check and INSERT in the two
+`core/workflow_scheduler.py` background jobs (SLA at-risk warnings, overdue workflow-step
+reminders). Live-confirmed: starting a workflow instance returned a 500
+(`sqlite3.OperationalError: table notifications has no column named category`), and because the
+broken notification INSERT shared an uncommitted transaction with the step's own
+`workflow_actions` INSERT, the action row was silently rolled back too — the workflow instance
+row (committed separately, earlier) was left orphaned with **zero** actionable steps, invisible
+and stuck, while the user just saw a generic 500. This is a core-workflow-engine bug, not a
+cosmetic notification miss: workflow start, approve-to-completion, reject, return-for-revision,
+delegate, and task assignment were all broken by it, and the two scheduler jobs were silently
+no-op-crashing every 5 minutes (caught by their own outer `except Exception: log.error(...)`,
+so nothing user-facing broke, but SLA warnings and overdue-step reminders have never actually
+fired).
+
+**Second bug found in the same statements while fixing the first:** the SLA-warning INSERT in
+`workflow_scheduler.py` had 4 `%s` placeholders (`user_id, title, message, link`) but only 3
+values in its params tuple — `link` was computed but never passed. Same pattern repeated in the
+overdue-step-reminder INSERT. Both would have raised `sqlite3.ProgrammingError: Incorrect
+number of bindings supplied` even after the column-name fix alone.
+
+**Fix:** all 8 sites (6 `category`→`module` column swaps, 2 missing-`link`-parameter fixes)
+corrected across `modules/launcher/routes_workflows.py`, `modules/launcher/routes_platform.py`,
+and `core/workflow_scheduler.py`.
+
+**Verified live:** full workflow lifecycle (start → approve × 2 → complete) now returns clean
+200/201s throughout; the step-0 `workflow_actions` row is confirmed present (no more silent
+rollback); "Action Required" and "Workflow Completed" notifications both appear correctly in
+`GET /api/notifications` with `module: "workflow"` populated; task-assignment notification
+verified separately with `module: "task"`. Bell UI actions (mark-read, mark-all-read, dismiss)
+all confirmed working. Both scheduler jobs smoke-tested by direct invocation with logging
+enabled — no more `ERROR` lines (previously would have logged the `OperationalError` on every
+5-minute run if any at-risk/overdue rows existed; none currently do in this dev DB, so this
+confirms no *new* breakage rather than exercising the INSERT path itself — the INSERT shape was
+already independently verified via the interactive workflow path above, same table/columns).
+Outbound Slack/Teams/WhatsApp connectors confirmed to report `configured: false` and
+`notify_connectors()` returns cleanly with nothing configured (already correctly written to
+fail closed). `python -m py_compile` clean on all 3 touched files. Full `pytest tests/` —
+200 passed, 0 failed. Temporary user, workflow definition/instance/actions, and all
+test-created notifications deleted after (cleanup swept by `created_by`/`user_id` rather than
+an in-memory list, so it stays robust even across a server restart mid-pass, which happened
+twice — the dev server unexpectedly dropped its listener partway through this pass on two
+separate occasions; each time a plain `preview_stop`+`preview_start` recovered it immediately
+with no data loss, so noted here as an environment observation rather than an app bug).
+
+---
+
+## Pass 12 — Import/export round-trip testing
+
+**Status: COMPLETE.** 1 finding fixed same session, verified live, full pytest pass.
+
+**Method:** tested the two genuine export→import pairs in the app (ERM risk frameworks,
+platform users) end-to-end with a temporary test user, rather than spot-checking export
+content in isolation.
+
+**ERM framework export → import: clean, no finding (after fixing the test itself).**
+Exported the seeded "OmniContact Rating System" framework, re-imported the exact JSON as a new
+framework, then diffed every structural section (dimensions, likelihood, impact_scale,
+control_effectiveness, bands, matrix, taxonomy) between source and copy. First pass reported
+`dimensions` and `taxonomy` as mismatched — on inspection the only differences were the
+database-assigned `id` fields on the newly-created child rows, which are *supposed* to differ
+for a fresh import; every actual content field (names, descriptions, threshold labels, level
+numbers) was byte-identical. Re-ran with `id` keys stripped before comparison: full pass, all
+7 sections match exactly. Recorded as a lesson in test methodology, not a product bug.
+
+**Finding — admin users export produced CSV; the importer only accepts .xlsx/.xls/.xlsm.**
+`api_admin_users_export`'s own docstring claimed it "round-trips with the importer's column
+model," but it wrote `media_type="text/csv"` / `filename=users_export.csv`, while
+`api_admin_users_import_preview` hard-rejects any upload whose filename doesn't end in
+`.xlsx`/`.xls`/`.xlsm` before even looking at the content
+(`{"error": "Please upload an Excel file (.xlsx)"}`, HTTP 400). Confirmed live: feeding the
+freshly-exported CSV straight into `import-preview` was rejected outright — the round trip the
+docstring promised did not exist. Traced `parse_users_excel`'s header matching
+(`_HEADER_MAP`/`_norm_header` in `_user_import.py`) and confirmed it fuzzy-matches column
+headers by normalized name regardless of order or exact wording (it already strips
+`"(...)"` hints so the *template's own* headers match its own parser) — so the only actual
+blocker was the file format/extension, not column naming.
+
+**Fix:** rewrote `api_admin_users_export` to build a genuine `.xlsx` workbook via `openpyxl`
+(same library already used by the template and the parser) with identical column data,
+changing only the output format — no changes needed to the already-correct fuzzy-matching
+import side.
+
+**Verified live:** re-exported after the fix — now `content-type:
+application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
+`filename=users_export.xlsx`. Fed straight into `import-preview`: 200, correctly parsed 5 real
+user rows with full field fidelity (`full_name`, `email`, `username`, `roles` as a list,
+`business_unit`/`organization` mapping), each correctly flagged `duplicate_email: true` since
+they're existing accounts (proving the safety check that prevents accidental re-creation also
+survives the round trip). Did not call `import-commit` — `import-preview`'s parse/validate
+stage is the meaningful round-trip proof, and committing would have been a no-op given every
+row is a duplicate. Note: got a false "0 rows parsed" on the first live attempt — traced to the
+temp test user having the `user_roles` "super_admin" role (which correctly satisfies
+capability-gated routes) but not the separate `users.is_super_admin` column that this specific
+export endpoint's org-scope branching checks; the temp user's `org_id` was also unset, so the
+non-super branch's `WHERE org_id = %s` matched nothing. Not a product bug — a deliberate
+two-tier model (broadly-grantable capability vs. a harder super-admin flag) that this session's
+established temp-user creation pattern hadn't needed to account for until this specific
+endpoint. Set `is_super_admin=1` directly on the test user to properly exercise the org-wide
+path and re-verified cleanly.
+
+`python -m py_compile` clean. Full `pytest tests/` — 200 passed, 0 failed. Temporary user and
+the leftover re-imported framework copy (from the first, since-corrected test run) deleted
+after — the framework via its real DELETE endpoint for proper cascade cleanup, not raw SQL.
+
+---
+
+## Pass 13 — Webhook cross-tenant isolation (integration security review)
+
+**Status: COMPLETE.** 1 finding fixed same session, verified live, full pytest pass.
+
+**Context:** prompted by a design discussion on connecting the risk register and event
+triggers to other webapps. The outbound webhook system (`core/webhooks.py`,
+`core/events.py`) was reviewed as the mechanism for that, and a real cross-tenant
+leak was found before any external integration work started.
+
+**Finding — every registered webhook received every organisation's events.**
+`webhooks.org_id` was already added via migration (comment: `── Webhook org isolation
+──`), but the fix was left half-done: `dispatch_event()`'s SELECT never filtered by
+it, and `core.events.emit()` hardcoded `org_id=None` on every call. Net effect: org A
+registering a webhook for `erm.risk.identified` would receive org B's risk data too —
+a real tenant-isolation gap in a compliance product, same "column added, enforcement
+never wired" pattern as the notifications `category` bug in Pass 11. Traced the
+correct fix path by first confirming how org context actually flows: `core/middleware.py`
+sets a per-request `ContextVar` (`database.set_current_org`) immediately after session
+validation, which `get_db()` already reads to drive PostgreSQL RLS on `users`,
+`audit_log`, and `licenses` — but `webhooks` was never added to that RLS policy list
+either. Also found `sentinel/scheduler.py`'s DSR-overdue job calls `emit()` from a
+background job with no request context (and `sentinel_dsr` has no `org_id` column at
+all), so any fix had to fail closed there rather than crash or over-deliver.
+
+**Fix:**
+- `core/events.py`: `emit()` gained an optional `org_id` parameter; resolves to that
+  value if given, otherwise falls back to `database.get_current_org()` (the same
+  ContextVar RLS already trusts). No changes needed to any of the 25+ existing call
+  sites — all but one run inside a request where the ContextVar is already correct.
+- `core/webhooks.py`: `dispatch_event()`'s query now filters `AND org_id = %s`. When
+  `org_id` is `None` (the scheduler case), `org_id = NULL` is never true in SQL on
+  either backend, so the query matches zero rows — fails closed rather than falling
+  back to "delete every tenant's webhook."
+- `database.py`: added an idempotent backfill for `webhooks.org_id` from
+  `created_by`'s user org, mirroring the existing `audit_log.org_id` backfill
+  precedent verbatim — without it, any webhook registered before the org_id migration
+  ran would have silently stopped receiving events forever once the filter shipped.
+- `core/rls.py`: added `webhooks` to the RLS policy list (same `USING` clause as
+  `users`/`licenses`) as defense-in-depth for production PostgreSQL. Not exercised by
+  this session's tests — RLS is a no-op on SQLite dev by design
+  (`apply_rls_policies()` early-returns when not Postgres) — verified only by
+  structural parity with the existing policies, not live.
+
+**Verified live:** wrote a 6-check script exercising `emit()` -> `dispatch_event()`
+directly against the dev DB (the real call path, `deliver()` monkeypatched to capture
+without real network POSTs) with two temporary orgs, two temporary webhooks, and a
+simulated legacy NULL-org webhook:
+1. `emit()` under org A context -> only org A's webhook receives it.
+2. `emit()` under org B context -> only org B's webhook receives it (the actual
+   cross-tenant-leak check, confirmed closed in both directions).
+3. `emit()` with no org context -> zero webhooks fire (fail-closed, matching the
+   sentinel-scheduler case).
+4. Explicit `org_id` parameter correctly overrides ambient context.
+5. The backfill UPDATE correctly repairs a legacy NULL-org webhook to its creator's
+   org.
+6. Post-backfill, that webhook is reachable again for its own org's events, still
+   isolated from the other org.
+
+All 6 passed. `python -m py_compile` clean on all 4 touched files
+(`core/events.py`, `core/webhooks.py`, `core/rls.py`, `database.py`). Full
+`pytest tests/` — 200 passed, 0 failed. Temporary orgs, users, and webhooks deleted
+after.
+
+**Not done, deliberately out of scope for this pass:** the actual inbound integration
+work (API-key-authenticated REST for external webapps to read/write the risk
+register) discussed alongside this — this pass only closed the org-scoping gap in the
+outbound half that already existed. `emit()`'s move to org_id-parameterised dispatch
+also does not touch `get_db_background()`'s broader RLS-context-under-scheduler
+question, which is a separate, pre-existing characteristic of the ContextVar/RLS
+design, not something this fix needed to resolve.
+
+---
+
+## Pass 14 — Inbound API-key write surface, erm.risk.updated emit, background webhook delivery
+
+**Status: COMPLETE.** All 3 items built, verified live (21/21 checks), full pytest pass.
+Direct follow-on to Pass 13 — closes the two items that pass explicitly deferred, plus
+a third (background delivery) identified during that review's design discussion.
+
+**1. `erm.risk.updated` emit on plain risk edits.** `modules/erm/routes.py`'s
+`api_risk_update()` previously only emitted an event (`ERM_RISK_CLOSED`) when the
+status transitioned to closed — a plain field edit (category, likelihood, owner, ...)
+was invisible to the event bus and therefore to webhook subscribers. Added a new
+`ERM_RISK_UPDATED` event type (`core/events.py`) fired unconditionally on every
+successful update, alongside the existing conditional `ERM_RISK_CLOSED`; both reuse
+the single post-update risk fetch already in the handler.
+
+**2. Inbound API-key write surface.** `modules/launcher/routes_api_v1.py` had a
+working read-only surface (`GET /risks|/audits|/breaches`, `X-API-Key` header,
+`_require_read_key` dependency) but no write path. Refactored the auth dependency
+into a shared `_authenticate_key(x_api_key, required_scope)` used by both
+`_require_read_key` ("read" scope, unchanged behaviour) and a new
+`_require_write_key` ("write" scope). Added Pydantic `RiskCreate`/`RiskUpdate` models
+(likelihood/impact constrained to 1-5 via `Field(ge=1, le=5)`, replacing the
+existing internal endpoint's hand-rolled `_validate_score`) and two new routes:
+- `POST /api/v1/risks` — inserts into `risk_register`, `created_by` set from the
+  API key's own `created_by` (the admin who issued the key), never from the
+  request body — a client cannot attribute a risk to an arbitrary user id.
+- `PATCH /api/v1/risks/{rid}` — partial update via `model_dump(exclude_unset=True)`;
+  404s on a nonexistent id (the pre-existing internal `PUT` endpoint does not do
+  this existence check — deliberately added here since an external API consumer
+  can't "just check the UI" to notice a silent no-op the way an internal admin can).
+Both recompute `risk_level` from the same likelihood x impact threshold ladder the
+internal CRUD uses (critical >= 20, high >= 12, medium >= 6, else low) when either
+score field changes.
+
+**3. Background webhook delivery.** `core.webhooks.dispatch_event()` ran
+synchronously on the request/job thread that called `emit()`, including up to 3
+retries with exponential backoff (~7s worst case) per subscribed webhook — a slow
+or unreachable external endpoint added that latency to whatever triggered the event
+(an ERM risk save, a scheduler job, ...). Added a module-level
+`ThreadPoolExecutor` (`_delivery_pool`, 4 workers) and a
+`dispatch_event_background()` wrapper that submits `dispatch_event()` to it via
+`contextvars.copy_context()` + `executor.submit(ctx.run, ...)` — the standard-library
+pattern for carrying a calling thread's `ContextVar` state into a new OS thread,
+since `ThreadPoolExecutor.submit()` does not do this automatically (unlike
+`asyncio` tasks, which inherit context for free). `core.events.emit()` now calls
+`dispatch_event_background()` instead of `dispatch_event()` directly; the org_id
+resolution via `get_current_org()` still happens on the calling thread, before the
+handoff, since that ContextVar is only meaningfully "current" there.
+`dispatch_event()` itself is unchanged and stays directly callable for tests that
+want synchronous, deterministic delivery.
+
+**Verified live:** single script (`TestClient` wrapping the real `main.app`, real
+dev SQLite DB, temp org/user/session/API-keys/webhook/risks, all deleted after):
+- Item 1: plain `PUT /erm/api/risks/{id}` edit (category only) fires
+  `ERM_RISK_UPDATED` and *not* `ERM_RISK_CLOSED`; a second `PUT` with
+  `status=closed` fires both, with the updated-payload category reflecting the
+  edit.
+- Item 3: a local HTTP receiver made to sleep 1.5s before responding: `emit()`
+  returned in 0.009s (proving the request path is no longer blocked), the
+  receiver still received the signed POST within a 6s poll window, the HMAC
+  signature verified, the delivered envelope carried the correct `organisation_id`,
+  and `webhook_logs` recorded a successful attempt.
+- Item 2: no key -> 401; read-only key attempting `POST` -> 403 (scope enforced);
+  write key -> `201` with correctly computed `risk_level` (4x5=20 -> critical) and
+  `created_by` equal to the key's creator, not client-suppliable; `PATCH` changing
+  only `impact` -> `200` with `risk_level` correctly recomputed (4x1=4 -> low);
+  `PATCH` on a nonexistent id -> `404`; existing read-only key traffic (`GET
+  /risks`) unaffected.
+
+21/21 checks passed. `python -m py_compile` clean on all 4 touched files
+(`core/webhooks.py`, `core/events.py`, `modules/erm/routes.py`,
+`modules/launcher/routes_api_v1.py`). Full `pytest tests/` — 200 passed, 0 failed
+(no change in count — no new permanent pytest cases added this pass; verification
+was the standalone live script above). Temp org/user/session/API keys/webhook/risk
+rows all deleted after.
+
+**Side-effect regression found and fixed in passing:** the pre-existing manual
+integration script `tests/live_webhook_test.py` (not part of the pytest suite —
+`python tests/live_webhook_test.py`, run by hand against a booted dev DB) registers
+its own webhook and calls `emit()` directly. It predates Pass 13's org-scoping fix
+and inserted its webhook with no `org_id`; post-Pass-13, `dispatch_event()`'s
+fail-closed filter (`org_id = %s`, and `NULL = NULL` is never true in SQL) correctly
+stopped delivering to it, since neither the webhook nor the emitted event had a
+real org. Confirmed by actually running the script before touching it (it failed:
+`AssertionError: No webhook delivery received!`). Fixed the script itself, not the
+application (the app's fail-closed behaviour is correct) — it now creates a real
+temp organisation, scopes the webhook and the `emit()` call to it, and cleans up
+the org/webhook/webhook_logs rows it creates so repeat manual runs don't hit the
+`organizations.slug` uniqueness constraint. Re-ran twice consecutively to confirm
+both the fix and the new cleanup: both passed.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Remaining personas from the original QA brief (audit_lead, risk_owner,
-  bcm_manager, grc_officer, org_admin, employee)
-- Load/performance testing
-- Deliberate malformed-input / injection fuzzing
-- Import/export round-trip testing
-- Notifications
+- None from this pass — all 3 items Pass 13 deferred (inbound API-key write
+  surface, `erm.risk.updated` emit) plus background webhook delivery are now built
+  and verified.

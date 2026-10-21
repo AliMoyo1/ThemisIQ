@@ -256,7 +256,7 @@ async def _ai_classify_pair(ctrl_a: dict, ctrl_b: dict) -> tuple[str, float]:
             f'"{ctrl_b.get("name","")}" — {ctrl_b.get("description","")}\n\n'
             'Return exactly: {"match":"equivalent"|"related"|"none","confidence":0.0-1.0}'
         )
-        text, err = await call_ai(system, user, max_tokens=120)
+        text, err = await call_ai(system, user, max_tokens=120, feature="core.auto_map_controls")
         if err or not text:
             return "none", 0.0
         # Extract JSON robustly
@@ -458,28 +458,30 @@ async def run_auto_mapping(
     for m in to_insert:
         try:
             if _has_extra_cols:
-                db.execute(
+                inserted = db.execute(
                     "INSERT INTO aria_control_mappings "
                     "(source_framework_id, source_control_id, target_framework_id, target_control_id, "
                     " mapping_type, confidence, notes, auto_generated, match_method, created_by) "
                     "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                     (m["source_framework_id"], m["source_control_id"],
                      m["target_framework_id"], m["target_control_id"],
-                     m["mapping_type"], m["confidence"], "",
+                     "proposed", m["confidence"], json.dumps({"suggested_type": m["mapping_type"],
+                                                               "method": m["match_method"]}),
                      m["auto_generated"], m["match_method"], m["created_by"]),
                 )
             else:
                 # Fallback: insert without the new metadata columns
-                db.execute(
+                inserted = db.execute(
                     "INSERT INTO aria_control_mappings "
                     "(source_framework_id, source_control_id, target_framework_id, target_control_id, "
                     " mapping_type, confidence, notes, created_by) "
                     "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                     (m["source_framework_id"], m["source_control_id"],
                      m["target_framework_id"], m["target_control_id"],
-                     m["mapping_type"], m["confidence"], "", m["created_by"]),
+                     "proposed", m["confidence"], json.dumps({"suggested_type": m["mapping_type"],
+                                                               "method": m["match_method"]}), m["created_by"]),
                 )
-            created += 1
+            created += max(inserted.rowcount, 0)
         except IntegrityError:
             skipped += 1
     db.commit()

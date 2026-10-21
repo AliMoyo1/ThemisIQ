@@ -10,22 +10,23 @@ import json
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from core.middleware import require_capability
 from modules.launcher._route_helpers import (
-    require_auth, shell_ctx, shell_templates, get_db,
+    shell_ctx, shell_templates, get_db,
     _json_body,)
 
 router = APIRouter()
 
 
 @router.get("/people", response_class=HTMLResponse)
-@require_auth
+@require_capability("governance.entities.view")
 async def people_directory_page(request: Request):
     ctx = shell_ctx(request, active_module="platform", active_section="people")
     return shell_templates.TemplateResponse(request, "people_directory.html", ctx)
 
 
 @router.get("/api/people")
-@require_auth
+@require_capability("governance.entities.view")
 async def api_people_list(request: Request):
     db = get_db()
     try:
@@ -43,7 +44,7 @@ async def api_people_list(request: Request):
 
 
 @router.get("/api/people/departments")
-@require_auth
+@require_capability("governance.entities.view")
 async def api_people_departments(request: Request):
     db = get_db()
     try:
@@ -56,7 +57,7 @@ async def api_people_departments(request: Request):
 
 
 @router.get("/api/people/{pid}/profile")
-@require_auth
+@require_capability("governance.entities.view")
 async def api_person_profile(request: Request, pid: int):
     db = get_db()
     try:
@@ -67,16 +68,21 @@ async def api_person_profile(request: Request, pid: int):
         if not person:
             return JSONResponse({"error": "Not found"}, status_code=404)
         result = dict(person)
-
-        result["tasks"] = [dict(r) for r in db.execute(
-            "SELECT id, title, status, due_date FROM task_board WHERE assigned_to = %s ORDER BY due_date",
-            (pid,)
-        ).fetchall()]
-
-        result["risks"] = [dict(r) for r in db.execute(
-            "SELECT id, title, category, status FROM risk_register WHERE owner_id = %s ORDER BY created_at DESC",
-            (pid,)
-        ).fetchall()]
+        user_id = person["user_id"]
+        if user_id:
+            result["tasks"] = [dict(r) for r in db.execute(
+                "SELECT id, title, status, due_date FROM task_board "
+                "WHERE assigned_to = %s ORDER BY due_date",
+                (user_id,)
+            ).fetchall()]
+            result["risks"] = [dict(r) for r in db.execute(
+                "SELECT id, title, category, status FROM erm_enterprise_risks "
+                "WHERE owner_id = %s ORDER BY created_at DESC",
+                (user_id,)
+            ).fetchall()]
+        else:
+            result["tasks"] = []
+            result["risks"] = []
 
         return JSONResponse(result)
     finally:
@@ -84,7 +90,7 @@ async def api_person_profile(request: Request, pid: int):
 
 
 @router.post("/api/people")
-@require_auth
+@require_capability("governance.entities.manage")
 async def api_people_create(request: Request):
     data = await _json_body(request)
     full_name = (data.get("full_name") or "").strip()
@@ -117,7 +123,7 @@ async def api_people_create(request: Request):
 
 
 @router.patch("/api/people/{pid}")
-@require_auth
+@require_capability("governance.entities.manage")
 async def api_people_update(request: Request, pid: int):
     data = await _json_body(request)
     db = get_db()
@@ -144,7 +150,7 @@ async def api_people_update(request: Request, pid: int):
 
 
 @router.delete("/api/people/{pid}")
-@require_auth
+@require_capability("governance.entities.manage")
 async def api_people_delete(request: Request, pid: int):
     db = get_db()
     try:
@@ -156,7 +162,7 @@ async def api_people_delete(request: Request, pid: int):
 
 
 @router.post("/api/people/import")
-@require_auth
+@require_capability("governance.entities.manage")
 async def api_people_import(request: Request):
     """Bulk import from Excel. Expected columns: Full Name, Email, Phone, Job Title, Department, Notes."""
     try:

@@ -21,7 +21,8 @@ from pathlib import Path
 FONTS = {
     # family-name : list of weights to include
     "Plus Jakarta Sans":  [400, 500, 600, 700, 800],
-    "JetBrains Mono":     [400, 500],
+    "Manrope":           [400, 500, 600, 700, 800],
+    "Newsreader":        [400, 500, 600],
     "Inter":              [400, 500, 600, 700, 800, 900],
     "DM Sans":            [400, 500, 600, 700],
     "Space Grotesk":      [400, 500, 600, 700],

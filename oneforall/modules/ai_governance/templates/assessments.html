@@ -1,0 +1,32 @@
+{% extends "base_shell.html" %}
+{% block title %}AI impact assessments | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Governance</a></span> <span class="breadcrumb-current">Impact assessments</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">AI impact assessments</h1>
+      <p class="aig-lede">How each AI use affects people, the organization and its data: the impact on each dimension, what reduces it, and where the assessment stands. You see the assessments in your business unit and the ones that belong to the whole organization.</p>
+    </div>
+    <div class="aig-head-actions">
+      {% if can_assess_manage %}<a class="btn btn-primary" href="/ai-governance/assessments/new">New assessment</a>{% endif %}
+      {% if can_assess_configure %}<button type="button" class="btn btn-secondary" id="aigDimensionsBtn">Impact dimensions</button>{% endif %}
+    </div>
+  </div>
+  <div id="aigAssessments"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_assessments.js?v=1"></script>
+<script>
+  AIGov.assessmentList(document.getElementById('aigAssessments'), {
+    canManage: {{ 'true' if can_assess_manage else 'false' }},
+    dimensionsButton: document.getElementById('aigDimensionsBtn')
+  });
+</script>
+{% endblock %}

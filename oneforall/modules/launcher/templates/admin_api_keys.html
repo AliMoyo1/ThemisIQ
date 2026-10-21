@@ -34,12 +34,11 @@
 </div>
 
 <!-- New Key Modal -->
-<div class="modal" id="newKeyModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:420px;">
+<div class="modal-overlay" id="newKeyModal" role="dialog" aria-modal="true" aria-labelledby="newKeyModal-title">
+  <div class="modal" style="max-width:420px;">
     <div class="modal-header">
-      <h3 style="margin:0; font-size:16px;">Generate API Key</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="newKeyModal-title" style="margin:0; font-size:16px;">Generate API Key</h3>
+      <button class="modal-close" onclick="ModalManager.close('newKeyModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px;">
       <form id="keyForm" onsubmit="generateKey(event)">
@@ -62,12 +61,11 @@
 </div>
 
 <!-- Key Reveal Modal -->
-<div class="modal" id="revealModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px;">
+<div class="modal-overlay" id="revealModal" role="dialog" aria-modal="true" aria-labelledby="revealModal-title">
+  <div class="modal" style="max-width:500px;">
     <div class="modal-header">
-      <h3 style="margin:0; font-size:16px;">Your API Key</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="revealModal-title" style="margin:0; font-size:16px;">Your API Key</h3>
+      <button class="modal-close" onclick="ModalManager.close('revealModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px;">
       <div style="padding:12px; border-radius:6px; background:var(--surface3); border:1px solid var(--border); font-family:monospace; font-size:12px; word-break:break-all; margin-bottom:12px;" id="revealKey"></div>
@@ -95,7 +93,7 @@ async function loadKeys() {
   `).join('');
 }
 
-function openNewKey() { document.getElementById('newKeyModal').classList.add('open'); }
+function openNewKey() { ModalManager.open('newKeyModal'); }
 
 async function generateKey(e) {
   e.preventDefault();
@@ -103,10 +101,10 @@ async function generateKey(e) {
   const resp = await fetch('/api/admin/api-keys', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (resp.ok) {
     const data = await resp.json();
-    document.getElementById('newKeyModal').classList.remove('open');
+    ModalManager.close('newKeyModal');
     document.getElementById('keyForm').reset();
     document.getElementById('revealKey').textContent = data.key;
-    document.getElementById('revealModal').classList.add('open');
+    ModalManager.open('revealModal');
     loadKeys();
   }
 }

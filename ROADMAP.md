@@ -1,6 +1,6 @@
 # ThemisIQ — Feature Roadmap and Progress Tracker
 
-Last updated: 2026-06-17
+Original baseline: 2026-06-17. Selected statuses reconciled to the 2026-10-02 checkout. This document remains a historical roadmap; use [the generated route inventory](oneforall/docs/generated/capability_inventory.md) and [PLAN-36 progress](plans/PLAN-36-themisiq-stabilization-and-product-improvements/progress.md) for current, verified scope. The old summary and remaining work order below are historical, not a current deployment decision.
 
 ---
 
@@ -8,8 +8,8 @@ Last updated: 2026-06-17
 
 | Status | Count |
 |--------|-------|
-| Done   | 8     |
-| Pending | 8    |
+| Done   | 8 (June 2026 baseline) |
+| Pending | 8 (June 2026 baseline) |
 
 ---
 
@@ -45,9 +45,9 @@ All 8 landing page screenshots renamed to URL-safe names and converted to WebP.
 
 ## Item 2: Mobile and Tablet Optimization
 
-**Status: PENDING**
-Shared responsive.css not yet created.
-Action: create static/css/responsive.css with table overflow-x, full-screen modal pattern, stat card grid collapse. Include in base_shell.html.
+**Status: IMPLEMENTED IN SOURCE; VISUAL ACCEPTANCE SEPARATE**
+Shared oneforall/static/css/responsive.css exists and is loaded from base_shell.html.
+Follow-up: finish pixel-level responsive acceptance across modules; the shared stylesheet and shell include already exist.
 
 ---
 
@@ -62,10 +62,8 @@ Idempotency guard prevents duplicate records.
 
 ## Item 4: Multi-Tenancy (Schema-per-Tenant)
 
-**Status: PENDING (major feature, 1-2 weeks)**
-Prerequisite: PostgreSQL must be confirmed running on VPS.
-Architecture decision: schema-per-tenant in PostgreSQL. Each org gets tenant_{slug} schema.
-Action: add organizations + licenses tables to public schema, add set_tenant() to _PgConnWrapper, add tenant middleware, build /super-admin/ routes.
+**Status: IMPLEMENTED IN SOURCE; PRODUCTION STATE REQUIRES SEPARATE VERIFICATION**
+Source evidence: database.py defines public organizations/licenses, tenant schemas and set_tenant(); tenant middleware and super-admin routes exist. VPS deployment state is not established by this checkout.
 
 ---
 
@@ -79,20 +77,20 @@ Restricts scope to GRC domain, requires verifiable standard citations with claus
 
 ## Item 6: Two-Factor Authentication (TOTP)
 
-**Status: PENDING (1 day)**
-Action: add user_mfa table, install pyotp + qrcode[pil], add /mfa/setup + /mfa/enable + /mfa/verify routes in routes_auth.py, add mfa_setup.html + mfa_verify.html templates.
+**Status: IMPLEMENTED IN SOURCE**
+Source evidence: user_mfa table and /mfa/setup, /mfa/enable, /mfa/verify routes and templates exist. Policy options are off/admins/all.
 
 ---
 
 ## Item 7: APIs and Connectors
 
 ### 7a. Slack notifications
-**Status: PENDING**
-Action: add send_slack() in core/notifications.py using Incoming Webhooks. Trigger on critical risk, breach confirmed, SLA breach, appetite exceeded.
+**Status: IMPLEMENTED IN SOURCE; DELIVERY DEPENDS ON CONFIGURATION**
+Source evidence: send_slack() and connector configuration/test routes exist. Event coverage and live delivery need separate verification.
 
 ### 7b. Microsoft Teams notifications
-**Status: PENDING**
-Action: same pattern as Slack using Teams Incoming Webhooks.
+**Status: IMPLEMENTED IN SOURCE; DELIVERY DEPENDS ON CONFIGURATION**
+Source evidence: send_teams() and connector configuration/test routes exist. Event coverage and live delivery need separate verification.
 
 ### 7c. Jira integration
 **Status: PENDING**
@@ -120,17 +118,9 @@ Uses SendGrid REST API (POST to v3/mail/send).
 
 ---
 
-## Remaining Work Order
+## Current work order
 
-| Priority | Item | Effort | Notes |
-|----------|------|--------|-------|
-| Next | Item 1d: Self-host Google Fonts | 1h | Eliminates external DNS roundtrip |
-| Next | Item 8: Legal pages + demo modal | 4h | Needed before marketing push |
-| P3 | Item 6: 2FA TOTP | 1 day | Security requirement |
-| P3 | Item 2: Mobile CSS | 2 days | UX improvement |
-| P3 | Item 7a-b: Slack + Teams | 1 day | Notification integrations |
-| P4 | Item 7c-d: Jira + REST API | 2 days | Enterprise connectors |
-| P5 | Item 4: Multi-tenancy | 1-2 weeks | Requires PG confirmed on VPS |
+The June 2026 priority table is retired because several listed features now exist in source. PLAN-36's task plan and progress ledger carry the current stabilization and product work order. Deployment state, live connector delivery, and browser acceptance still require separate verification.
 
 ---
 

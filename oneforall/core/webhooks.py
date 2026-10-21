@@ -28,24 +28,30 @@ Payload shape (stable contract for subscribers):
 """
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import hmac
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
-
 from database import get_db, get_db_background
+from core.outbound_http import send_outbound, OutboundURLError
 from core.timeutils import utcnow
 
 log = logging.getLogger("oneforall.webhooks")
 
 _MAX_RETRIES = 3
 _BACKOFF_BASE = 1.0  # seconds; 1, 2, 4, ...
-_TIMEOUT = 10.0
+
+# Delivery (including retry backoff sleeps) runs off the request thread so a
+# slow or unreachable external endpoint never adds latency to the request/job
+# that triggered the event. A handful of workers is plenty -- this is fan-out
+# to a small number of registered webhooks per org, not a queue of real work.
+_delivery_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="webhook-delivery")
 
 
 def _sign(secret: str, raw_body: bytes) -> str:
@@ -71,9 +77,17 @@ def _build_payload(event_type: str, source_module: str, entity_type: str,
 
 def _deliver_once(url: str, secret: str, body: bytes,
                   signature: str) -> tuple[int, str]:
-    """POST one webhook. Returns (status_code, response_body_text)."""
+    """POST one webhook. Returns (status_code, response_body_text).
+
+    PLAN-36 T05 (findings.md F07): goes through core.outbound_http.send_outbound
+    rather than a raw client call, so every real delivery -- not just the
+    admin Test button -- revalidates the destination immediately before
+    connecting (DNS answers can change between save time and send time) and
+    gets the same bounded timeouts, non-redirect-following, and response
+    size cap as everything else that leaves this server.
+    """
     try:
-        r = httpx.post(
+        result = send_outbound(
             url,
             content=body,
             headers={
@@ -81,10 +95,11 @@ def _deliver_once(url: str, secret: str, body: bytes,
                 "X-ThemisIQ-Signature": signature,
                 "User-Agent": "ThemisIQ-Webhooks/1.0",
             },
-            timeout=_TIMEOUT,
         )
-        return r.status_code, (r.text or "")[:2000]
-    except Exception as exc:  # network/DNS/TLS errors
+        return result.status_code, result.text[:2000]
+    except OutboundURLError as exc:
+        return 0, f"delivery blocked: {exc}"
+    except Exception as exc:  # network/DNS/TLS/timeout errors
         return 0, f"delivery error: {exc}"
 
 
@@ -138,22 +153,61 @@ def deliver(webhook_id: int, url: str, secret: str, payload: dict) -> bool:
     return False
 
 
+def send_test_ping(webhook_id: int, url: str, secret: str) -> dict:
+    """One real, signed, single-attempt delivery for the admin "Test"
+    button (PLAN-36 T05, findings.md F06: this used to insert a synthetic
+    success row without ever calling this module -- or making a network
+    call -- at all). No retries: an interactive Test click needs a fast,
+    truthful answer, not up to ~7s of retry backoff. Always logs the real
+    attempt via _log_attempt, success or failure.
+
+    Returns {"success", "status_code", "detail"} -- `detail` is a short,
+    sanitized summary safe to show directly in the admin UI. It never
+    contains the raw response body, headers, or resolver/exception
+    internals; those stay server-side in the (already access-controlled,
+    already length-bounded) webhook_logs row this same call writes.
+    """
+    payload = _build_payload("test.ping", "platform", "webhook", webhook_id,
+                             {"message": "Webhook test from ThemisIQ"}, None, None)
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    signature = _sign(secret, body)
+    code, body_text = _deliver_once(url, secret, body, signature)
+    success = 200 <= code < 300
+    _log_attempt(webhook_id, "test.ping", payload, code, body_text, success)
+
+    if success:
+        detail = f"Delivered (HTTP {code})"
+    elif code == 0:
+        detail = "Delivery failed: network error or destination blocked by outbound policy"
+    else:
+        detail = f"Delivery failed (HTTP {code})"
+    return {"success": success, "status_code": code, "detail": detail}
+
+
 def dispatch_event(event_type: str, source_module: str, entity_type: str,
                    entity_id: int, payload: dict, user_id: Optional[int],
                    org_id: Optional[int]) -> None:
-    """Fan out an emitted event to all active webhooks subscribed to it.
+    """Fan out an emitted event to all active webhooks subscribed to it,
+    scoped to the tenant that owns the event.
 
     Intended to be called from core.events.emit() AFTER in-process handlers
     run, so webhook delivery never blocks or fails the source operation.
+
+    org_id=None means the caller has no known tenant for this event (e.g. a
+    scheduler job querying across tenants with no org column to key off).
+    The query below matches no rows in that case -- "org_id = NULL" is never
+    true in SQL on either PostgreSQL or SQLite -- so a webhook is only ever
+    delivered an event that shares its own org_id, never a blanket
+    "deliver to everyone" fallback.
     """
     envelope = _build_payload(event_type, source_module, entity_type,
                               entity_id, payload, user_id, org_id)
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT id, url, secret, events FROM webhooks "
-            "WHERE is_active = 1 AND events LIKE %s",
-            (f"%{event_type}%",),
+            "SELECT id, url, secret, events, org_id FROM webhooks "
+            "WHERE is_active = 1 AND events LIKE %s AND org_id = %s",
+            (f"%{event_type}%", org_id),
         ).fetchall()
     except Exception as exc:
         log.warning("webhook subscriber lookup failed: %s", exc)
@@ -167,12 +221,33 @@ def dispatch_event(event_type: str, source_module: str, entity_type: str,
         if event_type not in subscribed:
             continue
         secret = wh["secret"] or ""
-        # Stamp the envelope with this webhook's org context (webhooks table
-        # has no org_id column; left as None — emit() carries no org either).
         env = dict(envelope)
-        env["organisation_id"] = None
+        env["organisation_id"] = wh["org_id"]
         try:
             deliver(wh["id"], wh["url"], secret, env)
         except Exception as exc:  # a bad URL/config must not crash emit()
             log.exception("webhook %s delivery raised: %s", wh["id"], exc)
             _log_attempt(wh["id"], event_type, env, 0, f"error: {exc}", False)
+
+
+def dispatch_event_background(event_type: str, source_module: str, entity_type: str,
+                              entity_id: int, payload: dict, user_id: Optional[int],
+                              org_id: Optional[int]) -> None:
+    """Submit dispatch_event() to the delivery pool instead of running it inline.
+
+    Delivery includes retry backoff sleeps (up to ~7s across 3 attempts per
+    webhook), which must never add latency to the request/job that triggered
+    the event. contextvars.copy_context() snapshots the calling thread's
+    tenant/org ContextVars (see database.py) so the worker thread sees the
+    same set_current_tenant()/set_current_org() state the caller had --
+    without this, RLS-gated tables like webhooks would silently see zero
+    rows on the worker thread regardless of the org_id filter above.
+
+    dispatch_event() itself stays directly callable for tests that want
+    synchronous, deterministic delivery.
+    """
+    ctx = contextvars.copy_context()
+    _delivery_pool.submit(
+        ctx.run, dispatch_event,
+        event_type, source_module, entity_type, entity_id, payload, user_id, org_id,
+    )

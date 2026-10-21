@@ -1,0 +1,24 @@
+{% extends "base_shell.html" %}
+{% block title %}My AI use requests | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb">AI Governance</span> <span class="breadcrumb-current">My requests</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">My requests</h1>
+      <p class="aig-lede">{% if can_register %}The AI uses you have described. Continue a draft or answer a reviewer.{% else %}Your earlier AI use requests are available here for reference. New requests go through your organization's external form.{% endif %}</p>
+    </div>
+    {% if can_register %}<div class="aig-head-actions"><a class="btn btn-primary" href="/ai-governance/register">Register an AI use</a></div>{% endif %}
+  </div>
+  <div id="aigRequests"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_lists.js?v=7"></script>
+<script>AIGov.requests(document.getElementById('aigRequests'), { canCreate: {{ 'true' if can_register else 'false' }} });</script>
+{% endblock %}
