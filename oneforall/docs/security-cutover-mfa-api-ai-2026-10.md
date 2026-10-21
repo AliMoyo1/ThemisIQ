@@ -1,0 +1,26 @@
+# Security cutover: MFA, API keys, and organization AI policy
+
+This is a release procedure, not evidence that production has been changed. Run it with the VPS operator and integration owners. Keep environment values, generated MFA keys, API key plaintext, and backup credentials out of tickets and chat.
+
+## Before the release
+
+1. Identify the exact commit to release, review its diff, and obtain a recent verified PostgreSQL backup and rollback point. Check service health and the effective systemd and nginx configuration on the VPS. The checked-in files do not establish live state.
+2. Provision one new Fernet `MFA_ENCRYPTION_KEY` in the root-owned service environment and recovery store, separately from `SECRET_KEY`. All app workers must receive the same key. Verify deploy preflight accepts it without printing the value. Follow [MFA secret encryption](mfa-secret-migration.md) for migration and key rotation. Keep the key available to any rollback that must read newly encrypted rows.
+3. Run `inventory_api_keys.py` in the private application environment. The output is metadata only. Map every active key to its service owner and integration. Agree on the resource-specific scopes, finite expiry and optional business-unit restriction for a replacement. Confirm whether the integration writes risk owner, status or source fields, which the hardened v1 API rejects. Do not revoke a working key until its replacement has been installed and exercised by its owner. Old broad `read` and `write` scopes will not authorize hardened v1 resources.
+4. Run `inventory_ai_policies.py` in each tenant's private application environment. `missing`, `disabled`, `review_required`, and `unreadable` all mean no AI provider call should be allowed for that organization. A prior enabled policy without recorded review is `review_required`. Arrange policy manager review of the provider, data categories, available features and both budget limits for each organization that will use AI. An organization that does not need AI should stay disabled. This is a human approval, not a migration default.
+
+## Release sequence
+
+1. Deploy the reviewed revision using the established pinned release and rollback procedure. Confirm `/health` and `/ready` and watch startup logs. Missing `MFA_ENCRYPTION_KEY` must stop the release.
+2. Run `encrypt_mfa_secrets.py` without flags first. If all encrypted rows are decryptable and the database backup is verified, run `encrypt_mfa_secrets.py --apply` with the exact service environment. Run the count-only command again and require `legacy_plaintext=0` and `previous_key_rows=0`. Investigate any other output before removing a previous key. Rotation requires the old key in `MFA_ENCRYPTION_PREVIOUS_KEYS` until re-encryption and restore recovery are established.
+3. Have the policy manager open Admin Settings > AI Policy for each intended AI organization. Review and save an enabled policy with the explicit confirmation. The saved record stores the approving user and timestamp; the inventory should then say `enabled`. An old policy without that approval remains off. No policy values or approvals should be invented by the release operator.
+4. Have each integration owner install and exercise its replacement API key. Confirm its expiry, scope, organization, and any unit restriction. Revoke superseded keys after successful cutover. Keep only key IDs and status in release notes.
+5. Review MFA enrollment/login, permitted AI calls, refused AI calls, AI allowance behavior and integration requests from accounts with the intended roles. Check audit records and logs for errors. Validate the installed nginx configuration separately.
+
+## Rollback and release gates
+
+- A code rollback after MFA migration must retain a compatible MFA key and be checked against the restored database. Removing the key alone cannot restore access to encrypted authenticators.
+- AI stays off for organizations without a reviewed policy. This is intentional. It may delay AI features until policy managers complete review.
+- The AI allowance reservation serializes admission in the tenant database. The requested reservation is based on prompt bytes and provider output ceilings. Exact provider token usage, especially added search context, is not known before dispatch; actual usage may exceed the estimate. Failed, unmetered and interrupted calls retain their conservative charge. This is not a billing-grade hard token cap.
+- If an integration still depends on a broad legacy key, the release remains blocked for that integration until a scoped replacement is ready. Do not restore broad authorization as a shortcut.
+- Complete focused browser, SQLite, and PostgreSQL security validation before production cutover. No such validation is asserted by this document.

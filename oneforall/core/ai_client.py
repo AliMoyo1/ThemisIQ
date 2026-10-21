@@ -360,10 +360,24 @@ def create_message_full(
     return _dispatch(messages, system, max_tokens, model, feature=feature, sources=sources)
 
 
-def _guarded(feature, sources, call) -> dict:
+def _reservation_size(messages, system, max_tokens, *, calls=1) -> int:
+    """Conservative input-byte allowance plus the provider output ceiling.
+
+    Exact provider tokenization is unavailable before dispatch. Reserving
+    UTF-8 bytes and response capacity errs toward refusing a costly call.
+    Search tools can add provider-side context, so their multiplier is larger.
+    """
+    prompt = json.dumps({"system": system, "messages": messages}, ensure_ascii=False,
+                        default=str).encode("utf-8")
+    return calls * (len(prompt) + len(_GRC_GUARDRAIL.encode("utf-8")) +
+                    max(1, int(max_tokens)) + 1024)
+
+
+def _guarded(feature, sources, call, reserve_tokens) -> dict:
     """Run one provider call under the organization's AI policy and record what happened. A refusal raises before the
     provider is contacted; a failure or a success is recorded and then returned or re-raised as it was."""
-    ticket = ai_policy.authorize(feature, provider=_provider(), sources=sources)
+    ticket = ai_policy.authorize(feature, provider=_provider(), sources=sources,
+                                 reserve_tokens=reserve_tokens)
     started = time.monotonic()
     try:
         result = call()
@@ -378,7 +392,8 @@ def _guarded(feature, sources, call) -> dict:
 
 
 def _dispatch(messages, system, max_tokens, model, *, feature="", sources=None) -> dict:
-    return _guarded(feature, sources, lambda: _dispatch_to_provider(messages, system, max_tokens, model))
+    return _guarded(feature, sources, lambda: _dispatch_to_provider(messages, system, max_tokens, model),
+                    _reservation_size(messages, system, max_tokens))
 
 
 def _dispatch_to_provider(messages, system, max_tokens, model) -> dict:
@@ -739,7 +754,8 @@ def create_message_web_search(
         clearly-labelled knowledge-only scan.
     """
     return _guarded(feature, sources, lambda: _web_search_to_provider(
-        messages, system, max_tokens, model, max_searches, allowed_domains))
+        messages, system, max_tokens, model, max_searches, allowed_domains),
+        _reservation_size(messages, system, max_tokens, calls=4) + max(0, int(max_searches)) * 4096)
 
 
 def _web_search_to_provider(messages, system, max_tokens, model, max_searches, allowed_domains) -> dict:
@@ -882,13 +898,15 @@ def answer_json(text, *required, kind=dict):
 
 
 def wrap_user_input(text: str) -> str:
-    """Wrap user-supplied text in XML delimiters to prevent prompt injection.
+    """Mark user-supplied text as data for the model.
 
     Apply to every field sourced from user input (form fields, names, descriptions,
     free-text, chat messages) before interpolating it into a prompt string.
-    Instructs the model that the enclosed content is data, not instructions.
+    This is a prompt convention, not an authorization boundary. Escape delimiter
+    characters so the input cannot visually close the surrounding tag.
     """
-    return f"<user_input>{text}</user_input>"
+    from xml.sax.saxutils import escape
+    return f"<user_input>{escape(str(text))}</user_input>"
 
 
 def safe_json_parse(text, fallback=None):

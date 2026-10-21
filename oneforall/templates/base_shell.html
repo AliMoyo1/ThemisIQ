@@ -10,17 +10,7 @@
 <meta name="ph-key" content="{{ posthog_api_key }}">
 <meta name="ph-host" content="{{ posthog_host }}">
 {% if user %}<meta name="ph-uid" content="{{ user.id }}" data-email="{{ user.email or '' }}" data-name="{{ user.full_name or user.username or '' }}" data-role="{{ user.role or '' }}">{% endif %}
-<script>
-(function(){
-  var m=document.querySelector('meta[name="ph-key"]');
-  if(!m||!m.content)return;
-  var key=m.content,host=document.querySelector('meta[name="ph-host"]').content;
-  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId setPersonPropertiesForFlags".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-  posthog.init(key,{api_host:host,person_profiles:'identified_only',autocapture:true,capture_pageview:true,capture_pageleave:true});
-  var um=document.querySelector('meta[name="ph-uid"]');
-  if(um&&um.content)posthog.identify(String(um.content),{email:um.dataset.email,name:um.dataset.name,role:um.dataset.role});
-})();
-</script>
+<script src="/static/js/shell_telemetry.js?v=1"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 
@@ -678,6 +668,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 
 /* ── Search Result Highlight ── */
 .search-result{transition:background 0.1s}
+.search-result:hover{background:var(--surface2)}
 .search-result.active{background:var(--accent-pale) !important}
 
 /* PLAN-36 T07: visually hidden until keyboard-focused, so it doesn't
@@ -813,7 +804,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   </div>
 
   <div class="icon-sidebar-bottom">
-    <button class="icon-nav-item" id="railPin" aria-label="Pin navigation labels" title="Pin navigation labels" onclick="tiqToggleRail()" style="background:none;border:none;font:inherit">
+    <button class="icon-nav-item" id="railPin" aria-label="Pin navigation labels" title="Pin navigation labels" style="background:none;border:none;font:inherit">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
       <span class="nav-label">Collapse</span>
     </button>
@@ -848,7 +839,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <span class="nav-label">Governance Settings</span>
     </a>
     {% endif %}
-    <div class="icon-sidebar-user" onclick="toggleUserMenu()" title="{{ user.full_name }}">
+    <div class="icon-sidebar-user" id="sidebarUserMenu" title="{{ user.full_name }}">
       {{ user.avatar_initials | default('??') }}
       <div class="user-dropdown" id="userDropdown">
         <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
@@ -866,29 +857,13 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         {% if is_admin %}<a href="/admin/webhooks">Webhooks</a>{% endif %}
         {% if is_admin %}<a href="/admin/email">Email Settings</a>{% endif %}
         <div class="sep"></div>
-        <a href="#" onclick="document.getElementById('logoutForm').submit();return false" style="color:var(--red)">Sign Out</a>
+        <a href="#" id="sidebarSignOut" style="color:var(--red)">Sign Out</a>
         <form id="logoutForm" method="POST" action="/logout" style="display:none"></form>
       </div>
     </div>
   </div>
 </div>
-<script>
-(function(){
-  var el=document.querySelector('.icon-sidebar');
-  if(el && localStorage.getItem('tiqRailPinned')==='1') el.classList.add('pinned');
-  window.tiqToggleRail=function(){
-    var p=el.classList.toggle('pinned');
-    localStorage.setItem('tiqRailPinned', p?'1':'0');
-    var arrow=document.querySelector('#railPin svg');
-    if(arrow) arrow.style.transform = p?'rotate(180deg)':'';
-    setTimeout(function(){window.dispatchEvent(new Event('resize'))},250);
-  };
-  if(el && el.classList.contains('pinned')){
-    var arrow=document.querySelector('#railPin svg');
-    if(arrow) arrow.style.transform='rotate(180deg)';
-  }
-})();
-</script>
+<script src="/static/js/shell_navigation.js?v=1"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════════
      MODULE SIDEBAR — module-specific navigation
@@ -971,10 +946,10 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="topbar-left">
-      <button class="mobile-nav-toggle" onclick="toggleMobileNav()" aria-label="Open navigation">
+      <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Open navigation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
-      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">
+      <button class="sidebar-toggle" id="moduleSidebarToggle" aria-label="Toggle sidebar" title="Toggle sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <div class="breadcrumb">
@@ -992,7 +967,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <div id="searchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:360px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:999;"></div>
       </div>
       <div style="position:relative">
-        <button class="topbar-icon-btn" onclick="toggleNotif()" id="notifBtn"
+        <button class="topbar-icon-btn" id="notifBtn"
                 aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="notif-dot" id="notifDot"></span>
@@ -1000,7 +975,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <div class="notif-panel" id="notifPanel">
           <div class="notif-header">
             <span class="notif-header-title">Notifications</span>
-            <button type="button" class="notif-mark-read" onclick="markAllRead()">Mark all read</button>
+            <button type="button" class="notif-mark-read" id="markAllReadBtn">Mark all read</button>
           </div>
           <div class="notif-list" id="notifList" role="region" aria-label="Notifications" tabindex="0">
             <div class="empty-state" style="padding:24px">
@@ -1010,11 +985,11 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         </div>
       </div>
       <!-- Reminder Button -->
-      <button class="topbar-icon-btn" onclick="openReminderModal()" title="Set email reminder">
+      <button class="topbar-icon-btn" id="reminderOpenBtn" title="Set email reminder">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </button>
       <!-- Theme Toggle -->
-      <button class="topbar-icon-btn" onclick="toggleTheme()" id="themeToggle" title="Toggle dark/light mode">
+      <button class="topbar-icon-btn" id="themeToggle" title="Toggle dark/light mode">
         <svg id="themeSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         <svg id="themeMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
@@ -1043,22 +1018,10 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
           Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to renew.
         {% endif %}
       </div>
-      <button onclick="dismissLicenseBanner()" aria-label="Dismiss"
+      <button id="dismissLicenseBannerBtn" aria-label="Dismiss"
               style="background:none;border:none;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;opacity:.7">&times;</button>
     </div>
-    <script>
-      (function(){
-        var b = document.getElementById('licenseBanner');
-        if (!b) return;
-        var key = 'licenseBannerDismissed:' + b.dataset.expiry;
-        if (sessionStorage.getItem(key) === '1') return;
-        b.style.display = 'flex';
-        window.dismissLicenseBanner = function(){
-          sessionStorage.setItem(key, '1');
-          b.style.display = 'none';
-        };
-      })();
-    </script>
+    <script src="/static/js/shell_license.js?v=1"></script>
     {% endif %}
     {% if ai_return_id %}
     <nav class="aig-return" aria-label="Return to the AI system">
@@ -1074,392 +1037,19 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 <!-- Toast container -->
 <div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="false"></div>
 
-<script>
-// ── Shell Utilities ──
-
-function toggleSidebar(){
-  const sb = document.getElementById('moduleSidebar');
-  sb.classList.toggle('collapsed');
-  localStorage.setItem('sidebarCollapsed', sb.classList.contains('collapsed'));
-}
-
-function toggleMobileNav(){
-  const icon = document.querySelector('.icon-sidebar');
-  const mod  = document.getElementById('moduleSidebar');
-  const open = !(icon && icon.classList.contains('open'));
-  if (icon) icon.classList.toggle('open', open);
-  if (mod)  mod.classList.toggle('open',  open);
-  document.body.classList.toggle('drawer-open', open);
-}
-
-document.addEventListener('click', function(e){
-  // Close mobile drawer when tapping the backdrop or a nav link inside it
-  if (!document.body.classList.contains('drawer-open')) return;
-  const hitToggle = e.target.closest('.mobile-nav-toggle');
-  if (hitToggle) return;
-  const hitDrawer = e.target.closest('.icon-sidebar, .module-sidebar');
-  const hitLink = e.target.closest('a');
-  if (!hitDrawer || hitLink) toggleMobileNav();
-});
-
-// Restore sidebar state
-(function(){
-  if(localStorage.getItem('sidebarCollapsed')==='true'){
-    document.getElementById('moduleSidebar').classList.add('collapsed');
-  }
-})();
-
-// ── Theme Toggle (Dark/Light Mode) ──
-function toggleTheme(){
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  const newTheme = isDark ? 'light' : 'dark';
-  html.setAttribute('data-theme', newTheme);
-  localStorage.setItem('ofa-theme', newTheme);
-  updateThemeIcons(newTheme);
-}
-function updateThemeIcons(theme){
-  const sun = document.getElementById('themeSun');
-  const moon = document.getElementById('themeMoon');
-  if(theme === 'dark'){ sun.style.display='block'; moon.style.display='none'; }
-  else { sun.style.display='none'; moon.style.display='block'; }
-}
-// Restore theme on load
-(function(){
-  const saved = localStorage.getItem('ofa-theme') || 'light';
-  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
-  updateThemeIcons(saved);
-})();
-
-// ── Module Context Switching ──
-// Dynamically sets data-module on <body> to switch accent colors.
-// Called when clicking module icons in the icon sidebar.
-// In the real app, navigation is via <a> links (full page loads),
-// so this is primarily used to ensure accent colors update correctly
-// on module pages that load dynamically or via fetch.
-function switchModuleContext(mod){
-  const validModules = ['platform','aria','grid','bcm','sentinel'];
-  if(!validModules.includes(mod)) return;
-  document.body.setAttribute('data-module', mod);
-  // Update icon sidebar active state
-  document.querySelectorAll('.icon-nav-item').forEach(function(el){
-    const href = el.getAttribute('href') || '';
-    const isTarget = (mod === 'platform' && href === '/') ||
-                     (mod !== 'platform' && href.indexOf('/' + mod) === 0);
-    if(isTarget){ el.classList.add('active'); }
-    else { el.classList.remove('active'); }
-  });
-  // Persist module context for sub-pages that might not set it server-side
-  try{ sessionStorage.setItem('ofa-module', mod); }catch(e){}
-}
-
-function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
-
-function toggleNotif(){
-  const p = document.getElementById('notifPanel');
-  const isOpen = p.classList.toggle('show');
-  document.getElementById('notifBtn').setAttribute('aria-expanded', String(isOpen));
-  if(isOpen) loadNotifications();
-}
-
-async function loadNotifications(){
-  try {
-    const resp = await fetch('/api/notifications');
-    const data = await resp.json();
-    const dot = document.getElementById('notifDot');
-    dot.style.display = data.unread_count > 0 ? 'block' : 'none';
-    const list = document.getElementById('notifList');
-    if(!data.notifications.length){
-      list.innerHTML = '<div class="empty-state" style="padding:24px"><p>No notifications</p></div>';
-      return;
-    }
-    list.innerHTML = data.notifications.slice(0,20).map(function(n) {
-      var safeLink = safeHref(n.link, '');
-      return '<div style="padding:10px 14px;border-bottom:1px solid var(--border-soft);cursor:pointer;background:'+(n.is_read?'transparent':'var(--surface2)')+'" data-nid="'+parseInt(n.id,10)+'" data-link="'+esc(safeLink)+'">' +
-        '<div style="font-size:12.5px;font-weight:'+(n.is_read?'400':'600')+';color:var(--text);">'+esc(n.title)+'</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(n.message||'')+'</div>' +
-        '<div style="font-size:10px;color:var(--muted);margin-top:4px;">'+esc(n.module||'')+' &middot; '+esc(timeAgo(n.created_at))+'</div>' +
-      '</div>';
-    }).join('');
-    list.querySelectorAll('[data-nid]').forEach(function(el){
-      el.addEventListener('click', function(){ handleNotifClick(parseInt(el.getAttribute('data-nid'),10), el.getAttribute('data-link')||''); });
-    });
-  } catch(e){}
-}
-
-async function handleNotifClick(nid, link){
-  await fetch('/api/notifications/'+(parseInt(nid,10)||0)+'/read', {method:'POST'});
-  if(link){
-    try {
-      var u = new URL(link, window.location.origin);
-      if((u.protocol==='http:'||u.protocol==='https:') && u.origin===window.location.origin && u.pathname.startsWith('/')){
-        var safePath = encodeURI(u.pathname || '/');
-        var params = new URLSearchParams(u.search || '');
-        var safeSearch = params.toString();
-        safeSearch = safeSearch ? '?' + safeSearch : '';
-        var safeHash = u.hash ? '#' + encodeURIComponent((u.hash || '').replace(/^#/, '')) : '';
-        var targetUrl = new URL(safePath + safeSearch + safeHash, window.location.origin);
-        if(targetUrl.origin===window.location.origin){
-          window.location.assign(targetUrl.toString());
-          return;
-        }
-      }
-    } catch(e){}
-  }
-  loadNotifications();
-}
-
-async function markAllRead(){
-  await fetch('/api/notifications/read-all', {method:'POST'});
-  document.getElementById('notifDot').style.display='none';
-  loadNotifications();
-}
-
-function timeAgo(ts){
-  if(!ts) return '';
-  const d=new Date(ts+'Z'); const now=new Date(); const s=Math.floor((now-d)/1000);
-  if(s<60) return 'just now'; if(s<3600) return Math.floor(s/60)+'m ago';
-  if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago';
-}
-
-function toggleUserMenu(){
-  const d = document.getElementById('userDropdown');
-  d.classList.toggle('show');
-}
-
-// Close dropdowns on outside click
-document.addEventListener('click', function(e){
-  if(!e.target.closest('.icon-sidebar-user')){
-    document.getElementById('userDropdown').classList.remove('show');
-  }
-  if(!e.target.closest('#notifBtn') && !e.target.closest('#notifPanel')){
-    document.getElementById('notifPanel').classList.remove('show');
-  }
-});
-
-// Global search (Ctrl+K)
-document.addEventListener('keydown', function(e){
-  if((e.ctrlKey || e.metaKey) && e.key === 'k'){
-    e.preventDefault();
-    document.getElementById('globalSearch').focus();
-  }
-  if(e.key === 'Escape'){
-    document.getElementById('searchResults').style.display='none';
-    document.getElementById('globalSearch').blur();
-    searchIndex = -1;
-  }
-  // Arrow-key navigation within search results dropdown
-  var resultsEl = document.getElementById('searchResults');
-  if(resultsEl.style.display === 'block'){
-    var items = resultsEl.querySelectorAll('.search-result');
-    if(e.key === 'ArrowDown'){
-      e.preventDefault();
-      searchIndex = Math.min(searchIndex + 1, items.length - 1);
-      updateSearchActive(items, searchIndex);
-    } else if(e.key === 'ArrowUp'){
-      e.preventDefault();
-      searchIndex = Math.max(searchIndex - 1, 0);
-      updateSearchActive(items, searchIndex);
-    } else if(e.key === 'Enter' && searchIndex >= 0 && searchIndex < items.length){
-      e.preventDefault();
-      var activeItem = items[searchIndex];
-      if(activeItem && activeItem.href){
-        window.location.href = activeItem.href;
-      }
-    }
-  }
-});
-
-// A link the server gave, kept as it is when it is a path on this site. The earlier filter removed every character that
-// was not a letter, digit or one of a few marks, which turned "?open=control:12" into "?open=control12".
-function safeHref(link, fallback){
-  var value = String(link || '');
-  if(value.charAt(0) === '/' && value.charAt(1) !== '/' && value.indexOf('\\') < 0 && !/[\u0000-\u001f\u007f]/.test(value)){
-    return value;
-  }
-  return fallback;
-}
-
-function updateSearchActive(items, idx){
-  items.forEach(function(it, i){ it.classList.toggle('active', i === idx); });
-  if(idx >= 0 && items[idx]){
-    items[idx].scrollIntoView({block:'nearest'});
-  }
-}
-
-let searchDebounce = null;
-let searchIndex = -1;
-document.getElementById('globalSearch').addEventListener('input', function(){
-  clearTimeout(searchDebounce);
-  searchIndex = -1;
-  const q = this.value.trim();
-  if(q.length < 2){ document.getElementById('searchResults').style.display='none'; return; }
-  searchDebounce = setTimeout(()=>doGlobalSearch(q), 250);
-});
-
-async function doGlobalSearch(q){
-  searchIndex = -1;
-  const resp = await fetch('/api/search?q=' + encodeURIComponent(q));
-  const data = await resp.json();
-  const el = document.getElementById('searchResults');
-  if(!data.results.length){
-    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No results</div>';
-  } else {
-    var modColors = {aria:'#6c63ff',sentinel:'#10b981',grid:'#f59e0b',bcm:'#ef4444',platform:'#94a3b8'};
-    el.innerHTML = data.results.map(function(r) {
-      var safeLink = safeHref(r.link, '#');
-      var facts = [r.status, r.date, r.business_unit].filter(Boolean).join(' \u00b7 ');
-      var mod = (r.module||'').replace(/[^a-z]/g,'');
-      return '<a href="'+esc(safeLink)+'" class="search-result" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">' +
-        '<span style="width:8px;height:8px;border-radius:50%;background:'+(modColors[mod]||'var(--muted)')+';flex-shrink:0;"></span>' +
-        '<div style="flex:1;min-width:0;">' +
-          '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.title)+'</div>' +
-          '<div style="font-size:11px;color:var(--muted);">'+esc(r.module)+' &middot; '+esc(r.type)+(r.subtitle?' &middot; '+esc(r.subtitle):'')+'</div>' +
-          (facts?'<div style="font-size:11px;color:var(--muted);">'+esc(facts)+'</div>':'') +
-          (r.snippet?'<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.snippet)+'</div>':'') +
-        '</div>' +
-      '</a>';
-    }).join('');
-  }
-  el.style.display = 'block';
-}
-
-// Hide search results on click outside
-document.addEventListener('click', function(e){
-  if(!e.target.closest('.search-wrap')){
-    document.getElementById('searchResults').style.display='none';
-  }
-});
-
-// Toast helper
-function showToast(message, type='success', duration=4000){
-  const c = document.getElementById('toastContainer');
-  const t = document.createElement('div');
-  t.className = 'toast toast-' + type;
-  t.innerHTML = '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + esc(message);
-  c.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),300)}, duration);
-}
-
-// Confirm dialog helper
-function confirmAction(msg, callback){
-  if(confirm(msg)) callback();
-}
-
-// Load notification badge count on page load
-(async function(){
-  try{
-    const r = await fetch('/api/notifications');
-    const d = await r.json();
-    document.getElementById('notifDot').style.display = d.unread_count > 0 ? 'block' : 'none';
-  }catch(e){}
-})();
-// Poll every 60s
-setInterval(async()=>{
-  try{
-    const r = await fetch('/api/notifications');
-    const d = await r.json();
-    document.getElementById('notifDot').style.display = d.unread_count > 0 ? 'block' : 'none';
-  }catch(e){}
-}, 60000);
-
-// ── Stat card 3D mouse tilt ────────────────────────────────────────
-(function(){
-  const MAX = 5;
-  const attached = new WeakSet();
-  function applyTilt(card){
-    if(attached.has(card)) return;
-    attached.add(card);
-    card.style.transformOrigin = 'center center';
-    card.addEventListener('mousemove', function(e){
-      var r  = card.getBoundingClientRect();
-      var dx = (e.clientX - r.left  - r.width  / 2) / (r.width  / 2);
-      var dy = (e.clientY - r.top   - r.height / 2) / (r.height / 2);
-      card.style.transform  = 'translateY(-3px) perspective(600px) rotateX('+(-dy*MAX)+'deg) rotateY('+(dx*MAX)+'deg)';
-      card.style.transition = 'transform 0.05s ease-out, box-shadow 0.2s';
-      card.style.boxShadow  = '0 12px 32px rgba(0,0,0,0.13)';
-    });
-    card.addEventListener('mouseleave', function(){
-      card.style.transform  = '';
-      card.style.transition = 'transform 0.35s ease-out, box-shadow 0.35s';
-      card.style.boxShadow  = '';
-    });
-  }
-  function initTilts(){
-    document.querySelectorAll('.stat-card, .panel-card, [data-glass-tilt]').forEach(applyTilt);
-  }
-  document.addEventListener('DOMContentLoaded', initTilts);
-  // Re-run after SPA content injections
-  var mc = document.getElementById('mainContent');
-  if(mc){ new MutationObserver(initTilts).observe(mc,{childList:true,subtree:false}); }
-})();
-
-// ── Keyboard Shortcuts Panel ──────────────────────────────────────
-(function(){
-  var panel=document.createElement('div');
-  panel.id='shortcutsPanel';
-  panel.style.cssText='display:none;position:fixed;inset:0;z-index:10001;align-items:center;justify-content:center';
-  panel.innerHTML='<div style="position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" onclick="document.getElementById(\'shortcutsPanel\').style.display=\'none\'"></div>'+
-    '<div style="position:relative;background:var(--surface);border-radius:16px;padding:28px;width:440px;max-width:92vw;box-shadow:var(--shadow-lg)">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'+
-        '<h3 style="font-size:16px;font-weight:800;color:var(--text);margin:0">Keyboard Shortcuts</h3>'+
-        '<button onclick="document.getElementById(\'shortcutsPanel\').style.display=\'none\'" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer">&times;</button>'+
-      '</div>'+
-      '<div style="display:grid;gap:8px;font-size:13px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Show this panel</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">?</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Global search</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">Ctrl + K</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Command Centre</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then H</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Task Board</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then T</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Audit Log</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then L</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">New item (primary action)</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">N</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span style="color:var(--text)">Close modal / panel</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">Escape</kbd></div>'+
-      '</div>'+
-    '</div>';
-  document.body.appendChild(panel);
-
-  var lastKey='';var lastKeyTime=0;
-  document.addEventListener('keydown',function(e){
-    var tag=e.target.tagName;
-    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||e.target.isContentEditable) return;
-    var now=Date.now();
-    if(e.key==='?'&&!e.ctrlKey&&!e.metaKey){
-      e.preventDefault();
-      var sp=document.getElementById('shortcutsPanel');
-      sp.style.display=sp.style.display==='flex'?'none':'flex';
-      return;
-    }
-    if(e.key==='Escape'){
-      document.getElementById('shortcutsPanel').style.display='none';
-      return;
-    }
-    if(e.key==='n'&&!e.ctrlKey&&!e.metaKey){
-      var btn=document.querySelector('.header-actions .btn-primary, .topbar-actions .btn-primary');
-      if(btn){e.preventDefault();btn.click();}
-      return;
-    }
-    if(lastKey==='g'&&(now-lastKeyTime)<1000){
-      if(e.key==='h'){e.preventDefault();window.location.href='/dashboard';}
-      else if(e.key==='t'){e.preventDefault();window.location.href='/tasks';}
-      else if(e.key==='l'){e.preventDefault();window.location.href='/admin/logs';}
-      lastKey='';return;
-    }
-    if(e.key==='g'&&!e.ctrlKey&&!e.metaKey){lastKey='g';lastKeyTime=now;return;}
-    lastKey='';
-  });
-})();
-</script>
+<script src="/static/js/shell_core.js?v=1"></script>
 
 {% block extra_scripts %}{% endblock %}
 
 <!-- Reminder Modal -->
 <div class="reminder-overlay" id="reminderModal" role="dialog" aria-modal="true" aria-labelledby="reminderTitle" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
-  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);" onclick="closeReminderModal()"></div>
+  <div data-reminder-close style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);"></div>
   <div class="reminder-card" style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <h3 id="reminderTitle" style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
-      <button type="button" aria-label="Close reminder" onclick="closeReminderModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
+      <button type="button" data-reminder-close aria-label="Close reminder" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
     </div>
-    <form id="reminderForm" onsubmit="createReminder(event)">
+    <form id="reminderForm">
       <div style="margin-bottom:12px;">
         <label for="remTitle" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
         <input type="text" id="remTitle" required placeholder="e.g. Review audit findings" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
@@ -1498,36 +1088,7 @@ setInterval(async()=>{
   </div>
 </div>
 
-<script>
-function openReminderModal(){
-  const m = document.getElementById('reminderModal');
-  m.style.display='flex';
-  // Pre-select current module from body data attribute
-  const mod = document.body.getAttribute('data-module') || 'platform';
-  document.getElementById('remModule').value = mod;
-  // Default to 1 hour from now
-  const now = new Date();
-  now.setHours(now.getHours() + 1);
-  document.getElementById('remAt').value = now.toISOString().slice(0,16);
-}
-function closeReminderModal(){ document.getElementById('reminderModal').style.display='none'; }
-async function createReminder(e){
-  e.preventDefault();
-  const body = {
-    title: document.getElementById('remTitle').value,
-    message: document.getElementById('remMessage').value,
-    remind_at: document.getElementById('remAt').value,
-    repeat_interval: document.getElementById('remRepeat').value,
-    module: document.getElementById('remModule').value,
-  };
-  const resp = await fetch('/api/reminders', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-  if(resp.ok){
-    closeReminderModal();
-    document.getElementById('reminderForm').reset();
-    if(typeof showToast==='function') showToast('Reminder created successfully');
-  }
-}
-</script>
+<script src="/static/js/shell_reminders.js?v=1"></script>
 
 {% include "_platform_trainer.html" %}
 

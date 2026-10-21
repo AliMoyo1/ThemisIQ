@@ -20,7 +20,7 @@ from core.ai_client import AIUnavailable
 from core.ai_policy import AIPolicyError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
-    cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
+    cors_block_middleware, BodySizeLimitMiddleware, SanitizeJsonMiddleware,
     module_audit_middleware, request_id_middleware,
 )
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
@@ -41,8 +41,9 @@ app = FastAPI(
     title="ThemisIQ",
     description="Unified GRC Platform — Governance, Risk, Compliance, Privacy & Resilience",
     version="1.0.0",
-    docs_url=None,   # Disable Swagger UI in production
+    docs_url="/docs" if settings.DEBUG else None,
     redoc_url=None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
 # -- Middleware ---------------------------------------------------------------
@@ -70,7 +71,7 @@ app.middleware("http")(tenant_context_middleware)
 app.add_middleware(SanitizeJsonMiddleware)
 app.middleware("http")(csrf_origin_middleware)
 app.middleware("http")(cors_block_middleware)
-app.middleware("http")(body_size_limit_middleware)
+app.add_middleware(BodySizeLimitMiddleware)
 app.middleware("http")(security_headers_middleware)
 app.middleware("http")(request_id_middleware)
 # (module_audit_middleware is registered first above so it ends up
@@ -418,6 +419,13 @@ async def demo_request_preflight():
 
 @app.post("/api/demo-request")
 async def demo_request(request: Request):
+    from core.middleware import check_rate_limit, record_failed_login
+    ip_address = request.client.host if request.client else "unknown"
+    throttle_key = f"demo-request:{ip_address}"
+    if not check_rate_limit(throttle_key):
+        return JSONResponse({"ok": False, "error": "Please try again later."},
+                            status_code=429, headers=_DEMO_CORS)
+    record_failed_login(throttle_key)
     try:
         from core.sanitize import sanitize_dict
         body = sanitize_dict(await request.json())
@@ -429,10 +437,11 @@ async def demo_request(request: Request):
     company = (body.get("company") or "").strip()
     plan    = (body.get("plan") or "").strip()
 
-    if not name or not email or "@" not in email:
+    if (not name or not email or "@" not in email or
+            len(name) > 120 or len(email) > 254 or
+            len(company) > 160 or len(plan) > 80):
         return JSONResponse({"ok": False, "error": "Name and valid email are required."}, status_code=422, headers=_DEMO_CORS)
 
-    ip_address = request.client.host if request.client else None
     log.info("Demo request: name=%s email=%s company=%s plan=%s ip=%s", name, email, company, plan, ip_address)
 
     # Persist first — email is best-effort and must never lose the lead

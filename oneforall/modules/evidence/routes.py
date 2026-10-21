@@ -8,10 +8,16 @@ import logging
 import os
 import uuid
 import hashlib
+import shutil
+import subprocess
+import tempfile
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
+from fastapi.concurrency import run_in_threadpool
+from starlette.background import BackgroundTask
 from fastapi.templating import Jinja2Templates
 
 from core.best_effort import swallowed
@@ -27,6 +33,49 @@ from modules.governance.entity_scope import _KINDS, canonical_key, describe_reco
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 log = logging.getLogger("oneforall.evidence")
+_PDF_CONVERSION_SLOTS = threading.BoundedSemaphore(2)
+_PDF_INPUT_LIMIT = 50 * 1024 * 1024
+_PDF_OUTPUT_LIMIT = 75 * 1024 * 1024
+
+
+def _convert_office_preview(file_path: Path) -> tuple[Path, str]:
+    """Convert in a bounded worker, returning a temporary PDF and its directory."""
+    if file_path.stat().st_size > _PDF_INPUT_LIMIT:
+        raise HTTPException(413, "This document is too large for PDF conversion.")
+    if not _PDF_CONVERSION_SLOTS.acquire(blocking=False):
+        raise HTTPException(429, "PDF conversion is busy. Please try again shortly.")
+    tmpdir = None
+    success = False
+    try:
+        tmpdir = tempfile.mkdtemp(prefix="themisiq-preview-")
+        profile = (Path(tmpdir) / "profile").as_uri()
+        try:
+            result = subprocess.run(
+                ["libreoffice", f"-env:UserInstallation={profile}",
+                 "--headless", "--convert-to", "pdf", "--outdir", tmpdir,
+                 str(file_path)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60,
+            )
+        except FileNotFoundError:
+            raise HTTPException(503, "PDF conversion is unavailable on this server.") from None
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "PDF conversion timed out.") from None
+        if result.returncode != 0:
+            raise HTTPException(500, "PDF conversion failed.")
+        pdf_path = Path(tmpdir) / (file_path.stem + ".pdf")
+        if not pdf_path.exists():
+            candidates = list(Path(tmpdir).glob("*.pdf"))
+            if not candidates:
+                raise HTTPException(500, "PDF conversion produced no output.")
+            pdf_path = candidates[0]
+        if pdf_path.stat().st_size > _PDF_OUTPUT_LIMIT:
+            raise HTTPException(413, "The converted PDF is too large to download.")
+        success = True
+        return pdf_path, tmpdir
+    finally:
+        _PDF_CONVERSION_SLOTS.release()
+        if tmpdir and not success:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @router.get("/api/legacy-files")
@@ -639,17 +688,6 @@ async def api_evidence_upload(
             f"WHERE e.file_hash = %s AND e.status != 'archived' AND {dupe_scope}",
             [file_hash, *dupe_params],
         ).fetchone()
-        if existing is None and not user.get("is_super_admin"):
-            held_elsewhere = db.execute(
-                "SELECT 1 FROM evidence_items WHERE file_hash = %s AND status != 'archived' AND org_id = %s",
-                (file_hash, org_id),
-            ).fetchone()
-            if held_elsewhere:  # held where the caller may not look: say so, and never name it
-                return JSONResponse({
-                    "duplicate": True, "hidden": True, "file_hash": file_hash,
-                    "message": "This file is already in the Vault, in a place you cannot open, so it was not "
-                               "uploaded again. Ask the person who keeps that record to link it.",
-                }, status_code=409)
         if existing:
             return JSONResponse({
                 "duplicate": True,
@@ -1121,9 +1159,6 @@ async def api_evidence_download_pdf(request: Request, eid: int):
     Supports DOCX conversion via LibreOffice headless. PDF and image
     files are returned as-is. Other formats return 400.
     """
-    import subprocess
-    import tempfile
-
     db = get_db()
     try:
         item = _scoped_evidence_item(db, eid, request.state.user)
@@ -1204,43 +1239,11 @@ async def api_evidence_download_pdf(request: Request, eid: int):
             "This file type cannot be converted.",
         )
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        try:
-            result = subprocess.run(
-                [
-                    "libreoffice", "--headless", "--convert-to", "pdf",
-                    "--outdir", tmpdir, str(file_path),
-                ],
-                capture_output=True, text=True, timeout=60,
-            )
-        except FileNotFoundError:
-            raise HTTPException(
-                503,
-                "PDF conversion requires LibreOffice which is not installed on this server.",
-            )
-        except subprocess.TimeoutExpired:
-            raise HTTPException(504, "PDF conversion timed out.")
-
-        if result.returncode != 0:
-            raise HTTPException(500, "PDF conversion failed.")
-
-        pdf_name = Path(file_path.stem).with_suffix(".pdf")
-        pdf_path = Path(tmpdir) / pdf_name
-        if not pdf_path.exists():
-            candidates = list(Path(tmpdir).glob("*.pdf"))
-            if candidates:
-                pdf_path = candidates[0]
-            else:
-                raise HTTPException(500, "PDF conversion produced no output.")
-
-        pdf_bytes = pdf_path.read_bytes()
-
-    out_name = Path(fname).stem + ".pdf"
-    from fastapi.responses import Response
-    return Response(
-        content=pdf_bytes,
+    pdf_path, tmpdir = await run_in_threadpool(_convert_office_preview, file_path)
+    return FileResponse(
+        str(pdf_path), filename=Path(fname).stem + ".pdf",
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+        background=BackgroundTask(shutil.rmtree, tmpdir, ignore_errors=True),
     )
 
 

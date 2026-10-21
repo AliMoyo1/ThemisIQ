@@ -1,6 +1,7 @@
 """
 Admin routes — user management, audit logs, API keys, webhooks.
 """
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File
 from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -534,6 +535,7 @@ async def admin_reset_password(request: Request, uid: int,
             "UPDATE users SET password_hash=%s, must_change_password=1 WHERE id=%s",
             (hash_password(temp_pw), uid),
         )
+        db.execute("DELETE FROM sessions WHERE user_id=%s", (uid,))
         db.commit()
         log_audit(admin, "platform",
                   "Reset password for " + target["username"],
@@ -1056,6 +1058,35 @@ async def api_keys_list(request: Request):
 async def api_key_create(request: Request):
     """Generate a new API key."""
     data = await _json_body(request)
+    org_id = request.state.user.get("org_id")
+    if not org_id:
+        return _JSONResp({"error": "Select an organization before creating a key."}, 400)
+    name = str(data.get("name") or "").strip()
+    if not name or len(name) > 120:
+        return _JSONResp({"error": "Enter a key name of 1 to 120 characters."}, 400)
+    allowed = {"risks.read", "audits.read", "breaches.read", "risks.create", "risks.update"}
+    scopes = [s.strip() for s in str(data.get("scopes") or "").split(",") if s.strip()]
+    if not scopes or len(set(scopes)) != len(scopes) or any(s not in allowed for s in scopes):
+        return _JSONResp({"error": "Choose valid, specific API scopes."}, 400)
+    now = datetime.now(timezone.utc)
+    raw_expiry = data.get("expires_at")
+    try:
+        expiry = (datetime.fromisoformat(str(raw_expiry).replace("Z", "+00:00"))
+                  if raw_expiry else now + timedelta(days=90))
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        expiry = expiry.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return _JSONResp({"error": "Enter a valid expiry date."}, 400)
+    if not now < expiry <= now + timedelta(days=365):
+        return _JSONResp({"error": "Expiry must be within the next 365 days."}, 400)
+    raw_unit = data.get("business_unit_id")
+    try:
+        unit_id = int(raw_unit) if raw_unit not in (None, "") else None
+    except (TypeError, ValueError):
+        return _JSONResp({"error": "Select a valid business unit."}, 400)
+    if unit_id is not None and unit_id < 1:
+        return _JSONResp({"error": "Select a valid business unit."}, 400)
 
     # Generate a secure random key
     raw_key = "ofa_" + secrets.token_urlsafe(32)
@@ -1064,18 +1095,23 @@ async def api_key_create(request: Request):
 
     db = get_db()
     try:
+        if unit_id is not None and not db.execute(
+            "SELECT id FROM business_units WHERE id=%s AND is_active=1", (unit_id,)
+        ).fetchone():
+            return _JSONResp({"error": "Business unit not found."}, 400)
         kid = insert_returning_id(
             db,
-            "INSERT INTO api_keys (name, key_hash, key_prefix, scopes, expires_at, created_by, org_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO api_keys (name, key_hash, key_prefix, scopes, expires_at, created_by, org_id, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
             (
-                data.get("name", "Unnamed Key"),
+                name,
                 key_hash,
                 key_prefix,
-                data.get("scopes", "read"),
-                data.get("expires_at"),
+                ",".join(scopes),
+                expiry.isoformat(),
                 request.state.user["id"],
-                request.state.user.get("org_id"),
+                org_id,
+                unit_id,
             )
         )
         db.commit()
@@ -1789,13 +1825,21 @@ def _ai_policy_scope(user: dict, requested):
 
 def _ai_policy_view(org_id: int, can_switch: bool = False) -> dict:
     from core import ai_client, ai_policy, ai_rollout
-    stored = ai_policy.get_policy(org_id)
+    try:
+        stored = ai_policy.get_policy(org_id)
+        policy_unreadable = False
+    except (ValueError, TypeError):
+        # A malformed saved policy must keep AI disabled, but a policy manager
+        # still needs a usable page from which to replace it.
+        stored = None
+        policy_unreadable = True
     return {
         "org_id": org_id,
         "governance": {"enabled": ai_rollout.is_enabled(org_id, fresh=True), "chosen": ai_rollout.is_set(org_id),
                        "default": ai_rollout.default_enabled(), "can_change": can_switch,
                        "separation_required": ai_rollout.separation_required(org_id)},
         "configured": stored is not None,
+        "policy_unreadable": policy_unreadable,
         "policy": {**ai_policy.default_policy(), **(stored or {})},
         "active_provider": ai_client._provider(),
         "providers": list(ai_policy.PROVIDERS),
@@ -1839,10 +1883,14 @@ async def api_ai_policy_put(request: Request, org_id: int = None):
     user = request.state.user
     scope_org, slug = _ai_policy_scope(user, org_id)
     with (tenant_context(scope_org, slug, is_super_admin=False) if slug else nullcontext()):
-        before = ai_policy.get_policy(scope_org)
+        try:
+            before = ai_policy.get_policy(scope_org)
+        except (ValueError, TypeError):
+            before = None
         saved = ai_policy.save_policy(scope_org, submitted, user_id=user["id"])
         view = _ai_policy_view(scope_org, bool(user.get("is_super_admin")))
-    changed = sorted(k for k in submitted if before is None or before.get(k) != saved.get(k))
+    changed = sorted(k for k in submitted if k != "approval_confirmed" and
+                     (before is None or before.get(k) != saved.get(k)))
     log_audit(user, "platform", "ai_policy_updated", "organization", scope_org,
               details="changed: " + (", ".join(changed) or "nothing") + ("" if before else " (first policy)"),
               org_id=scope_org)

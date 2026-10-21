@@ -11,7 +11,7 @@
 
 <div class="content">
   <div class="card" style="padding:16px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-    <div style="font-size:12px; color:var(--muted);">API keys enable external systems to authenticate with the ThemisIQ platform. Keys are shown only once on creation — store them securely. Include the key in requests as: <code style="padding:2px 6px; border-radius:4px; background:var(--surface3); font-size:11px;">Authorization: Bearer ofa_...</code></div>
+    <div style="font-size:12px; color:var(--muted);">API keys enable external systems to authenticate with ThemisIQ. Keys are shown once, expire within 90 days by default, and can be limited to one business unit. Send the key in the <code style="padding:2px 6px; border-radius:4px; background:var(--surface3); font-size:11px;">X-API-Key: ofa_...</code> header. Existing keys with broad read or write scopes need rotation.</div>
   </div>
 
   <div class="card" style="padding:0; overflow:hidden;">
@@ -22,12 +22,13 @@
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Key Prefix</th>
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Scopes</th>
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Last Used</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Expires</th>
           <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
           <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
         </tr>
       </thead>
       <tbody id="keysBody">
-        <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+        <tr><td colspan="7" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -48,10 +49,19 @@
         </div>
         <div style="margin-bottom:14px;">
           <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Scopes</label>
-          <select id="keyScopes" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
-            <option value="read">Read Only</option>
-            <option value="read,write">Read + Write</option>
-            <option value="read,write,admin">Full Access</option>
+          <select id="keyScopes" multiple size="5" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <option value="risks.read">Read risks</option>
+            <option value="audits.read">Read audits</option>
+            <option value="breaches.read">Read privacy breaches</option>
+            <option value="risks.create">Create risks</option>
+            <option value="risks.update">Update risk details</option>
+          </select>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Hold Ctrl or Command to select several.</div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label for="keyUnit" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Business unit</label>
+          <select id="keyUnit" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;">
+            <option value="">All business units</option>
           </select>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;">Generate</button>
@@ -80,24 +90,40 @@ async function loadKeys() {
   const resp = await fetch('/api/admin/api-keys');
   const keys = await resp.json();
   const tbody = document.getElementById('keysBody');
-  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--muted);">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
+  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
   tbody.innerHTML = keys.map(k => `
     <tr style="border-bottom:1px solid var(--border-soft);">
       <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(k.name)}</td>
       <td style="padding:10px 14px;font-family:monospace;font-size:12px;color:var(--muted);">${esc(k.key_prefix)}</td>
       <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.scopes)}</td>
       <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.last_used_at||'Never')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.expires_at||'No expiry (rotate)')}</td>
       <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${k.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${k.is_active?'var(--good)':'var(--bad)'};">${k.is_active?'Active':'Revoked'}</span></td>
       <td style="padding:10px 14px;text-align:center;">${k.is_active?'<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:var(--bad);" onclick="revokeKey('+parseInt(k.id,10)+')">Revoke</button>':'—'}</td>
     </tr>
   `).join('');
 }
 
-function openNewKey() { ModalManager.open('newKeyModal'); }
+async function openNewKey() {
+  const select = document.getElementById('keyUnit');
+  select.replaceChildren(new Option('All business units', ''));
+  try {
+    const response = await fetch('/governance/api/business-units');
+    if (response.ok) {
+      const units = await response.json();
+      units.forEach(unit => select.add(new Option(unit.name, unit.id)));
+    }
+  } catch (_) { /* The server still validates any chosen unit. */ }
+  ModalManager.open('newKeyModal');
+}
 
 async function generateKey(e) {
   e.preventDefault();
-  const body = { name: document.getElementById('keyName').value, scopes: document.getElementById('keyScopes').value };
+  const body = {
+    name: document.getElementById('keyName').value,
+    scopes: Array.from(document.getElementById('keyScopes').selectedOptions, option => option.value).join(','),
+    business_unit_id: document.getElementById('keyUnit').value || null
+  };
   const resp = await fetch('/api/admin/api-keys', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (resp.ok) {
     const data = await resp.json();
@@ -106,6 +132,9 @@ async function generateKey(e) {
     document.getElementById('revealKey').textContent = data.key;
     ModalManager.open('revealModal');
     loadKeys();
+  } else {
+    const error = await resp.json().catch(() => ({}));
+    alert(error.error || 'Could not create the API key.');
   }
 }
 

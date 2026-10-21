@@ -24,6 +24,8 @@ import argparse
 import json
 import os
 import re
+import base64
+import binascii
 import shlex
 import shutil
 import stat
@@ -188,9 +190,23 @@ def validate_environment(
     accept_aria_known_limitations: bool = False,
 ) -> list[str]:
     errors: list[str] = []
-    for key in ("DATABASE_URL", "SECRET_KEY"):
+    for key in ("DATABASE_URL", "SECRET_KEY", "MFA_ENCRYPTION_KEY"):
         if not values.get(key):
             errors.append(f"missing required key: {key}")
+
+    mfa_keys = [values.get("MFA_ENCRYPTION_KEY", "")]
+    mfa_keys.extend(k.strip() for k in values.get("MFA_ENCRYPTION_PREVIOUS_KEYS", "").split(",") if k.strip())
+    for key in mfa_keys:
+        if not key:
+            continue
+        try:
+            if len(base64.urlsafe_b64decode(key.encode("ascii"))) != 32:
+                raise ValueError("wrong length")
+        except (ValueError, UnicodeEncodeError, binascii.Error):
+            errors.append("MFA encryption keys must be valid Fernet keys")
+            break
+    if len(set(k for k in mfa_keys if k)) != len([k for k in mfa_keys if k]):
+        errors.append("MFA encryption keys must be distinct")
 
     database_url = values.get("DATABASE_URL", "")
     if database_url:
@@ -261,7 +277,7 @@ def validate_environment(
 
 def is_sensitive_key(key: str) -> bool:
     return (
-        key in {"DATABASE_URL", "PGPASSWORD"}
+        key in {"DATABASE_URL", "PGPASSWORD", "MFA_ENCRYPTION_PREVIOUS_KEYS"}
         or key.endswith(("_DSN", "_KEY", "_TOKEN", "_PASSWORD", "_PASS", "_SECRET", "_WEBHOOK_URL"))
         or "SECRET" in key
     )

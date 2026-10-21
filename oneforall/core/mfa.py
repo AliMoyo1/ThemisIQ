@@ -2,8 +2,8 @@
 Two-Factor Authentication helpers (TOTP, RFC 6238).
 
 Wraps pyotp for code verification, qrcode for enrollment images, and the
-user_mfa table for persistent state. The TOTP secret is stored verbatim;
-backup codes are stored as bcrypt hashes (single-use, hash matches mark
+user_mfa table for persistent state. TOTP secrets are encrypted with a
+separately managed key; backup codes are stored as bcrypt hashes (single-use, hash matches mark
 the row consumed).
 """
 from __future__ import annotations
@@ -11,12 +11,15 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 import secrets
+import time
 from typing import Optional
 
 import bcrypt
 import pyotp
 import qrcode
+from cryptography.fernet import Fernet, InvalidToken
 
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id
@@ -25,6 +28,45 @@ from core.best_effort import swallowed
 ISSUER = "ThemisIQ"
 _BACKUP_CODE_COUNT = 8
 _BACKUP_CODE_LEN = 10  # length of plaintext code shown once at enrollment
+_ENCRYPTED_PREFIX = "fernet:v1:"
+
+
+def _fernet_keys() -> list[Fernet]:
+    """Current key first; previous keys are accepted only for migration/rotation."""
+    raw = [os.getenv("MFA_ENCRYPTION_KEY", "").strip()]
+    raw.extend(k.strip() for k in os.getenv("MFA_ENCRYPTION_PREVIOUS_KEYS", "").split(",") if k.strip())
+    keys = []
+    for key in raw:
+        if key:
+            try:
+                keys.append(Fernet(key.encode("ascii")))
+            except (ValueError, TypeError, UnicodeEncodeError) as exc:
+                raise RuntimeError("Invalid MFA encryption key configuration") from exc
+    return keys
+
+
+def _encrypt_secret(secret: str) -> str:
+    keys = _fernet_keys()
+    if not os.getenv("MFA_ENCRYPTION_KEY", "").strip() or not keys:
+        raise RuntimeError("MFA_ENCRYPTION_KEY is required for enrollment")
+    return _ENCRYPTED_PREFIX + keys[0].encrypt(secret.encode("ascii")).decode("ascii")
+
+
+def encryption_ready() -> bool:
+    """Whether new MFA enrollments can be stored encrypted."""
+    return bool(os.getenv("MFA_ENCRYPTION_KEY", "").strip() and _fernet_keys())
+
+
+def _decrypt_secret(stored: str) -> str:
+    if not stored.startswith(_ENCRYPTED_PREFIX):
+        return stored  # legacy row until the one-time migration runs
+    token = stored[len(_ENCRYPTED_PREFIX):].encode("ascii")
+    for key in _fernet_keys():
+        try:
+            return key.decrypt(token).decode("ascii")
+        except InvalidToken:
+            continue
+    raise RuntimeError("MFA secret cannot be decrypted with the configured keys")
 
 
 def _generate_secret() -> str:
@@ -69,11 +111,16 @@ def get_mfa_row(user_id: int) -> Optional[dict]:
     db = get_db()
     try:
         row = db.execute(
-            "SELECT id, totp_secret, backup_codes, is_enabled, enrolled_at "
+            "SELECT id, totp_secret, backup_codes, is_enabled, enrolled_at, last_accepted_step "
             "FROM user_mfa WHERE user_id = %s",
             (user_id,),
         ).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        result = dict(row)
+        result["_stored_secret"] = result["totp_secret"]
+        result["totp_secret"] = _decrypt_secret(result["totp_secret"])
+        return result
     finally:
         db.close()
 
@@ -129,20 +176,33 @@ def start_enrollment(user_id: int) -> tuple[str, list[str]]:
         if existing:
             db.execute(
                 "UPDATE user_mfa SET totp_secret = %s, backup_codes = %s, "
-                "is_enabled = 0, enrolled_at = NULL WHERE id = %s",
-                (secret, hashed, existing["id"]),
+                "is_enabled = 0, enrolled_at = NULL, last_accepted_step = NULL WHERE id = %s",
+                (_encrypt_secret(secret), hashed, existing["id"]),
             )
         else:
             insert_returning_id(
                 db,
                 "INSERT INTO user_mfa (user_id, totp_secret, backup_codes) "
                 "VALUES (%s, %s, %s)",
-                (user_id, secret, hashed),
+                (user_id, _encrypt_secret(secret), hashed),
             )
         db.commit()
         return secret, plaintext_codes
     finally:
         db.close()
+
+
+def _matching_step(secret: str, code: str) -> int | None:
+    """Return the exact accepted TOTP step within the one-step clock window."""
+    code = (code or "").strip().replace(" ", "")
+    if not (code.isascii() and code.isdigit() and len(code) == 6):
+        return None
+    totp = pyotp.TOTP(secret)
+    current = int(time.time() // totp.interval)
+    for step in (current - 1, current, current + 1):
+        if step >= 0 and secrets.compare_digest(totp.at(step * totp.interval), code):
+            return step
+    return None
 
 
 def confirm_enrollment(user_id: int, code: str) -> bool:
@@ -153,16 +213,18 @@ def confirm_enrollment(user_id: int, code: str) -> bool:
     row = get_mfa_row(user_id)
     if not row:
         return False
-    if not pyotp.TOTP(row["totp_secret"]).verify(code, valid_window=1):
+    step = _matching_step(row["totp_secret"], code)
+    if step is None:
         return False
     db = get_db()
     try:
-        db.execute(
-            "UPDATE user_mfa SET is_enabled = 1, enrolled_at = %s WHERE id = %s",
-            (utcnow().isoformat(sep=" ")[:19], row["id"]),
-        )
+        updated = db.execute(
+            "UPDATE user_mfa SET is_enabled = 1, enrolled_at = %s, last_accepted_step = %s "
+            "WHERE id = %s AND is_enabled = 0 AND totp_secret = %s",
+            (utcnow().isoformat(sep=" ")[:19], step, row["id"], row["_stored_secret"]),
+        ).rowcount
         db.commit()
-        return True
+        return updated == 1
     finally:
         db.close()
 
@@ -179,17 +241,20 @@ def verify_code(user_id: int, code: str) -> bool:
 
     # TOTP first (fast path)
     if code.isdigit() and len(code) == 6:
-        if pyotp.TOTP(row["totp_secret"]).verify(code, valid_window=1):
+        step = _matching_step(row["totp_secret"], code)
+        if step is not None:
             db = get_db()
             try:
-                db.execute(
-                    "UPDATE user_mfa SET last_used_at = %s WHERE id = %s",
-                    (utcnow().isoformat(sep=" ")[:19], row["id"]),
-                )
+                accepted = db.execute(
+                    "UPDATE user_mfa SET last_used_at = %s, last_accepted_step = %s "
+                    "WHERE id = %s AND is_enabled = 1 "
+                    "AND (last_accepted_step IS NULL OR last_accepted_step < %s)",
+                    (utcnow().isoformat(sep=" ")[:19], step, row["id"], step),
+                ).rowcount
                 db.commit()
             finally:
                 db.close()
-            return True
+            return accepted == 1
         return False
 
     # Backup code path
