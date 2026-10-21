@@ -41,8 +41,8 @@ Each module section uses the same template so the page scans well:
 ## 0. Header and search
 
 - Title: **Everything ThemisIQ does, in one place.**
-- Line: "Seven connected modules, a shared evidence vault and the everyday tools that keep the work moving. Search for a
-  capability or filter by your role."
+- Line: "Every module, the shared evidence vault and the everyday tools that keep the work moving. Search for a
+  capability or filter by your role." (No count: numbers are on hold.)
 - Search box (filters the capability lines as you type) and role chips. Results keep their section heading so context
   is not lost. With no script, the full page still reads top to bottom.
 
@@ -54,10 +54,10 @@ argument, stated as facts a buyer can check in the demo, not as superlatives.
 | Tile | Copy | Proven in |
 | --- | --- | --- |
 | **Connected, not bolted together** | "A confirmed breach can open work in risk, operations and audit, and every team sees its own next step from the same event." | Sentinel, ERM, ORM, GRID event path (`sentinel.breach.confirmed`) |
-| **One control, many standards** | "Map equivalent controls across standards once, then audit them once for all of them." | Sections 2 and 3 |
+| **One control, many standards** | "Map equivalent controls across standards once, then audit them side by side in one integrated audit, with the same evidence." | Sections 2 and 3 |
 | **Rules for each jurisdiction, approved by people** | "Each privacy rule is drafted by a specialist and approved by a different DPO before it drives a deadline." | Section 4 |
 | **A second pair of eyes built in** | "Decisions, mappings and rule changes ask for someone other than the author to approve them." | AI decisions, IMS mapping review, Sentinel cards, report sign-off |
-| **AI you can govern** | "Every assistant follows your organisation's AI policy, cites its sources where it answers from your records, and leaves the decision to a person." | Section 8 and the AI notes in each module |
+| **AI you can govern** | "Every assistant follows your organisation's AI policy, cites its sources where it answers from your records, and leaves the decision to a person." | Section 1a and the AI line in each module |
 
 ## 1a. AI across the platform (`#ai`)
 
@@ -178,8 +178,10 @@ Promise: **"Plan, run and close audits, alone or across several standards at onc
 Interactive study continuing from section 2.
 
 1. **Create an integrated audit.** A form preview with "Integrated audit" switched on and several standards selected.
-2. **Controls arrive mapped.** The checklist shows each control with a badge for every standard it satisfies, carried
-   over from the approved ARIA matches. Testing it once records the result for each.
+2. **Controls arrive mapped.** One checklist holds every selected standard's controls. Equivalent controls are linked
+   from the approved ARIA matches, and each control is badged integrated, partly matched or unique, so the team tests
+   equivalents side by side and reuses the same evidence. (Results are not copied between controls automatically; do
+   not claim "test once, pass all".)
 3. **Findings to closure.** A nonconformity raised on a shared control, its corrective action plan, due date, evidence
    and sign-off on one timeline.
 4. **Share with the auditor.** A time limited share link for an external auditor.

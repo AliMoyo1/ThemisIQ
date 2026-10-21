@@ -108,12 +108,12 @@ list lives in the HTML (or one small JSON file read by `features.js` for search 
 | 2 | Build the capability sheet: every line, its area, its role tags, its source in the code, verified on `master` | Build | `plans/2026-10-landing-page/capability-sheet.md` |
 | 3 | Capture fresh screenshots: AI Governance overview and workspace, Evidence Vault library, My Work, a report, notifications | Build | `.webp` and `.png` pairs, same sizes as today |
 | 4 | Write the copy for `/features` and the landing band from the sheet | Build, owner review | Draft in the sheet |
-| 5 | Build `/features` (static, shared styles, search and filters, anchors) | Build | `landing_page/features.html` |
+| 5 | Build `/features` (static, shared styles, search and filters, anchors) with the interactive studies in [features-page-interactions.md](features-page-interactions.md), reusing the landing page's interactions through a shared `interactions.js` | Build | `landing_page/features.html`, `interactions.js`, `features-interactions.js` |
 | 6 | Landing changes: hero line, "What's inside" band, seventh module tab, nav link, trust strip | Build | `landing_page/index.html` |
 | 7 | Checks: both themes, phone width, keyboard, contrast, no console errors, every link and anchor, `sitemap.xml` and page titles updated | Build | Notes in this plan |
 | 8 | Deploy to `/var/www/themisiq` with the existing process | Owner | Live |
 
-Estimate: steps 2 to 7 are about three to four working days, most of it the capability sheet and screenshots.
+Estimate: steps 2 to 7 are about three to four working days for a static page, plus four to five days for the interactive studies (owner request, 2026-10-21; see the interaction design).
 
 ## 7. Risks
 
@@ -166,3 +166,5 @@ The section by section content is in [features-page-content.md](features-page-co
   139 lines, all backed by code; 17 lines prove only that the module file exists (`.` pattern) and need a closer look
   when their copy is reviewed; 3 lines have no matching tests (input wrapping, ARIA gap analysis, ORM RCSA actions).
   The input wrapping line is held until security finding M3 is fixed.
+- 2026-10-20: page copy drafted in features-page-copy.md from the capability sheet; brief corrected (no count in the header, AI tile points to 1a, integrated audit links and badges equivalents but does not copy results).
+- 2026-10-21: owner asked for an interactive features page reusing the landing page's click interactions; interaction design written in features-page-interactions.md and step 5 updated.
