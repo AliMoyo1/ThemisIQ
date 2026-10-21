@@ -2,7 +2,7 @@
 
 **Status:** Implementation plans only, 2026-10-09. No feature, migration, release, or production configuration is authorized or marked complete by these documents. **Scope:** ThemisIQ only. **Planning baseline:** local `claude/pg-layer-scope-and-findings` checkout on 2026-10-09. The checkout had an ahead commit and unrelated modified and untracked files; they were not changed for this planning work. Older plan status and production status require fresh verification.
 
-**Source update, 2026-10-21:** Pull request 11 merged the specialist Overview, Forms import with saved mappings, unified Requests worklist, precedent and outstanding-item review, decision brief, external response export, monitoring and review packs into `master`. The historical status above describes the day this plan was written, not the current source. AI literacy is being removed from the application while its historical tables remain. A merged build is not a production migration or a signed specialist pilot; see the current release gates in [the governance rework completion record](../2026-10-governance-rework/10-completion-record.md).
+**Source update, 2026-10-21:** Pull request 11 merged the specialist Overview, Forms import with saved mappings, unified Requests worklist, precedent and outstanding-item review, decision brief, external response export, monitoring and review packs into `master`. Pull request 14 removed the AI literacy application surfaces while retaining historical tables, and marked bounded decision and monitoring counts as partial when needed. The historical status above describes the day this plan was written, not the current source. A merged build is not a production migration or a signed specialist pilot; see the current release gates in [the governance rework completion record](../2026-10-governance-rework/10-completion-record.md).
 
 ## Decision
 
@@ -35,7 +35,6 @@ The first customer journey is **declare an AI use -> connect its data and provid
 | Regulatory review | Existing Regulatory Inbox and ERM External Context | [VerifyWise 05](../verifywise-features/05-regulatory-impact.md), [PLAN-13](../PLAN-13-drift-detection-regulatory-inbox.md) |
 | EU AI Act applicability and artifacts | Reviewed rule pack over AI system profile; source assessments and Vault versions retain ownership | [EU AI Act extension](04-eu-ai-act-and-operational-assurance.md), after core trust and decision gates |
 | Auditor pack and public trust | GRID sharing and Vault versions; explicit publishing workflow later | [VerifyWise 06](../verifywise-features/06-auditor-sharing-trust.md) |
-| Literacy | Reconciled BCM and Sentinel training records | [VerifyWise 07](../verifywise-features/07-ai-literacy-training.md) |
 | In-context assistance | Scoped search/citations and one AI-call policy layer | [VerifyWise 08](../verifywise-features/08-contextual-ai-advisor.md), PLAN-37 Slice 1b |
 | Shadow AI and runtime enforcement | Named, opt-in external signal source only | [VerifyWise 09](../verifywise-features/09-shadow-ai-gateway.md), discovery later |
 | Formal acceptance and assurance quality | ERM approved acceptance, shared quality read model | [CISO 04](../ciso-assistant-features/04-risk-acceptance-and-exceptions.md), [CISO 01](../ciso-assistant-features/01-assurance-quality-inspector.md) |
@@ -44,7 +43,7 @@ The first customer journey is **declare an AI use -> connect its data and provid
 
 The early product contains **Overview, AI Systems, Reviews, Controls & Evidence, Monitoring**. Each system page offers a scoped summary and deep links into owning modules. Use accessible lists and filters before a graph. A system can be registered and reviewed without calling an AI model.
 
-Later options include a provider/model-component inventory, richer evaluations, role-based AI literacy, bounded auditor packs, a public trust page, and opt-in shadow-AI discovery. Do not present a readiness score as certification or attach TrustArc's TRUSTe seal. Actual third-party certification requires its own independent process.
+Later options include a provider/model-component inventory, richer evaluations, bounded auditor packs, a public trust page, and opt-in shadow-AI discovery. Staff training belongs in a separate staff-facing project; the [historical VerifyWise literacy brief](../verifywise-features/07-ai-literacy-training.md) is retained as design history, not an AI Governance backlog item. Do not present a readiness score as certification or attach TrustArc's TRUSTe seal. Actual third-party certification requires its own independent process.
 
 ## What the TrustArc review adds to the earlier plans
 
