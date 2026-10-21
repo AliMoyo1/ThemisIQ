@@ -297,11 +297,6 @@ CAPABILITIES: dict[str, set[str]] = {
     # the audit roles, who need no other AI governance access to read a pack addressed to them.
     "ai_pack.manage":            {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO},
     "ai_pack.receive":           {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO, AUDIT_LEAD, AUDITOR, EXTERNAL_AUDITOR},
-    # AI literacy: every specialist may be assigned and complete a course (not a general employee or an outside auditor);
-    # defining courses and reading who has completed them are separate rights.
-    "ai_literacy.take":          set(ALL_ROLES) - {EXTERNAL_AUDITOR, EMPLOYEE},
-    "ai_literacy.manage":        {SUPER_ADMIN, ORG_ADMIN, DPO, GRC_OFFICER, COMPLIANCE_MGR},
-    "ai_literacy.report":        {SUPER_ADMIN, ORG_ADMIN, DPO, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER},
     # The platform's own AI features: platform operators only.
     "ai_governance.platform.manage": {SUPER_ADMIN},
     "ai_governance.policy.manage": {SUPER_ADMIN, ORG_ADMIN},

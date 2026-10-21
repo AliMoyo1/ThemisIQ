@@ -179,7 +179,7 @@ def test_a_reviewer_adopts_a_tier_and_retires_the_use_from_its_workspace(login_a
 def test_a_general_employee_is_refused_every_ai_governance_page(login_as, live_app, page):
     login_as("employee")
     for path in ("/ai-governance/", "/ai-governance/review", "/ai-governance/systems", "/ai-governance/register",
-                 "/ai-governance/requests", "/ai-governance/literacy"):
+                 "/ai-governance/requests"):
         assert page.goto(f"{live_app}{path}").status == 403, path
 
 

@@ -1,5 +1,7 @@
 # 10. Completion record (plan 05)
 
+**2026-10-21 source correction:** Pull request 11 merged `claude/plan-04-platform-truth` into `master` at `790ce1cd`. Statements below saying that branch is unmerged describe the 2026-10-15 snapshot. The specialist pilot, phase-owner sign-off, live tenant migration and production release still have no evidence in this record. The current AI Governance completion branch retires AI literacy application surfaces but retains historical rows, and labels bounded decision and monitoring counts as partial when needed. Neither this note nor a code merge records operational acceptance.
+
 **Status:** Written 2026-10-15 on the branch `claude/plan-04-platform-truth` and brought up to date the same day for follow-ups
 11 to 13. It is the record that
 [05](05-delivery-and-acceptance.md) section 12 asks for: for each slice, what was decided and built, how it was checked and

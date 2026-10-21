@@ -11,11 +11,11 @@ request history.
 Every number is read through the same functions as the list it opens, inside the viewer's own business-unit scope.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from core import ai_rollout, metric_state as ms
 from core.rbac import has_capability
-from core.timeutils import utcnow
+from core.timeutils import to_dt, utcnow
 from modules.ai_governance import decisions, monitoring, rules, service, workspace
 from modules.governance.data_service import bu_scope_ids
 
@@ -43,8 +43,9 @@ def _scope(db, user) -> dict:
 
 def _age_days(stamp, now) -> "int | None":
     try:
-        return max(0, (now - datetime.strptime(str(stamp)[:19], "%Y-%m-%d %H:%M:%S")).days)
-    except ValueError:
+        submitted = to_dt(stamp)
+        return max(0, (now - submitted).days) if submitted is not None else None
+    except (TypeError, ValueError):
         return None
 
 
@@ -140,7 +141,21 @@ def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
     def from_queue(key, label, definition, build):
         if queue_error:
             return ms.unavailable(key, label, definition=definition, drilldown="/ai-governance/decisions")
-        return ms.guarded(key, label, lambda: build(queue), definition=definition, drilldown="/ai-governance/decisions")
+
+        def metric():
+            result = build(queue)
+            limited = queue.get("partial", {})
+            source = "requests" if key == "awaiting_decision" else "standing"
+            if limited.get(source):
+                # list_queue is deliberately bounded. Never present a count from
+                # the first page as the whole scoped portfolio.
+                result["state"] = ms.PARTIAL
+                result["note"] = f"At least this many; only the first {limited['limit']} records were assessed."
+                result["sources"] = {"available": [f"first {limited['limit']} {source} records"],
+                                     "missing": [f"{source} records beyond the first {limited['limit']}"]}
+            return result
+
+        return ms.guarded(key, label, metric, definition=definition, drilldown="/ai-governance/decisions")
 
     separation = ai_rollout.separation_required(user.get("org_id"))
 
@@ -197,7 +212,8 @@ def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
                       denominator={"value": pf["total_uses"], "label": "active AI uses in your scope"})
         if pf["state"] == "partial":
             return ms.partial("evaluation_oversight_gaps", "Evaluation and oversight gaps", pf["evaluation_oversight"],
-                              sources_ok=[f"the first {pf['limit']} uses"], sources_missing=[f"uses beyond the first {pf['limit']}"],
+                              sources_ok=[f"the first {pf['total_uses']} uses"],
+                              sources_missing=pf["partial_reasons"],
                               **common)
         return ms.measured("evaluation_oversight_gaps", "Evaluation and oversight gaps", pf["evaluation_oversight"], **common)
     cards.append(ms.guarded("evaluation_oversight_gaps", "Evaluation and oversight gaps", gaps,
@@ -218,7 +234,8 @@ def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
                 tier["total"] += 1
                 tier["attention"] += bool(use["flags"] or use["not_measured"])
         charts = {"state": pf["state"], "as_of": pf["as_of"], "included": pf["total_uses"],
-                  "limit": pf["limit"], "evaluations": evaluation_counts, "tiers": tiers,
+                  "limit": pf["limit"], "partial_reasons": pf["partial_reasons"],
+                  "evaluations": evaluation_counts, "tiers": tiers,
                   "definition": "Latest recorded evaluation for each active AI use in your scope. "
                                 "Not measured includes uses with no thresholded evaluation. "
                                 "Attention includes recorded gaps and missing evaluation or oversight."}

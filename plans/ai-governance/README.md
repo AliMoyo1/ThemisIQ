@@ -2,6 +2,8 @@
 
 **Status:** Implementation plans only, 2026-10-09. No feature, migration, release, or production configuration is authorized or marked complete by these documents. **Scope:** ThemisIQ only. **Planning baseline:** local `claude/pg-layer-scope-and-findings` checkout on 2026-10-09. The checkout had an ahead commit and unrelated modified and untracked files; they were not changed for this planning work. Older plan status and production status require fresh verification.
 
+**Source update, 2026-10-21:** Pull request 11 merged the specialist Overview, Forms import with saved mappings, unified Requests worklist, precedent and outstanding-item review, decision brief, external response export, monitoring and review packs into `master`. The historical status above describes the day this plan was written, not the current source. AI literacy is being removed from the application while its historical tables remain. A merged build is not a production migration or a signed specialist pilot; see the current release gates in [the governance rework completion record](../2026-10-governance-rework/10-completion-record.md).
+
 ## Decision
 
 Create one **AI Governance** entry point and AI-use workspace. Build it over the existing canonical `applications` identity and the owning modules. The entry point is a product surface, not a second risk register, assessment engine, evidence vault, task board, or regulatory inbox. An organization can govern its own AI use cases; ThemisIQ's first-party AI features should be governed in a separate, platform-controlled inventory and must never expose customer-tenant data in a shared record.

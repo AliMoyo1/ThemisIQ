@@ -119,7 +119,7 @@
     }
     var total = charts.included;
     var note = charts.state === 'partial'
-      ? 'Partial: only the first ' + charts.limit + ' active uses are included. Counts below do not describe the entire portfolio.'
+      ? 'Partial: ' + (charts.partial_reasons || []).join('; ') + ' were not included. Counts below do not describe the entire portfolio.'
       : total + ' active AI uses in your scope.';
     box.appendChild(el('p', { class: 'aig-muted', text: note + ' As of ' + charts.as_of + '.' }));
 
@@ -224,7 +224,7 @@
         summary.textContent = data.total_uses + ' active AI uses in your scope; ' + data.with_gaps + ' with something to look at. '
           + c.no_evaluation + ' have no evaluation with a pass or fail threshold and ' + c.no_oversight
           + ' have no oversight arrangement: those are not measured, and are not counted as passing.'
-          + (data.state === 'partial' ? ' Only the first ' + data.limit + ' uses are included.' : '');
+          + (data.state === 'partial' ? ' Partial: ' + (data.partial_reasons || []).join('; ') + ' were not included.' : '');
         if (!data.uses.length) {
           wrap.appendChild(el('p', { class: 'aig-empty', text: select.value ? 'No use matches this filter.' : 'There are no active AI uses in your scope.' }));
           return;
