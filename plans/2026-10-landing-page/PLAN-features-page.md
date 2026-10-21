@@ -168,3 +168,28 @@ The section by section content is in [features-page-content.md](features-page-co
   The input wrapping line is held until security finding M3 is fixed.
 - 2026-10-20: page copy drafted in features-page-copy.md from the capability sheet; brief corrected (no count in the header, AI tile points to 1a, integrated audit links and badges equivalents but does not copy results).
 - 2026-10-21: owner asked for an interactive features page reusing the landing page's click interactions; interaction design written in features-page-interactions.md and step 5 updated.
+- 2026-10-21: landing hero rebuilt as the connected line (eight stations, one incident, silos toggle), label font and dots changed across the landing page, deploy copy fixed for vendor/; full record in hero-connected-line.md.
+- 2026-10-21: owner asked to start the features page build (step 5), high spec and premium, with full visibility in the browser.
+- 2026-10-21: step 5 built: landing_page/features.html with features-page.css and features-page.js. Every section of the copy file, a sticky section bar that follows the reader, search and role filters with highlighted matches, and eleven interactive studies (AI assistants with the policy refusal, policy authoring studio, integrated controls, integrated audit, privacy rule cards with live obligation clocks, escalation, scenarios, events, the AI use journey, Evidence links and expiry, Command Centre cards and report sign-off, connected vendor change signal). Module colours are the app's; Dusk ERM uses #f87171 instead of the pink #f19ab4. The landing nav Features link now opens the page; sitemap updated. Checked in the browser at desktop, 1440 px and phone width, Sage and Dusk, every study driven by script, no horizontal overflow.
+- 2026-10-21: owner feedback: guardrails rewritten as three groups (against hallucination, against drift, for control and privacy), each backed by code (Ask ARIA grounding and NOT_COVERED, the shared guardrail prompt, trusted-domain citations, refusal of cut-off answers, the pinned model with drift rejection, zero-retention gateway routing, evaluations and re-review). Coloured top borders and the document's top strip removed for good. AI literacy claims removed: PR 14 retired the feature on master, which the capability sheet caught.
+- 2026-10-21: owner feedback, "a lot of text, not interactive and cluttered". Competitor research and redesign in
+  [features-page-redesign.md](features-page-redesign.md):
+  - A seven-tab module switcher, each tab with one study.
+  - Six guardrail cards.
+  - A collapsed capability index with search.
+  - The role filter and three studies dropped.
+  - About 920 visible words, down from about 3,600.
+- 2026-10-21: open landing page fixes done.
+  - "Six disciplines" removed. Counts are on hold, so it now reads "every discipline"; the search-engine description
+    names the seven areas instead.
+  - The Modules section has a seventh tab, AI Governance. There is no product screenshot yet, so the frame shows an
+    illustration of one AI use moving to an independent decision, captioned "ILLUSTRATION" instead of "PRODUCT VIEW".
+    The counters come from the number of modules instead of a fixed "06".
+  - The false "AIIA" drafting tab (a design concept that the platform does not do) is replaced by "AI use summary", a
+    real capability: AI Governance explains an AI use in plain words for its reviewers.
+  - The ERM accent in the Dusk theme was still pink (`#f19ab4`). It is now `#f87171`, as on the features page.
+  - Checked in the browser: the tab, the counter, the illustration and image swap, the caption, the drafting tab, the
+    Dusk ERM accent, and no console errors.
+- 2026-10-21: the owner supplied an AI Governance screenshot (`landing_page/screenshot-ai-governance.webp`, 1916 by
+  1049). The seventh module tab now shows it like the other six. The illustration (its HTML, CSS and script) is
+  removed. Checked in the browser.

@@ -24,7 +24,7 @@
         const response = await fetch('https://app.themisiq.net/api/demo-request', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({name, email, company, plan: ''}),
+          body: JSON.stringify({name, email, company, plan: form.dataset.plan || ''}),
           signal: controller.signal
         });
         const data = await response.json();

@@ -366,7 +366,7 @@ A horizontal journey with one panel per stage, using the workspace screenshot:
 6. **Prove**: review packs for auditors and a full activity history.
 
 Source: `modules/ai_governance/` (`service.py`, `assessments.py`, `checklist.py`, `decisions.py`, `monitoring.py`,
-`evaluations.py`, `oversight.py`, `regulation.py`, `review_packs.py`, `literacy.py`, `imports.py`,
+`evaluations.py`, `oversight.py`, `regulation.py`, `review_packs.py`, `imports.py`,
 `platform_features.py`).
 
 ### Capability groups
@@ -375,7 +375,6 @@ Source: `modules/ai_governance/` (`service.py`, `assessments.py`, `checklist.py`
 - **Assessment**: AI impact assessments with configurable dimensions; guidance on which assessments apply.
 - **Decisions**: separation of duties, conditions with expiry, re-review when a covered fact changes.
 - **Monitoring**: evaluations, oversight, regulatory change impact.
-- **People**: AI literacy courses for specialists with renewal and completion reporting.
 - **Assurance**: review packs; a register of the platform's own AI features and how they are used.
 - Note for copy: say "for your governance and risk specialists"; AI Governance is switched on per organisation.
 
@@ -518,7 +517,7 @@ Built from the page templates and single page app views on `master`. Any new pag
 | BCM | dashboard, BIA, plans, incidents, exercises, scenarios, risks, dependencies, training, documents, compliance, vendors, comms, contacts, reports, chat | 5 |
 | ERM | register, appetite, objectives, statements, indicators, assessments, library, obligations, external (horizon scan), rating guide, framework admin, reports, chat, Scenario Studio | 6 |
 | ORM | events, indicators, assessment (RCSA), AI controls, AIMS, reports, chat | 7 |
-| AI Governance | overview, inventory, intake, requests, review, workspace, assessments, decisions, monitoring, regulatory, packs, literacy, import, platform features | 8 |
+| AI Governance | overview, inventory, intake, requests, review, workspace, assessments, decisions, monitoring, regulatory, packs, import, platform features | 8 |
 | Evidence | Evidence Vault library, campaigns | 9 |
 | Platform | Command Centre, My Work, task board, calendar, workflows, reports, analytics, metrics, timeline, readiness, projects, risk register, connected records, people directory, vendor directory, profile and MFA | 10, 10a, 11 |
 | Administration | users, security, AI policy, API keys, webhooks, connectors, email, frameworks, logs | 11, 12 |
