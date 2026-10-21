@@ -363,8 +363,7 @@ For your governance, risk, privacy and compliance specialists.
 - Human oversight arrangements, reviewed by a second person.
 - Regulatory changes checked against affected AI uses.
 
-**People and proof**
-- AI literacy courses for your specialists, with renewal and completion reporting.
+**Proof**
 - Review packs for auditors.
 - A register of ThemisIQ's own AI features and how they are used.
 

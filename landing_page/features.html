@@ -164,13 +164,23 @@
             <li data-roles="compliance audit ai">Evidence: find evidence by what it says and suggest where it belongs.</li>
             <li data-roles="leadership ai">Leadership: a morning briefing, an executive summary and predictive risk across every module.</li>
           </ul></div>
-          <div class="fp-cap-group"><h3>The guardrails</h3><ul>
-            <li data-roles="ai it"><b>Your policy decides.</b> Choose the AI providers, the kinds of data that may be sent, the features that are on and a monthly budget. A refused request never leaves the platform.</li>
-            <li data-roles="ai it"><b>Sources, not guesses.</b> Answers from your records show where they came from, and external sources are checked before they are cited.</li>
+          <div class="fp-cap-group"><h3>Guardrails against hallucination</h3><ul>
+            <li data-roles="ai compliance"><b>Grounded or silent.</b> Ask ARIA answers only from your approved policies, controls and risks, never from outside knowledge. If they do not cover the question, it says so and names the owner to ask.</li>
+            <li data-roles="ai"><b>Fact kept apart from inference.</b> Every assistant is instructed to separate what your records support from inference, never to invent a clause, source or link, and to say what a person should verify.</li>
+            <li data-roles="ai risk"><b>Citations from trusted sources only.</b> Web research cites only domains on your trusted list; anything else is dropped before you see it.</li>
+            <li data-roles="ai"><b>Incomplete answers refused.</b> A cut-off or unreadable answer is rejected, never shown or saved as if it were complete.</li>
+            <li data-roles="ai"><b>Honest when unavailable.</b> If the assistant is off or cannot answer, nothing is made up and you carry on by hand.</li>
+          </ul></div>
+          <div class="fp-cap-group"><h3>Guardrails against drift</h3><ul>
+            <li data-roles="ai it"><b>A pinned model.</b> The exact model is fixed. If a provider answers with a different one, the answer is rejected as drift.</li>
+            <li data-roles="ai compliance"><b>Watched over time.</b> AI uses are evaluated against thresholds, and an approval is re-reviewed when a fact it relied on changes.</li>
             <li data-roles="ai leadership"><b>People decide.</b> A draft is a draft. Approvals, decisions and publication are always a person's act.</li>
+          </ul></div>
+          <div class="fp-cap-group"><h3>Guardrails for control and privacy</h3><ul>
+            <li data-roles="ai it"><b>Your policy decides.</b> Choose the AI providers, the kinds of data that may be sent, the features that are on and a monthly budget. A refused request never leaves the platform.</li>
+            <li data-roles="ai it privacy"><b>No retention, no training.</b> Through the AI gateway, requests go only to providers that keep nothing and collect nothing from your data.</li>
             <li data-roles="ai it"><b>Everything on record.</b> Every AI request is logged with its feature, outcome and usage, and every AI feature is documented: what it reads, what it leaves out and what happens to its answer.</li>
             <li data-roles="ai it"><b>Your access, respected.</b> Suggestions only name records you are allowed to open.</li>
-            <li data-roles="ai"><b>Honest when unavailable.</b> If the assistant is off or cannot answer, nothing is made up and you carry on by hand.</li>
           </ul></div>
         </div>
       </section>
@@ -576,8 +586,7 @@
             <li data-roles="ai">Human oversight arrangements, reviewed by a second person.</li>
             <li data-roles="ai compliance">Regulatory changes checked against affected AI uses.</li>
           </ul></div>
-          <div class="fp-cap-group"><h3>People and proof</h3><ul>
-            <li data-roles="ai">AI literacy courses for your specialists, with renewal and completion reporting.</li>
+          <div class="fp-cap-group"><h3>Proof</h3><ul>
             <li data-roles="ai audit">Review packs for auditors.</li>
             <li data-roles="ai it">A register of ThemisIQ's own AI features and how they are used.</li>
           </ul></div>
