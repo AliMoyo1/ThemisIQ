@@ -272,6 +272,36 @@ Decision recorded, with its cost:
 - Cost: a person who changes device sees the tours as not yet taken.
 - How to change: add a small `onboarding_progress` table and save completion through the same endpoint.
 
+## Owner decisions, 2026-10-21 (chat confirmation, not a sign-off)
+
+1. **Level 2 is available to everyone** and is not a paid add-on.
+   - Why: onboarding helps every customer adopt the product. The guide is cheap to run because most answers come
+     straight from the knowledge base, and AI use stays under each organisation's AI policy and budget.
+   - Cost: no add-on revenue from the guide.
+   - How to change: gate `api_trainer_ask` and the Take me there button on a licence flag.
+2. **Level 3 ("do it with me") is a future plan only.** Nothing is built. See section 10.
+
+## 10. Future plan: Level 3, "do it with me"
+
+Not scheduled. Revisit after Level 2 has run in production for a while. The usage log should show the questions people
+ask, and confirm that no private text reaches a model.
+
+What it would do:
+
+- After "Take me there", the guide offers to fill in the form with details the person typed into the chat.
+- It never reads what is already on the page. It fills only fields named in the knowledge base, using labels we
+  control (`data-guide-field` markers in the templates).
+- Every field it fills is highlighted, and the person confirms each one.
+- It never presses submit, approve, delete, publish or send. The person does.
+
+What it needs first:
+
+- Field markers on the forms it supports, and knowledge base entries naming those fields, verified by tests like
+  Level 2's.
+- A review of which forms are allowed. Never sign-in, MFA, password, API key, user administration, AI policy or
+  decision forms.
+- The same AI gateway controls as Level 2: masked input, the policy, the budget, and a usage log without content.
+
 ## Log
 
 - 2026-10-21: research done (README, source, documentation, npm registry, app CSP, AI policy). Plan written. Nothing
@@ -336,3 +366,4 @@ Decision recorded, with its cost:
       browser tests pass; the capability inventory is regenerated for `/api/onboarding`.
   - **Data category.** The AI feature stays registered as "public", since the knowledge base is our own content and
     the question is masked before use.
+- 2026-10-21: owner decisions recorded (Level 2 for everyone; Level 3 noted as a future plan, section 10). Pushed and PR opened.
