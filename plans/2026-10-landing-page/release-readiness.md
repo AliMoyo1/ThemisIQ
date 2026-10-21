@@ -51,6 +51,25 @@ Deploying is the owner's step: the live site at themisiq.net changes only when `
 5. Push and open the pull request.
 6. Write the owner's deployment steps: one command per step, no pipes.
 
+## Deployment steps (owner, after PR 13 and PR 18 are merged)
+
+Run these one at a time in the Hetzner console:
+
+1. `cd /project`
+2. `git pull origin master`
+3. `sudo python3 /project/setup_nginx.py`
+4. In Cloudflare, purge the cache for themisiq.net. Stylesheets and scripts can otherwise be served stale; the changed
+   ones carry new version numbers, but `styles.css` does not.
+5. Open `https://themisiq.net/features.html` and `https://themisiq.net/#pricing` and check both pages load.
+
+**To roll back:**
+
+1. `cd /project`
+2. `git checkout <previous commit> -- landing_page setup_nginx.py`
+3. Run step 3 again.
+
+The app at `app.themisiq.net` is not affected by any of these steps.
+
 ## Log
 
 - 2026-10-21: plan written; findings 1 to 4 recorded.
@@ -69,3 +88,4 @@ Deploying is the owner's step: the live site at themisiq.net changes only when `
     - Browser: both pages in Sage and Dusk at 1024 px and 375 px. No console errors and no horizontal scroll. The
       hero's view buttons scroll sideways on a phone by design.
   - Fixed during the audit: the last pink, the Dusk ERM token in `features.css` (`#f19ab4` to `#f87171`).
+- 2026-10-21: step 5 done: PR 18 opened (https://github.com/AliMoyo1/ThemisIQ/pull/18), auto-fix on. Step 6: deployment steps written above.
