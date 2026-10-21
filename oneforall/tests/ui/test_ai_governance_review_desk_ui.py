@@ -38,7 +38,7 @@ def test_the_review_desk_is_for_reviewers_and_a_hash_for_it_falls_back_for_every
     address = page.url.split("#")[0]
     assert page.locator("#aigtab_review_desk").count() == 1
     page.context.clear_cookies()
-    login_as("employee")
+    login_as("privacy_analyst")
     page.goto(address + "#review_desk")
     page.wait_for_selector(".aig-tab.is-current:has-text('Overview')")
     assert page.locator("#aigtab_review_desk").count() == 0

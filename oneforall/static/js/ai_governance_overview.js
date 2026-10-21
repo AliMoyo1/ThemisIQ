@@ -53,17 +53,20 @@
       if (chip) value.appendChild(A.chip(chip.text, chip.kind));
     }
     var node = el('section', { class: 'aig-card aig-card-' + m.state, 'aria-labelledby': id }, [
-      el('h2', { id: id, class: 'aig-card-label', text: m.label }), value]);
+      el('h3', { id: id, class: 'aig-card-label', text: m.label }), value]);
     var sentence = m.value === null || m.value === undefined ? '' : facts(m);
     if (sentence) node.appendChild(el('p', { class: 'aig-card-facts', text: sentence }));
     if (m.note) node.appendChild(el('p', { class: 'aig-card-note', text: m.note }));
     if (m.sources && m.sources.missing && m.sources.missing.length) {
       node.appendChild(el('p', { class: 'aig-card-note', text: 'Missing: ' + m.sources.missing.join(', ') + '.' }));
     }
-    if (m.denominator) node.appendChild(el('p', { class: 'aig-card-def', text: m.denominator.value + ' ' + m.denominator.label + '.' }));
-    node.appendChild(el('p', { class: 'aig-card-def', text: m.definition }));
+    if (m.denominator) node.appendChild(el('p', { class: 'aig-card-denominator', text: 'Of ' + m.denominator.value + ' ' + m.denominator.label }));
+    var meaning = el('details', { class: 'aig-card-meaning' }, [
+      el('summary', { text: 'How this is counted' })]);
+    meaning.appendChild(el('p', { class: 'aig-card-def', text: m.definition }));
+    node.appendChild(meaning);
     if (m.drilldown) {
-      node.appendChild(el('a', { class: 'aig-card-link', href: m.drilldown, 'aria-label': 'Open the list behind ' + m.label, text: 'Open the list' }));
+      node.appendChild(el('a', { class: 'aig-card-link', href: m.drilldown, 'aria-label': 'Open the list behind ' + m.label, text: 'Open source' }));
     }
     return node;
   }
@@ -84,7 +87,7 @@
   }
 
   function funnel(f) {
-    var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigFunnelH' }, [
+    var box = el('section', { class: 'aig-panel aig-operations-panel', 'aria-labelledby': 'aigFunnelH' }, [
       el('h2', { id: 'aigFunnelH', class: 'aig-h3', text: 'Requests by stage, ' + (f.window || '') })]);
     if (f.state === 'unavailable') {
       box.appendChild(el('p', { class: 'aig-note-muted', text: f.note }));
@@ -111,7 +114,7 @@
   }
 
   function portfolioCharts(charts) {
-    var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigPortfolioH' }, [
+    var box = el('section', { class: 'aig-panel aig-portfolio-panel', 'aria-labelledby': 'aigPortfolioH' }, [
       el('h2', { id: 'aigPortfolioH', class: 'aig-h3', text: 'Portfolio signals' })]);
     if (!charts || charts.state === 'unavailable') {
       box.appendChild(el('p', { class: 'aig-note-muted', text: charts ? charts.definition : 'Portfolio data is unavailable.' }));
@@ -174,16 +177,35 @@
     A.say(status, 'Loading...');
     A.api('/ai-governance/api/overview').then(function (data) {
       A.say(status, '');
-      root.appendChild(el('p', { class: 'aig-muted', text: data.scope.text + ' As of ' + data.as_of + '.' }));
-      var grid = el('div', { class: 'aig-cards' });
-      data.cards.forEach(function (m) { grid.appendChild(card(m)); });
-      root.appendChild(grid);
+      var signals = el('section', { class: 'aig-overview-section', 'aria-labelledby': 'aigSignalHeading' }, [
+        el('div', { class: 'aig-section-heading' }, [
+          el('h2', { id: 'aigSignalHeading', text: 'Connected overview' }),
+          el('p', { class: 'aig-muted', text: 'Live records in your scope' })])]);
+      var grid = el('div', { class: 'aig-cards' + (data.cards.length === 1 ? ' aig-cards-single' : '') });
+      data.cards.slice(0, 4).forEach(function (m) { grid.appendChild(card(m)); });
+      signals.appendChild(grid);
+      signals.appendChild(el('p', { class: 'aig-overview-scope', text: data.scope.text + ' · As of ' + data.as_of }));
+      root.appendChild(signals);
+      if (data.cards.length > 4) {
+        var followUp = el('section', { class: 'aig-overview-followup', 'aria-labelledby': 'aigFollowUpHeading' }, [
+          el('div', { class: 'aig-section-heading' }, [
+            el('h2', { id: 'aigFollowUpHeading', text: 'Assurance and follow-up' }),
+            el('p', { class: 'aig-muted', text: 'Review and monitoring signals' })])]);
+        var followUpGrid = el('div', { class: 'aig-cards aig-cards-followup' });
+        data.cards.slice(4).forEach(function (m) { followUpGrid.appendChild(card(m)); });
+        followUp.appendChild(followUpGrid);
+        root.appendChild(followUp);
+      }
       if (data.viewer.specialist) {
+        root.appendChild(el('div', { class: 'aig-section-heading aig-section-heading-spaced' }, [
+          el('div', {}, [el('span', { class: 'aig-eyebrow', text: '02 / OPERATIONS' }),
+            el('h2', { text: 'From intake to oversight' })]),
+          el('p', { class: 'aig-muted', text: 'Request flow and measured portfolio signals.' })]));
         var cols = el('div', { class: 'aig-two' });
         if (data.funnel) cols.appendChild(funnel(data.funnel));
         if (data.aging && data.aging.length) {
           var submittedTotal = data.aging.reduce(function (count, bucket) { return count + bucket.count; }, 0);
-          cols.appendChild(el('section', { class: 'aig-panel' }, [agingTable(data.aging, submittedTotal)]));
+          cols.appendChild(el('section', { class: 'aig-panel aig-operations-panel' }, [agingTable(data.aging, submittedTotal)]));
         }
         root.appendChild(cols);
         root.appendChild(portfolioCharts(data.charts));
