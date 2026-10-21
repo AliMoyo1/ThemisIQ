@@ -170,9 +170,9 @@
           <td style="text-align:center;white-space:nowrap">
             <a class="edit-btn" href="/governance/connected/aria/document/{{ doc.id }}" aria-label="View connected records for {{ doc.doc_id }}">Connected</a>
             {% if user.role != 'viewer' %}
-            <button class="edit-btn" onclick='openEditModal({{ doc | tojson }})'>Edit</button>
+            <button class="edit-btn" type="button" data-doc-edit="{{ doc.doc_id }}">Edit</button>
             {% if has_capability(user, 'aria.policy.delete') %}
-            <button class="edit-btn" style="color:var(--red,#dc2626)" onclick="deleteDoc('{{ doc.doc_id }}')">Del</button>
+            <button class="edit-btn" type="button" data-doc-delete="{{ doc.doc_id }}" style="color:var(--red,#dc2626)">Del</button>
             {% endif %}
             {% endif %}
           </td>
@@ -1212,11 +1212,20 @@ document.querySelectorAll('.modal-overlay').forEach(function(el) {
 // returned a detail_url in exactly this shape since T06, and My Drafts /
 // the confirm flow both navigate to it, but nothing here ever read the
 // parameter: arriving from a fresh confirmation landed on the plain list,
-// never the document itself. {{ docs_json }} is the same row data each
-// row's own onclick='openEditModal(...)' already carries, just also
-// available as one lookup table for this.
+// never the document itself. Keep row data in JSON, never in executable
+// attributes. Jinja's built-in tojson escapes script boundaries.
 var _allDocsById = {};
-({{ docs | tojson }}).forEach(function (d) { _allDocsById[d.doc_id] = d; });
+({{ docs_for_js | tojson }}).forEach(function (d) { _allDocsById[d.doc_id] = d; });
+document.addEventListener('click', function (event) {
+  var edit = event.target.closest('[data-doc-edit]');
+  if (edit) {
+    var doc = _allDocsById[edit.dataset.docEdit];
+    if (doc) openEditModal(doc);
+    return;
+  }
+  var remove = event.target.closest('[data-doc-delete]');
+  if (remove) deleteDoc(remove.dataset.docDelete);
+});
 document.addEventListener('DOMContentLoaded', function () {
   var openId = new URLSearchParams(window.location.search).get('open');
   if (openId && _allDocsById[openId]) {

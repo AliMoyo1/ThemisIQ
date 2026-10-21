@@ -301,15 +301,15 @@ def test_replacing_a_file_through_the_upload_route_proposes_its_links(vault, aut
         ("erm", "risk", target, "open")]
 
 
-def test_a_duplicate_in_a_unit_the_caller_cannot_open_is_refused_without_naming_it(vault, auth, tmp_path, monkeypatch):
+def test_a_duplicate_in_a_hidden_unit_is_uploaded_without_an_existence_signal(vault, auth, tmp_path, monkeypatch):
     import hashlib
     monkeypatch.setattr(ev, "EVIDENCE_DIR", tmp_path)
     data = b"already held by unit B"
     vault.item("Unit B secret title", unit=vault.bu_b, file_hash=hashlib.sha256(data).hexdigest())
     status, body = _upload(auth, vault.users.unit_a, data)
-    assert status == 409 and body["duplicate"] is True
-    assert "Unit B secret title" not in json.dumps(body) and "existing_id" not in body and body["hidden"] is True
-    assert vault.db.execute("SELECT COUNT(*) FROM evidence_items WHERE title = 'Proof'").fetchone()[0] == 0
+    assert status == 201 and "Unit B secret title" not in json.dumps(body)
+    row = vault.db.execute("SELECT title, business_unit_id FROM evidence_items WHERE id=%s", (body["id"],)).fetchone()
+    assert (row["title"], row["business_unit_id"]) == ("Proof", vault.bu_a)
 
 
 def test_the_review_route_answers_with_the_status_the_service_gave(vault, auth):

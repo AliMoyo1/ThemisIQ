@@ -8,6 +8,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
+from fastapi.concurrency import run_in_threadpool
 
 from database import sql_date_offset
 from core.security import sanitize_text, sanitize_short, validate_int, validate_choice, validate_date
@@ -636,6 +637,20 @@ async def api_platform_users(request: Request):
 # CROSS-MODULE TASK BOARD
 # ═════════════════════════════════════════════════════════════════════════════
 
+def _task_visibility(user: dict) -> tuple[list[str], list]:
+    """Return the board's tenant and business-unit visibility predicate."""
+    where, params = [], []
+    scope = bu_scope_ids(user)
+    if scope is not None:
+        placeholders = ",".join(["%s"] * len(scope)) if scope else "NULL"
+        where.append(f"(t.business_unit_id IS NULL OR t.business_unit_id IN ({placeholders}))")
+        params.extend(scope)
+    if not user.get("is_super_admin"):
+        where.append("COALESCE(c.org_id, u.org_id) = %s")
+        params.append(user.get("org_id"))
+    return where, params
+
+
 @router.get("/tasks", response_class=HTMLResponse)
 @require_auth
 async def task_board_page(request: Request):
@@ -663,11 +678,9 @@ async def api_tasks_list(request: Request):
 
         where = ["1=1"]
         params = []
-        scope = bu_scope_ids(request.state.user)
-        if scope is not None:
-            placeholders = ",".join(["%s"] * len(scope)) if scope else "NULL"
-            where.append(f"(t.business_unit_id IS NULL OR t.business_unit_id IN ({placeholders}))")
-            params.extend(scope)
+        visibility, visibility_params = _task_visibility(request.state.user)
+        where.extend(visibility)
+        params.extend(visibility_params)
         if status:
             where.append("t.status = %s"); params.append(status)
         if module:
@@ -676,12 +689,6 @@ async def api_tasks_list(request: Request):
             where.append("t.assigned_to = %s"); params.append(int(assigned))
         if my_tasks:
             where.append("t.assigned_to = %s"); params.append(request.state.user["id"])
-        # task_board predates org_id. Its creator owns the task's tenant;
-        # only legacy system tasks fall back to the assignee's tenant.
-        if not request.state.user.get("is_super_admin"):
-            where.append("COALESCE(c.org_id, u.org_id) = %s")
-            params.append(request.state.user.get("org_id"))
-
         rows = db.execute(
             f"SELECT t.*, u.full_name as assigned_name, c.full_name as creator_name "
             f"FROM task_board t "
@@ -953,23 +960,33 @@ async def api_task_delete(request: Request, tid: int):
 async def api_tasks_ai_prioritize(request: Request):
     """AI-powered task prioritization for TODO tasks."""
     from core.ai_client import is_configured, create_message, safe_json_parse
+    from core.middleware import check_ai_rate_limit, record_ai_call
+
     if not is_configured():
         return _JSONResp({"error": "AI not configured"}, 503)
+    user = request.state.user
+    if not check_ai_rate_limit(str(user["id"])):
+        return _JSONResp({"error": "AI request limit reached"}, 429)
+    visibility, params = _task_visibility(user)
+    where = " AND ".join(["t.status IN ('todo','in_progress')", *visibility])
     db = get_db()
     try:
         tasks = [dict(r) for r in db.execute(
-            "SELECT id, title, description, module, priority, due_date, assigned_to "
-            "FROM task_board WHERE status IN ('todo','in_progress') "
-            "ORDER BY created_at DESC LIMIT 30"
+            "SELECT t.id, t.title, t.module, t.priority, t.due_date "
+            "FROM task_board t "
+            "LEFT JOIN users u ON t.assigned_to = u.id "
+            "LEFT JOIN users c ON t.created_by = c.id "
+            f"WHERE {where} ORDER BY t.created_at DESC LIMIT 30",
+            params,
         ).fetchall()]
     finally:
         db.close()
     if not tasks:
         return _JSONResp({"ranked": [], "rationale": "No open tasks to prioritize."})
     task_summary = [
-        {"id": t["id"], "title": t["title"], "module": t["module"],
-         "priority": t["priority"], "due_date": t["due_date"],
-         "description": (t["description"] or "")[:100]}
+        {"id": t["id"], "title": (t["title"] or "")[:120],
+         "module": t["module"], "priority": t["priority"],
+         "due_date": t["due_date"]}
         for t in tasks
     ]
     import json
@@ -982,15 +999,35 @@ async def api_tasks_ai_prioritize(request: Request):
         "rationale (one sentence)}. Order by rank."
     )
     try:
-        raw = create_message(
-            [{"role": "user", "content": prompt}],
+        record_ai_call(str(user["id"]))
+        raw = await run_in_threadpool(
+            create_message, [{"role": "user", "content": prompt}],
             system="You are a GRC task prioritization assistant. Respond ONLY with a JSON array.",
-            max_tokens=1200,
-            feature="launcher.api_tasks_ai_prioritize",
+            max_tokens=1200, feature="launcher.api_tasks_ai_prioritize",
         )
-        ranked = safe_json_parse(raw)
-        if not isinstance(ranked, list):
-            ranked = []
+        suggestions = safe_json_parse(raw)
+        allowed_ids = {int(t["id"]) for t in tasks}
+        ranked = []
+        seen = set()
+        if isinstance(suggestions, list):
+            for item in suggestions[:len(tasks)]:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    task_id = int(item.get("task_id"))
+                    rank = int(item.get("rank"))
+                except (TypeError, ValueError):
+                    continue
+                priority = item.get("suggested_priority")
+                if (task_id not in allowed_ids or task_id in seen or
+                        priority not in {"critical", "high", "medium", "low"} or
+                        rank < 1 or rank > len(tasks)):
+                    continue
+                seen.add(task_id)
+                ranked.append({"task_id": task_id, "rank": rank,
+                               "suggested_priority": priority,
+                               "rationale": str(item.get("rationale") or "")[:240]})
+        ranked.sort(key=lambda item: item["rank"])
     except Exception:
         ranked = []
     return _JSONResp({"ranked": ranked})

@@ -85,6 +85,11 @@
     </div>
   {% endif %}
 
+  {% elif setup_unavailable %}
+    <div class="mfa-card">
+      <h2>Setup is temporarily unavailable</h2>
+      <p>The administrator must configure the MFA encryption key before new authenticator devices can be enrolled. Please contact your administrator.</p>
+    </div>
   {% else %}
 
     <div class="mfa-card">
@@ -100,14 +105,21 @@
       </div>
     </div>
 
-    <div class="mfa-card">
-      <h2><span class="step">2</span> Save your backup codes</h2>
-      <p>Each code works once. Store them somewhere safe. They are the only way back in if you lose your authenticator device.</p>
-      <div class="backup-grid">
-        {% for c in backup_codes %}<div>{{ c }}</div>{% endfor %}
+    {% if backup_codes %}
+      <div class="mfa-card">
+        <h2><span class="step">2</span> Save your backup codes</h2>
+        <p>Each code works once. Store them somewhere safe. They are the only way back in if you lose your authenticator device.</p>
+        <div class="backup-grid">
+          {% for c in backup_codes %}<div>{{ c }}</div>{% endfor %}
+        </div>
+        <button class="print-btn no-print" onclick="window.print()">Print these codes</button>
       </div>
-      <button class="print-btn no-print" onclick="window.print()">Print these codes</button>
-    </div>
+    {% elif backup_codes_saved %}
+      <div class="mfa-card">
+        <h2><span class="step">2</span> Backup codes</h2>
+        <p>The backup codes were shown only when enrollment started. If you did not save them, reload this page to start a new enrollment and save the new codes before confirming.</p>
+      </div>
+    {% endif %}
 
     <div class="mfa-card">
       <h2><span class="step">3</span> Confirm with a code from your app</h2>

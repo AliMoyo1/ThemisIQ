@@ -32,6 +32,14 @@ def run_once() -> dict:
     return counts
 
 
+def _cleanup_sessions() -> None:
+    from core.auth import cleanup_expired_sessions
+    try:
+        cleanup_expired_sessions()
+    except Exception as exc:
+        log.warning("Expired session cleanup failed: %s", type(exc).__name__)
+
+
 def start_scheduler() -> None:
     global _scheduler
     if _scheduler and _scheduler.running:
@@ -45,6 +53,14 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=30,
+    )
+    _scheduler.add_job(
+        _cleanup_sessions,
+        IntervalTrigger(hours=6),
+        id="expired_session_cleanup",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     _scheduler.start()
     log.info("Event delivery sweeper started, checking every minute")

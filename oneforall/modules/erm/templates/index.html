@@ -2211,13 +2211,24 @@ window.ermLoadAppetite=async function(){
         '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(a.open_count||0)+' open risk(s)</div>'+
         topRisk+notesHtml+datesHtml+
         '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
-          '<a href="#" onclick="event.preventDefault();ermNavToCategory(\''+a.category+'\')" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
-          (a.breached?'<button class="btn btn-sm btn-secondary" onclick="ermOpenBreachAction(\''+esc(a.category)+'\')" style="color:var(--red);border-color:rgba(220,38,38,.4)">🚨 Create Remediation</button>':'')+
+          '<a href="#" data-appetite-nav="'+Number(a.id)+'" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
+          (a.breached?'<button class="btn btn-sm btn-secondary" data-appetite-breach="'+Number(a.id)+'" style="color:var(--red);border-color:rgba(220,38,38,.4)">🚨 Create Remediation</button>':'')+
         '</div>'+
       '</div>';
     }).join('');
   }catch(e){document.getElementById('ermAppetiteGrid').innerHTML='<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px">Failed: '+esc(e.message)+'</div>';}
 };
+document.getElementById('ermAppetiteGrid').addEventListener('click',function(event){
+  var nav=event.target.closest('[data-appetite-nav]');
+  var breach=event.target.closest('[data-appetite-breach]');
+  if(!nav&&!breach)return;
+  event.preventDefault();
+  var id=(nav||breach).getAttribute(nav?'data-appetite-nav':'data-appetite-breach');
+  var appetite=appetiteCache.find(function(item){return String(item.id)===id;});
+  if(!appetite)return;
+  if(nav)ermNavToCategory(appetite.category);
+  else ermOpenBreachAction(appetite.category);
+});
 window.ermNavToCategory=function(cat){regStatusFilter='';ermRouter.navigate('/erm/register');setTimeout(function(){var s=document.getElementById('regCatFilter');if(s){s.value=cat;ermRenderRegister();}},300);};
 window.ermEditAppetite=function(id){var a=appetiteCache.find(function(x){return x.id===id;});if(a)ermOpenAppetiteModal(a);};
 window.ermDeleteAppetite=async function(id){if(!confirm('Delete this appetite setting?'))return;try{await apiFetch('/erm/api/appetite/'+id,{method:'DELETE'});ermLoadAppetite();typeof showToast==='function'&&showToast('Deleted');}catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}};
@@ -2228,9 +2239,10 @@ window.ermOpenBreachAction=function(cat){
     '<div class="form-group"><label>What will you do to reduce this exposure?</label><textarea id="remedTxt" rows="3" placeholder="e.g. Review all compliance risks, schedule treatment plan review…"></textarea></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
       '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
-      '<button class="btn btn-primary" onclick="ermSubmitBreachAction(\''+cat+'\')">Create Risk Action</button>'+
+      '<button class="btn btn-primary" data-submit-breach-action>Create Risk Action</button>'+
     '</div></div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
+  document.body.lastElementChild.querySelector('[data-submit-breach-action]').addEventListener('click',function(){ermSubmitBreachAction(cat);});
 };
 window.ermSubmitBreachAction=async function(cat){
   var txt=(document.getElementById('remedTxt')||{}).value||'';

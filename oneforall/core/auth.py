@@ -218,6 +218,29 @@ def destroy_session(token: str):
         db.close()
 
 
+def rotate_session_in_db(db, user_id: int, current_token: str) -> str:
+    """Rotate the current session and revoke every other session in one transaction.
+
+    The caller must commit this together with the credential or MFA change.
+    Session tokens are stored as hashes; the new raw value is returned once.
+    """
+    if not current_token:
+        raise ValueError("Current session is missing")
+    new_token = secrets.token_urlsafe(48)
+    new_hash = _hash_token(new_token)
+    expires = (utcnow() + timedelta(seconds=settings.SESSION_MAX_AGE)).isoformat()
+    updated = db.execute(
+        "UPDATE sessions SET token=%s, mfa_pending=0, expires_at=%s "
+        "WHERE user_id=%s AND token=%s",
+        (new_hash, expires, user_id, _hash_token(current_token)),
+    ).rowcount
+    if updated != 1:
+        raise ValueError("Current session is no longer active")
+    db.execute("DELETE FROM sessions WHERE user_id=%s AND token<>%s",
+               (user_id, new_hash))
+    return new_token
+
+
 def cleanup_expired_sessions():
     """Remove expired sessions from the DB."""
     db = get_db()
@@ -249,13 +272,15 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
             return None
         if not verify_password(password, user["password_hash"]):
             return None
-        if user["org_id"] and not user["is_super_admin"]:
+        org_slug = "public"
+        if user["org_id"]:
             org = db.execute(
-                "SELECT status FROM organizations WHERE id = %s",
+                "SELECT status, slug FROM organizations WHERE id = %s",
                 (user["org_id"],),
             ).fetchone()
-            if not org or org["status"] != "active":
+            if not org or (not user["is_super_admin"] and org["status"] != "active"):
                 return None
+            org_slug = org["slug"]
 
         roles = [
             r["role_key"]
@@ -273,6 +298,9 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
             "avatar_initials": user["avatar_initials"] or _initials(user["full_name"]),
             "must_change_password": bool(user["must_change_password"]),
             "roles": roles,
+            "org_id": user["org_id"],
+            "org_slug": org_slug,
+            "is_super_admin": bool(user["is_super_admin"]),
         }
     finally:
         db.close()

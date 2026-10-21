@@ -803,6 +803,7 @@ CREATE TABLE IF NOT EXISTS user_mfa (
     is_enabled    INTEGER DEFAULT 0,
     enrolled_at   TEXT,
     last_used_at  TEXT,
+    last_accepted_step INTEGER,
     created_at    TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_user_mfa_user ON user_mfa(user_id);
@@ -1193,6 +1194,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     key_hash        TEXT NOT NULL UNIQUE,
     key_prefix      TEXT NOT NULL,
     scopes          TEXT DEFAULT 'read',
+    business_unit_id INTEGER,
     is_active       INTEGER DEFAULT 1,
     last_used_at    TEXT,
     expires_at      TEXT,
@@ -6036,8 +6038,11 @@ _COLUMN_MIGRATIONS = [
         ("users", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("users", "is_super_admin", "INTEGER DEFAULT 0"),
         ("api_keys", "org_id", "INTEGER REFERENCES organizations(id)"),
+        # API keys live in public; unit IDs refer to the organization's tenant schema.
+        ("api_keys", "business_unit_id", "INTEGER"),
         ("audit_log", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("sessions", "mfa_pending", "INTEGER DEFAULT 0"),
+        ("user_mfa", "last_accepted_step", "INTEGER"),
         ("controls", "document_title", "TEXT DEFAULT ''"),
         ("controls", "version", "TEXT DEFAULT '1.0'"),
         ("sla_instances", "escalation_due", "TEXT"),
