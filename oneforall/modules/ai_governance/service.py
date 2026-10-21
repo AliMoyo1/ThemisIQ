@@ -866,6 +866,11 @@ def retire(db, user, application_id: int, reason) -> dict:
         "WHERE id = %s AND is_active = 1", (reason, _now(), user["id"], _now(), application_id)).rowcount
     if done != 1:
         raise ServiceError(409, "This application is already retired.")
+    from modules.governance import change_signals
+    change_signals.publish(
+        db, source=("governance", "application", application_id), kind="application_changed",
+        before={"is_active": 1}, after={"is_active": 0}, fields={"is_active": "In use"},
+        actor_id=user["id"], org_id=user.get("org_id"))
     event = events.enqueue(db, events.AI_USE_RETIRED, "ai_governance", "application", application_id,
                            {"application_id": application_id}, user_id=user["id"], org_id=user.get("org_id"),
                            dedup_key=f"ai_use.retired:{application_id}")
@@ -882,6 +887,11 @@ def restore(db, user, application_id: int) -> dict:
         "updated_at = %s WHERE id = %s AND is_active = 0", (_now(), application_id)).rowcount
     if done != 1:
         raise ServiceError(409, "This application is not retired.")
+    from modules.governance import change_signals
+    change_signals.publish(
+        db, source=("governance", "application", application_id), kind="application_changed",
+        before={"is_active": 0}, after={"is_active": 1}, fields={"is_active": "In use"},
+        actor_id=user["id"], org_id=user.get("org_id"))
     return {"application_id": application_id, "events": [],
             "audit": [("ai_use_restored", "application", application_id, "restored")]}
 

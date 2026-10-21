@@ -622,14 +622,18 @@ def list_queue(db, user) -> dict:
     requests = db.execute(
         "SELECT d.id, d.application_id, d.requested_at, d.request_note, d.requested_by, a.name, a.owner_user_id "
         f"FROM ai_use_decisions d JOIN applications a ON a.id = d.application_id WHERE d.status = 'proposed' AND {scope} "
-        "ORDER BY d.requested_at, d.id LIMIT %s", [*params, QUEUE_LIMIT]).fetchall()
+        "ORDER BY d.requested_at, d.id LIMIT %s", [*params, QUEUE_LIMIT + 1]).fetchall()
+    requests_truncated = len(requests) > QUEUE_LIMIT
+    requests = requests[:QUEUE_LIMIT]
     names = _names(db, [r["requested_by"] for r in requests])
     standing = db.execute(
         "SELECT d.* FROM ai_use_decisions d JOIN applications a ON a.id = d.application_id "
         "WHERE d.status IN ('approved', 'approved_with_conditions') AND d.revoked_at IS NULL "
         "AND d.id = (SELECT MAX(x.id) FROM ai_use_decisions x WHERE x.application_id = d.application_id "
         "AND x.status IN ('approved', 'approved_with_conditions', 'rejected')) "
-        f"AND a.is_active = 1 AND {scope} ORDER BY d.id LIMIT %s", [*params, QUEUE_LIMIT]).fetchall()
+        f"AND a.is_active = 1 AND {scope} ORDER BY d.id LIMIT %s", [*params, QUEUE_LIMIT + 1]).fetchall()
+    standing_truncated = len(standing) > QUEUE_LIMIT
+    standing = standing[:QUEUE_LIMIT]
     profiles = {}
     if standing:
         marks = ",".join(["%s"] * len(standing))
@@ -670,7 +674,8 @@ def list_queue(db, user) -> dict:
                       "requested_by": names.get(r["requested_by"]), "requested_at": service._text(r["requested_at"]),
                       "note": r["request_note"], "url": f"/ai-governance/systems/{r['application_id']}#decisions",
                       "yours": r["requested_by"] == user["id"] or r["owner_user_id"] == user["id"]} for r in requests],
-        "re_reviews": re_reviews, "conditions": open_conditions, "can_decide": can_decide}
+        "re_reviews": re_reviews, "conditions": open_conditions, "can_decide": can_decide,
+        "partial": {"requests": requests_truncated, "standing": standing_truncated, "limit": QUEUE_LIMIT}}
 
 
 # ── Changing ────────────────────────────────────────────────────────────────

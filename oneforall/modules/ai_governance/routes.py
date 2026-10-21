@@ -19,7 +19,7 @@ from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
 from modules.ai_governance import (assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
-                                   import_rules, imports, literacy, monitoring, outstanding, oversight, overview, platform_features,
+                                   import_rules, imports, monitoring, outstanding, oversight, overview, platform_features,
                                    precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
 
@@ -82,7 +82,7 @@ def _read(request: Request, work) -> JSONResponse:
     return JSONResponse({"ok": True, **data} if isinstance(data, dict) else {"ok": True, "items": data})
 
 
-def _literacy_private(response):
+def _private_response(response):
     response.headers["Cache-Control"] = "private, no-store"
     return response
 
@@ -98,9 +98,6 @@ def _page(request: Request, template: str, section: str, **extra) -> HTMLRespons
                can_assess=has_capability(user, "ai_assessment.view"),
                can_assess_manage=has_capability(user, "ai_assessment.manage"),
                can_assess_configure=has_capability(user, "ai_assessment.configure"),
-               can_literacy_take=has_capability(user, "ai_literacy.take"),
-               can_literacy_manage=has_capability(user, "ai_literacy.manage"),
-               can_literacy_report=has_capability(user, "ai_literacy.report"),
                can_platform_ai_manage=has_capability(user, "ai_governance.platform.manage") and bool(user.get("is_super_admin")))
     ctx.update(extra)
     return templates.TemplateResponse(request, template, ctx)
@@ -131,31 +128,8 @@ def _pack_not_found() -> JSONResponse:
 @require_capability("ai_governance.platform.manage")
 async def platform_features_page(request: Request):
     platform_features._require(request.state.user)
-    return _literacy_private(_page(request, "platform_features.html", "platform_features"))
+    return _private_response(_page(request, "platform_features.html", "platform_features"))
 
-
-@router.get("/literacy", response_class=HTMLResponse)
-@require_capability("ai_literacy.take", "ai_literacy.manage", "ai_literacy.report")
-async def literacy_page(request: Request):
-    response = _page(request, "literacy.html", "literacy")
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
-@router.get("/literacy/{course_id}", response_class=HTMLResponse)
-@require_capability("ai_literacy.take")
-async def literacy_course_page(request: Request, course_id: int):
-    db = get_db()
-    try:
-        literacy.get_for_learning(db, request.state.user, course_id)
-    except ServiceError as exc:
-        return HTMLResponse("Not found" if exc.status == 404 else exc.message,
-                            status_code=exc.status, headers={"Cache-Control": "private, no-store"})
-    finally:
-        db.close()
-    response = _page(request, "literacy_course.html", "literacy", course_id=course_id)
-    response.headers["Cache-Control"] = "no-store"
-    return response
 
 @router.get("/", response_class=HTMLResponse)
 @require_capability("ai_use.view")
@@ -833,14 +807,14 @@ async def api_decision_condition(request: Request, condition_id: int):
 @router.get("/api/systems/{application_id}/oversight-people")
 @require_capability("ai_use.review")
 async def api_oversight_people(request: Request, application_id: int):
-    return _literacy_private(_read(request, lambda db, user: oversight.eligible_people(
+    return _private_response(_read(request, lambda db, user: oversight.eligible_people(
         db, user, application_id, request.query_params.get("q"))))
 
 
 @router.get("/api/systems/{application_id}/oversight/{track}")
 @require_capability("ai_use.view")
 async def api_oversight(request: Request, application_id: int, track: str):
-    return _literacy_private(_read(request, lambda db, user: oversight.get_arrangement(db, user, application_id, track)))
+    return _private_response(_read(request, lambda db, user: oversight.get_arrangement(db, user, application_id, track)))
 
 
 @router.put("/api/systems/{application_id}/oversight/{track}")
@@ -849,8 +823,8 @@ async def api_oversight_save(request: Request, application_id: int, track: str):
     try:
         body = await _body(request)
     except ServiceError as exc:
-        return _literacy_private(_error(exc))
-    return _literacy_private(_transact(request, lambda db, user: oversight.save_arrangement(
+        return _private_response(_error(exc))
+    return _private_response(_transact(request, lambda db, user: oversight.save_arrangement(
         db, user, application_id, track, body.get("arrangement"), body.get("revision"))))
 
 
@@ -860,8 +834,8 @@ async def api_oversight_review(request: Request, application_id: int, track: str
     try:
         body = await _body(request)
     except ServiceError as exc:
-        return _literacy_private(_error(exc))
-    return _literacy_private(_transact(request, lambda db, user: oversight.review_arrangement(
+        return _private_response(_error(exc))
+    return _private_response(_transact(request, lambda db, user: oversight.review_arrangement(
         db, user, application_id, track, body.get("revision"))))
 
 
@@ -1391,109 +1365,13 @@ async def api_restore(request: Request, application_id: int):
     return _transact(request, lambda db, user: service.restore(db, user, application_id))
 
 
-# AI literacy: manager working copies, learner view and unit-scoped coverage.
-@router.get("/api/literacy/courses")
-@require_capability("ai_literacy.manage")
-async def api_literacy_courses(request: Request):
-    return _literacy_private(_read(request, literacy.list_courses))
-
-
-@router.get("/api/literacy/units")
-@require_capability("ai_literacy.manage")
-async def api_literacy_units(request: Request):
-    return _literacy_private(_read(request, literacy.list_units))
-
-
-@router.post("/api/literacy/courses")
-@require_capability("ai_literacy.manage")
-async def api_literacy_create(request: Request):
-    try:
-        body = await _body(request)
-    except ServiceError as exc:
-        return _error(exc)
-    return _literacy_private(_transact(request, lambda db, user: literacy.create_course(db, user, body), 201))
-
-
-@router.get("/api/literacy/mine")
-@require_capability("ai_literacy.take")
-async def api_literacy_mine(request: Request):
-    return _literacy_private(_read(request, literacy.my_courses))
-
-
-@router.get("/api/literacy/coverage")
-@require_capability("ai_literacy.report")
-async def api_literacy_coverage(request: Request):
-    return _literacy_private(_read(request, literacy.coverage))
-
-
-@router.get("/api/literacy/coverage/{course_id}")
-@require_capability("ai_literacy.report")
-async def api_literacy_course_coverage(request: Request, course_id: int):
-    return _literacy_private(_read(request, lambda db, user: literacy.course_coverage(db, user, course_id)))
-
-
-@router.get("/api/literacy/courses/{course_id}")
-@require_capability("ai_literacy.manage")
-async def api_literacy_course(request: Request, course_id: int):
-    return _literacy_private(_read(request, lambda db, user: {"course": literacy.get_course(db, user, course_id)}))
-
-
-@router.put("/api/literacy/courses/{course_id}")
-@require_capability("ai_literacy.manage")
-async def api_literacy_update(request: Request, course_id: int):
-    try:
-        body = await _body(request)
-    except ServiceError as exc:
-        return _error(exc)
-    return _literacy_private(_transact(request, lambda db, user: literacy.update_course(db, user, course_id, body,
-                                                                                         body.get("version"))))
-
-
-@router.post("/api/literacy/courses/{course_id}/publish")
-@require_capability("ai_literacy.manage")
-async def api_literacy_publish(request: Request, course_id: int):
-    try:
-        body = await _body(request)
-    except ServiceError as exc:
-        return _error(exc)
-    return _literacy_private(_transact(request, lambda db, user: literacy.publish_course(db, user, course_id,
-                                                                                          body.get("retake"), body.get("version"))))
-
-
-@router.post("/api/literacy/courses/{course_id}/retire")
-@require_capability("ai_literacy.manage")
-async def api_literacy_retire(request: Request, course_id: int):
-    try:
-        body = await _body(request)
-    except ServiceError as exc:
-        return _error(exc)
-    return _literacy_private(_transact(request, lambda db, user: literacy.retire_course(db, user, course_id, body.get("version"))))
-
-
-@router.get("/api/literacy/{course_id}/learn")
-@require_capability("ai_literacy.take")
-async def api_literacy_learn(request: Request, course_id: int):
-    return _literacy_private(_read(request, lambda db, user: literacy.get_for_learning(db, user, course_id)))
-
-
-@router.post("/api/literacy/{course_id}/complete")
-@require_capability("ai_literacy.take")
-async def api_literacy_complete(request: Request, course_id: int):
-    try:
-        body = await _body(request)
-    except ServiceError as exc:
-        return _error(exc)
-    return _literacy_private(_transact(request, lambda db, user: literacy.complete(db, user, course_id, body.get("answers"),
-                                                                                    body.get("acknowledged"), body.get("version"))))
-
-
 # The registry and operator notes live in public, even if an operator's session
 # currently has a tenant context. The service performs its own capability check.
 @router.get("/api/platform-features")
 @require_capability("ai_governance.platform.manage")
 async def api_platform_features(request: Request):
     with tenant_context(None, None, is_super_admin=True):
-        return _literacy_private(_read(request, platform_features.list_features))
+        return _private_response(_read(request, platform_features.list_features))
 
 
 @router.put("/api/platform-features/{feature_key}")
@@ -1502,9 +1380,9 @@ async def api_platform_feature_save(request: Request, feature_key: str):
     try:
         body = await _body(request)
     except ServiceError as exc:
-        return _literacy_private(_error(exc))
+        return _private_response(_error(exc))
     with tenant_context(None, None, is_super_admin=True):
-        return _literacy_private(_transact(request, lambda db, user: platform_features.save_notes(
+        return _private_response(_transact(request, lambda db, user: platform_features.save_notes(
             db, user, feature_key, body, body.get("version"))))
 
 
@@ -1514,7 +1392,7 @@ async def api_platform_feature_review(request: Request, feature_key: str):
     try:
         body = await _body(request)
     except ServiceError as exc:
-        return _literacy_private(_error(exc))
+        return _private_response(_error(exc))
     with tenant_context(None, None, is_super_admin=True):
-        return _literacy_private(_transact(request, lambda db, user: platform_features.mark_reviewed(
+        return _private_response(_transact(request, lambda db, user: platform_features.mark_reviewed(
             db, user, feature_key, body.get("version"))))
