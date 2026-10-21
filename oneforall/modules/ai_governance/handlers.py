@@ -376,7 +376,7 @@ def tell_owner_about_regulatory_change(*, payload=None, event_id=None, user_id=N
         db.close()
 
 
-# ── Review packs and AI literacy ────────────────────────────────────────────
+# ── Review packs ─────────────────────────────────────────────────────────────
 
 @events.on(events.AI_PACK_ISSUED)
 def tell_recipient_of_pack(*, payload=None, event_id=None, user_id=None, **kw):
@@ -389,23 +389,6 @@ def tell_recipient_of_pack(*, payload=None, event_id=None, user_id=None, **kw):
             return
         _notify(db, event_id, data["recipient_id"], "A review pack was shared with you",
                 f"{row['name']}: {row['application_name']}.", f"/ai-governance/packs/{row['id']}")
-        db.commit()
-    finally:
-        db.close()
-
-
-@events.on(events.AI_LITERACY_PUBLISHED)
-def tell_assignees_of_course(*, payload=None, event_id=None, org_id=None, user_id=None, **kw):
-    """People a published course applies to hear once that it is theirs to complete, whoever published it excepted."""
-    from modules.ai_governance import literacy
-    db = get_db()
-    try:
-        data = payload or {}
-        for person in literacy.assignees_of(db, data.get("course_id"), org_id):
-            if person != user_id:
-                _notify(db, event_id, person, "An AI literacy course was assigned to you",
-                        f"{data.get('title') or 'A course'} is due within {data.get('due_days') or 30} days.",
-                        f"/ai-governance/literacy/{data.get('course_id')}")
         db.commit()
     finally:
         db.close()

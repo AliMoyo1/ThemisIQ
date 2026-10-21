@@ -450,6 +450,7 @@ AI_DECISION_MADE        = "ai_use.decision_made"
 AI_DECISION_REVOKED     = "ai_use.decision_revoked"
 AI_REGULATORY_CONFIRMED = "ai_use.regulatory_confirmed"
 AI_PACK_ISSUED          = "ai_use.pack_issued"
+# Retained as a historical event type. AI literacy no longer has a producer or handler.
 AI_LITERACY_PUBLISHED   = "ai_literacy.published"
 AI_CONTROL_FAILED       = "ai_control.failed"
 EVIDENCE_EXPIRED        = "evidence.expired"

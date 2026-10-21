@@ -88,7 +88,7 @@ def test_a_draft_saved_at_the_first_step_is_there_when_the_person_comes_back(log
     assert page.locator("#q_data_categories input[value='internal']").is_checked()
 
 
-def test_the_journey_from_a_staff_draft_to_an_accepted_ai_system(login_as, live_app, page, unique):
+def test_the_journey_from_a_specialist_draft_to_an_accepted_ai_system(login_as, live_app, page, unique):
     _register_and_submit(login_as, live_app, page, unique)
     page.goto(f"{live_app}/ai-governance/requests")
     row = page.locator("tr", has=page.locator(f"a:has-text('{unique}')"))
@@ -179,7 +179,7 @@ def test_a_reviewer_adopts_a_tier_and_retires_the_use_from_its_workspace(login_a
 def test_a_general_employee_is_refused_every_ai_governance_page(login_as, live_app, page):
     login_as("employee")
     for path in ("/ai-governance/", "/ai-governance/review", "/ai-governance/systems", "/ai-governance/register",
-                 "/ai-governance/requests", "/ai-governance/literacy"):
+                 "/ai-governance/requests"):
         assert page.goto(f"{live_app}{path}").status == 403, path
 
 
@@ -197,6 +197,22 @@ def test_the_inventory_filters_survive_a_reload_and_an_empty_result_offers_a_way
     page.click("button:has-text('Clear filters')")
     page.wait_for_selector(".aig-table, .aig-empty:has-text('No AI systems are registered yet')")
     assert "q=" not in page.url
+
+
+def test_overview_uses_the_connected_silver_card_layout(login_as, live_app, page):
+    login_as("dpo")
+    page.goto(f"{live_app}/ai-governance/")
+    page.wait_for_selector(".aig-overview-section .aig-card")
+    assert page.locator(".aig-overview-section > .aig-cards > .aig-card").count() == 4
+    assert page.locator(".aig-cards-followup > .aig-card").count() == 3
+    assert page.locator(".aig-page .aig-card-link").count() == 7
+    assert page.locator("#aigSignalHeading").inner_text() == "Connected overview"
+    assert page.evaluate("getComputedStyle(document.body).getPropertyValue('--accent').trim()") == "#53636c"
+    assert page.evaluate("getComputedStyle(document.body).getPropertyValue('--accent-ink').trim()") == "#43525a"
+    assert page.locator(".aig-card").first.evaluate("el => getComputedStyle(el).backdropFilter") != "none"
+    assert page.locator(".aig-card").first.evaluate("el => getComputedStyle(el, '::before').content") != "none"
+    page.emulate_media(reduced_motion="reduce")
+    assert page.locator(".aig-card").first.evaluate("el => getComputedStyle(el).animationName") == "none"
 
 
 @pytest.mark.parametrize("path, who, ready", [

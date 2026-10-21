@@ -71,3 +71,7 @@ Answer to the open question above: "Nothing opens for employees." Adopted for AI
   manager (a specialist with no other AI Governance access); the browser refusal test now covers the home page, review,
   inventory, register, My requests and literacy. `docs/generated/capability_inventory.*` regenerated: the only change
   is `employee` leaving 11 AI Governance routes.
+
+## Update after merging master (2026-10-21)
+
+Pull request 14 retired AI literacy on `master` (capabilities, service, pages, scripts and tests). Merging `master` into this branch drops this plan's literacy changes (the `ai_literacy.take` employee exclusion, course audiences and the literacy tests) in favour of that retirement. Everything else stands: `ai_use.submit` still excludes employees, the guard test still checks every AI Governance route gate (now without the literacy capability), the decision fix, the fixtures and the contrast fix. Capability inventory regenerated on the merged code. Checks on the merge: AI Governance, capability and My Work backend tests 750 passed, 0 failed.

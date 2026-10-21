@@ -3944,15 +3944,15 @@ def test_change_signals_and_the_connected_view_run_inside_a_tenant_on_real_postg
     assert _raw_rows("SELECT count(*) FROM public.change_signals") == [(0,)]
 
 
-def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
+def test_retained_ai_literacy_history_and_platform_feature_notes_use_their_postgres_schemas(pg):
     from datetime import timedelta
     from core import rbac
     from core.ai_policy import FEATURES
     from core.timeutils import utcnow
-    from modules.ai_governance import literacy, platform_features
+    from modules.ai_governance import platform_features
 
     pg.init_db()
-    org, _unit, ids, who = _ai_governance_world(pg, "g6bc", author_role=rbac.PRIVACY_ANALYST)
+    org, _unit, ids, who = _ai_governance_world(pg, "g6bc", author_role=rbac.EMPLOYEE)
     feature = next(iter(FEATURES))
     assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_g6bc' "
                      "AND table_name = 'platform_ai_features'") == [(0,)]
@@ -3962,22 +3962,15 @@ def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
     with pg.tenant_context(org, "g6bc", is_super_admin=False):
         db = pg.get_db()
         try:
-            created = literacy.create_course(db, who["reviewer"], {
-                "title": "PG responsible AI", "body": "Check output with a person.",
-                "audience_roles": [rbac.PRIVACY_ANALYST], "due_days": 30,
-            })["course"]
-            db.commit()
-            published = literacy.publish_course(db, who["reviewer"], created["id"], True,
-                                                 created["version"])["course"]
-            db.commit()
-            lesson = literacy.get_for_learning(db, who["author"], created["id"])["course"]
-            assert lesson["title"] == "PG responsible AI"
-            done = literacy.complete(db, who["author"], created["id"], [], True,
-                                     published["current_version"])["result"]
-            db.commit()
-            assert done["passed"] is True
-            assert literacy.complete(db, who["author"], created["id"], [], True,
-                                     published["current_version"])["result"]["already"] is True
+            # The staff-facing workflow is retired. Historical completions still
+            # need a tenant-local home after an upgrade, without reviving its API.
+            course_id = pg.insert_returning_id(db,
+                "INSERT INTO ai_literacy_courses (title, created_by) VALUES (%s, %s)",
+                ("Historical course", who["reviewer"]["id"]))
+            db.execute("INSERT INTO ai_literacy_completions "
+                       "(course_id, user_id, course_version, score, outcome, completed_at) "
+                       "VALUES (%s, %s, 1, 100, 'passed', %s)",
+                       (course_id, who["author"]["id"], utcnow().isoformat()))
             db.commit()
             db.execute("INSERT INTO ai_usage_log (org_id, feature, status) VALUES (%s, %s, 'ok')", (org, feature))
             db.commit()

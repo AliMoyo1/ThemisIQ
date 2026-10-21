@@ -2,7 +2,7 @@
 
 **Status:** Design documents 01 to 06 were written 2026-10-14 and still describe behavior and acceptance gates: they do not mark a feature built or a release approved. What was built from them, how it was checked and what was left is in the implementation records below (07 to 14).
 
-**Build status, 2026-10-15:** plans 01 to 03 are merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 (the email items, the predictive trace and team view, BCM escalation, the hardening pack) are committed and pushed on the branch `claude/plan-04-platform-truth`, awaiting a pull request and the owner's decisions listed in the handoff of [07](07-implementation-ledger.md). Nothing from this branch is merged to `master`, deployed, or pilot live.
+**Historical build status, 2026-10-15:** plans 01 to 03 were merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 were then on `claude/plan-04-platform-truth`, awaiting a pull request. Pull request 11 has since merged that branch. Pull request 14 removed AI literacy application surfaces. Neither merge records a production deployment or a signed specialist pilot; see [10](10-completion-record.md) for the release gates.
 
 ## Product decision
 
