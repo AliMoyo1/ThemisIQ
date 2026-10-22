@@ -15,3 +15,11 @@ The shared `oneforall/templates/base_shell.html` now uses event listeners for it
 5. Introduce a report-only script policy without `unsafe-inline` and inspect violations on representative pages for every role and module. After fixing them and confirming critical workflows, enforce the strict policy. Keep `style-src` as a separate decision because inline style attributes are also widespread.
 
 Track remaining handler and inline-block counts in each migration PR. Do not claim CSP enforcement while `script-src 'unsafe-inline'` remains installed.
+
+## Continuation on the landing-page master, 2026-10-21
+
+The AI Governance templates now use one static bootstrap script. Page-specific values move through HTML-escaped `data-*` attributes. The shared shell already loads external scripts, so HTML responses under `/ai-governance/` can enforce a script policy without `unsafe-inline`, disallow script attributes, and omit the general CDN hosts. Other routes keep the existing policy until their handlers move out of executable attributes.
+
+Stored names and descriptions were also removed from inline handlers in the ARIA control, mapping and template views, GRID framework, vendor and audit actions, BCM's Sentinel dependency prompt and resource controls, Sentinel's transfer and jurisdiction actions, ERM risk deletion and AI-assisted assessment actions, workflow actions, and administrator actions. Evidence Vault internal links, Sentinel notices and ERM external-source links now reject unsafe URL schemes. The shared shell and common module HTML-escape helpers now encode quote characters when their result is used inside HTML attributes. HTML escaping does not make a value safe inside JavaScript source, so remaining dynamic handlers still need to be replaced.
+
+The current static search still finds roughly 1,500 inline event attributes across module templates. This is a migration inventory, not evidence of an active exploit. The remaining module pages must receive the same data-attribute and listener treatment before the global `unsafe-inline` exception can be removed. Browser exercise is required before enforcing any stricter policy beyond AI Governance.

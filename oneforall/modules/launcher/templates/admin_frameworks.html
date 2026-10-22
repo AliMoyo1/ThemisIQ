@@ -85,7 +85,8 @@
             {% if fw.total_controls > 0 %}
               <span style="font-size:14px; font-weight:700; color:var(--text);">{{ fw.total_controls }}</span>
             {% else %}
-              <button class="fw-ai-btn" onclick="aiGenerateControls({{ fw.id }}, '{{ fw.name }}')"
+              <button class="fw-ai-btn js-generate-controls" type="button" data-framework-id="{{ fw.id | int }}"
+                      data-framework-name="{{ fw.name }}"
                       id="fw-ai-btn-{{ fw.id }}"
                       style="font-size:11px; padding:5px 12px; background:linear-gradient(135deg, rgba(124,58,237,0.08), rgba(124,58,237,0.15)); color:#7c3aed; border:1px solid rgba(124,58,237,0.2); border-radius:6px; cursor:pointer; font-weight:600; transition:all 0.2s;">
                 AI Generate
@@ -96,7 +97,7 @@
             <label style="display:inline-flex; align-items:center; cursor:pointer; gap:8px; user-select:none;">
               <input type="checkbox" id="fw-toggle-{{ fw.id }}"
                      {% if fw.is_active %}checked{% endif %}
-                     onchange="toggleFramework({{ fw.id }}, this.checked)"
+                     data-framework-id="{{ fw.id | int }}" onchange="toggleFramework(Number(this.dataset.frameworkId), this.checked)"
                      style="display:none;">
               <span class="toggle-track" id="fw-track-{{ fw.id }}" style="
                 position:relative; width:40px; height:22px; border-radius:11px;
@@ -175,7 +176,7 @@
 </style>
 
 <script>
-function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 async function createFramework(e) {
   e.preventDefault();
@@ -259,6 +260,11 @@ async function aiGenerateControls(fwId, fwName) {
     showToast('Error: ' + err.message, 'error');
   }
 }
+document.querySelectorAll('.js-generate-controls').forEach(function (button) {
+  button.addEventListener('click', function () {
+    aiGenerateControls(Number(button.dataset.frameworkId), button.dataset.frameworkName);
+  });
+});
 
 async function seedControls() {
   var btn = document.getElementById('seedBtn');

@@ -12,18 +12,14 @@
       <p class="aig-lede">{% if can_register %}Describe the AI use and save a draft at any step. A reviewer reads it before it joins the inventory.{% else %}This earlier request is available for reference. Contact the governance team to provide new information.{% endif %}</p>
     </div>
   </div>
-  <div id="aigIntake"></div>
+  <div id="aigIntake" data-intake-id="{{ intake_id | int }}" data-user-id="{{ user.id | int }}"
+       data-user-name="{{ user.full_name or user.username or '' }}" data-source-ref="{{ source_ref or '' }}"
+       data-source-name="{{ source_name or '' }}" data-can-edit="{{ 'true' if can_register else 'false' }}"></div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
 <script src="/static/js/ai_governance_intake.js?v=1"></script>
-<script>
-  AIGov.intake(document.getElementById('aigIntake'), {
-    intakeId: {{ intake_id }}, userId: {{ user.id }}, userName: {{ (user.full_name or user.username or '') | tojson }},
-    sourceRef: {{ source_ref | tojson }}, sourceName: {{ source_name | tojson }},
-    canEdit: {{ 'true' if can_register else 'false' }}
-  });
-</script>
+<script src="/static/js/ai_governance_bootstrap.js?v=1"></script>
 {% endblock %}

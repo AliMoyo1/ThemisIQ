@@ -102,7 +102,7 @@
 <script>
 var _vdAll=[], _vdFilter='all';
 
-function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function rb(v){var m={critical:'rgba(220,38,38,.12)',high:'rgba(249,115,22,.12)',medium:'rgba(217,119,6,.12)',low:'rgba(22,163,74,.12)'};var t={critical:'#dc2626',high:'#f97316',medium:'#d97706',low:'#16a34a'};var k=(v||'medium').toLowerCase();return '<span style="background:'+(m[k]||m.medium)+';color:'+(t[k]||t.medium)+';padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;text-transform:capitalize">'+esc(k)+'</span>';}
 function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'⏳';return '<span class="vd-badge '+c+'">'+ico+' DPA '+(s||'pending')+'</span>';}
 

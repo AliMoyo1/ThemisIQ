@@ -83,7 +83,14 @@ function switchModuleContext(mod){
   try{ sessionStorage.setItem('ofa-module', mod); }catch(e){}
 }
 
-function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function esc(s){
+  if(!s&&s!==0)return '';
+  var d=document.createElement('div');
+  d.textContent=String(s);
+  // innerHTML escapes text nodes, but leaves quotes intact. Search and
+  // notification links also use this helper inside quoted HTML attributes.
+  return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function toggleNotif(){
   const p = document.getElementById('notifPanel');

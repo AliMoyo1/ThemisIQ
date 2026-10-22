@@ -11,4 +11,4 @@ Before releasing the application:
 
 For key rotation, put the old key in `MFA_ENCRYPTION_PREVIOUS_KEYS`, install the new current key, run the migration again, and only then remove the previous key. All service instances must use the same current key during rotation. An encrypted row without a matching key cannot be used to verify MFA, so keep retired keys until migration and backup recovery are confirmed.
 
-The script is intentionally separate from application startup: an automatic partial migration could leave a restored database unreadable after rollback. The deployed revision and its matching key must be rolled back together if needed.
+The script is intentionally separate from application startup: an automatic partial migration could leave a restored database unreadable after rollback. An older revision without encrypted-MFA support cannot read rows migrated by this script, regardless of whether it receives the key. Use a compatible-code rollback or an approved restore of the pre-migration database and old code; a restore may discard later writes. Keep the key needed for any encrypted backup retained for recovery.

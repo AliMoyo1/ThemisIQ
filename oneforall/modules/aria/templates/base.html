@@ -272,7 +272,7 @@ if (typeof Chart !== 'undefined') {
 
 /* ── Ask ARIA floating widget ── */
 (function() {
-  function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+  function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
   const fab = document.getElementById('askFab');
   const drawer = document.getElementById('askDrawer');

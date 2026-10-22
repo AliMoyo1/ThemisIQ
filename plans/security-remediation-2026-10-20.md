@@ -35,3 +35,13 @@ This work follows `plans/security-assessment-independent-2026-10-20.md` and the 
 9. Verify the request-size middleware on declared and chunked uploads through the installed proxy and directly to the app. The code now counts actual received bytes, but no request-flow check was run in this task.
 
 These release gates are not claims that the changed code is already safe to deploy. In particular, missing MFA key configuration and unrotated integration keys create immediate compatibility failures.
+
+## Continuation on the landing-page master, 2026-10-22
+
+The security commit was brought onto an isolated branch based on the current landing-page master. No production change was made. The main checkout contains unrelated active work and was left untouched.
+
+This continuation removes executable template text from AI Governance page bootstraps and enforces `script-src` without `unsafe-inline` on its HTML routes. Other modules still require inline-script migration. Stored names, framework labels, workflow text, AI-generated ERM objects, and BCM resource categories no longer enter the selected click handlers updated in this branch. Internal Evidence Vault links and Sentinel internal links now require this site's origin; external ERM source and Sentinel notice links require HTTPS. The shared shell's HTML escaping now encodes quotes in attributes.
+
+This is a targeted security improvement, not a claim that all browser injection paths are closed. The wider CSP inventory remains open. The operator has confirmed ownership of production MFA key provisioning and existing API integrations, but neither step is complete in this checkout. Do not deploy this branch before the release gates above are met. The first code rollback after MFA migration must support encrypted authenticators, or the approved recovery path must restore the pre-migration database with its matching old code.
+
+Static review in this continuation: `git diff --check`, Node syntax checks for the new AI Governance bootstrap and changed shared shell, and Python syntax parsing for the changed middleware passed. Focused browser, SQLite, PostgreSQL and concurrency checks were not run in this continuation; the release gate requiring them remains open.

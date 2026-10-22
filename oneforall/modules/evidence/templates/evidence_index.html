@@ -703,9 +703,19 @@ function evStateChip(state){
   if(!state)return '';
   return '<span class="ev-chip ev-chip-'+(evStateKind[state.key]||'muted')+'">'+escHtml(state.label)+'</span>';
 }
+function evSafeInternalUrl(value){
+  if(typeof value!=='string'||!value)return '';
+  try{
+    var url=new URL(value,window.location.origin);
+    if(url.origin!==window.location.origin||url.username||url.password)return '';
+    if(!['http:','https:'].includes(url.protocol))return '';
+    return url.pathname+url.search+url.hash;
+  }catch(_){return '';}
+}
 function evClaimsHtml(item){
   var parts=(item.claims||[]).map(function(c){
-    return c.url?'<a href="'+escHtml(c.url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title);
+    var url=evSafeInternalUrl(c.url);
+    return url?'<a href="'+escHtml(url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title);
   });
   var rest=(item.claims_more||0);
   var hidden=(item.claims_hidden||0);
@@ -1042,14 +1052,15 @@ function _resolvedLinksHtml(links,resolved,eid,item){
     var status=l.review_status||'pending';
     var who=l.reviewed_by_name?('by '+l.reviewed_by_name+(l.reviewed_at?' on '+fmtDate(l.reviewed_at):'')):'';
     var hint=[l.review_note,who].filter(Boolean).join(' · ');
-    var seen=!!(res.url||res.name);
+    var safeUrl=evSafeInternalUrl(res.url);
+    var seen=!!(safeUrl||res.name);
     var mine=Number(l.linked_by)===Number(evUserId)||(item&&Number(item.uploaded_by)===Number(evUserId));
     var name=res.name||('#'+l.entity_id);
     return '<div class="ev-link-row" style="flex-wrap:wrap">'+
       '<span class="ev-mod-dot" style="background:'+mc+'"></span>'+
       '<span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;width:56px">'+escHtml(l.module)+'</span>'+
       '<span style="font-size:10px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
-      (res.url?'<a href="'+escHtml(res.url)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(name)+'</a>':
+      (safeUrl?'<a href="'+escHtml(safeUrl)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(name)+'</a>':
                '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(name)+'</span>')+
       '<span class="ev-review-chip" style="color:'+(tone[status]||'var(--muted)')+';border-color:'+(tone[status]||'var(--border)')+'" title="'+escHtml(hint)+'">'+escHtml(l.review_label||'Waiting for a reviewer')+'</span>'+
       (l.carried_from_link_id?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="Proposed from the version this one replaced. It needs its own review.">Carried forward</span>':'')+
@@ -1292,7 +1303,8 @@ async function openDetail(eid){
         (sm.not_carried?'. '+sm.not_carried+' stayed with the earlier version (the record could not be opened or was removed)':'')+'.';
       box.innerHTML='<p style="margin:0 0 8px;color:var(--text)">'+escHtml(line)+'</p>'+
         (imp.claims.length?'<ul style="margin:0;padding-left:18px">'+imp.claims.map(function(c){
-          return '<li>'+(c.url?'<a href="'+escHtml(c.url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title))+
+          var url=evSafeInternalUrl(c.url);
+          return '<li>'+(url?'<a href="'+escHtml(url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title))+
             ': '+escHtml(c.was_label)+' then, '+escHtml(c.now_label||'not proposed again')+' now</li>';
         }).join('')+'</ul>':'')+
         (imp.hidden?'<p style="margin:8px 0 0">'+imp.hidden+' more claim'+(imp.hidden===1?'':'s')+' you cannot open.</p>':'');

@@ -619,7 +619,27 @@
   /* ═══════════════════════════════════════════════════════════════════════
      HELPERS
      ═══════════════════════════════════════════════════════════════════════ */
-  function esc(s){if(!s)return '';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+  function esc(s){if(!s)return '';const d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function gridColor(value){return /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?$/.test(String(value||''))?value:'var(--accent)';}
+  document.addEventListener('click',function(event){
+    var deleteButton=event.target.closest('.js-grid-delete-audit');
+    if(deleteButton){
+      event.stopPropagation();
+      deleteAudit(Number(deleteButton.dataset.auditId),deleteButton.dataset.auditName,deleteButton.dataset.fromDetail==='true');
+      return;
+    }
+    var audit=event.target.closest('.js-start-framework-audit');
+    if(audit){startAuditForFramework(Number(audit.dataset.frameworkId),audit.dataset.frameworkName);return;}
+    var assess=event.target.closest('.js-assess-vendor');
+    if(assess)gridOpenAssessModal(Number(assess.dataset.vendorId),assess.dataset.vendorName);
+  });
+  document.addEventListener('keydown',function(event){
+    var audit=event.target.closest('.js-start-framework-audit');
+    if(audit&&(event.key==='Enter'||event.key===' ')){
+      event.preventDefault();
+      startAuditForFramework(Number(audit.dataset.frameworkId),audit.dataset.frameworkName);
+    }
+  });
   function fwLabel(a){return a.framework_names&&a.framework_names.length?a.framework_names.join(' + '):a.framework_name||'';}
   function fmtDate(ts){
     if(!ts) return '—';
@@ -980,7 +1000,7 @@
     grid.innerHTML=audits.map(a=>{
       const pct=a.total_controls?Math.round((a.complete_controls||0)/a.total_controls*100):0;
       const delBtn=GRID_IS_ADMIN
-        ?'<button class="btn-audit-delete" title="Delete audit" onclick="event.stopPropagation();deleteAudit('+a.id+',\''+esc(a.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
+        ?'<button class="btn-audit-delete js-grid-delete-audit" title="Delete audit" data-audit-id="'+Number(a.id)+'" data-audit-name="'+esc(a.name)+'">'
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
           +'</button>'
         :'';
@@ -1143,7 +1163,7 @@
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/></svg> Follow-up</button>'+
       ' <button class="btn btn-secondary" onclick="showCrossCycleView('+id+')" title="Cross-cycle NC comparison">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><path d="M11 18H8a2 2 0 01-2-2V9"/></svg> Compare Cycles</button>'+
-      (GRID_IS_ADMIN?' <button class="btn btn-danger" onclick="deleteAudit('+id+',\''+esc(audit.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\',true)" title="Delete this audit">'+
+      (GRID_IS_ADMIN?' <button class="btn btn-danger js-grid-delete-audit" data-audit-id="'+Number(id)+'" data-audit-name="'+esc(audit.name)+'" data-from-detail="true" title="Delete this audit">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete Audit</button>':'')+
       '</div></div>'+
 
@@ -2204,7 +2224,7 @@
     const fws=await api('/grid/api/frameworks')||[];
     if(!fws.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No frameworks</div><div class="empty-state-text">Activate frameworks from the admin panel to see them here.</div></div>';return;}
     grid.innerHTML=fws.map(f=>
-      '<div class="audit-card" style="border-left:4px solid '+(f.color||'var(--accent)')+';cursor:pointer" onclick="startAuditForFramework('+f.id+',\''+esc(f.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'+
+      '<div class="audit-card js-start-framework-audit" role="button" tabindex="0" data-framework-id="'+Number(f.id)+'" data-framework-name="'+esc(f.name)+'" style="border-left:4px solid '+gridColor(f.color)+';cursor:pointer">'+
         '<div class="audit-card-name">'+esc(f.name)+'</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+esc(f.type||'Standard')+'</div>'+
         '<div style="font-size:13px;color:var(--text);margin-top:8px;line-height:1.5">'+esc(f.description||'')+'</div>'+
@@ -2325,7 +2345,7 @@
           '<td>'+scoreHtml+'</td>'+
           '<td>'+_gridXmBadges(v)+'</td>'+
           '<td style="white-space:nowrap">'+
-            '<button class="btn btn-sm" onclick="gridOpenAssessModal('+v.id+',\''+esc(v.name)+'\')" style="margin-right:4px">Assess</button>'+
+            '<button class="btn btn-sm js-assess-vendor" data-vendor-id="'+Number(v.id)+'" data-vendor-name="'+esc(v.name)+'" style="margin-right:4px">Assess</button>'+
             '<button class="btn btn-sm btn-secondary" onclick="gridEditVendor('+v.id+')">Edit</button>'+
           '</td>'+
         '</tr>';

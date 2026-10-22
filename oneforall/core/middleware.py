@@ -425,15 +425,29 @@ async def security_headers_middleware(request: Request, call_next):
     if not settings.DEBUG:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-    # Fonts are self-hosted under /static/fonts/ so no CDN allowlist is needed.
-    # unsafe-inline is retained until inline styles/scripts are extracted to
-    # static files; that refactor is tracked separately.
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
+    # AI Governance pages now load executable code from static files only.
+    # Other modules still have inline handlers and need their own migration.
+    strict_scripts = (request.url.path == "/ai-governance" or
+                      request.url.path.startswith("/ai-governance/")) and (
+        "text/html" in response.headers.get("Content-Type", "")
+    )
+    if strict_scripts:
+        script_sources = (
+            "'self' https://us.i.posthog.com https://eu.i.posthog.com "
+            "https://us-assets.i.posthog.com https://eu-assets.i.posthog.com "
+            "https://static.cloudflareinsights.com"
+        )
+    else:
+        script_sources = (
+            "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
             "https://us.i.posthog.com https://eu.i.posthog.com "
             "https://us-assets.i.posthog.com https://eu-assets.i.posthog.com "
-            "https://static.cloudflareinsights.com; "
+            "https://static.cloudflareinsights.com"
+        )
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        f"script-src {script_sources}; " +
+        ("script-src-attr 'none'; " if strict_scripts else "") +
         "style-src 'self' 'unsafe-inline'; "
         "font-src 'self'; "
         "img-src 'self' data:; "

@@ -459,7 +459,8 @@
         {% set tone = role_chip_tone.get(rk, 'neutral') %}
         <form method="post" action="/admin/users/{{ u.id }}/roles/revoke"
               style="display:inline-block;"
-              onsubmit="return confirm('Revoke the {{ role_labels.get(rk, rk)|e }} role from {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?');">
+              data-confirm-action="revoke-role" data-confirm-role="{{ role_labels.get(rk, rk) }}"
+              data-confirm-user="{{ u.full_name or u.username }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="role_key" value="{{ rk }}">
           <button type="submit" class="role-chip" title="Click to revoke"
@@ -514,7 +515,7 @@
       {# ── Deleted user: Restore or purge permanently ── #}
       <form method="post" action="/admin/users/{{ u.id }}/restore"
             style="display:inline-block;"
-            onsubmit="return confirm('Restore {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThey will reappear in the list (still inactive until you Reactivate them).');">
+            data-confirm-action="restore" data-confirm-user="{{ u.full_name or u.username }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
           Restore
@@ -522,7 +523,7 @@
       </form>
       <form method="post" action="/admin/users/{{ u.id }}/hard-delete"
             style="display:inline-block; margin-left:4px;"
-            onsubmit="return confirm('Permanently delete {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThis cannot be undone. Only allowed if nothing references this account (audit history, owned risks, tasks, etc) -- otherwise it will be refused.');">
+            data-confirm-action="hard-delete" data-confirm-user="{{ u.full_name or u.username }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
           Delete Permanently
@@ -556,7 +557,7 @@
     {# Reset password #}
     <form method="post" action="/admin/users/{{ u.id }}/reset-password"
           style="display:inline-block; margin-left:4px;"
-          onsubmit="return confirm('Reset password for {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nA new temporary password will be shown once.');">
+          data-confirm-action="reset-password" data-confirm-user="{{ u.full_name or u.username }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px;">
         Reset PW
@@ -567,7 +568,7 @@
       {% if not is_self %}
       <form method="post" action="/admin/users/{{ u.id }}/deactivate"
             style="display:inline-block;"
-            onsubmit="return confirm('Deactivate {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThey will no longer be able to log in.');">
+            data-confirm-action="deactivate" data-confirm-user="{{ u.full_name or u.username }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
           Deactivate
@@ -984,6 +985,23 @@
 <script>
 // ── Drawer state ────────────────────────────────────────────────────────────
 var _drawerUid = null;
+
+document.querySelectorAll('form[data-confirm-action]').forEach(function (form) {
+  form.addEventListener('submit', function (event) {
+    var name = form.dataset.confirmUser;
+    var action = form.dataset.confirmAction;
+    var messages = {
+      'revoke-role': 'Revoke the ' + form.dataset.confirmRole + ' role from ' + name + '?',
+      restore: 'Restore ' + name + '?\nThey will reappear in the list (still inactive until you Reactivate them).',
+      'hard-delete': 'Permanently delete ' + name + '?\nThis cannot be undone. Only allowed if nothing references this account (audit history, owned risks, tasks, etc) -- otherwise it will be refused.',
+      'reset-password': 'Reset password for ' + name + '?\nA new temporary password will be shown once.',
+      deactivate: 'Deactivate ' + name + '?\nThey will no longer be able to log in.'
+    };
+    if (!Object.prototype.hasOwnProperty.call(messages, action) || !confirm(messages[action])) {
+      event.preventDefault();
+    }
+  });
+});
 
 function openEditDrawerBtn(btn) {
   openEditDrawer(
