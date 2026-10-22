@@ -60,8 +60,17 @@ async def _authenticate_key(x_api_key: str, required_scope: str) -> dict:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
         if not row["org_id"] or row["org_status"] != "active" or not row["creator_active"]:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
-        if row["expires_at"] and row["expires_at"] < _now_iso():
-            raise HTTPException(status_code=401, detail="API key expired")
+        try:
+            raw_expiry = row["expires_at"]
+            if not raw_expiry:
+                raise ValueError("missing expiry")
+            expiry = datetime.fromisoformat(str(raw_expiry).replace("Z", "+00:00"))
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            if expiry.astimezone(timezone.utc) <= datetime.now(timezone.utc):
+                raise ValueError("expired")
+        except (TypeError, ValueError, OverflowError):
+            raise HTTPException(status_code=401, detail="API key expired or missing a valid expiry")
         if not _has_scope(row["scopes"], required_scope):
             raise HTTPException(status_code=403, detail=f"API key does not have {required_scope} scope")
         try:
