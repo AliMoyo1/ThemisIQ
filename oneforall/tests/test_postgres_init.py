@@ -2931,6 +2931,58 @@ def test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres(p
         assert ai_client.get_capability_state().state == "disabled_by_policy"
 
 
+def test_two_workers_cannot_reserve_the_same_ai_allowance_on_real_postgres(pg, monkeypatch):
+    """The settings-row lock must serialize admission across PostgreSQL connections."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    import core.ai_policy as ai_policy
+
+    pg.init_db()
+    org = _make_org(pg, "aibudget")
+    admin = pg.get_db_bypass_rls()
+    try:
+        reviewer = pg.insert_returning_id(
+            admin,
+            "INSERT INTO users (username, email, full_name, password_hash, org_id) "
+            "VALUES ('aibudget_reviewer', 'aibudget_reviewer@example.test', 'Policy reviewer', 'x', %s)",
+            (org,),
+        )
+        admin.commit()
+    finally:
+        admin.close()
+
+    monkeypatch.setattr(ai_policy, "_RECORDING", True)
+    with pg.tenant_context(org, "aibudget", is_super_admin=False):
+        ai_policy.save_policy(
+            org,
+            {"enabled": True, "approval_confirmed": True, "providers": ["anthropic"],
+             "categories": ["business"], "monthly_token_budget": 100},
+            user_id=reviewer,
+        )
+
+    start = Barrier(2)
+
+    def reserve():
+        with pg.tenant_context(org, "aibudget", is_super_admin=False):
+            start.wait(timeout=15)
+            try:
+                return ai_policy.authorize("aria.ask", provider="anthropic", reserve_tokens=100)
+            except ai_policy.AIPolicyError as refusal:
+                return refusal.reason
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(reserve) for _ in range(2)]
+        outcomes = [future.result(timeout=30) for future in futures]
+
+    assert sum(isinstance(outcome, ai_policy.Ticket) for outcome in outcomes) == 1
+    assert [outcome for outcome in outcomes if isinstance(outcome, str)] == ["budget_exhausted"]
+    assert _raw_rows(
+        "SELECT status, count(*) FROM tenant_aibudget.ai_usage_log "
+        "WHERE org_id=%s GROUP BY status ORDER BY status", (org,),
+    ) == [("refused", 1), ("reserved", 1)]
+
+
 # ── AI governance intake, inventory and workspace (G2) ───────────────────────
 
 def _ai_governance_world(pg, slug, provision=True, author_role=None):

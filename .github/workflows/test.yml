@@ -129,6 +129,51 @@ jobs:
           path: oneforall/coverage.xml
           retention-days: 14
 
+  security-postgres:
+    name: Security checks (real PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ${{ github.run_id }}
+          POSTGRES_DB: themisiq_test_security
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d themisiq_test_security"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:${{ github.run_id }}@127.0.0.1:55432/themisiq_test_security
+      THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: oneforall/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: oneforall
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run focused tenant, MFA and AI allowance checks
+        working-directory: oneforall
+        run: |
+          python -m pytest -q \
+            tests/test_postgres_init.py::test_rls_policies_filter_rows_by_organization_for_an_ordinary_role_on_real_postgres \
+            tests/test_postgres_init.py::test_rls_rejects_a_write_for_another_organization_on_real_postgres \
+            tests/test_postgres_init.py::test_a_backup_code_cannot_be_spent_twice_on_real_postgres \
+            tests/test_postgres_init.py::test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres \
+            tests/test_postgres_init.py::test_two_workers_cannot_reserve_the_same_ai_allowance_on_real_postgres
+
   js-checks:
     name: JavaScript syntax + unit tests
     runs-on: ubuntu-latest

@@ -3,13 +3,15 @@ AI governance G1c: one place decides whether a model call may leave the platform
 
 What it must guarantee, written out by hand:
 
-* an organization with no policy keeps today's behavior, and one with a policy is held to it before the provider is
-  contacted: master switch, provider, feature, kind of data and monthly allowance;
+* an organization with no approved policy is refused before the provider is contacted;
+* an approved policy controls the master switch, provider, feature, data categories and monthly allowance;
 * a refusal costs nothing at the provider, is recorded, and tells the person a sentence that names no setting;
 * a policy that cannot be read refuses (fail closed), and one organization's policy never touches another's;
 * the usage record says who, which feature and how much, and never holds a prompt or an answer.
 """
 import json
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
@@ -23,7 +25,7 @@ OK_RESULT = {"text": "an answer", "model": "test-model", "input_tokens": 30, "ou
 
 @pytest.fixture
 def world(test_db, monkeypatch):
-    """A database, usage recording on, a provider that counts how often it is contacted, and no organization bound."""
+    """Two approved organizations and a provider that counts contacts."""
     monkeypatch.setattr(ai_policy, "_RECORDING", True)
     monkeypatch.setattr(ai_client, "_provider", lambda: "anthropic")
     monkeypatch.setattr(ai_client, "is_configured", lambda: True)
@@ -35,12 +37,21 @@ def world(test_db, monkeypatch):
 
     monkeypatch.setattr(ai_client, "_dispatch_to_provider", provider)
     test_db.contacted = contacted
+    for org_id in (ORG_A, ORG_B):
+        ai_policy.save_policy(
+            org_id, {"enabled": True, "approval_confirmed": True}, user_id=1,
+        )
     yield test_db
     database.set_current_org(None)
 
 
 def _as(org_id, user_id=None):
     database.set_current_org(org_id, user_id=user_id)
+
+
+def _save(org_id, policy):
+    body = {"enabled": True, "approval_confirmed": True, **policy}
+    return ai_policy.save_policy(org_id, body, user_id=1)
 
 
 def _rows(db, **where):
@@ -54,28 +65,38 @@ def _call(feature="aria.ask", **kw):
     return ai_client.create_message([{"role": "user", "content": "a question"}], feature=feature, **kw)
 
 
-# ── Compatibility mode ──────────────────────────────────────────────────────
+# ── No policy or organization fails closed ───────────────────────────────────
 
-def test_an_organization_with_no_policy_keeps_todays_behavior_and_is_recorded(world):
+def test_an_organization_with_no_policy_is_refused_and_recorded(world):
+    world.execute("DELETE FROM settings WHERE key=%s", (f"ai.policy.org{ORG_A}",))
+    world.commit()
     _as(ORG_A, user_id=7)
-    assert _call(sources=["aria/document/3"]) == "an answer"
-    assert len(world.contacted) == 1
+    with pytest.raises(ai_policy.AIPolicyError) as refused:
+        _call(sources=["aria/document/3"])
+    assert refused.value.reason == "policy_missing"
+    assert world.contacted == []
     [row] = _rows(world)
-    assert (row["org_id"], row["user_id"], row["feature"], row["provider"], row["model"], row["status"]) == (
-        ORG_A, 7, "aria.ask", "anthropic", "test-model", "ok")
-    assert (row["input_tokens"], row["output_tokens"], row["categories"]) == (30, 12, "business")
+    assert (row["org_id"], row["user_id"], row["feature"], row["provider"], row["status"]) == (
+        ORG_A, 7, "aria.ask", "anthropic", "refused")
+    assert (row["input_tokens"], row["output_tokens"], row["categories"]) == (0, 0, "business")
     assert json.loads(row["sources"]) == ["aria/document/3"]
 
 
-def test_a_call_with_no_organization_is_platform_scope_and_still_recorded(world):
-    assert _call() == "an answer"
+def test_a_call_with_no_organization_is_refused_and_recorded(world):
+    with pytest.raises(ai_policy.AIPolicyError) as refused:
+        _call()
+    assert refused.value.reason == "org_unbound"
+    assert world.contacted == []
     [row] = _rows(world)
-    assert row["org_id"] is None and row["status"] == "ok"
+    assert row["org_id"] is None and row["status"] == "refused"
 
 
-def test_an_unlabelled_call_is_allowed_without_a_policy_and_labelled_as_such(world):
+def test_an_unlabelled_call_is_refused_by_an_approved_policy(world):
     _as(ORG_A)
-    assert ai_client.create_message([{"role": "user", "content": "x"}]) == "an answer"
+    with pytest.raises(ai_policy.AIPolicyError) as refused:
+        ai_client.create_message([{"role": "user", "content": "x"}])
+    assert refused.value.reason == "category_not_allowed"
+    assert world.contacted == []
     [row] = _rows(world)
     assert (row["feature"], row["categories"]) == ("unlabelled", "unlabelled")
 
@@ -93,7 +114,7 @@ def test_an_unlabelled_call_is_allowed_without_a_policy_and_labelled_as_such(wor
     ({"categories": ["business"]}, "not.a_feature", "category_not_allowed"),
 ])
 def test_a_policy_refuses_before_the_provider_is_contacted(world, policy, feature, reason):
-    ai_policy.save_policy(ORG_A, policy)
+    _save(ORG_A, policy)
     _as(ORG_A, user_id=4)
     with pytest.raises(ai_policy.AIPolicyError) as refused:
         _call(feature=feature)
@@ -120,17 +141,17 @@ def test_a_refusal_is_a_runtime_error_with_a_sentence_that_names_no_setting(worl
     ({"categories": ["business", "evidence"]}, "evidence.api_evidence_suggest_links"),
     ({"providers": ["anthropic", "ollama"]}, "aria.ask"),
     ({"blocked_features": ["bcm.chat"]}, "aria.ask"),
-    ({"monthly_token_budget": 1000}, "aria.ask"),
+    ({"monthly_token_budget": 10000}, "aria.ask"),
 ])
 def test_a_call_inside_the_policy_goes_through(world, policy, feature):
-    ai_policy.save_policy(ORG_A, policy)
+    _save(ORG_A, policy)
     _as(ORG_A)
     assert _call(feature=feature) == "an answer"
     assert len(world.contacted) == 1
 
 
 def test_a_feature_needs_every_category_it_sends(world):
-    ai_policy.save_policy(ORG_A, {"categories": ["business"]})  # personal data is not allowed
+    _save(ORG_A, {"categories": ["business"]})  # personal data is not allowed
     _as(ORG_A)
     assert _call(feature="aria.ask") == "an answer"
     with pytest.raises(ai_policy.AIPolicyError):
@@ -146,18 +167,20 @@ def _spend(db, org_id, tokens, status="ok"):
 
 
 def test_the_monthly_allowance_stops_calls_once_it_is_used_up(world):
-    ai_policy.save_policy(ORG_A, {"monthly_token_budget": 100})
+    reservation = ai_client._reservation_size([{"role": "user", "content": "a question"}], "", 2000)
+    _save(ORG_A, {"monthly_token_budget": 99 + reservation})
     _as(ORG_A)
     _spend(world, ORG_A, 99)
-    assert _call() == "an answer"           # 99 used of 100: this call may still start
-    with pytest.raises(ai_policy.AIPolicyError) as refused:  # 99 + 42 now used
+    assert _call() == "an answer"           # The first conservative reservation fits exactly.
+    with pytest.raises(ai_policy.AIPolicyError) as refused:  # The next one does not fit.
         _call()
     assert refused.value.reason == "budget_exhausted"
     assert len(world.contacted) == 1
 
 
-def test_only_successful_calls_of_this_organization_and_month_count_toward_the_allowance(world):
-    ai_policy.save_policy(ORG_A, {"monthly_token_budget": 100})
+def test_failed_calls_count_but_refusals_other_organizations_and_old_months_do_not(world):
+    reservation = ai_client._reservation_size([{"role": "user", "content": "a question"}], "", 2000)
+    _save(ORG_A, {"monthly_token_budget": 500 + reservation})
     _as(ORG_A)
     _spend(world, ORG_A, 500, status="refused")
     _spend(world, ORG_A, 500, status="error")
@@ -165,14 +188,42 @@ def test_only_successful_calls_of_this_organization_and_month_count_toward_the_a
     world.execute("INSERT INTO ai_usage_log (org_id, feature, status, input_tokens, created_at) "
                   "VALUES (%s, 'aria.ask', 'ok', 500, '2000-01-15 10:00:00')", (ORG_A,))
     world.commit()
-    assert ai_policy.tokens_used_this_month(ORG_A) == 0
+    assert ai_policy.tokens_used_this_month(ORG_A) == 500
     assert _call() == "an answer"
+
+
+def test_concurrent_calls_cannot_claim_the_same_organization_allowance(world):
+    reservation = ai_client._reservation_size([{"role": "user", "content": "a question"}], "", 2000)
+    _save(ORG_A, {"monthly_token_budget": reservation})
+    ready = Barrier(2)
+
+    def attempt():
+        _as(ORG_A, user_id=7)
+        try:
+            ready.wait(timeout=10)
+            try:
+                return ai_policy.authorize("aria.ask", provider="anthropic",
+                                           reserve_tokens=reservation)
+            except ai_policy.AIPolicyError as refused:
+                return refused.reason
+        finally:
+            database.set_current_org(None)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(attempt) for _ in range(2)]
+        outcomes = [future.result(timeout=15) for future in futures]
+
+    assert sum(isinstance(result, ai_policy.Ticket) for result in outcomes) == 1
+    assert set(result for result in outcomes if isinstance(result, str)) <= {
+        "budget_exhausted", "policy_unreadable"}
+    assert len(_rows(world, status="reserved")) == 1
+    assert world.contacted == []
 
 
 # ── Fail closed, and isolation ──────────────────────────────────────────────
 
 def test_a_policy_that_cannot_be_read_refuses_the_call(world):
-    world.execute("INSERT INTO settings (key, value) VALUES (%s, %s)", (f"ai.policy.org{ORG_A}", "{not json"))
+    world.execute("UPDATE settings SET value=%s WHERE key=%s", ("{not json", f"ai.policy.org{ORG_A}"))
     world.commit()
     _as(ORG_A)
     with pytest.raises(ai_policy.AIPolicyError) as refused:
@@ -189,24 +240,31 @@ def test_one_organizations_policy_never_applies_to_another(world):
     with pytest.raises(ai_policy.AIPolicyError):
         _call()
     assert [r["org_id"] for r in _rows(world)] == [ORG_B, ORG_A]
-    assert ai_policy.get_policy(ORG_B) is None
+    assert ai_policy.get_policy(ORG_B)["enabled"] is True
 
 
-def test_a_stored_policy_drops_values_it_does_not_know(world):
-    saved = ai_policy.save_policy(ORG_A, {
-        "providers": ["ollama", "not-a-provider"], "categories": ["public", "everything"],
-        "blocked_features": ["aria.ask", "nope.nope"], "monthly_token_budget": "-5"})
-    assert saved["providers"] == ["ollama"] and saved["categories"] == ["public"]
-    assert saved["blocked_features"] == ["aria.ask"] and saved["monthly_token_budget"] is None
-    assert ai_policy.get_policy(ORG_A)["categories"] == ["public"]
+@pytest.mark.parametrize("invalid", [
+    {"providers": ["ollama", "not-a-provider"]},
+    {"categories": ["public", "everything"]},
+    {"blocked_features": ["aria.ask", "nope.nope"]},
+    {"monthly_token_budget": "-5"},
+])
+def test_an_invalid_policy_is_rejected_without_changing_the_approved_policy(world, invalid):
+    before = ai_policy.get_policy(ORG_A)
+    with pytest.raises(ValueError):
+        _save(ORG_A, invalid)
+    assert ai_policy.get_policy(ORG_A) == before
 
 
 def test_a_policy_with_no_categories_listed_allows_none_and_a_missing_key_allows_all(world):
-    ai_policy.save_policy(ORG_A, {"categories": []})
+    _save(ORG_A, {"categories": []})
     _as(ORG_A)
     with pytest.raises(ai_policy.AIPolicyError):
         _call(feature="launcher.api_trainer_ask")
-    world.execute("UPDATE settings SET value = %s WHERE key = %s", (json.dumps({"enabled": True}), f"ai.policy.org{ORG_A}"))
+    previous = world.execute("SELECT value FROM settings WHERE key=%s", (f"ai.policy.org{ORG_A}",)).fetchone()
+    approved = json.loads(previous["value"])
+    approved.pop("categories")
+    world.execute("UPDATE settings SET value = %s WHERE key = %s", (json.dumps(approved), f"ai.policy.org{ORG_A}"))
     world.commit()
     assert _call(feature="sentinel.ai_chat") == "an answer"
 
@@ -222,7 +280,9 @@ def test_a_provider_failure_is_recorded_and_still_raised(world, monkeypatch):
     with pytest.raises(RuntimeError, match="the provider is down"):
         _call()
     [row] = _rows(world)
-    assert (row["status"], row["reason"], row["input_tokens"]) == ("error", "RuntimeError", 0)
+    reservation = ai_client._reservation_size([{"role": "user", "content": "a question"}], "", 2000)
+    assert (row["status"], row["reason"], row["input_tokens"], row["output_tokens"]) == (
+        "error", "RuntimeError", reservation, 0)
 
 
 def test_the_usage_record_never_holds_a_prompt_or_an_answer(world, monkeypatch):
@@ -235,11 +295,14 @@ def test_the_usage_record_never_holds_a_prompt_or_an_answer(world, monkeypatch):
         assert secret not in everything
 
 
-def test_a_failure_to_record_never_reaches_the_caller(world):
+def test_a_failure_to_reserve_refuses_before_the_provider_is_contacted(world):
     world.execute("DROP TABLE ai_usage_log")
     world.commit()
     _as(ORG_A)
-    assert _call() == "an answer"
+    with pytest.raises(ai_policy.AIPolicyError) as refused:
+        _call()
+    assert refused.value.reason == "policy_unreadable"
+    assert world.contacted == []
 
 
 def test_create_message_full_and_web_search_are_under_the_same_policy(world, monkeypatch):
@@ -265,9 +328,9 @@ def test_the_capability_state_says_so_when_the_organization_switched_ai_off(worl
     ai_policy.save_policy(ORG_A, {"enabled": False})
     state = ai_client.get_capability_state()
     assert (state.state, state.reason_code) == ("disabled_by_policy", "ai_policy_disabled")
-    ai_policy.save_policy(ORG_A, {"providers": ["ollama"]})
+    _save(ORG_A, {"providers": ["ollama"]})
     assert ai_client.get_capability_state().reason_code == "ai_policy_provider_not_allowed"
-    ai_policy.save_policy(ORG_A, {"blocked_features": ["aria.ask"]})
+    _save(ORG_A, {"blocked_features": ["aria.ask"]})
     assert ai_client.get_capability_state().state == "available", "one blocked feature does not switch AI off as a whole"
     _as(ORG_B)
     assert ai_client.get_capability_state().state == "available"
@@ -279,7 +342,7 @@ def test_the_usage_summary_counts_this_months_calls_tokens_and_refusals(world):
     _as(ORG_A)
     _call()
     _call(feature="bcm.chat")
-    ai_policy.save_policy(ORG_A, {"blocked_features": ["bcm.chat"]})
+    _save(ORG_A, {"blocked_features": ["bcm.chat"]})
     with pytest.raises(ai_policy.AIPolicyError):
         _call(feature="bcm.chat")
     summary = ai_policy.usage_summary(ORG_A)

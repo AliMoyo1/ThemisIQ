@@ -65,7 +65,8 @@ def _stored(http, org):
 
 
 GOOD = {"enabled": True, "providers": ["anthropic"], "categories": ["public", "business"],
-        "blocked_features": ["bcm.chat"], "monthly_token_budget": 5000}
+        "blocked_features": ["bcm.chat"], "monthly_token_budget": 5000,
+        "approval_confirmed": True}
 
 
 def test_an_administrator_reads_the_default_policy_and_what_can_be_chosen(http):
@@ -82,7 +83,9 @@ def test_saving_stores_the_policy_audits_the_change_and_reads_back(http):
     saved = http("put", "/api/admin/ai-policy", json=GOOD)
     assert saved.status_code == 200 and saved.json()["configured"] is True
     stored = _stored(http, ORG_A)
-    assert {k: stored[k] for k in GOOD} == GOOD and stored["updated_by"] == 1
+    assert {k: stored[k] for k in GOOD if k != "approval_confirmed"} == {
+        k: v for k, v in GOOD.items() if k != "approval_confirmed"}
+    assert stored["approved_by"] == stored["updated_by"] == 1 and stored["approved_at"]
     assert http("get", "/api/admin/ai-policy").json()["policy"]["blocked_features"] == ["bcm.chat"]
     [entry] = [dict(r) for r in http.db.execute("SELECT * FROM audit_log WHERE action = 'ai_policy_updated'").fetchall()]
     assert (entry["user_id"], entry["org_id"], entry["entity_id"]) == (1, ORG_A, ORG_A)
@@ -95,16 +98,17 @@ def test_saving_stores_the_policy_audits_the_change_and_reads_back(http):
 @pytest.mark.parametrize("body", [
     ["not", "an", "object"],
     {"enabled": "yes"},
-    {"providers": ["not-a-provider"]},
-    {"providers": "anthropic"},
-    {"providers": ["anthropic", 7]},
-    {"categories": ["everything"]},
-    {"blocked_features": ["no.such_feature"]},
-    {"monthly_token_budget": 0},
-    {"monthly_token_budget": -5},
-    {"monthly_token_budget": "lots"},
-    {"monthly_token_budget": True},
-    {"monthly_token_budget": 1.5},
+    {"enabled": True},  # The reviewer must confirm an enabled policy.
+    {**GOOD, "providers": ["not-a-provider"]},
+    {**GOOD, "providers": "anthropic"},
+    {**GOOD, "providers": ["anthropic", 7]},
+    {**GOOD, "categories": ["everything"]},
+    {**GOOD, "blocked_features": ["no.such_feature"]},
+    {**GOOD, "monthly_token_budget": 0},
+    {**GOOD, "monthly_token_budget": -5},
+    {**GOOD, "monthly_token_budget": "lots"},
+    {**GOOD, "monthly_token_budget": True},
+    {**GOOD, "monthly_token_budget": 1.5},
 ])
 def test_a_bad_submission_is_refused_and_changes_nothing(http, body):
     response = http("put", "/api/admin/ai-policy", json=body)
@@ -118,7 +122,8 @@ def test_a_body_that_is_not_json_is_refused(http):
 
 
 def test_an_empty_provider_list_means_any_provider_and_is_stored_as_such(http):
-    http("put", "/api/admin/ai-policy", json={"enabled": True, "providers": []})
+    http("put", "/api/admin/ai-policy", json={"enabled": True, "approval_confirmed": True,
+                                               "providers": []})
     assert _stored(http, ORG_A)["providers"] == []
     assert _stored(http, ORG_A)["categories"] == list(ai_policy.CATEGORIES)
 
@@ -151,7 +156,9 @@ def test_a_platform_administrator_names_the_organization(http):
 
 def test_each_organization_keeps_its_own_policy(http):
     http("put", "/api/admin/ai-policy", name="admin_a", json={"enabled": False})
-    http("put", "/api/admin/ai-policy", name="admin_b", json={"enabled": True, "monthly_token_budget": 10})
+    http("put", "/api/admin/ai-policy", name="admin_b", json={"enabled": True,
+                                                               "approval_confirmed": True,
+                                                               "monthly_token_budget": 10})
     assert http("get", "/api/admin/ai-policy", name="admin_a").json()["policy"]["enabled"] is False
     assert http("get", "/api/admin/ai-policy", name="admin_b").json()["policy"]["monthly_token_budget"] == 10
 
@@ -161,6 +168,7 @@ def test_what_an_administrator_saves_is_what_the_client_then_enforces_and_counts
     monkeypatch.setattr(ai_client, "_provider", lambda: "anthropic")
     monkeypatch.setattr(ai_client, "_dispatch_to_provider",
                         lambda *a: {"text": "ok", "model": "m", "input_tokens": 10, "output_tokens": 5})
+    assert http("put", "/api/admin/ai-policy", json=GOOD).status_code == 200
     database.set_current_org(ORG_A, user_id=3)
     try:
         assert ai_client.create_message([{"role": "user", "content": "x"}], feature="aria.ask") == "ok"

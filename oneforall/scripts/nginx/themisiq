@@ -12,6 +12,13 @@ server {
     server_name themisiq.net www.themisiq.net;
     root /var/www/themisiq;
     index index.html;
+    # These public-site headers are already installed in production. Keep them
+    # when restoring the app-specific proxy and rate-limit locations below.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
     location / {
         try_files $uri $uri/ =404;
     }

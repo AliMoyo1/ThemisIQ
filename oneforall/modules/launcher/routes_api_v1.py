@@ -102,9 +102,13 @@ def _require_scope(scope: str):
     return require
 
 
-def _unit_clause(key: dict) -> tuple[str, list]:
+def _unit_clause(key: dict, *, include_org_wide: bool = True) -> tuple[str, list]:
     unit = key.get("business_unit_id")
-    return ("(business_unit_id IS NULL OR business_unit_id=%s)", [int(unit)]) if unit is not None else ("1=1", [])
+    if unit is None:
+        return "1=1", []
+    if include_org_wide:
+        return "(business_unit_id IS NULL OR business_unit_id=%s)", [int(unit)]
+    return "business_unit_id=%s", [int(unit)]
 
 
 def _audit(request: Request, key: dict, action: str, entity_type: str = "", entity_id: int = 0):
@@ -326,7 +330,9 @@ async def update_risk(request: Request, rid: int, body: RiskUpdate,
         raise HTTPException(status_code=422, detail="Risk fields cannot be null")
     db = get_db()
     try:
-        unit_clause, unit_params = _unit_clause(key)
+        # A restricted key may read shared risks but cannot edit an
+        # organization-wide risk that belongs to no business unit.
+        unit_clause, unit_params = _unit_clause(key, include_org_wide=False)
         current = db.execute(
             f"SELECT likelihood, impact FROM risk_register WHERE id=%s AND {unit_clause}",
             [rid, *unit_params],
@@ -347,8 +353,12 @@ async def update_risk(request: Request, rid: int, body: RiskUpdate,
         if sets:
             sets.append("updated_at = CURRENT_TIMESTAMP")
             vals.append(rid)
-            db.execute(f"UPDATE risk_register SET {', '.join(sets)} WHERE id = %s AND {unit_clause}",
-                       [*vals, *unit_params])
+            changed = db.execute(
+                f"UPDATE risk_register SET {', '.join(sets)} WHERE id = %s AND {unit_clause}",
+                [*vals, *unit_params],
+            ).rowcount
+            if changed != 1:
+                raise HTTPException(status_code=404, detail="Risk not found")
             _audit_in_db(db, request, key, "risks.update", rid)
             db.commit()
     finally:

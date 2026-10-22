@@ -1,6 +1,14 @@
 # Security cutover: MFA, API keys, and organization AI policy
 
-This is a release procedure, not evidence that production has been changed. Run it with the VPS operator and integration owners. Keep environment values, generated MFA keys, API key plaintext, and backup credentials out of tickets and chat.
+This is the application release procedure. The separate nginx-only hotfix below has been applied, but the application security release and MFA migration have not. Run the remaining steps with the VPS operator and integration owners. Keep environment values, generated MFA keys, API key plaintext, and backup credentials out of tickets and chat.
+
+## Observed production preparation, 2026-10-22
+
+The operator confirmed that `/etc/themisiq` is `700 root:root`, the private service environment is `600 root:root`, and exactly one valid Fernet `MFA_ENCRYPTION_KEY` entry is present. The production `public.user_mfa` table has one row, still in the legacy plaintext format. The shared `public.api_keys` table has no rows. The two active organizations are `public` (ID 1) and `themisiq_ai_governance_pilot_test_data` (ID 7); neither has an AI policy setting. `AI_PROVIDER` is `openrouter`. These are read-only operator observations, not evidence that a backup, migration, policy approval, or release has happened.
+
+The owner chose to review and approve organization AI policies during the release. Before any approval, the reviewer must inspect the configured provider and its data handling, choose allowed categories and blocked features, set finite organization and user allowances if appropriate, and record the decision separately for each organization. Public, business, personal, and evidence are distinct disclosure decisions. The presence of a provider key is not authorization to send any category of tenant data. If review is incomplete, keep that organization's AI off and verify that refusal is visible and logged. The pilot tenant must not inherit the public organization's approval.
+
+The app and database listen only on loopback, UFW permits SSH/HTTP/HTTPS, and nginx syntax is valid. Before the hotfix, the installed app vhost was a minimal proxy with no login/API rate-limit locations or upload-size exceptions. The operator ran the pinned nginx-only script on 2026-10-22. Its final output reported `nginx_site=updated`, backup `/root/themisiq-nginx-backups/themisiq-pre-security-20261022T063258Z`, and exit 0. The script validated nginx syntax, reloaded it, and required app `/health` = 200, monitor `/health` = 200, monitor `/` = 404, and landing `/` = 200. Two earlier attempts failed safely: one before installation on a temporary-file permission error, and one after a route probe with successful restoration of the prior site. The operator confirmed the restored site matched its backup before the successful attempt. This is operator-reported evidence for the nginx site only; it does not prove the application code or database changes have shipped.
 
 ## Before the release
 
