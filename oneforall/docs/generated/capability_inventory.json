@@ -1,21 +1,6 @@
 {
-  "route_count": 1120,
+  "route_count": 1119,
   "entries": [
-    {
-      "path": "/openapi.json",
-      "methods": [
-        "GET",
-        "HEAD"
-      ],
-      "module": "fastapi.applications",
-      "gate": "unknown",
-      "capabilities": [],
-      "roles_by_capability": {},
-      "license_modules_required": [],
-      "name": "openapi",
-      "maturity": "",
-      "notes": ""
-    },
     {
       "path": "/api/demo-request",
       "methods": [
