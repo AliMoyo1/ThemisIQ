@@ -38,19 +38,22 @@ def _feature_row(page, label):
     return page.locator("#featureRows tr", has=page.locator(f"td:text-is('{label}')"))
 
 
-def test_the_page_starts_from_no_policy_with_everything_allowed(login_as, live_app):
+def test_the_page_starts_with_ai_blocked_until_a_policy_is_approved(login_as, live_app):
     page = _open(login_as, live_app)
-    assert "No policy has been set yet" in page.locator("#policyState").inner_text()
-    assert page.locator("#enabled").is_checked()
+    assert "No policy has been approved" in page.locator("#policyState").inner_text()
+    assert "AI requests are blocked" in page.locator("#policyState").inner_text()
+    assert not page.locator("#enabled").is_checked()
+    assert not page.locator("#approvePolicy").is_checked()
     assert page.locator("input[name='providerMode'][value='any']").is_checked()
     assert page.locator("#categoryList input:checked").count() == 4
     assert page.locator("#featureRows input:checked").count() == page.locator("#featureRows input").count() >= 50
-    assert all(text == "On" for text in page.locator("#featureRows [data-effect]").all_inner_texts())
+    assert set(page.locator("#featureRows [data-effect]").all_inner_texts()) == {"Off: AI features are off"}
     assert page.locator("#activeProvider").inner_text().strip() != ""
 
 
 def test_a_saved_policy_shows_its_effect_at_once_and_survives_a_reload(login_as, live_app):
     page = _open(login_as, live_app)
+    page.check("#enabled")
     page.check("input[name='providerMode'][value='only']")
     page.check("#providerList input[value='anthropic']")
     page.check("#providerList input[value='ollama']")
@@ -63,6 +66,7 @@ def test_a_saved_policy_shows_its_effect_at_once_and_survives_a_reload(login_as,
     assert "switched off" in _feature_row(page, "Ask ARIA").locator("[data-effect]").inner_text()
     assert _feature_row(page, "Draft a policy").locator("[data-effect]").inner_text() == "On"
 
+    page.check("#approvePolicy")
     page.click("#saveBtn")
     page.wait_for_selector("#saveStatus:text-is('Saved')")
     assert "A policy is set" in page.locator("#policyState").inner_text()
@@ -85,6 +89,8 @@ def test_a_saved_policy_shows_its_effect_at_once_and_survives_a_reload(login_as,
 
 def test_naming_only_some_providers_but_choosing_none_is_not_sent(login_as, live_app):
     page = _open(login_as, live_app)
+    page.check("#enabled")
+    page.check("#approvePolicy")
     sent = []
     page.on("request", lambda r: sent.append(r.method) if r.url.endswith("/api/admin/ai-policy") and r.method == "PUT" else None)
     page.check("input[name='providerMode'][value='only']")
@@ -95,6 +101,8 @@ def test_naming_only_some_providers_but_choosing_none_is_not_sent(login_as, live
 
 def test_the_server_refusal_is_shown_and_nothing_is_marked_saved(login_as, live_app):
     page = _open(login_as, live_app)
+    page.check("#enabled")
+    page.check("#approvePolicy")
     page.route("**/api/admin/ai-policy", lambda r: r.fulfill(
         status=400, content_type="application/json", body='{"ok": false, "error": "Unknown provider: nope."}')
         if r.request.method == "PUT" else r.continue_())

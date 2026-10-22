@@ -48,7 +48,7 @@ def test_communication_template_stays_with_creator_organization(
     finally:
         db.close()
 
-    client = _login(live_app, synthetic_tenant["users"]["org_admin"])
+    client = _login(live_app, synthetic_tenant["users"]["compliance_manager"])
     try:
         templates = client.get("/api/comm-templates")
         assert templates.status_code == 200

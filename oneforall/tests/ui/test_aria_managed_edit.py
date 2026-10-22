@@ -69,7 +69,7 @@ def test_managed_document_edit_sends_metadata_only_and_preserves_lifecycle(
 
     page = login_as("compliance_manager")
     page.goto(f"{live_app}/aria/documents")
-    page.click(f"#row-{doc_id} .edit-btn")
+    page.click(f"#row-{doc_id} [data-doc-edit]")
     page.wait_for_selector("#editModal.open", timeout=5000)
 
     # Lifecycle fields are shown, but as read-only text -- never as part of
@@ -117,7 +117,7 @@ def test_legacy_document_edit_still_sends_lifecycle_fields(login_as, live_app, s
 
     page = login_as("compliance_manager")
     page.goto(f"{live_app}/aria/documents")
-    page.click(f"#row-{doc_id} .edit-btn")
+    page.click(f"#row-{doc_id} [data-doc-edit]")
     page.wait_for_selector("#editModal.open", timeout=5000)
 
     assert page.locator("#edit-legacy-lifecycle-fields").is_visible()
