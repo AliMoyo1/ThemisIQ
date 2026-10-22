@@ -145,6 +145,7 @@ def test_api_key_generate_then_reveal_modal_transition(login_as, live_app):
     page.click('button:has-text("+ Generate Key")')
     page.wait_for_selector("#newKeyModal.open", timeout=5000)
     page.fill("#keyName", "UI Harness Key")
+    page.select_option("#keyScopes", ["risks.read"])
     page.click('#keyForm button[type="submit"]')
 
     page.wait_for_selector("#revealModal.open", timeout=5000)
