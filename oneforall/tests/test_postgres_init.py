@@ -2038,7 +2038,9 @@ def test_a_backup_code_cannot_be_spent_twice_on_real_postgres(pg, monkeypatch):
     """The compare-and-set write needs a real row count; this runs it on PostgreSQL, with a competing
     request squeezed in between the check and the write."""
     import core.mfa as mfa
+    from cryptography.fernet import Fernet
 
+    monkeypatch.setenv("MFA_ENCRYPTION_KEY", Fernet.generate_key().decode("ascii"))
     pg.init_db()
     conn = pg.get_db_bypass_rls()
     try:
@@ -2852,6 +2854,19 @@ def test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres(p
 
     pg.init_db()
     org_a, org_b = _make_org(pg, "aipola"), _make_org(pg, "aipolb")
+    admin = pg.get_db_bypass_rls()
+    try:
+        reviewers = {}
+        for org_id, suffix in ((org_a, "a"), (org_b, "b")):
+            reviewers[org_id] = pg.insert_returning_id(
+                admin,
+                "INSERT INTO users (username, email, full_name, password_hash, org_id) "
+                "VALUES (%s, %s, 'Policy reviewer', 'x', %s)",
+                (f"aipol_reviewer_{suffix}", f"aipol_reviewer_{suffix}@example.test", org_id),
+            )
+        admin.commit()
+    finally:
+        admin.close()
     monkeypatch.setattr(ai_policy, "_RECORDING", True)
     monkeypatch.setattr(ai_client, "_provider", lambda: "anthropic")
     monkeypatch.setattr(ai_client, "is_configured", lambda: True)
@@ -2867,9 +2882,12 @@ def test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres(p
         return ai_client.create_message([{"role": "user", "content": "x"}], feature=feature)
 
     with pg.tenant_context(org_a, "aipola", is_super_admin=False):
-        ai_policy.save_policy(org_a, {"categories": ["business"], "monthly_token_budget": 60})
-        ai_policy.save_policy(org_a, {"categories": ["business"], "monthly_token_budget": 60}, user_id=None)  # an upsert
-        assert call("aria.ask") == "ok" and call("aria.ask") == "ok"        # 42 used, then 84: the cap is checked before a call
+        reservation = ai_client._reservation_size([{"role": "user", "content": "x"}], "", 2000)
+        policy = {"enabled": True, "approval_confirmed": True, "categories": ["business"],
+                  "monthly_token_budget": reservation + 42}
+        ai_policy.save_policy(org_a, policy, user_id=reviewers[org_a])
+        ai_policy.save_policy(org_a, policy, user_id=reviewers[org_a])  # an approved upsert
+        assert call("aria.ask") == "ok" and call("aria.ask") == "ok"  # 42 then 84 actual tokens
         with pytest.raises(ai_policy.AIPolicyError) as over:
             call("aria.ask")
         assert over.value.reason == "budget_exhausted"
@@ -2882,20 +2900,31 @@ def test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres(p
 
     with pg.tenant_context(org_b, "aipolb", is_super_admin=False):
         assert ai_policy.get_policy(org_b) is None, "another tenant's policy does not exist here"
+        with pytest.raises(ai_policy.AIPolicyError) as missing:
+            call("sentinel.ai_chat")
+        assert missing.value.reason == "policy_missing"
+        ai_policy.save_policy(
+            org_b, {"enabled": True, "approval_confirmed": True,
+                    "categories": ["business", "personal"]}, user_id=reviewers[org_b],
+        )
         assert call("sentinel.ai_chat") == "ok"
         assert ai_policy.usage_summary(org_b)["calls"] == 1
 
     assert len(contacted) == 3, "refusals never reached the provider"
     assert _raw_rows("SELECT count(*) FROM tenant_aipola.settings WHERE key = %s", (f"ai.policy.org{org_a}",)) == [(1,)]
-    assert _raw_rows("SELECT count(*) FROM tenant_aipolb.settings WHERE key LIKE 'ai.policy.%'") == [(0,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aipolb.settings WHERE key LIKE 'ai.policy.%'") == [(1,)]
     assert _raw_rows("SELECT status, count(*) FROM tenant_aipola.ai_usage_log GROUP BY status ORDER BY status") == [
         ("ok", 2), ("refused", 2)]
-    assert _raw_rows("SELECT count(*) FROM tenant_aipolb.ai_usage_log") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aipolb.ai_usage_log") == [(2,)]
     assert _raw_rows("SELECT count(*) FROM public.ai_usage_log WHERE org_id IN (%s, %s)", (org_a, org_b)) == [(0,)]
 
-    # A call with no organization is platform scope and lands in the shared schema.
-    assert call("launcher.api_trainer_ask") == "ok"
-    assert _raw_rows("SELECT org_id, feature, status FROM public.ai_usage_log") == [(None, "launcher.api_trainer_ask", "ok")]
+    # No organization context must be refused before contacting a provider.
+    with pytest.raises(ai_policy.AIPolicyError) as unbound:
+        call("launcher.api_trainer_ask")
+    assert unbound.value.reason == "org_unbound"
+    assert _raw_rows(
+        "SELECT org_id, feature, status FROM public.ai_usage_log WHERE feature='launcher.api_trainer_ask'"
+    ) == [(None, "launcher.api_trainer_ask", "refused")]
 
     with pg.tenant_context(org_a, "aipola", is_super_admin=False):
         ai_policy.save_policy(org_a, {"enabled": False})

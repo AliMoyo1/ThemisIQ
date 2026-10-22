@@ -418,7 +418,7 @@ def record_usage(ticket: Ticket, status: str, *, reason: str = "", model: str = 
         else:
             db.execute(
                 "INSERT INTO ai_usage_log (org_id, user_id, feature, provider, model, status, reason, categories, "
-                "sources, input_tokens, output_tokens, duration_ms) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "sources, input_tokens, output_tokens, duration_ms) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (ticket.org_id, ticket.user_id, ticket.feature, ticket.provider, (model or "")[:120] or None, status,
                  (reason or "")[:120] or None, ",".join(ticket.categories),
                  json.dumps(list(ticket.sources)) if ticket.sources else None,
