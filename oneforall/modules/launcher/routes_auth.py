@@ -197,7 +197,7 @@ async def profile_page(request: Request):
     user = request.state.user
     db = get_db()
     try:
-        # Only this user's live, fully signed-in sessions; never read the token column.
+        # Only this user's live, fully signed-in sessions; the token column is never read.
         sessions = db.execute(
             "SELECT created_at, expires_at, ip_address, user_agent FROM sessions "
             "WHERE user_id = %s AND expires_at > %s AND COALESCE(mfa_pending, 0) = 0 "
