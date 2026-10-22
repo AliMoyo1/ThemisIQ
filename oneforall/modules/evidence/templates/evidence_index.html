@@ -69,6 +69,8 @@
 .ev-link-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px}
 .ev-link-row a{color:var(--accent);text-decoration:none;font-weight:600}
 .ev-link-row a:hover{text-decoration:underline}
+.ev-link-result{background:transparent}
+.ev-link-result:hover{background:var(--surface2)}
 .coverage-bar{height:6px;border-radius:3px;background:var(--surface3,rgba(255,255,255,.06));overflow:hidden;margin-top:4px}
 .coverage-fill{height:100%;border-radius:3px;transition:width .5s}
 /* ── Table view ── */
@@ -1064,7 +1066,7 @@ function _resolvedLinksHtml(links,resolved,eid,item){
                '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(name)+'</span>')+
       '<span class="ev-review-chip" style="color:'+(tone[status]||'var(--muted)')+';border-color:'+(tone[status]||'var(--border)')+'" title="'+escHtml(hint)+'">'+escHtml(l.review_label||'Waiting for a reviewer')+'</span>'+
       (l.carried_from_link_id?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="Proposed from the version this one replaced. It needs its own review.">Carried forward</span>':'')+
-      (canReview&&seen&&!mine?'<button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px" data-name="'+escHtml(name)+'" onclick="evReviewLink('+Number(l.id)+','+Number(eid)+',\''+escHtml(status)+'\',this.getAttribute(\'data-name\'))" aria-label="Review the link to '+escHtml(name)+'">Review</button>':'')+
+      (canReview&&seen&&!mine?'<button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px" data-ev-action="review-link" data-link-id="'+Number(l.id)+'" data-evidence-id="'+Number(eid)+'" data-status="'+escHtml(status)+'" data-name="'+escHtml(name)+'" aria-label="Review the link to '+escHtml(name)+'">Review</button>':'')+
       (canReview&&seen&&mine?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="The person who attached the file or made the link cannot review it.">Needs another reviewer</span>':'')+
       '<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+fmtDate(l.created_at)+'</span>'+
       '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink" aria-label="Unlink '+escHtml(name)+'">✕</button>'+
@@ -1490,7 +1492,7 @@ async function loadChecks(){
     if(!d.total){html+='<div style="font-size:12px">No known defect among the files you can open.</div>';}
     else{
       html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+Object.keys(d.counts).map(function(k){
-        return '<button type="button" class="ev-chip ev-chip-'+(evCheckKind[(rules[k]||{}).severity]||'muted')+'" style="cursor:pointer;background:var(--surface)" onclick="evChecksOnly(\''+escHtml(k)+'\')">'+escHtml((rules[k]||{}).label||k)+': '+Number(d.counts[k])+'</button>';
+        return '<button type="button" class="ev-chip ev-chip-'+(evCheckKind[(rules[k]||{}).severity]||'muted')+'" style="cursor:pointer;background:var(--surface)" data-ev-action="check-filter" data-rule="'+escHtml(k)+'">'+escHtml((rules[k]||{}).label||k)+': '+Number(d.counts[k])+'</button>';
       }).join('')+'</div><ul style="list-style:none;margin:0;padding:0">'+d.findings.map(function(f){
         return '<li style="padding:8px 0;border-top:1px solid var(--border);font-size:12px">'+
           '<span class="ev-chip ev-chip-'+(evCheckKind[f.severity]||'muted')+'">'+escHtml(f.title)+'</span> '+
@@ -1686,7 +1688,7 @@ async function aiSuggestLinks(eid){
           '<span style="font-weight:600;color:var(--text)">'+escHtml(s.entity_name||'')+'</span>'+
           '<span style="color:var(--muted);font-size:11px">'+escHtml(s.module)+' / '+escHtml(s.entity_type)+'</span>'+
           '<span style="flex:1;color:var(--muted);font-size:10px;text-align:right" title="'+escHtml(s.reason||'')+'">'+escHtml((s.reason||'').substring(0,60))+'</span>'+
-          '<button onclick="applyAiLink('+eid+',\''+escHtml(s.module)+'\',\''+escHtml(s.entity_type)+'\','+s.entity_id+',this)" class="btn btn-primary" style="font-size:10px;padding:2px 8px;border-radius:10px">Link</button>'+
+          '<button type="button" data-ev-action="ai-link" data-evidence-id="'+Number(eid)+'" data-module="'+escHtml(s.module)+'" data-entity-type="'+escHtml(s.entity_type)+'" data-entity-id="'+Number(s.entity_id)+'" class="btn btn-primary" style="font-size:10px;padding:2px 8px;border-radius:10px">Link</button>'+
         '</div>';
       }).join('');
   }catch(e){
@@ -1752,7 +1754,7 @@ async function searchEntities(){
   var eid=document.getElementById('linkEvidenceId').value;
   el.innerHTML=items.map(function(e){
     var safeId=parseInt(e.id,10)||0;
-    return '<button type="button" style="display:block;width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;text-align:left;font-family:inherit;background:none" onclick="createLink('+parseInt(eid,10)+',\''+escHtml(mod)+'\',\''+escHtml(etype)+'\','+safeId+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
+    return '<button type="button" class="ev-link-result" style="display:block;width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;text-align:left;font-family:inherit" data-ev-action="create-link" data-evidence-id="'+parseInt(eid,10)+'" data-module="'+escHtml(mod)+'" data-entity-type="'+escHtml(etype)+'" data-entity-id="'+safeId+'">'+
       '<span style="font-weight:600;color:var(--text)">'+escHtml(e.name)+'</span>'+
       '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></button>';
   }).join('');
@@ -1772,6 +1774,33 @@ async function createLink(eid,mod,etype,entityId){
   if(typeof showToast==='function')showToast('Evidence linked to '+mod+' '+etype);
   openDetail(eid);loadStats();
 }
+
+// Values from link and suggestion responses stay in data attributes, never executable handlers.
+document.addEventListener('click',function(event){
+  var button=event.target.closest('[data-ev-action]');
+  if(!button)return;
+  var action=button.dataset.evAction;
+  if(action==='check-filter'){
+    evChecksOnly(button.dataset.rule||'');
+    return;
+  }
+  var eid=Number(button.dataset.evidenceId);
+  if(!Number.isSafeInteger(eid)||eid<1)return;
+  if(action==='review-link'){
+    var linkId=Number(button.dataset.linkId);
+    if(Number.isSafeInteger(linkId)&&linkId>0){
+      evReviewLink(linkId,eid,button.dataset.status||'',button.dataset.name||'');
+    }
+  }else if(action==='ai-link'||action==='create-link'){
+    var entityId=Number(button.dataset.entityId);
+    if(!Number.isSafeInteger(entityId)||entityId<1)return;
+    if(action==='ai-link'){
+      applyAiLink(eid,button.dataset.module||'',button.dataset.entityType||'',entityId,button);
+    }else{
+      createLink(eid,button.dataset.module||'',button.dataset.entityType||'',entityId);
+    }
+  }
+});
 
 /* ── View/Filter Switching ── */
 function switchView(v,el){
