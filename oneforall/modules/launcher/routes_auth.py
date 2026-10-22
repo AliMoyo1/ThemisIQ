@@ -20,6 +20,7 @@ from modules.sentinel.data_service import get_setting  # org policy (settings ta
 from core.mfa import mfa_required_for
 from core.best_effort import swallowed
 from core.auth import rotate_session_in_db
+from core.timeutils import utcnow
 from database import tenant_context
 
 router = APIRouter()
@@ -196,9 +197,12 @@ async def profile_page(request: Request):
     user = request.state.user
     db = get_db()
     try:
+        # Only this user's live, fully signed-in sessions; never read the token column.
         sessions = db.execute(
-            "SELECT id, created_at, last_active FROM sessions WHERE user_id = %s ORDER BY last_active DESC LIMIT 10",
-            (user["id"],)
+            "SELECT created_at, expires_at, ip_address, user_agent FROM sessions "
+            "WHERE user_id = %s AND expires_at > %s AND COALESCE(mfa_pending, 0) = 0 "
+            "ORDER BY created_at DESC LIMIT 10",
+            (user["id"], utcnow().isoformat()),
         ).fetchall()
         session_count = len(sessions)
     except Exception:

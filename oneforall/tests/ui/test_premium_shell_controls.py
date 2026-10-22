@@ -84,3 +84,19 @@ def test_dusk_shell_popovers_have_no_serious_axe_violations(login_as, live_app, 
     page.locator(".icon-sidebar-user").click()
     violations = run_axe()
     assert not violations, ("Dusk account menu", [(v["id"], [(n["target"], n["failureSummary"]) for n in v["nodes"]]) for v in violations])
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+def test_the_module_drawer_never_overlaps_the_rail_on_a_tablet(login_as, live_app, pinned):
+    page = login_as("super_admin")
+    page.set_viewport_size({"width": 820, "height": 900})
+    page.goto(f"{live_app}/aria/")
+    page.wait_for_load_state("networkidle", timeout=15000)
+    page.evaluate(f"""() => {{
+        document.querySelector('.icon-sidebar').classList.toggle('pinned', {str(pinned).lower()});
+        document.getElementById('moduleSidebar').classList.add('open');
+    }}""")
+    page.wait_for_timeout(600)  # let the rail width and drawer slide finish
+    rail = page.locator(".icon-sidebar").bounding_box()
+    drawer = page.locator("#moduleSidebar").bounding_box()
+    assert drawer["x"] >= rail["x"] + rail["width"] - 1, (rail, drawer)
