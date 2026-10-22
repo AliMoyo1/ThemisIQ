@@ -60,6 +60,12 @@ async def _authenticate_key(x_api_key: str, required_scope: str) -> dict:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
         if not row["org_id"] or row["org_status"] != "active" or not row["creator_active"]:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
+        if row["business_unit_id"] is not None:
+            try:
+                if int(row["business_unit_id"]) < 1:
+                    raise ValueError("invalid business unit")
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=401, detail="Invalid API key business unit")
         try:
             raw_expiry = row["expires_at"]
             if not raw_expiry:
@@ -98,7 +104,7 @@ def _require_scope(scope: str):
 
 def _unit_clause(key: dict) -> tuple[str, list]:
     unit = key.get("business_unit_id")
-    return ("(business_unit_id IS NULL OR business_unit_id=%s)", [unit]) if unit else ("1=1", [])
+    return ("(business_unit_id IS NULL OR business_unit_id=%s)", [int(unit)]) if unit is not None else ("1=1", [])
 
 
 def _audit(request: Request, key: dict, action: str, entity_type: str = "", entity_id: int = 0):
