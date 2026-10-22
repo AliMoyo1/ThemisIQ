@@ -2,8 +2,8 @@
 ThemisIQ public REST API v1.
 
 Authentication: X-API-Key header (PBKDF2-SHA256, checked against api_keys table).
-Read endpoints require scope 'read'; write endpoints require scope 'write'.
-Docs available at /docs (FastAPI OpenAPI UI).
+Each endpoint requires its own resource and action scope.
+Interactive API docs are available only in DEBUG mode.
 """
 import hashlib
 import logging
@@ -11,10 +11,11 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field, ConfigDict
 
-from database import get_db, insert_returning_id, set_current_tenant
+from database import get_db, insert_returning_id, set_current_tenant, set_current_org
+from core.middleware import log_audit
 
 log = logging.getLogger(__name__)
 
@@ -48,17 +49,34 @@ async def _authenticate_key(x_api_key: str, required_scope: str) -> dict:
     try:
         row = db.execute(
             "SELECT ak.id, ak.scopes, ak.expires_at, ak.org_id, ak.created_by, "
-            "o.slug AS org_slug, o.status AS org_status"
+            "ak.business_unit_id, "
+            "o.slug AS org_slug, o.status AS org_status, u.is_active AS creator_active"
             " FROM api_keys ak LEFT JOIN organizations o ON o.id = ak.org_id"
+            " LEFT JOIN users u ON u.id = ak.created_by"
             " WHERE ak.key_hash=%s AND ak.is_active=1",
             (key_hash,),
         ).fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
-        if row["org_id"] and row["org_status"] != "active":
+        if not row["org_id"] or row["org_status"] != "active" or not row["creator_active"]:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
-        if row["expires_at"] and row["expires_at"] < _now_iso():
-            raise HTTPException(status_code=401, detail="API key expired")
+        if row["business_unit_id"] is not None:
+            try:
+                if int(row["business_unit_id"]) < 1:
+                    raise ValueError("invalid business unit")
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=401, detail="Invalid API key business unit")
+        try:
+            raw_expiry = row["expires_at"]
+            if not raw_expiry:
+                raise ValueError("missing expiry")
+            expiry = datetime.fromisoformat(str(raw_expiry).replace("Z", "+00:00"))
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            if expiry.astimezone(timezone.utc) <= datetime.now(timezone.utc):
+                raise ValueError("expired")
+        except (TypeError, ValueError, OverflowError):
+            raise HTTPException(status_code=401, detail="API key expired or missing a valid expiry")
         if not _has_scope(row["scopes"], required_scope):
             raise HTTPException(status_code=403, detail=f"API key does not have {required_scope} scope")
         try:
@@ -72,49 +90,66 @@ async def _authenticate_key(x_api_key: str, required_scope: str) -> dict:
         # Set tenant context so subsequent get_db() calls use the right schema.
         slug = row["org_slug"] or "public"
         set_current_tenant(slug)
+        set_current_org(row["org_id"], is_super_admin=False, user_id=row["created_by"])
         return dict(row)
     finally:
         db.close()
 
 
-async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
-    return await _authenticate_key(x_api_key, "read")
+def _require_scope(scope: str):
+    async def require(x_api_key: str = Header(None, alias="X-API-Key")):
+        return await _authenticate_key(x_api_key, scope)
+    return require
 
 
-async def _require_write_key(x_api_key: str = Header(None, alias="X-API-Key")):
-    return await _authenticate_key(x_api_key, "write")
+def _unit_clause(key: dict, *, include_org_wide: bool = True) -> tuple[str, list]:
+    unit = key.get("business_unit_id")
+    if unit is None:
+        return "1=1", []
+    if include_org_wide:
+        return "(business_unit_id IS NULL OR business_unit_id=%s)", [int(unit)]
+    return "business_unit_id=%s", [int(unit)]
+
+
+def _audit(request: Request, key: dict, action: str, entity_type: str = "", entity_id: int = 0):
+    log_audit(None, "api_v1", action, entity_type, entity_id,
+              details=f"api_key_id={key['id']}",
+              ip=request.client.host if request.client else "", org_id=key["org_id"])
+
+
+def _audit_in_db(db, request: Request, key: dict, action: str, entity_id: int):
+    """Commit an integration mutation and its audit record together."""
+    db.execute(
+        "INSERT INTO audit_log (user_id, username, module, action, entity_type, "
+        "entity_id, details, ip_address, org_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (None, f"api-key:{key['id']}", "api_v1", action, "risk_register", entity_id,
+         f"api_key_id={key['id']}", request.client.host if request.client else "",
+         key["org_id"]),
+    )
 
 
 class RiskCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     title: str = Field(..., min_length=1, max_length=500)
     description: str = ""
-    source_module: str = ""
-    source_entity_type: str = ""
-    source_entity_id: Optional[int] = None
     category: str = "operational"
     likelihood: int = Field(3, ge=1, le=5)
     impact: int = Field(3, ge=1, le=5)
-    owner_id: Optional[int] = None
     treatment: str = "mitigate"
     treatment_plan: str = ""
-    status: str = "open"
     review_date: Optional[str] = None
 
 
 class RiskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
     category: Optional[str] = None
     likelihood: Optional[int] = Field(None, ge=1, le=5)
     impact: Optional[int] = Field(None, ge=1, le=5)
-    owner_id: Optional[int] = None
     treatment: Optional[str] = None
     treatment_plan: Optional[str] = None
-    status: Optional[str] = None
     review_date: Optional[str] = None
-    source_module: Optional[str] = None
-    source_entity_type: Optional[str] = None
-    source_entity_id: Optional[int] = None
 
 
 def _risk_level(likelihood: int, impact: int) -> str:
@@ -124,15 +159,17 @@ def _risk_level(likelihood: int, impact: int) -> str:
 
 @router.get("/risks", summary="List risks")
 async def list_risks(
+    request: Request,
     status: Optional[str] = Query(None, description="Filter by status (open, closed, accepted, mitigated)"),
     category: Optional[str] = Query(None, description="Filter by category (operational, strategic, financial, ...)"),
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT, description="Max records to return (default 50, max 200)"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    _key=Depends(_require_read_key),
+    key=Depends(_require_scope("risks.read")),
 ):
     """Return risks from the cross-module risk register."""
-    where_parts: list[str] = []
-    params: list = []
+    unit_clause, unit_params = _unit_clause(key)
+    where_parts: list[str] = [unit_clause]
+    params: list = list(unit_params)
     if status:
         where_parts.append("status=%s")
         params.append(status)
@@ -157,20 +194,23 @@ async def list_risks(
     finally:
         db.close()
 
+    _audit(request, key, "risks.read")
     return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/audits", summary="List audits")
 async def list_audits(
+    request: Request,
     status: Optional[str] = Query(None, description="Filter by status (Planning, In Progress, Completed, Closed)"),
     audit_type: Optional[str] = Query(None, description="Filter by type (Internal, External)"),
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT, description="Max records to return (default 50, max 200)"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    _key=Depends(_require_read_key),
+    key=Depends(_require_scope("audits.read")),
 ):
     """Return audits from GRID."""
-    where_parts: list[str] = []
-    params: list = []
+    unit_clause, unit_params = _unit_clause(key)
+    where_parts: list[str] = [unit_clause]
+    params: list = list(unit_params)
     if status:
         where_parts.append("status=%s")
         params.append(status)
@@ -194,21 +234,24 @@ async def list_audits(
     finally:
         db.close()
 
+    _audit(request, key, "audits.read")
     return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/breaches", summary="List data breaches")
 async def list_breaches(
+    request: Request,
     status: Optional[str] = Query(None, description="Filter by status (open, investigating, closed, reported)"),
     severity: Optional[str] = Query(None, description="Filter by severity (low, medium, high, critical)"),
     regulation: Optional[str] = Query(None, description="Filter by regulation (GDPR, HIPAA, PCI DSS, ...)"),
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT, description="Max records to return (default 50, max 200)"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-    _key=Depends(_require_read_key),
+    key=Depends(_require_scope("breaches.read")),
 ):
     """Return data breach records from Sentinel."""
-    where_parts: list[str] = []
-    params: list = []
+    unit_clause, unit_params = _unit_clause(key)
+    where_parts: list[str] = [unit_clause]
+    params: list = list(unit_params)
     if status:
         where_parts.append("status=%s")
         params.append(status)
@@ -237,11 +280,13 @@ async def list_breaches(
     finally:
         db.close()
 
+    _audit(request, key, "breaches.read")
     return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/risks", status_code=201, summary="Create a risk")
-async def create_risk(body: RiskCreate, key=Depends(_require_write_key)):
+async def create_risk(request: Request, body: RiskCreate,
+                      key=Depends(_require_scope("risks.create"))):
     """Create a risk in the cross-module risk register."""
     level = _risk_level(body.likelihood, body.impact)
     db = get_db()
@@ -250,24 +295,26 @@ async def create_risk(body: RiskCreate, key=Depends(_require_write_key)):
             db,
             "INSERT INTO risk_register (title, description, source_module, source_entity_type, "
             "source_entity_id, category, likelihood, impact, risk_level, owner_id, treatment, "
-            "treatment_plan, status, review_date, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "treatment_plan, status, review_date, created_by, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 body.title,
                 body.description,
-                body.source_module,
-                body.source_entity_type,
-                body.source_entity_id,
+                "external_api",
+                "",
+                None,
                 body.category,
                 body.likelihood, body.impact, level,
-                body.owner_id,
+                None,
                 body.treatment,
                 body.treatment_plan,
-                body.status,
+                "open",
                 body.review_date,
                 key["created_by"],
+                key.get("business_unit_id"),
             ),
         )
+        _audit_in_db(db, request, key, "risks.create", rid)
         db.commit()
     finally:
         db.close()
@@ -275,13 +322,20 @@ async def create_risk(body: RiskCreate, key=Depends(_require_write_key)):
 
 
 @router.patch("/risks/{rid}", summary="Update a risk")
-async def update_risk(rid: int, body: RiskUpdate, key=Depends(_require_write_key)):
+async def update_risk(request: Request, rid: int, body: RiskUpdate,
+                      key=Depends(_require_scope("risks.update"))):
     """Partially update a risk. Only fields present in the request body are changed."""
     data = body.model_dump(exclude_unset=True)
+    if any(value is None for field, value in data.items() if field != "review_date"):
+        raise HTTPException(status_code=422, detail="Risk fields cannot be null")
     db = get_db()
     try:
+        # A restricted key may read shared risks but cannot edit an
+        # organization-wide risk that belongs to no business unit.
+        unit_clause, unit_params = _unit_clause(key, include_org_wide=False)
         current = db.execute(
-            "SELECT likelihood, impact FROM risk_register WHERE id=%s", (rid,)
+            f"SELECT likelihood, impact FROM risk_register WHERE id=%s AND {unit_clause}",
+            [rid, *unit_params],
         ).fetchone()
         if not current:
             raise HTTPException(status_code=404, detail="Risk not found")
@@ -299,7 +353,13 @@ async def update_risk(rid: int, body: RiskUpdate, key=Depends(_require_write_key
         if sets:
             sets.append("updated_at = CURRENT_TIMESTAMP")
             vals.append(rid)
-            db.execute(f"UPDATE risk_register SET {', '.join(sets)} WHERE id = %s", vals)
+            changed = db.execute(
+                f"UPDATE risk_register SET {', '.join(sets)} WHERE id = %s AND {unit_clause}",
+                [*vals, *unit_params],
+            ).rowcount
+            if changed != 1:
+                raise HTTPException(status_code=404, detail="Risk not found")
+            _audit_in_db(db, request, key, "risks.update", rid)
             db.commit()
     finally:
         db.close()

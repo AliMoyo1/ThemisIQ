@@ -576,7 +576,11 @@
 var ORM_CURRENT_USER_ID = {{ user.id }};
 
 /* ─────────────────────────── HELPERS ─────────────────────────── */
-function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+document.addEventListener('click',function(event){
+  var button=event.target.closest('.js-activate-orm-template');
+  if(button)ormActivateTemplate(Number(button.dataset.templateId),button.dataset.templateTitle);
+});
 function escChartAttr(s){return esc(s).replace(/"/g,'&quot;');}
 function fmtDate(ts){if(!ts)return'—';var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
 function timeAgo(ts){if(!ts)return'';var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+'Z').getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
@@ -1827,7 +1831,7 @@ function ormRenderTemplates(){
         usageHint+
       '</div>'+
       '<div style="display:flex;gap:8px;margin-top:6px">'+
-        '<button class="btn btn-primary" style="flex:1;font-size:12px" onclick="ormActivateTemplate('+t.id+',\''+esc(t.title)+'\')" title="Create event immediately with template defaults">&#9658; Activate</button>'+
+        '<button class="btn btn-primary js-activate-orm-template" data-template-id="'+Number(t.id)+'" data-template-title="'+esc(t.title)+'" style="flex:1;font-size:12px" title="Create event immediately with template defaults">&#9658; Activate</button>'+
         '<button class="btn btn-secondary" style="flex:1;font-size:12px" onclick="ormCustomiseTemplate('+t.id+')" title="Pre-fill Log Event form for review before saving">&#9998; Customise</button>'+
       '</div>'+
     '</div>';

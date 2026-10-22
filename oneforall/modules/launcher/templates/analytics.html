@@ -211,7 +211,7 @@ const IS_ADMIN   = {{ 'true' if is_admin else 'false' }};
 let trendRequestSequence = 0;
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
-function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function n(v){ return v===null||v===undefined ? '—' : v; }
 function pct(v){ return v===null||v===undefined ? '—' : v+'%'; }
 

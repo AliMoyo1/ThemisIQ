@@ -156,7 +156,7 @@ async function deleteWebhook(id) {
   loadWebhooks();
 }
 
-function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 document.addEventListener('DOMContentLoaded', loadWebhooks);
 </script>
 

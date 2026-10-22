@@ -24,6 +24,14 @@ oneforall/data/backups/
 *.backup
 
 # Local databases (dev only: prod uses PostgreSQL)
+/data/oneforall.db
+/data/oneforall.db-journal
+/data/oneforall.db-wal
+/data/oneforall.db-shm
+/oneforall/oneforall.db
+/oneforall/oneforall.db-journal
+/oneforall/oneforall.db-wal
+/oneforall/oneforall.db-shm
 oneforall/data/*.db
 oneforall/data/*.db-journal
 oneforall/data/*.db-wal

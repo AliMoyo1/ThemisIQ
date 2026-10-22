@@ -58,7 +58,8 @@
         Download
       </a>
       {% if user.role == 'admin' %}
-      <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;border-color:var(--red,#dc2626);color:var(--red,#dc2626)" onclick="deleteTemplate({{ tpl.id }},'{{ tpl.name|e }}')">Delete</button>
+      <button class="btn btn-secondary js-delete-template" type="button" data-template-id="{{ tpl.id | int }}"
+              data-template-name="{{ tpl.name }}" style="font-size:12px;padding:5px 12px;border-color:var(--red,#dc2626);color:var(--red,#dc2626)">Delete</button>
       {% endif %}
     </div>
   </div>
@@ -144,5 +145,10 @@ async function deleteTemplate(id,name){
   if(data.ok){showToast('Template deleted');setTimeout(function(){location.reload();},800);}
   else showToast(data.error||'Failed','error');
 }
+document.querySelectorAll('.js-delete-template').forEach(function (button) {
+  button.addEventListener('click', function () {
+    deleteTemplate(Number(button.dataset.templateId), button.dataset.templateName);
+  });
+});
 </script>
 {% endblock %}

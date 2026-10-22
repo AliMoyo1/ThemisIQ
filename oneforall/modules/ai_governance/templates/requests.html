@@ -13,12 +13,12 @@
     </div>
     {% if can_register %}<div class="aig-head-actions"><a class="btn btn-primary" href="/ai-governance/register">Register an AI use</a></div>{% endif %}
   </div>
-  <div id="aigRequests"></div>
+  <div id="aigRequests" data-can-create="{{ 'true' if can_register else 'false' }}"></div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
 <script src="/static/js/ai_governance_lists.js?v=7"></script>
-<script>AIGov.requests(document.getElementById('aigRequests'), { canCreate: {{ 'true' if can_register else 'false' }} });</script>
+<script src="/static/js/ai_governance_bootstrap.js?v=1"></script>
 {% endblock %}

@@ -11,7 +11,10 @@ import core.mfa as mfa
 
 
 @pytest.fixture
-def enrolled(test_db):
+def enrolled(test_db, monkeypatch):
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setenv("MFA_ENCRYPTION_KEY", Fernet.generate_key().decode("ascii"))
     test_db.execute("INSERT INTO users (id, username, email, full_name, password_hash) "
                     "VALUES (1, 'mfa_user', 'm@example.test', 'M', 'x')")
     test_db.commit()

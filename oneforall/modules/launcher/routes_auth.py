@@ -19,7 +19,9 @@ from modules.launcher._route_helpers import (
 from modules.sentinel.data_service import get_setting  # org policy (settings table)
 from core.mfa import mfa_required_for
 from core.best_effort import swallowed
+from core.auth import rotate_session_in_db
 from core.timeutils import utcnow
+from database import tenant_context
 
 router = APIRouter()
 
@@ -129,7 +131,9 @@ async def login_submit(request: Request,
     from core import mfa as mfa_helper
     enrolled = mfa_helper.is_enabled(user["id"])
     # Org policy can require MFA even if the user hasn't opted in.
-    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    with tenant_context(user.get("org_id"), user.get("org_slug"),
+                        is_super_admin=bool(user.get("is_super_admin"))):
+        policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
     policy_requires = (not enrolled) and mfa_required_for(user, policy)
     needs_mfa = enrolled or policy_requires
 
@@ -399,6 +403,9 @@ async def change_password_submit(request: Request,
             "UPDATE users SET password_hash=%s, must_change_password=0 WHERE id=%s",
             (hash_password(new_password), int(user["id"])),
         )
+        new_token = rotate_session_in_db(
+            db, int(user["id"]), request.cookies.get(settings.SESSION_COOKIE_NAME, ""),
+        )
         db.commit()
         clear_login_attempts(f"pw:{user['id']}")
         log_audit(user, "platform", "Changed own password",
@@ -406,7 +413,11 @@ async def change_password_submit(request: Request,
     finally:
         db.close()
 
-    return RedirectResponse("/", status_code=302)
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie(settings.SESSION_COOKIE_NAME, new_token, httponly=True,
+                        samesite="strict", path="/", secure=_SECURE,
+                        max_age=settings.SESSION_MAX_AGE)
+    return response
 
 
 # ── Auth API ────────────────────────────────────────────────────────────────
@@ -501,6 +512,8 @@ async def mfa_verify_submit(request: Request,
 @require_auth
 async def mfa_setup_page(request: Request):
     user = request.state.user
+    if user.get("mfa_pending") and mfa_helper.is_enabled(user["id"]):
+        return RedirectResponse("/mfa/verify", status_code=303)
     csrf = generate_csrf_token()
     ctx = shell_ctx(request, active_module="platform", active_section="security")
     ctx["csrf_token"] = csrf
@@ -510,8 +523,15 @@ async def mfa_setup_page(request: Request):
     if ctx["mfa_active"]:
         row = mfa_helper.get_mfa_row(user["id"]) or {}
         ctx["enrolled_at"] = row.get("enrolled_at")
+    elif not mfa_helper.encryption_ready():
+        ctx["setup_unavailable"] = True
     else:
-        secret, codes = mfa_helper.start_enrollment(user["id"])
+        pending_row = mfa_helper.get_mfa_row(user["id"])
+        if request.query_params.get("bad") and pending_row:
+            secret, codes = pending_row["totp_secret"], []
+            ctx["backup_codes_saved"] = True
+        else:
+            secret, codes = mfa_helper.start_enrollment(user["id"])
         ctx["secret"] = secret
         ctx["qr"] = mfa_helper.qr_png_data_uri(user["username"], secret)
         ctx["backup_codes"] = codes
@@ -527,11 +547,32 @@ async def mfa_enable_submit(request: Request,
                              code: str = Form(...),
                              csrf_token: str = Form("")):
     user = request.state.user
+    if user.get("mfa_pending") and mfa_helper.is_enabled(user["id"]):
+        return RedirectResponse("/mfa/verify", status_code=303)
     if not validate_csrf(request, csrf_token):
         return RedirectResponse("/mfa/setup", status_code=303)
+    client_ip = request.client.host if request.client else "unknown"
+    limit_key = f"mfa-enroll:{user['id']}:{client_ip}"
+    if not check_rate_limit(limit_key):
+        return RedirectResponse("/mfa/setup?bad=1", status_code=303)
     if mfa_helper.confirm_enrollment(user["id"], code):
+        clear_login_attempts(limit_key)
+        db = get_db()
+        try:
+            new_token = rotate_session_in_db(
+                db, int(user["id"]), request.cookies.get(settings.SESSION_COOKIE_NAME, ""),
+            )
+            db.commit()
+        finally:
+            db.close()
         log_audit(user, "platform", "mfa_enabled", "user", user["id"])
-        return RedirectResponse("/mfa/setup?ok=1", status_code=303)
+        target = "/change-password" if user.get("must_change_password") else "/mfa/setup?ok=1"
+        response = RedirectResponse(target, status_code=303)
+        response.set_cookie(settings.SESSION_COOKIE_NAME, new_token, httponly=True,
+                            samesite="strict", path="/", secure=_SECURE,
+                            max_age=settings.SESSION_MAX_AGE)
+        return response
+    record_failed_login(limit_key)
     return RedirectResponse("/mfa/setup?bad=1", status_code=303)
 
 
@@ -543,15 +584,26 @@ async def mfa_disable_submit(request: Request,
     user = request.state.user
     if not validate_csrf(request, csrf_token):
         return RedirectResponse("/mfa/setup", status_code=303)
+    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    if mfa_required_for(user, policy):
+        return RedirectResponse("/mfa/setup", status_code=303)
     db = get_db()
     try:
         row = db.execute(
             "SELECT password_hash FROM users WHERE id=%s", (int(user["id"]),)
         ).fetchone()
+        if not row or not verify_password(password, row["password_hash"]):
+            return RedirectResponse("/mfa/setup?badpw=1", status_code=303)
+        db.execute("DELETE FROM user_mfa WHERE user_id=%s", (int(user["id"]),))
+        new_token = rotate_session_in_db(
+            db, int(user["id"]), request.cookies.get(settings.SESSION_COOKIE_NAME, ""),
+        )
+        db.commit()
     finally:
         db.close()
-    if not row or not verify_password(password, row["password_hash"]):
-        return RedirectResponse("/mfa/setup?badpw=1", status_code=303)
-    mfa_helper.disable(user["id"])
     log_audit(user, "platform", "mfa_disabled", "user", user["id"])
-    return RedirectResponse("/mfa/setup?off=1", status_code=303)
+    response = RedirectResponse("/mfa/setup?off=1", status_code=303)
+    response.set_cookie(settings.SESSION_COOKIE_NAME, new_token, httponly=True,
+                        samesite="strict", path="/", secure=_SECURE,
+                        max_age=settings.SESSION_MAX_AGE)
+    return response
