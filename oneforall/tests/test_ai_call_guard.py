@@ -53,7 +53,7 @@ class _Sites(ast.NodeVisitor):
 
     def visit_Call(self, node):
         called = _name(node.func)
-        if called == "to_thread" and node.args:
+        if called in {"to_thread", "run_in_threadpool"} and node.args:
             called = _name(node.args[0])
         if called in ENTRY_POINTS | HELPER_NAMES:
             self.sites.append((node, called, self.stack[-1].name if self.stack else "<module>"))

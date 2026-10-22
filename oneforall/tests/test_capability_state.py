@@ -82,6 +82,7 @@ def test_ai_capability_state_reports_available_when_key_present(monkeypatch):
     not_configured()): this assertion fails with the wrong state."""
     import core.ai_client as ai_client
     monkeypatch.setattr(ai_client, "is_configured", lambda: True)
+    monkeypatch.setattr(ai_client.ai_policy, "org_state", lambda provider: None)
 
     state = ai_client.get_capability_state()
     assert state.state == AVAILABLE

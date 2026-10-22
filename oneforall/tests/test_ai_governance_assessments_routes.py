@@ -72,9 +72,9 @@ def test_the_pages_open_for_those_who_may_and_an_assessment_in_another_unit_is_a
 
 def test_the_new_form_gets_a_system_only_when_it_is_a_plain_number(http):
     page = http("get", "/ai-governance/assessments/new?application_id=12", name="dpo_a").text
-    assert "applicationId: 12" in page
+    assert 'data-application-id="12"' in page
     for bad in ("abc", "12x", "1234567890", "-3"):
-        assert "applicationId: 0" in http("get", f"/ai-governance/assessments/new?application_id={bad}", name="dpo_a").text, bad
+        assert 'data-application-id="0"' in http("get", f"/ai-governance/assessments/new?application_id={bad}", name="dpo_a").text, bad
 
 
 # ── The journey ─────────────────────────────────────────────────────────────

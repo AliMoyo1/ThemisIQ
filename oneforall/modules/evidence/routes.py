@@ -649,7 +649,9 @@ async def api_evidence_upload(
     try:
         if selected_target and not _visible_target(db, (link_module, link_entity_type), target_id, user):
             raise HTTPException(404, "Link target not found")
-        target_unit = None
+        # An unlinked upload by a unit-scoped user belongs to that unit.
+        # Otherwise a private file silently becomes visible organization-wide.
+        target_unit = user.get("business_unit_id") if not selected_target else None
         if selected_target:
             _, target_unit = record_unit(db, link_module, link_entity_type, target_id, user=user)
 

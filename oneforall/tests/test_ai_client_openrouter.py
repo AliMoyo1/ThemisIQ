@@ -15,6 +15,9 @@ class _FakeResponse:
 
 
 def _configure(monkeypatch, ai_client):
+    # Provider transport tests isolate the approved-policy gate. Authorization
+    # and fail-closed behavior are exercised in test_ai_policy.py.
+    monkeypatch.setattr(ai_client.ai_policy, "authorize", lambda *args, **kwargs: None)
     monkeypatch.setattr(ai_client, "_provider", lambda: "openrouter")
     monkeypatch.setattr(
         ai_client,
