@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from core.outbound_http import validate_outbound_url, OutboundURLError
 from core.webhooks import send_test_ping
 from core.middleware import check_rate_limit, record_failed_login
-from database import insert_returning_id
+from database import insert_returning_id, tenant_context
 from modules.sentinel.data_service import get_setting, set_setting  # org policy
 from modules.launcher._route_helpers import (
     _JSONResp, _require_cap, require_auth, has_capability, log_audit,
@@ -1040,17 +1040,55 @@ async def api_keys_list(request: Request):
     db = get_db()
     try:
         org_id = request.state.user.get("org_id")
+        where = "" if request.state.user.get("is_super_admin") else "WHERE ak.org_id = %s"
+        params = () if request.state.user.get("is_super_admin") else (org_id,)
         rows = db.execute(
             "SELECT ak.id, ak.name, ak.key_prefix, ak.scopes, ak.is_active, "
-            "ak.last_used_at, ak.expires_at, ak.created_at, u.full_name as creator_name "
+            "ak.last_used_at, ak.expires_at, ak.created_at, u.full_name as creator_name, "
+            "o.name AS org_name "
             "FROM api_keys ak LEFT JOIN users u ON ak.created_by = u.id "
-            "WHERE (ak.org_id = %s OR (ak.org_id IS NULL AND %s IS NULL)) "
-            "ORDER BY ak.created_at DESC",
-            (org_id, org_id),
+            "LEFT JOIN organizations o ON o.id = ak.org_id "
+            f"{where} ORDER BY ak.created_at DESC",
+            params,
         ).fetchall()
     finally:
         db.close()
     return _JSONResp([dict(r) for r in rows])
+
+
+def _api_key_org(org_id):
+    """Resolve an active target organization selected by the platform admin."""
+    try:
+        org_id = int(org_id)
+        if org_id < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return None
+    db = get_db()
+    try:
+        return db.execute(
+            "SELECT id, slug FROM organizations WHERE id=%s AND status='active'",
+            (org_id,),
+        ).fetchone()
+    finally:
+        db.close()
+
+
+@router.get("/api/admin/api-keys/business-units")
+@_require_cap("platform.manage_users")
+async def api_key_business_units(request: Request):
+    org = _api_key_org(request.query_params.get("org_id"))
+    if not org:
+        return _JSONResp({"error": "Choose an active organization."}, 400)
+    with tenant_context(org["id"], org["slug"], is_super_admin=True):
+        db = get_db()
+        try:
+            rows = db.execute(
+                "SELECT id, name FROM business_units WHERE is_active=1 ORDER BY name"
+            ).fetchall()
+            return _JSONResp([dict(row) for row in rows])
+        finally:
+            db.close()
 
 
 @router.post("/api/admin/api-keys", status_code=201)
@@ -1058,9 +1096,10 @@ async def api_keys_list(request: Request):
 async def api_key_create(request: Request):
     """Generate a new API key."""
     data = await _json_body(request)
-    org_id = request.state.user.get("org_id")
-    if not org_id:
-        return _JSONResp({"error": "Select an organization before creating a key."}, 400)
+    org = _api_key_org(data.get("org_id"))
+    if not org:
+        return _JSONResp({"error": "Choose an active organization before creating a key."}, 400)
+    org_id = org["id"]
     name = str(data.get("name") or "").strip()
     if not name or len(name) > 120:
         return _JSONResp({"error": "Enter a key name of 1 to 120 characters."}, 400)
@@ -1093,12 +1132,19 @@ async def api_key_create(request: Request):
     key_hash = _hash_api_key(raw_key)
     key_prefix = raw_key[:12] + "..."
 
+    if unit_id is not None:
+        with tenant_context(org_id, org["slug"], is_super_admin=True):
+            db = get_db()
+            try:
+                if not db.execute(
+                    "SELECT id FROM business_units WHERE id=%s AND is_active=1", (unit_id,)
+                ).fetchone():
+                    return _JSONResp({"error": "Business unit not found in that organization."}, 400)
+            finally:
+                db.close()
+
     db = get_db()
     try:
-        if unit_id is not None and not db.execute(
-            "SELECT id FROM business_units WHERE id=%s AND is_active=1", (unit_id,)
-        ).fetchone():
-            return _JSONResp({"error": "Business unit not found."}, 400)
         kid = insert_returning_id(
             db,
             "INSERT INTO api_keys (name, key_hash, key_prefix, scopes, expires_at, created_by, org_id, business_unit_id) "

@@ -795,6 +795,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/api/admin/ai-policy` | capability | ai_governance.policy.manage | ai_governance.policy.manage: org_admin, super_admin | - |  |
 | GET | `/api/admin/api-keys` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | POST | `/api/admin/api-keys` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
+| GET | `/api/admin/api-keys/business-units` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | DELETE | `/api/admin/api-keys/{kid}` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | GET | `/api/admin/connectors` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | POST | `/api/admin/connectors` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |

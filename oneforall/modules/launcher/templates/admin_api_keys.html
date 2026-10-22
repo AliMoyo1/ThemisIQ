@@ -19,6 +19,7 @@
       <thead>
         <tr style="border-bottom:1px solid var(--border);">
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Name</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Organization</th>
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Key Prefix</th>
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Scopes</th>
           <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Last Used</th>
@@ -28,7 +29,7 @@
         </tr>
       </thead>
       <tbody id="keysBody">
-        <tr><td colspan="7" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+        <tr><td colspan="8" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -43,6 +44,12 @@
     </div>
     <div class="modal-body" style="padding:20px;">
       <form id="keyForm" onsubmit="generateKey(event)">
+        <div style="margin-bottom:12px;">
+          <label for="keyOrg" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Organization</label>
+          <select id="keyOrg" required onchange="loadKeyUnits()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;">
+            <option value="">Choose an organization</option>
+          </select>
+        </div>
         <div style="margin-bottom:12px;">
           <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Name</label>
           <input type="text" id="keyName" required placeholder="e.g. SIEM Integration" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
@@ -90,10 +97,11 @@ async function loadKeys() {
   const resp = await fetch('/api/admin/api-keys');
   const keys = await resp.json();
   const tbody = document.getElementById('keysBody');
-  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="7" style="padding:40px;text-align:center;color:var(--muted);">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
+  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--muted);">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
   tbody.innerHTML = keys.map(k => `
     <tr style="border-bottom:1px solid var(--border-soft);">
       <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(k.name)}</td>
+      <td style="padding:10px 14px;font-size:12px;">${esc(k.org_name||'Legacy key')}</td>
       <td style="padding:10px 14px;font-family:monospace;font-size:12px;color:var(--muted);">${esc(k.key_prefix)}</td>
       <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.scopes)}</td>
       <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.last_used_at||'Never')}</td>
@@ -105,22 +113,40 @@ async function loadKeys() {
 }
 
 async function openNewKey() {
-  const select = document.getElementById('keyUnit');
-  select.replaceChildren(new Option('All business units', ''));
+  const select = document.getElementById('keyOrg');
+  select.replaceChildren(new Option('Choose an organization', ''));
+  document.getElementById('keyUnit').replaceChildren(new Option('All business units', ''));
   try {
-    const response = await fetch('/governance/api/business-units');
+    const response = await fetch('/super-admin/api/orgs');
+    if (response.ok) {
+      const orgs = await response.json();
+      orgs.filter(org => org.status === 'active').forEach(org => select.add(new Option(org.name, org.id)));
+    }
+  } catch (_) { /* The form remains unselectable until organizations load. */ }
+  ModalManager.open('newKeyModal');
+}
+
+async function loadKeyUnits() {
+  const select = document.getElementById('keyUnit');
+  const orgId = document.getElementById('keyOrg').value;
+  select.replaceChildren(new Option('All business units', ''));
+  if (!orgId) return;
+  try {
+    const response = await fetch(`/api/admin/api-keys/business-units?org_id=${encodeURIComponent(orgId)}`);
     if (response.ok) {
       const units = await response.json();
-      units.forEach(unit => select.add(new Option(unit.name, unit.id)));
+      if (document.getElementById('keyOrg').value === orgId) {
+        units.forEach(unit => select.add(new Option(unit.name, unit.id)));
+      }
     }
-  } catch (_) { /* The server still validates any chosen unit. */ }
-  ModalManager.open('newKeyModal');
+  } catch (_) { /* The server validates any selected unit before issuance. */ }
 }
 
 async function generateKey(e) {
   e.preventDefault();
   const body = {
     name: document.getElementById('keyName').value,
+    org_id: document.getElementById('keyOrg').value,
     scopes: Array.from(document.getElementById('keyScopes').selectedOptions, option => option.value).join(','),
     business_unit_id: document.getElementById('keyUnit').value || null
   };

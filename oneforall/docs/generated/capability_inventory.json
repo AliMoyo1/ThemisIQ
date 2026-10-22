@@ -1,5 +1,5 @@
 {
-  "route_count": 1119,
+  "route_count": 1120,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -17570,6 +17570,26 @@
       },
       "license_modules_required": [],
       "name": "api_key_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/admin/api-keys/business-units",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_key_business_units",
       "maturity": "",
       "notes": ""
     },
