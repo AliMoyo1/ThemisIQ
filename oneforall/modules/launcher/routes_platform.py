@@ -13,6 +13,7 @@ from fastapi.concurrency import run_in_threadpool
 from database import sql_date_offset
 from core.security import sanitize_text, sanitize_short, validate_int, validate_choice, validate_date
 from core.sql_like import ci_like, like_pattern
+from core.report_kit.identity import download_headers
 
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
@@ -188,6 +189,16 @@ async def api_global_search(request: Request):
         ).fetchall():
             results.append({"module": "bcm", "type": "plan", "id": r["id"],
                             "title": r["title"], "subtitle": "BCM Plan", "link": f"/bcm/?open=plan:{r['id']}"})
+
+        # ERM scenarios
+        sc, sp = scope(("erm", "scenario"))
+        for r in db.execute(
+            f"SELECT id, title, scenario_type FROM erm_scenarios WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "erm", "type": "scenario", "id": r["id"], "title": r["title"],
+                            "subtitle": r["scenario_type"] or "Risk scenario",
+                            "link": f"/erm/scenario-studio?open={r['id']}"})
 
         # Risk register
         sc, sp = scope(("platform", "risk"))
@@ -489,7 +500,7 @@ async def api_bulk_export(request: Request, entity_type: str):
     db = get_db()
     try:
         table_map = {
-            "controls": "aria_controls",
+            "controls": "controls",      # the register the app shows (aria_controls is a legacy table nothing reads)
             "risks": "risk_register",
             "evidence": "evidence_items",
             "ropa": "sentinel_ropa",
@@ -507,7 +518,7 @@ async def api_bulk_export(request: Request, entity_type: str):
     return Response(
         content=json_lib.dumps(data, indent=2, default=str),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={entity_type}_export.json"}
+        headers=download_headers(f"ThemisIQ_{entity_type}_export.json"),
     )
 
 

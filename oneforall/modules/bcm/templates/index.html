@@ -208,7 +208,7 @@
     <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px">&#10022;</div>
+    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
     <div style="font-size:14px;font-weight:700">Ask BCM AI...</div>
     <div style="font-size:11px;opacity:0.7;margin-top:4px">Continuity planning guidance</div>
   </a>
@@ -256,7 +256,7 @@
 
   <!-- Sentinel Cross-Module: Active Data Breach Banner -->
   <div id="bcmSentinelBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;display:none;align-items:center;gap:10px">
-    <span style="font-size:18px">🛡</span>
+    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
     <div style="flex:1">
       <span style="font-size:13px;font-weight:700;color:var(--amber)">Active data breach detected in Sentinel</span>
       <span style="font-size:12px;color:var(--muted);margin-left:8px" id="bcmSentinelBannerDetail"></span>
@@ -385,7 +385,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" onclick="bcmOpenBucketLabelsModal()" title="Rename the 5 time-window columns used across every BIA">
-        &#9881; Time Buckets
+        <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg> Time Buckets
       </button>
       <button class="btn btn-primary" onclick="bcmOpenModal('bia')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -416,7 +416,7 @@
       <div class="section-sub">Business continuity and disaster recovery plans</div>
     </div>
     <div class="header-actions">
-      <button class="btn-bcm-gen" onclick="bcmOpenGeneratePlanModal()">✨ Generate Plan</button>
+      <button class="btn-bcm-gen" onclick="bcmOpenGeneratePlanModal()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Plan</button>
       <button class="btn btn-primary" onclick="bcmOpenModal('plan')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Plan
@@ -602,7 +602,8 @@
       <div class="section-sub">Programme metrics, coverage reports, and audit data</div>
     </div>
     <div class="header-actions">
-      <button class="btn-bcm-gen" id="boardReportBtn" onclick="bcmBoardReport(this)">📊 Board Report</button>
+      <button class="btn-bcm-gen" onclick="window.open('/bcm/api/board-report/document','_blank')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Board Report PDF</button>
+      <button class="btn-bcm-gen" id="boardReportBtn" onclick="bcmBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> AI Narrative</button>
     </div>
   </div>
   <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:16px"></div>
@@ -879,6 +880,7 @@
   // The acknowledgement clock of a live incident (modules/bcm/escalation.py). Each badge carries its own colours so that
   // its contrast does not depend on the theme.
   var bcmCanManageIncidents={{ 'true' if bcm_can_manage_incidents else 'false' }};
+  var bcmCanModelScenario={{ 'true' if bcm_can_model_scenario else 'false' }};
   var bcmUserId={{ user.id }};
   function incLive(inc){return ['resolved','closed'].indexOf((inc.status||'').toLowerCase())<0;}
   function ackTime(v){
@@ -1201,8 +1203,8 @@
         var rto=b.rto_hours!=null?b.rto_hours+'h':'—';
         var rpo=b.rpo_hours!=null?b.rpo_hours+'h':'—';
         var crit=b.calc_criticality||b.criticality||b.impact_level;
-        var calcBtn='<button class="btn-bcm-ai" onclick="bcmCalcBia('+b.id+',this)" title="AI calculate criticality & MTPD">🔢</button>';
-        var qBtn='<button class="btn btn-sm btn-secondary" onclick="bcmOpenBiaDrawer('+b.id+')" title="Open BIA Questionnaire" style="padding:4px 8px">📋</button>';
+        var calcBtn='<button class="btn-bcm-ai" onclick="bcmCalcBia('+b.id+',this)" title="AI calculate criticality & MTPD"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calculator></use></svg></button>';
+        var qBtn='<button class="btn btn-sm btn-secondary" onclick="bcmOpenBiaDrawer('+b.id+')" title="Open BIA Questionnaire" style="padding:4px 8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></button>';
         return '<tr><td style="cursor:pointer;color:var(--accent);font-weight:600" onclick="bcmOpenBiaDrawer('+b.id+')">'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div style="display:flex;gap:4px;align-items:center">'+qBtn+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\'bia\','+b.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load BIA records');}
@@ -1243,7 +1245,7 @@
     var bia=_bcmBiaCurrent;
     if(!bia) return;
     var tabs=['details','impact','resources'];
-    var tabLabels={details:'📋 Details',impact:'📈 Impact Over Time',resources:'🧰 Recovery Resources'};
+    var tabLabels={details:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Details',impact:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trending-up></use></svg> Impact Over Time',resources:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-toolbox></use></svg> Recovery Resources'};
     root.innerHTML='<div class="bcm-console-overlay" onclick="if(event.target===this)bcmCloseBiaDrawer()">'+
       '<div class="bcm-console-panel">'+
         '<div class="bcm-console-head">'+
@@ -1535,7 +1537,7 @@
         '<button class="modal-close" onclick="document.getElementById(\'bcmBucketModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Time Bucket Labels</div>'+
         '<div style="font-size:12px;color:var(--amber,#d97706);background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);border-radius:var(--radius);padding:8px 10px;margin-bottom:14px">'+
-          '&#9888; These 5 column headers apply to every BIA questionnaire in the system, not just this one.'+
+          '<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> These 5 column headers apply to every BIA questionnaire in the system, not just this one.'+
         '</div>'+
         [0,1,2,3,4].map(function(i){
           return '<div class="form-group"><label>Bucket '+(i+1)+'</label><input id="bucket_'+i+'" value="'+esc(labels[i]||'')+'"></div>';
@@ -1573,8 +1575,9 @@
         var activateBtn=p.is_active_plan
           ?'<button class="deactivate-btn" onclick="bcmDeactivatePlan('+p.id+')" title="Stand down this plan">Stand Down</button>'
           :'<button class="activate-btn" onclick="bcmActivatePlan('+p.id+')" title="Activate this plan">Activate</button>';
-        var reviewBtn='<button class="btn-bcm-ai" onclick="bcmAiReviewPlan('+p.id+',this)" title="AI review this plan">🧠</button>';
-        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
+        var reviewBtn='<button class="btn-bcm-ai" onclick="bcmAiReviewPlan('+p.id+',this)" title="AI review this plan"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
+        var pdfBtn='<a class="btn btn-sm btn-secondary" href="/bcm/api/plans/'+p.id+'/document" title="Download this plan as a PDF" aria-label="Download PDF of '+escAttr(p.title||'this plan')+'" style="padding:4px 8px;font-size:11px">PDF</a>';
+        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+pdfBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load plans');}
   };
@@ -1605,7 +1608,7 @@
         '</div>'+
         '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
           '<button class="btn btn-secondary" onclick="document.getElementById(\'activateModal\').remove()">Cancel</button>'+
-          '<button class="activate-btn" style="padding:9px 20px;font-size:13px" onclick="bcmConfirmActivate('+id+')">&#9889; Activate Plan</button>'+
+          '<button class="activate-btn" style="padding:9px 20px;font-size:13px" onclick="bcmConfirmActivate('+id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Activate Plan</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -1688,7 +1691,7 @@
     var body=document.getElementById('bcmIncViewBody');
     if(!filtered.length){body.innerHTML=emptyRow(6,'No incidents found');return;}
     body.innerHTML=filtered.map(function(i){
-      var suggestBtn='<button class="btn-bcm-ai" onclick="bcmAiSuggestActions('+i.id+',this)" title="AI suggest next actions">🧠</button>';
+      var suggestBtn='<button class="btn-bcm-ai" onclick="bcmAiSuggestActions('+i.id+',this)" title="AI suggest next actions"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
       var consoleBtn='<button class="btn btn-sm btn-secondary" onclick="bcmOpenIncidentConsole('+i.id+')" title="Open command console" style="padding:4px 8px;font-size:11px">Console</button>';
       return '<tr><td><span style="color:var(--accent);font-weight:600;cursor:pointer" onclick="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+' '+ackBadge(i)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\'incident\','+i.id+')')+'</div></td></tr>';
     }).join('');
@@ -2073,7 +2076,7 @@
                 '<div style="font-size:12px;color:var(--muted)">'+esc(n.role||'')+(n.team?' &bull; '+esc(n.team):'')+'</div>'+
                 '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+
                   (n.email?'<a href="mailto:'+esc(n.email)+'" style="color:var(--accent)">'+esc(n.email)+'</a>':'')+
-                  (n.phone?' &bull; '+esc(n.phone):'')+(n.mobile?' &bull; &#128241;'+esc(n.mobile):'')+
+                  (n.phone?' &bull; '+esc(n.phone):'')+(n.mobile?' &bull; <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-smartphone></use></svg>'+esc(n.mobile):'')+
                 '</div>'+
               '</div>'+
             '</div>'+
@@ -2163,10 +2166,10 @@
       var items=Array.isArray(data)?data:data.items||[];
       scenarioCache=items;
       if(!items.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">No scenarios found.</div>';return;}
-      var catIcons={cyber:'&#128274;',physical:'&#127968;',people:'&#128101;',supply_chain:'&#128666;',pandemic:'&#128137;',general:'&#127919;'};
+      var catIcons={cyber:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg>',physical:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-house></use></svg>',people:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg>',supply_chain:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-truck></use></svg>',pandemic:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-syringe></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg>'};
       var diffColors={easy:'var(--green-status)',medium:'var(--amber)',hard:'var(--red)'};
       grid.innerHTML=items.map(function(s){
-        var icon=catIcons[s.category]||'&#127919;';
+        var icon=catIcons[s.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg>';
         var dc=diffColors[s.difficulty]||'var(--muted)';
         return '<div class="card" style="padding:20px;display:flex;flex-direction:column;gap:12px">'+
           '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px">'+
@@ -2181,7 +2184,7 @@
           '</div>'+
           '<div style="font-size:13px;color:var(--text-mid);line-height:1.5">'+esc(s.description||'')+'</div>'+
           '<div style="display:flex;gap:8px;margin-top:4px">'+
-            '<button class="btn btn-sm btn-primary" onclick="bcmUseScenario('+s.id+')">&#9889; Use Scenario</button>'+
+            '<button class="btn btn-sm btn-primary" onclick="bcmUseScenario('+s.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Use Scenario</button>'+
             '<button class="btn btn-sm btn-secondary" onclick="bcmViewScenario('+s.id+')">View Injects</button>'+
             (!s.is_builtin?actionBtns('','bcmDeleteScenarioItem('+s.id+')'):'')+'</div>'+
         '</div>';
@@ -2208,7 +2211,7 @@
         injectHtml+
         '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">'+
           '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">Close</button>'+
-          '<button class="btn btn-primary" onclick="this.closest(\'.modal-overlay\').remove();bcmUseScenario('+s.id+')">&#9889; Use This Scenario</button>'+
+          '<button class="btn btn-primary" onclick="this.closest(\'.modal-overlay\').remove();bcmUseScenario('+s.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Use This Scenario</button>'+
         '</div>'+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
@@ -2429,7 +2432,7 @@
     if(mods.sentinel){
       var dpa=(mods.sentinel.dpa_status||'pending');
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#f97316';
-      parts.push('<span title="Privacy DPA: '+dpa+'" style="padding:1px 6px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700">🔒 '+dpa+'</span>');
+      parts.push('<span title="Privacy DPA: '+dpa+'" style="padding:1px 6px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> '+dpa+'</span>');
     } else {
       parts.push('<span title="Not assessed in Privacy" style="padding:1px 6px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;border:1px dashed var(--border)">No DPA</span>');
     }
@@ -2438,14 +2441,14 @@
       var ass=mods.grid.latest_assessment;
       if(ass&&ass.score!=null){
         var scoreCol=ass.score>=70?'#16a34a':ass.score>=50?'#d97706':'#dc2626';
-        parts.push('<span title="Audit score: '+ass.score+'%" style="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:'+scoreCol+';font-size:10px;font-weight:700">📋 '+ass.score+'%</span>');
+        parts.push('<span title="Audit score: '+ass.score+'%" style="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:'+scoreCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+ass.score+'%</span>');
       } else {
-        parts.push('<span title="In Audit — no score yet" style="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:#0ea5e9;font-size:10px;font-weight:700">📋 ✓</span>');
+        parts.push('<span title="In Audit — no score yet" style="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:#0ea5e9;font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> ✓</span>');
       }
     } else {
       parts.push('<span title="Not in Audit register" style="padding:1px 6px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;border:1px dashed var(--border)">No Audit</span>');
     }
-    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="cursor:help;font-size:11px;margin-left:2px">⚠</span>');
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="cursor:help;font-size:11px;margin-left:2px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
     return parts.join(' ');
   }
 
@@ -2474,7 +2477,7 @@
       if(banner){
         if(noDpaCritical.length){
           banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.22);border-radius:8px;font-size:12px;font-weight:600;color:#dc2626">'+
-            '<span>⚠</span><span>'+noDpaCritical.length+' critical vendor'+(noDpaCritical.length>1?'s have':' has')+' no DPA record in Privacy — <a href="/sentinel/vendors" style="color:#dc2626;text-decoration:underline">register now</a></span></div>';
+            '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+noDpaCritical.length+' critical vendor'+(noDpaCritical.length>1?'s have':' has')+' no DPA record in Privacy — <a href="/sentinel/vendors" style="color:#dc2626;text-decoration:underline">register now</a></span></div>';
         } else { banner.innerHTML=''; }
       }
 
@@ -2515,7 +2518,7 @@
           '<div style="padding:7px 12px;background:var(--surface2);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)">Cross-Module Coverage</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
         // Privacy
-        panelHtml+='<div style="padding:8px 12px;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">🔒 PRIVACY</div>';
+        panelHtml+='<div style="padding:8px 12px;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> PRIVACY</div>';
         if(mods.sentinel){
           var dpa=mods.sentinel.dpa_status||'pending';
           var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#d97706';
@@ -2528,7 +2531,7 @@
         }
         panelHtml+='</div>';
         // Audit
-        panelHtml+='<div style="padding:8px 12px"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">📋 AUDIT</div>';
+        panelHtml+='<div style="padding:8px 12px"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
         if(mods.grid){
           var ass=mods.grid.latest_assessment;
           panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
@@ -2541,7 +2544,7 @@
         panelHtml+='</div></div>';
         if(flags.length){
           panelHtml+='<div style="padding:7px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
-            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600">⚠ '+esc(f.msg)+'</div>';}).join('')+'</div>';
+            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+'</div>';
         }
         panelHtml+='</div>';
         var form=document.getElementById('bcmModalForm');
@@ -2645,7 +2648,7 @@
       fields:[
         {name:'title',label:'Plan Title',type:'text',required:true},
         {name:'department',label:'Department',type:'text'},
-        {name:'owner',label:'Plan Owner',type:'text'},
+        {name:'owner',label:'Process or unit owner (name or team)',type:'text'},
         {name:'description',label:'Description',type:'textarea'},
         {name:'plan_type',label:'Plan Type',type:'select',options:['Business Continuity','Disaster Recovery','Crisis Management','Communications','IT Recovery']},
         {name:'status',label:'Status',type:'select',options:['draft','review','approved','archived']},
@@ -2993,15 +2996,15 @@
         '</div>'+
         '<div style="font-size:17px;font-weight:800;color:var(--text);margin-top:8px;line-height:1.3">'+esc(inc.title||'')+'</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-top:5px;display:flex;gap:16px;flex-wrap:wrap">'+
-          (inc.commander?'<span>&#128101; '+esc(inc.commander)+'</span>':'')+
-          '<span>&#128197; '+fmtDate(inc.declared_at||inc.created_at)+'</span>'+
-          (inc.affected_systems?'<span>&#128421; '+esc(inc.affected_systems)+'</span>':'')+
+          (inc.commander?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> '+esc(inc.commander)+'</span>':'')+
+          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+fmtDate(inc.declared_at||inc.created_at)+'</span>'+
+          (inc.affected_systems?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-monitor></use></svg> '+esc(inc.affected_systems)+'</span>':'')+
         '</div>'+
         ackLine(inc)+
       '</div>'+
       '<div class="bcm-console-tabs">'+
         ['actions','timeline','decisions','stakeholders','plans','evidence','related'].map(function(t){
-          var labels={actions:'📋 Actions',timeline:'💬 Timeline',decisions:'🏛 Decisions',stakeholders:'👥 Stakeholders',plans:'🔗 Plans',evidence:'📂 Evidence',related:'Related Items'};
+          var labels={actions:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Actions',timeline:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-message-square></use></svg> Timeline',decisions:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-landmark></use></svg> Decisions',stakeholders:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> Stakeholders',plans:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Plans',evidence:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-folder-open></use></svg> Evidence',related:'Related Items'};
           return '<div class="bcm-console-tab'+(_bcmConsoleTab===t?' active':'')+'" onclick="bcmConsoleTab(\''+t+'\',this)">'+labels[t]+'</div>';
         }).join('')+
       '</div>'+
@@ -3029,7 +3032,8 @@
       case 'decisions': bcmRenderConsoleDecisions(body,footer,inc); break;
       case 'related':
         footer.replaceChildren();
-        body.innerHTML='<div id="bcmIncidentRelated"></div>';
+        body.innerHTML='<div id="bcmIncidentRelated"></div>'+
+          (bcmCanModelScenario?'<div style="margin-top:14px;font-size:12px"><a href="/erm/scenario-studio?model=bcm:incident:'+Number(inc.id)+'" style="color:var(--accent);font-weight:600;text-decoration:none">Model a worse case in Scenario Studio</a></div>':'');
         if(typeof RelatedItems!=='undefined')RelatedItems.mount(
           document.getElementById('bcmIncidentRelated'),'bcm','incident',inc.id,{canEdit:true});
         break;
@@ -3058,8 +3062,8 @@
           '<div style="flex:1;min-width:0">'+
             '<div style="font-size:13px;font-weight:600;color:var(--text);'+(isDone?'text-decoration:line-through;opacity:.5':'')+' line-height:1.3">'+esc(a.title||'')+'</div>'+
             '<div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">'+
-              (a.owner?'<span style="font-size:11px;color:var(--muted)">&#128101; '+esc(a.owner)+'</span>':'')+
-              (a.due_at?'<span style="font-size:11px;color:var(--muted)">&#128197; '+fmtDate(a.due_at)+'</span>':'')+
+              (a.owner?'<span style="font-size:11px;color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> '+esc(a.owner)+'</span>':'')+
+              (a.due_at?'<span style="font-size:11px;color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+fmtDate(a.due_at)+'</span>':'')+
               '<span style="font-size:10px;font-weight:700;color:'+priColor+';text-transform:uppercase">'+esc(a.priority||'normal')+'</span>'+
             '</div>'+
           '</div>'+
@@ -3068,7 +3072,7 @@
       }).join(''):'<div style="color:var(--muted);text-align:center;padding:32px">No actions logged yet</div>')+
       // AI Suggestions cross-link
       '<div style="margin-top:16px">'+
-        '<button class="btn-bcm-ai" onclick="bcmAiSuggestFromConsole('+inc.id+')">&#129504; AI Suggest Actions</button>'+
+        '<button class="btn-bcm-ai" onclick="bcmAiSuggestFromConsole('+inc.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Suggest Actions</button>'+
       '</div>';
 
     footer.innerHTML=
@@ -3099,10 +3103,10 @@
     var sevColor=sevColors[(inc.severity||'').toLowerCase()]||'var(--muted)';
     var sitrep='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">'+
       (inc.severity?'<span style="font-weight:700;color:'+sevColor+'">'+esc((inc.severity||'').toUpperCase())+'</span>':'')+
-      (elapsed?'<span style="color:var(--muted)">&#x23F1; '+esc(elapsed)+'</span>':'')+
-      '<span style="color:var(--muted)">&#128203; '+openCount+' open action'+(openCount!==1?'s':'')+'</span>'+
+      (elapsed?'<span style="color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-timer></use></svg> '+esc(elapsed)+'</span>':'')+
+      '<span style="color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+openCount+' open action'+(openCount!==1?'s':'')+'</span>'+
       '<span style="color:var(--good,#16a34a)">&#10003; '+doneCount+' done</span>'+
-      '<span style="color:var(--muted)">&#128227; '+updates.length+' update'+(updates.length!==1?'s':'')+'</span>'+
+      '<span style="color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-megaphone></use></svg> '+updates.length+' update'+(updates.length!==1?'s':'')+'</span>'+
     '</div>';
     body.innerHTML=sitrep+(updates.length?
       '<div style="padding:4px 0">'+updates.map(function(u){
@@ -3177,7 +3181,7 @@
     var notifSummary=stakeholders.length?
       '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;display:flex;gap:12px">'+
         '<span style="color:var(--good,#16a34a)">&#10003; '+notified+' notified</span>'+
-        (pending?'<span style="color:var(--amber,#d97706)">&#9888; '+pending+' pending</span>':'')+'</div>':'';
+        (pending?'<span style="color:var(--amber,#d97706)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+pending+' pending</span>':'')+'</div>':'';
     var emptyHtml='<div style="color:var(--muted);padding:8px 0;font-size:13px">No stakeholders added yet.</div>'+
       '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
         '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested roles to notify</div>'+
@@ -3475,7 +3479,7 @@
       }).slice(0,10);
       if(!relevant.length){el.innerHTML='';return;}
       el.innerHTML='<div class="bcm-cross-panel">'+
-        '<div class="bcm-cross-title">&#127932; ARIA Controls — Relevant to BCM ('+relevant.length+')</div>'+
+        '<div class="bcm-cross-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-scroll-text></use></svg> ARIA Controls — Relevant to BCM ('+relevant.length+')</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Controls from your active ARIA frameworks that relate to business continuity:</div>'+
         relevant.map(function(c){
           return '<span class="bcm-ctrl-chip" title="'+esc(c._fw)+'">'+esc(c.control_id||c.clause||'')+(c.title?' — '+esc(c.title.slice(0,40)):'')+' </span>';
@@ -3522,7 +3526,7 @@
       });
       if(!unmatched.length){banner.innerHTML='';return;}
       banner.innerHTML='<div class="bcm-sentinel-banner">'+
-        '<span style="font-size:18px">&#128268;</span>'+
+        '<span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-plug></use></svg></span>'+
         '<div style="flex:1">'+
           '<strong>'+unmatched.length+' high-risk Sentinel RoPA records</strong> are not mapped as BCM dependencies: '+
           unmatched.slice(0,3).map(function(r){return '<strong>'+esc(r.process_name||r.title||'')+'</strong>';}).join(', ')+
@@ -3564,7 +3568,7 @@
       '<div class="modal-box" style="max-width:560px">'+
         '<button class="modal-close" onclick="document.getElementById(\'genPlanModal\').remove()">&#10005;</button>'+
         '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">'+
-          '<div style="font-size:22px">&#10024;</div>'+
+          '<div style="font-size:22px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>'+
           '<div class="modal-title" style="margin:0">AI Generate Continuity Plan</div>'+
         '</div>'+
         '<div class="form-group"><label>Plan Scenario / Type</label>'+
@@ -3581,7 +3585,7 @@
         '<div id="gpTraceMount" style="display:none;margin-top:8px"></div>'+
         '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
           '<button class="btn btn-secondary" onclick="document.getElementById(\'genPlanModal\').remove()">Cancel</button>'+
-          '<button class="btn btn-primary" id="gpSubmitBtn" onclick="bcmSubmitGeneratePlan()">&#10024; Generate Plan</button>'+
+          '<button class="btn btn-primary" id="gpSubmitBtn" onclick="bcmSubmitGeneratePlan()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Plan</button>'+
         '</div>'+
       '</div></div>'
     );
@@ -3616,13 +3620,13 @@
       if(btns){
         var saveBtn=document.createElement('button');
         saveBtn.className='btn btn-sm btn-primary';
-        saveBtn.textContent='💾 Save as Draft';
+        saveBtn.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-save></use></svg> Save as Draft';
         saveBtn.onclick=function(){bcmSaveGeneratedPlan();};
         btns.insertBefore(saveBtn,btns.firstChild);
       }
     }catch(e){
       trace.destroy();traceMount.style.display='none';
-      btn.disabled=false;btn.textContent='&#10024; Generate Plan';
+      btn.disabled=false;btn.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Plan';
       if(typeof showToast==='function')showToast('Plan generation failed — check API key','error');
     }
   };
@@ -3658,7 +3662,7 @@
       };
       var html='<div class="modal-overlay" onclick="if(event.target===this)this.remove()">'+
         '<div class="modal-box" style="max-width:620px">'+
-          '<div class="modal-title">&#129504; AI Plan Review &mdash; '+esc(plan.title)+'</div>'+
+          '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Plan Review &mdash; '+esc(plan.title)+'</div>'+
           '<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:16px;background:var(--surface2);border-radius:var(--radius)">'+
             '<div style="text-align:center;flex-shrink:0">'+
               '<div style="font-size:40px;font-weight:900;color:'+scoreColor+';line-height:1">'+score+'</div>'+
@@ -3714,7 +3718,7 @@
       document.body.insertAdjacentHTML('beforeend',
         '<div class="modal-overlay" style="z-index:1600" onclick="if(event.target===this)this.remove()">'+
         '<div class="modal-box" style="max-width:580px">'+
-          '<div class="modal-title">&#129504; AI Suggested Actions: '+esc(inc.title)+'</div>'+
+          '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Suggested Actions: '+esc(inc.title)+'</div>'+
           '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">AI-recommended next steps. Click <strong>+ Add as Action</strong> to log directly to the incident.</p>'+
           (itemsHtml||'<div style="color:var(--muted);padding:16px 0">No suggestions returned.</div>')+
           '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+
@@ -3755,7 +3759,7 @@
       document.body.insertAdjacentHTML('beforeend',
         '<div class="modal-overlay" onclick="if(event.target===this)this.remove()">'+
         '<div class="modal-box" style="max-width:520px">'+
-          '<div class="modal-title">&#128290; BIA Calculation Results</div>'+
+          '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calculator></use></svg> BIA Calculation Results</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">'+
             '<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;text-align:center">'+
               '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Criticality</div>'+
@@ -3769,8 +3773,8 @@
           '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--text)">'+
             '<strong>MTPD Guidance:</strong> '+esc(res.mtpd_guidance||'—')+
           '</div>'+
-          (valHtml?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--red,#dc2626);text-transform:uppercase;margin-bottom:6px">&#9888; Validation Issues</div><ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7">'+valHtml+'</ul></div>':'')+
-          (notesHtml?'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">&#128161; Guidance</div><ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7;color:var(--text)">'+notesHtml+'</ul></div>':'')+
+          (valHtml?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--red,#dc2626);text-transform:uppercase;margin-bottom:6px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Validation Issues</div><ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7">'+valHtml+'</ul></div>':'')+
+          (notesHtml?'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> Guidance</div><ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7;color:var(--text)">'+notesHtml+'</ul></div>':'')+
           '<div style="display:flex;justify-content:flex-end;margin-top:20px">'+
             '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">Close</button>'+
           '</div>'+
@@ -3804,7 +3808,7 @@
       var res=await apiFetch('/bcm/api/reports/board',{method:'POST'});
       btn.disabled=false;btn.textContent=origText;
       trace.destroy();traceMount.style.display='none';
-      bcmOpenDocViewer('BCM Board Report: '+new Date().toLocaleDateString('en-GB'),res.narrative||res.content||'No narrative generated.');
+      bcmOpenDocViewer('BCM Board Report: '+new Date().toLocaleDateString('en-GB'),(res.narrative||res.content||'No narrative generated.')+(res.narrative_check?'\n\n'+res.narrative_check:''));
     }catch(e){
       btn.disabled=false;btn.textContent=origText;
       trace.destroy();traceMount.style.display='none';

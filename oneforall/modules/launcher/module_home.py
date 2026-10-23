@@ -26,7 +26,7 @@ WORK_SOURCES = {
     "grid": frozenset({"grid_non_conformances"}),
     "bcm": frozenset({"bcm_incidents"}),
     "sentinel": frozenset({"privacy_deadlines"}),
-    "erm": frozenset({"erm_reviews", "erm_acceptances"}),
+    "erm": frozenset({"erm_reviews", "erm_acceptances", "erm_scenarios"}),
     "orm": frozenset({"orm_reviews"}),
 }
 

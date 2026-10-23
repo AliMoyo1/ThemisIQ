@@ -1,5 +1,5 @@
 {
-  "route_count": 1121,
+  "route_count": 1143,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -258,6 +258,32 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/assessment-profile",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_assessment.view"
+      ],
+      "roles_by_capability": {
+        "ai_assessment.view": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_assessment_profile",
+      "maturity": "gated",
+      "notes": "AI impact assessment field definitions require assessment view access. The profile is an internal assurance template, not an independent decision or approved statutory checklist."
+    },
+    {
       "path": "/ai-governance/api/assessments",
       "methods": [
         "GET"
@@ -412,6 +438,32 @@
       "name": "api_assessment_update",
       "maturity": "",
       "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/assessments/{assessment_id}/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_assessment.view"
+      ],
+      "roles_by_capability": {
+        "ai_assessment.view": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_assessment_document",
+      "maturity": "gated",
+      "notes": "One AI impact assessment as PDF or Excel. Requires ai_assessment.view, scoped assessment access, and an audited download. Hidden linked records are omitted."
     },
     {
       "path": "/ai-governance/api/business-units",
@@ -6348,6 +6400,27 @@
       "notes": ""
     },
     {
+      "path": "/bcm/api/board-report/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "bcm.report.generate"
+      ],
+      "roles_by_capability": {
+        "bcm.report.generate": [
+          "bcm_manager",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_board_report_document",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/bcm/api/chat",
       "methods": [
         "GET"
@@ -8420,6 +8493,35 @@
       "notes": ""
     },
     {
+      "path": "/bcm/api/plans/{plan_id}/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.bcm.access"
+      ],
+      "roles_by_capability": {
+        "module.bcm.access": [
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "bcm"
+      ],
+      "name": "api_plan_document",
+      "maturity": "gated",
+      "notes": "One continuity plan as PDF or Excel. Requires BCM module access, scoped plan access, and an audited download. Covered processes are scoped separately."
+    },
+    {
       "path": "/bcm/api/plans/{plan_id}/reviews",
       "methods": [
         "GET"
@@ -10052,6 +10154,28 @@
       },
       "license_modules_required": [],
       "name": "api_suggest_questions",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/board-report/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.report.generate"
+      ],
+      "roles_by_capability": {
+        "erm.report.generate": [
+          "compliance_manager",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_board_report_document",
       "maturity": "",
       "notes": ""
     },
@@ -12098,6 +12222,32 @@
       "notes": ""
     },
     {
+      "path": "/erm/api/scenario-templates",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.view"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_templates",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/erm/api/scenarios",
       "methods": [
         "GET"
@@ -12141,6 +12291,74 @@
       },
       "license_modules_required": [],
       "name": "api_scenarios_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/scenarios/ai/draft",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.manage"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.manage": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_ai_draft",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/scenarios/candidates",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.view"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_candidates",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/scenarios/seed",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.manage"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.manage": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_seed",
       "maturity": "",
       "notes": ""
     },
@@ -12213,6 +12431,74 @@
       "notes": ""
     },
     {
+      "path": "/erm/api/scenarios/{scenario_id}/actions",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.manage"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.manage": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_action",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/scenarios/{scenario_id}/ai/{action}",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.manage"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.manage": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_ai",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/scenarios/{scenario_id}/context",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.view"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_context",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/erm/api/scenarios/{scenario_id}/impact",
       "methods": [
         "GET"
@@ -12277,6 +12563,27 @@
       },
       "license_modules_required": [],
       "name": "api_scenario_link_remove",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/scenarios/{scenario_id}/rehearse",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes_scenarios",
+      "gate": "capability",
+      "capabilities": [
+        "erm.scenario.manage"
+      ],
+      "roles_by_capability": {
+        "erm.scenario.manage": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_scenario_rehearse",
       "maturity": "",
       "notes": ""
     },
@@ -12373,6 +12680,34 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_evidence_find",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/folders",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_evidence_folders",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/folders/{group}/records",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_evidence_record_folders",
       "maturity": "",
       "notes": ""
     },
@@ -20008,6 +20343,20 @@
       "notes": ""
     },
     {
+      "path": "/api/reports/runs/{run_id}/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_run_document",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/reports/runs/{run_id}/export",
       "methods": [
         "GET"
@@ -20130,6 +20479,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "reports_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/reports/runs/{run_id}/print",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "report_run_print",
       "maturity": "",
       "notes": ""
     },
@@ -21417,6 +21780,28 @@
       },
       "license_modules_required": [],
       "name": "api_aims_risk_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/orm/api/board-report/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.orm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "orm.report.generate"
+      ],
+      "roles_by_capability": {
+        "orm.report.generate": [
+          "compliance_manager",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_board_report_document",
       "maturity": "",
       "notes": ""
     },
@@ -22974,6 +23359,32 @@
         "sentinel"
       ],
       "name": "api_audit_export",
+      "maturity": "gated",
+      "notes": "Each part of the evidence pack needs the capability of its own list (breach, request, impact assessment, vendor); a part the caller may not open is left out and named in the README."
+    },
+    {
+      "path": "/sentinel/api/audit/export",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_audit_csv",
       "maturity": "",
       "notes": ""
     },
@@ -23665,6 +24076,28 @@
       "name": "api_dpia_update",
       "maturity": "",
       "notes": ""
+    },
+    {
+      "path": "/sentinel/api/dpias/{dpia_id}/document",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.dpia.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.dpia.manage": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_dpia_document",
+      "maturity": "gated",
+      "notes": "One DPIA as PDF or Excel. Requires sentinel.dpia.manage, scoped record access, and an audited download. Related records and Vault files follow the reader's access."
     },
     {
       "path": "/sentinel/api/dpias/{dpia_id}/link-ropa",
@@ -24419,6 +24852,58 @@
       "name": "api_policies_update",
       "maturity": "",
       "notes": ""
+    },
+    {
+      "path": "/sentinel/api/record-profile/{record}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_record_profile",
+      "maturity": "gated",
+      "notes": "RoPA and DPIA field definitions require Privacy module access. Jurisdiction references are researched but not approved legal wording; users must review them before filing."
+    },
+    {
+      "path": "/sentinel/api/reports/{kind}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_report",
+      "maturity": "gated",
+      "notes": "RoPA and compliance score documents need module access; the breach register also needs sentinel.breach.manage, checked in the handler as the breach list does. Records are limited to the caller's business units."
     },
     {
       "path": "/sentinel/api/retention",

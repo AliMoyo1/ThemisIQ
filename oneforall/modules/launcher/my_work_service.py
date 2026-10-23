@@ -246,6 +246,24 @@ def _erm_reviews(db, user, scope):
     } for r in rows]
 
 
+def _erm_scenarios(db, user, scope):
+    """Scenarios the person owns that are not archived, due on their review date."""
+    where, params = _bu_filter("business_unit_id", scope)
+    rows = db.execute(
+        "SELECT id,title,review_date,status,business_unit_id FROM erm_scenarios "
+        f"WHERE owner_id=%s AND status<>'archived' AND {where} ORDER BY review_date,id LIMIT 100",
+        [user["id"]] + params,
+    ).fetchall()
+    return [{
+        "source_module": "erm", "entity_type": "scenario_review", "entity_id": r["id"],
+        "action": "review_scenario", "title": f"Scenario review: {r['title']}",
+        "due_date": r["review_date"], "priority": "medium",
+        "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
+        "link": f"/erm/scenario-studio?open={r['id']}", "section": _section_for("open", r["review_date"]),
+        "group_source": ("erm", "scenario", r["id"]),
+    } for r in rows]
+
+
 def _erm_acceptance_actions(db, user, scope):
     """Project pending decisions and due reviews from ERM's own decision record."""
     if not (has_capability(user, "erm.acceptance.decide") or
@@ -797,6 +815,7 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
         ("grid_non_conformances", "grid", lambda: _grid_ncs(db, user, scope)),
         ("erm_reviews", "erm", lambda: _erm_reviews(db, user, scope)),
         ("erm_acceptances", "erm", lambda: _erm_acceptance_actions(db, user, scope)),
+        ("erm_scenarios", "erm", lambda: _erm_scenarios(db, user, scope)),
         ("orm_reviews", "orm", lambda: _orm_reviews(db, user, scope)),
         ("bcm_incidents", "bcm", lambda: _bcm_incidents(db, user, scope)),
         ("privacy_deadlines", "sentinel", lambda: _privacy_deadlines(db, user, scope)),

@@ -33,7 +33,7 @@ var KRI_LIBRARY=[
     overlay.setAttribute('aria-label', 'Choose a KRI from the library');
     overlay.innerHTML = '<div class="modal-box" style="max-width:700px;max-height:80vh;overflow-y:auto">' +
       '<button type="button" class="modal-close" data-orm-close-kri-library aria-label="Close KRI library">&#10005;</button>' +
-      '<div class="modal-title">&#128218; KRI Library — Pre-built Indicators</div>' +
+      '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-library></use></svg> KRI Library — Pre-built Indicators</div>' +
       '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Click "Add" to pre-fill the KRI form with suggested settings</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
       KRI_LIBRARY.map(function (indicator, index) {
@@ -41,7 +41,7 @@ var KRI_LIBRARY=[
           '<div style="font-size:13px;font-weight:700;margin-bottom:4px">' + esc(indicator.name) + '</div>' +
           '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">' + esc(indicator.description) + '</div>' +
           '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">' +
-            '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--muted)">&#9200; ' + esc(indicator.frequency) + '</span>' +
+            '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> ' + esc(indicator.frequency) + '</span>' +
             (indicator.threshold_warn ? '<span style="font-size:10px;background:rgba(217,119,6,.1);padding:2px 7px;border-radius:100px;color:var(--amber,#d97706)">Warn: ' + indicator.threshold_warn + '</span>' : '') +
             (indicator.threshold_crit ? '<span style="font-size:10px;background:rgba(220,38,38,.1);padding:2px 7px;border-radius:100px;color:var(--red)">Crit: ' + indicator.threshold_crit + '</span>' : '') +
             (indicator.auto_update_event_type ? '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--accent)">Auto: ' + esc(indicator.auto_update_event_type.replace(/_/g, ' ')) + '</span>' : '') +

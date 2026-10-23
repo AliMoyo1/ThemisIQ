@@ -388,19 +388,9 @@ def _evidence(db, user, application_id) -> list:
         today = _today()
         items = []
         for r in rows:
-            expired = bool(r["expiry_date"]) and str(r["expiry_date"])[:10] <= today
             detail = ", ".join(part for part in (f"Version {r['version']}" if r["version"] else "",
                                                  f"expires {str(r['expiry_date'])[:10]}" if r["expiry_date"] else "") if part)
-            # What the file proves for this use: a replaced or expired version proves nothing now; otherwise the reviewer's
-            # verdict on this link, which is "waiting" until a reviewer has said.
-            if r["status"] == "superseded":
-                shown = "Replaced by a newer version"
-            elif expired:
-                shown = "Expired"
-            elif r["status"] == "archived":
-                shown = "Archived"
-            else:
-                shown = proof.OUTCOME_LABELS[r["review_status"] or "pending"]
+            shown = proof.link_state_label(r["status"], r["expiry_date"], r["review_status"], today)
             items.append(_item(r["title"], f"/evidence/?open=item:{r['id']}", status=shown,
                                subtitle=detail or None, source="Evidence Vault", updated_at=r["updated_at"]))
         return _section("Attached evidence", items, note=None if items else "No evidence is attached to this use yet.")

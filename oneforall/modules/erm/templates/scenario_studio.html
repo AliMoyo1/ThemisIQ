@@ -2,8 +2,18 @@
 {% block title %}ERM: Scenario Studio{% endblock %}
 
 {% block extra_styles %}
-.ss-layout{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start}
-.ss-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px;max-height:80vh;overflow-y:auto}
+.form-group input,.form-group select,.form-group textarea,.ss-list-tools input,.ss-row-actions input[type=text],.ss-row-actions input[type=search],.ss-row-actions select,.ss-ai input[type=text],.ss-shock input[type=number],.ss-shock select,.ss-adv{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box}
+.ss-row-actions select{width:auto}
+.ss-ai input[type=text]{width:auto}
+.form-group{margin-bottom:12px}
+input[type=range]{accent-color:var(--accent);padding:0;width:auto}
+.ss-layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:900px){.ss-layout{grid-template-columns:1fr}}
+.ss-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px;max-height:82vh;overflow-y:auto}
+.ss-list-tools{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.ss-chips{display:flex;gap:4px;flex-wrap:wrap}
+.ss-chip{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:999px;padding:3px 10px;font:inherit;font-size:11px;font-weight:600;cursor:pointer}
+.ss-chip[aria-pressed=true]{background:var(--surface2);color:var(--text);border-color:var(--accent)}
 .ss-list-item{display:block;width:100%;padding:10px 12px;border-radius:var(--radius);cursor:pointer;margin-bottom:4px;border:1px solid transparent;background:transparent;text-align:left;font:inherit;color:inherit}
 .ss-list-item:hover{background:var(--surface2)}
 .ss-list-item.active{background:var(--surface2);border-color:var(--border)}
@@ -11,10 +21,12 @@
 .ss-list-item .ss-meta{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .ss-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;margin-bottom:14px}
 .ss-card-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.ss-name{font-size:20px;font-weight:700;color:var(--text);margin:0 0 4px}
+.ss-sub{font-size:12px;color:var(--muted)}
 .ss-empty{font-size:13px;color:var(--muted);padding:20px;text-align:center}
 .ss-table{width:100%;border-collapse:collapse;font-size:12px}
 .ss-table th{text-align:left;color:var(--muted);font-weight:700;text-transform:uppercase;font-size:10px;padding:6px 8px;border-bottom:1px solid var(--border)}
-.ss-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+.ss-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
 .ss-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase}
 .ss-badge-draft{background:#e5e7eb;color:#374151}
 .ss-badge-active{background:#dcfce7;color:#166534}
@@ -24,9 +36,57 @@
 .ss-badge-ai{background:#ede9fe;color:#5b21b6}
 .ss-badge-human{background:#dcfce7;color:#166534}
 .ss-badge-ai_edited{background:#ede9fe;color:#5b21b6}
-.ss-link-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
-.ss-link-row:last-child{border-bottom:none}
 .ss-issue{font-size:12px;color:#92400e;background:#fef3c7;padding:6px 10px;border-radius:var(--radius);margin-bottom:4px}
+.ss-live{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:14px}
+.ss-live-text{font-size:13px;font-weight:600;color:var(--text);flex:1;min-width:220px}
+.ss-live-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:2px}
+.ss-steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.ss-step{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.ss-step:hover{color:var(--text)}
+.ss-step[aria-selected=true]{background:var(--surface2);color:var(--text);border-color:var(--accent)}
+.ss-step-n{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--surface3);color:var(--muted)}
+.ss-step.done .ss-step-n{background:var(--good);color:#fff}
+.ss-step-gap{margin-left:auto}
+.ss-help{font-size:12px;color:var(--muted);margin:0 0 12px}
+.ss-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.ss-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ss-tpl{display:flex;flex-direction:column;gap:4px;text-align:left;padding:12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);font:inherit;color:inherit;cursor:pointer}
+.ss-tpl:hover,.ss-tpl[aria-pressed=true]{border-color:var(--accent);background:var(--surface2)}
+.ss-tpl b{font-size:13px;color:var(--text)}
+.ss-tpl span{font-size:11px;color:var(--muted)}
+.ss-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.ss-pick{display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--border);font-size:13px}
+.ss-pick:last-child{border-bottom:none}
+.ss-pick label{flex:1;cursor:pointer;display:flex;flex-direction:column}
+.ss-pick small{color:var(--muted);font-size:11px}
+.ss-shock{padding:12px 0;border-bottom:1px solid var(--border)}
+.ss-shock:last-child{border-bottom:none}
+.ss-shock-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.ss-shock-head b{font-size:13px}
+.ss-range{display:flex;flex-direction:column;gap:2px;min-width:180px;flex:1}
+.ss-range-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.ss-range-row input[type=range]{flex:1}
+.ss-range-val{min-width:70px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text);font-weight:600}
+.ss-bars{display:flex;flex-direction:column;gap:3px;min-width:150px}
+.ss-bar{height:8px;border-radius:4px;background:var(--surface3);position:relative;overflow:hidden}
+.ss-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--muted)}
+.ss-bar.scn i{background:var(--accent)}
+.ss-bar.scn.worse i{background:var(--red)}
+.ss-bar.scn.better i{background:var(--good)}
+.ss-stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ss-stat{flex:1;min-width:110px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+.ss-stat b{display:block;font-size:20px;color:var(--text);font-variant-numeric:tabular-nums}
+.ss-stat span{font-size:11px;color:var(--muted)}
+.ss-ai{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+.ss-ai h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ss-ai ul{margin:0;padding-left:18px;font-size:13px}
+.ss-row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ss-btn-sm{font-size:11px;padding:5px 10px}
+.ss-link-a{color:var(--accent);text-decoration:none;font-weight:600}
+.ss-link-a:hover{text-decoration:underline}
+.ss-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+@media(max-width:700px){.ss-compare{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:no-preference){.ss-bar i{transition:width .25s ease}}
 {% endblock %}
 
 {% block breadcrumb %}
@@ -35,37 +95,13 @@
 <span class="breadcrumb-current">Scenario Studio</span>
 {% endblock %}
 
-{% block module_sidebar %}
-<div class="module-sidebar-header">
-  <div class="module-name">Enterprise Risk</div>
-  <div class="module-desc">Enterprise Risk Management</div>
-</div>
-<div class="sidebar-section">
-  <div class="sidebar-label">Navigation</div>
-  <a href="/erm/" class="nav-item">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-    Dashboard
-  </a>
-  <a href="/erm/register" class="nav-item">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    Risk Register
-  </a>
-  <a href="/erm/scenario-studio" class="nav-item active">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
-    Scenario Studio
-  </a>
-  <a href="/erm/reports" class="nav-item">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-    Reports
-  </a>
-</div>
-{% endblock %}
+{% block module_sidebar %}{% set erm_active = "scenario-studio" %}{% include "_erm_sidebar.html" %}{% endblock %}
 
 {% block content %}
 <div class="section-header">
   <div>
     <div class="section-title">Scenario Studio</div>
-    <div class="section-sub">What-if scenario analysis, risk/control/KRI/objective linkage, and board-pack snapshots</div>
+    <div class="section-sub">Ask "what if?" and see the effect on your risks, appetite and board reporting</div>
   </div>
   {% if can_manage_scenarios %}
   <button class="btn btn-primary" id="ssNewScenarioBtn" type="button">New Scenario</button>
@@ -73,25 +109,80 @@
 </div>
 
 <div class="ss-layout">
-  <div class="ss-list" id="ssScenarioList"><div class="ss-empty">Loading...</div></div>
-  <div id="ssDetailPane"><div class="ss-empty">Select a scenario, or create a new one.</div></div>
+  <div class="ss-list">
+    <div class="ss-list-tools">
+      <input type="text" id="ssListSearch" placeholder="Search scenarios" aria-label="Search scenarios">
+      <div class="ss-chips" role="group" aria-label="Filter by status">
+        <button class="ss-chip" type="button" data-filter="" aria-pressed="true">All</button>
+        <button class="ss-chip" type="button" data-filter="draft" aria-pressed="false">Draft</button>
+        <button class="ss-chip" type="button" data-filter="active" aria-pressed="false">Active</button>
+        <button class="ss-chip" type="button" data-filter="archived" aria-pressed="false">Archived</button>
+      </div>
+    </div>
+    <div id="ssScenarioList"><div class="ss-empty">Loading...</div></div>
+  </div>
+  <div id="ssDetailPane"></div>
 </div>
 
 {% if can_manage_scenarios %}
 <div class="modal-overlay" id="ssNewModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ssNewModalTitle">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ssNewModalTitle" style="max-width:720px;width:92vw">
     <div class="modal-header">
       <div class="modal-title" id="ssNewModalTitle">New Scenario</div>
       <button class="modal-close" id="ssNewModalClose" type="button" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <p class="ss-help">Start from a template, describe it in a sentence, or fill it in yourself. You can change everything afterwards.</p>
+      <div class="ss-card-title">Templates</div>
+      <div class="ss-tpl-grid" id="ssNewTemplates" style="margin-bottom:14px"></div>
+      {% if can_use_ai %}
+      <div class="ss-ai" id="ssNewAiBox">
+        <h4>Or describe it in a sentence</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="ssNewSentence" maxlength="600" style="flex:1;min-width:220px" placeholder="For example: our main payment processor is down for five days" aria-label="Describe the scenario">
+          <button class="btn btn-secondary" id="ssNewDraftBtn" type="button">Draft with AI</button>
+        </div>
+        <div class="ss-sub" style="margin-top:6px">The AI proposes the text and which of your risks, controls and indicators it touches. Nothing is saved until you create the scenario. Do not include names, email addresses or account numbers.</div>
+        <div id="ssNewLinks" style="margin-top:8px"></div>
+      </div>
+      {% endif %}
       <div class="form-group"><label class="form-label" for="ssNewTitle">Title</label><input type="text" id="ssNewTitle" maxlength="200"></div>
-      <div class="form-group"><label class="form-label" for="ssNewHorizon">Horizon</label><input type="text" id="ssNewHorizon" placeholder="e.g. 12 months" maxlength="100"></div>
+      <div class="ss-grid2">
+        <div class="form-group"><label class="form-label" for="ssNewType">Type</label><select id="ssNewType"></select></div>
+        <div class="form-group"><label class="form-label" for="ssNewHorizon">Horizon</label><input type="text" id="ssNewHorizon" placeholder="e.g. 12 months" maxlength="100"></div>
+        <div class="form-group"><label class="form-label" for="ssNewOwner">Owner</label><select id="ssNewOwner"><option value="">Me</option></select></div>
+        <div class="form-group"><label class="form-label" for="ssNewReview">Review date</label><input type="date" id="ssNewReview"></div>
+      </div>
+      <div class="form-group"><label class="form-label" for="ssNewDescription">What happens</label><textarea id="ssNewDescription" rows="2"></textarea></div>
       <div class="form-group"><label class="form-label" for="ssNewAssumptions">Assumptions</label><textarea id="ssNewAssumptions" rows="3"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="ssNewCancelBtn" type="button">Cancel</button>
       <button class="btn btn-primary" id="ssNewSubmitBtn" type="button">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ssActionModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ssActionModalTitle">
+    <div class="modal-header">
+      <div class="modal-title" id="ssActionModalTitle">Create action</div>
+      <button class="modal-close" id="ssActionClose" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="ss-help">Adds a task to the task board. The scenario shows as a related item on the task.</p>
+      <div class="form-group"><label class="form-label" for="ssActionTitle">Task</label><input type="text" id="ssActionTitle" maxlength="200"></div>
+      <div class="form-group"><label class="form-label" for="ssActionDesc">Details</label><textarea id="ssActionDesc" rows="3"></textarea></div>
+      <div class="ss-grid2">
+        <div class="form-group"><label class="form-label" for="ssActionAssignee">Assign to</label><select id="ssActionAssignee"><option value="">Unassigned</option></select></div>
+        <div class="form-group"><label class="form-label" for="ssActionDue">Due date</label><input type="date" id="ssActionDue"></div>
+        <div class="form-group"><label class="form-label" for="ssActionPriority">Priority</label>
+          <select id="ssActionPriority"><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option><option value="low">Low</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="ssActionCancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="ssActionSubmit" type="button">Create task</button>
     </div>
   </div>
 </div>
@@ -102,36 +193,68 @@
 <script>
 (function () {
   'use strict';
-  var STATE = { scenarios: [], selectedId: null, boardPacks: [] };
-  var CAN_MANAGE_SCENARIOS = {{ can_manage_scenarios | tojson }};
+  var CAN_MANAGE = {{ can_manage_scenarios | tojson }};
+  var CAN_AI = {{ can_use_ai | tojson }};
+  var CAN_REHEARSE = {{ can_rehearse | tojson }};
   var CAN_GENERATE_BOARDPACKS = {{ can_generate_boardpacks | tojson }};
   var CAN_PUBLISH_BOARDPACKS = {{ can_publish_boardpacks | tojson }};
+  var STEPS = [['define', 'Define'], ['items', 'Affected items'], ['shocks', 'Shocks'], ['impact', 'Impact'], ['brief', 'Brief']];
+  var LINK_TYPES = [['risk', 'Risks'], ['control', 'Controls'], ['kri', 'Indicators'], ['objective', 'Objectives'], ['external_context', 'External context']];
+  var ICE_CHOICES = [['0', 'No effect'], ['30', 'Weak'], ['50', 'Partly effective'], ['70', 'Mostly effective'], ['90', 'Fully effective']];
+  var STATE = { scenarios: [], selectedId: null, scenario: null, step: 'define', impact: null, filter: '', search: '',
+                templates: [], types: [], users: null, itemType: 'risk', pending: null, boardPacks: [], newLinks: [], origin: null };
 
+  // ── small helpers ──────────────────────────────────────────────────────
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function ea(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  function num(n) { n = Number(n); return Number.isSafeInteger(n) ? n : 0; }
+  function $(id) { return document.getElementById(id); }
   function toast(msg, type) { if (typeof window.showToast === 'function') window.showToast(msg, type); else if (type === 'error') alert(msg); }
-
+  function msg(e) { return (e && (e.detail || e.message)) || 'Something went wrong'; }
   function api(url, opts) {
     opts = opts || {};
     if (!opts.actionId) opts.actionId = 'erm.scenario-studio';
     return ApiClient.request(url, opts);
   }
+  function aiApi(url, body) { return api(url, { method: 'POST', body: body || {}, timeoutMs: 90000, actionId: 'erm.scenario.ai' }); }
+  function badge(cls, text) { return '<span class="ss-badge ss-badge-' + ea(cls) + '">' + esc(text) + '</span>'; }
+  function aiBadge(source) { return source === 'ai' ? badge('ai', 'AI suggested') : source === 'ai_edited' ? badge('ai_edited', 'AI, edited') : ''; }
+  // Writes that are still on their way. Opening another step waits for them, so it never draws stale links.
+  var OPS = Promise.resolve();
+  function track(promise) { OPS = OPS.then(function () { return promise; }, function () { return promise; }).catch(function () {}); return promise; }
+  function debounce(fn, ms) { var t; return function () { var a = arguments, self = this; clearTimeout(t); t = setTimeout(function () { fn.apply(self, a); }, ms); }; }
+  function today() { return new Date().toISOString().slice(0, 10); }
 
-  function badge(cls, text) { return '<span class="ss-badge ss-badge-' + esc(cls) + '">' + esc(text) + '</span>'; }
+  async function loadUsers() {
+    if (STATE.users) return STATE.users;
+    try { STATE.users = (await api('/erm/api/users')) || []; } catch (e) { STATE.users = []; }
+    return STATE.users;
+  }
+  function userOptions(users, selected, blank) {
+    return '<option value="">' + esc(blank) + '</option>' + users.map(function (u) {
+      return '<option value="' + num(u.id) + '"' + (String(selected) === String(u.id) ? ' selected' : '') + '>' + esc(u.full_name || u.username) + '</option>';
+    }).join('');
+  }
 
-  // ── Scenario list ──────────────────────────────────────────────────────
+  // ── list ───────────────────────────────────────────────────────────────
   async function loadScenarios() {
     try { STATE.scenarios = await api('/erm/api/scenarios'); }
-    catch (e) { toast('Failed to load scenarios: ' + e.message, 'error'); STATE.scenarios = []; }
+    catch (e) { toast('Failed to load scenarios: ' + msg(e), 'error'); STATE.scenarios = []; }
     renderScenarioList();
+    if (!STATE.selectedId) renderEmptyState();
   }
 
   function renderScenarioList() {
-    var el = document.getElementById('ssScenarioList');
-    if (!STATE.scenarios.length) { el.innerHTML = '<div class="ss-empty">No scenarios yet.</div>'; return; }
-    el.innerHTML = STATE.scenarios.map(function (s) {
-      return '<button type="button" class="ss-list-item' + (s.id === STATE.selectedId ? ' active' : '') + '" data-id="' + s.id + '">' +
+    var el = $('ssScenarioList');
+    var term = STATE.search.trim().toLowerCase();
+    var rows = STATE.scenarios.filter(function (s) {
+      return (!STATE.filter || s.status === STATE.filter) && (!term || String(s.title).toLowerCase().indexOf(term) >= 0);
+    });
+    if (!rows.length) { el.innerHTML = '<div class="ss-empty">' + (STATE.scenarios.length ? 'No scenarios match.' : 'No scenarios yet.') + '</div>'; return; }
+    el.innerHTML = rows.map(function (s) {
+      return '<button type="button" class="ss-list-item' + (s.id === STATE.selectedId ? ' active' : '') + '" data-id="' + num(s.id) + '">' +
         '<span class="ss-title">' + esc(s.title) + '</span>' +
-        '<span class="ss-meta">' + badge(s.status, s.status) + (s.horizon ? ' &middot; ' + esc(s.horizon) : '') + '</span>' +
+        '<span class="ss-meta">' + badge(s.status, s.status) + (s.scenario_type ? ' &middot; ' + esc(s.scenario_type) : '') + '</span>' +
       '</button>';
     }).join('');
     Array.prototype.forEach.call(el.querySelectorAll('.ss-list-item'), function (row) {
@@ -139,327 +262,705 @@
     });
   }
 
+  function renderEmptyState() {
+    var el = $('ssDetailPane');
+    if (STATE.selectedId) return;
+    var cards = STATE.templates.slice(0, 8).map(function (t) {
+      return '<button type="button" class="ss-tpl" data-tpl="' + ea(t.id) + '"><b>' + esc(t.title) + '</b><span>' + esc(t.type) + ' &middot; ' + esc(t.horizon) + '</span></button>';
+    }).join('');
+    el.innerHTML = '<div class="ss-card">' +
+      '<div class="ss-name">What if...?</div>' +
+      '<p class="ss-help" style="margin-top:6px">A scenario is a what-if question about your risks. You choose what is affected, set what changes, and Scenario Studio shows how scores, risk appetite and expected loss move against today. Nothing you do here changes your live risk register.</p>' +
+      (CAN_MANAGE ? '<div class="ss-card-title">Start from a template</div><div class="ss-tpl-grid">' + cards + '</div>' +
+        '<div class="ss-row-actions" style="margin-top:14px"><button class="btn btn-secondary" type="button" id="ssEmptyBlank">Start blank</button>' +
+        (CAN_AI ? '<button class="btn btn-secondary" type="button" id="ssEmptyAi">Describe it in a sentence</button>' : '') + '</div>'
+       : '<div class="ss-empty">Ask a risk owner to create the first scenario.</div>') +
+    '</div>';
+    Array.prototype.forEach.call(el.querySelectorAll('.ss-tpl'), function (b) { b.onclick = function () { openNew(b.getAttribute('data-tpl')); }; });
+    if ($('ssEmptyBlank')) $('ssEmptyBlank').onclick = function () { openNew(null); };
+    if ($('ssEmptyAi')) $('ssEmptyAi').onclick = function () { openNew(null, true); };
+  }
+
   async function selectScenario(id) {
-    STATE.selectedId = id;
+    STATE.selectedId = id; STATE.impact = null; STATE.pending = null;
     renderScenarioList();
-    await renderDetail();
+    await loadDetail();
+    STATE.step = (STATE.scenario && STATE.scenario.links && STATE.scenario.links.length) ? 'impact' : 'define';
+    renderWorkspace();
+    refreshImpact();
   }
 
-  // ── Detail pane ───────────────────────────────────────────────────────
-  async function renderDetail() {
-    var el = document.getElementById('ssDetailPane');
-    if (!STATE.selectedId) { el.innerHTML = '<div class="ss-empty">Select a scenario, or create a new one.</div>'; return; }
-    el.innerHTML = '<div class="ss-empty">Loading...</div>';
-    var scenario;
-    try { scenario = await api('/erm/api/scenarios/' + STATE.selectedId); }
-    catch (e) { el.innerHTML = '<div class="ss-empty">' + esc(e.message) + '</div>'; return; }
-
-    var html = '';
-    html += '<div class="ss-card">';
-    html += '<div class="ss-card-title">' + esc(scenario.title) + '</div>';
-    html += '<div style="font-size:13px;color:var(--muted);margin-bottom:8px">' + esc(scenario.description || 'No description.') + '</div>';
-    html += '<div style="font-size:12px;margin-bottom:4px"><strong>Assumptions:</strong> ' + esc(scenario.assumptions || 'N/A') + '</div>';
-    html += '<div style="font-size:12px;margin-bottom:10px"><strong>Horizon:</strong> ' + esc(scenario.horizon || 'N/A') + ' &middot; v' + esc(scenario.version) + '</div>';
-    if (CAN_MANAGE_SCENARIOS) {
-      html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-      ['draft', 'active', 'archived'].forEach(function (st) {
-        html += '<button class="btn btn-ghost ss-status-btn" type="button" data-status="' + st + '" style="font-size:11px;padding:5px 10px' + (scenario.status === st ? ';border-color:var(--accent)' : '') + '">' + st + '</button>';
-      });
-      html += '<button class="btn btn-ghost" id="ssDeleteBtn" type="button" style="font-size:11px;padding:5px 10px;color:#b91c1c">Delete</button>';
-      html += '</div>';
-    }
-    html += '</div>';
-
-    html += '<div class="ss-card"><div class="ss-card-title">Linked items</div><div id="ssLinksList">';
-    (scenario.links || []).forEach(function (l) {
-      html += '<div class="ss-link-row"><span style="text-transform:uppercase;font-weight:700;color:var(--muted);min-width:90px">' + esc(l.link_type) + '</span>' +
-        '<span style="flex:1">' + esc(l.label || ('#' + l.link_id)) + (l.exists ? '' : ' <em>(missing)</em>') + '</span>' +
-        '<code style="font-size:11px;color:var(--muted)">' + esc(JSON.stringify(l.delta || {})) + '</code>' +
-        (CAN_MANAGE_SCENARIOS ? '<button class="btn btn-ghost ss-unlink-btn" type="button" data-type="' + esc(l.link_type) + '" data-id="' + l.link_id + '" style="font-size:11px;padding:3px 8px">Remove</button>' : '') +
-      '</div>';
-    });
-    if (!scenario.links || !scenario.links.length) html += '<div class="ss-empty">No linked items yet.</div>';
-    html += '</div>';
-    if (CAN_MANAGE_SCENARIOS) {
-      html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:flex-end">' +
-        '<div class="form-group" style="margin:0"><label class="form-label" for="ssLinkType">Type</label>' +
-          '<select id="ssLinkType"><option value="risk">Risk</option><option value="control">Control</option><option value="kri">KRI</option><option value="objective">Objective</option><option value="external_context">External Context</option></select></div>' +
-        '<div class="form-group" style="margin:0;flex:1;min-width:180px" id="ssLinkPickerWrap"><label class="form-label" for="ssLinkSearch">Find item</label><input id="ssLinkSearch" type="search" placeholder="Search by name" style="width:100%"><select id="ssLinkPicker" style="width:100%;margin-top:4px"><option value="">Choose an item</option></select></div>' +
-        '<div class="form-group" style="margin:0" id="ssLinkIdWrap"><label class="form-label" for="ssLinkId">Item ID</label><input type="number" min="1" id="ssLinkId" style="width:90px"></div>' +
-        '<div class="form-group" style="margin:0" id="ssRiskOverrideWrap"><label class="form-label" for="ssLikelihoodOverride">Scenario likelihood</label><select id="ssLikelihoodOverride"><option value="">Keep baseline</option><option value="1">1 - Rare</option><option value="2">2 - Unlikely</option><option value="3">3 - Possible</option><option value="4">4 - Likely</option><option value="5">5 - Almost certain</option></select><label class="form-label" for="ssImpactOverride">Scenario impact</label><select id="ssImpactOverride"><option value="">Keep baseline</option><option value="1">1 - Low</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5 - Severe</option></select></div>' +
-        '<details style="flex:1;min-width:180px"><summary style="cursor:pointer;font-size:12px">Advanced changes (JSON)</summary><div class="form-group" style="margin:4px 0"><label class="form-label" for="ssLinkDelta">Delta JSON</label><input type="text" id="ssLinkDelta" placeholder="{&quot;residual_likelihood_override&quot;: 4}" style="width:100%"></div></details>' +
-        '<button class="btn btn-primary" id="ssAddLinkBtn" type="button" style="font-size:12px;padding:7px 14px">Add Link</button>' +
-      '</div>';
-    }
-    html += '</div>';
-
-    html += '<div class="ss-card"><div class="ss-card-title">Baseline vs. Scenario Impact</div>';
-    html += '<button class="btn btn-ghost" id="ssComputeBtn" type="button" style="font-size:12px;padding:6px 14px;margin-bottom:10px">Compute Impact</button>';
-    html += '<div id="ssImpactResult"></div></div>';
-
-    html += '<div class="ss-card"><div class="ss-card-title">Board Packs</div>';
-    if (CAN_GENERATE_BOARDPACKS) {
-      html += '<button class="btn btn-ghost" id="ssGeneratePackBtn" type="button" style="font-size:12px;padding:6px 14px;margin-bottom:10px">Generate Board Pack</button>';
-    }
-    html += '<div id="ssBoardPacks"></div></div>';
-
-    el.innerHTML = html;
-
-    Array.prototype.forEach.call(el.querySelectorAll('.ss-status-btn'), function (btn) {
-      btn.onclick = function () { updateStatus(scenario.id, btn.getAttribute('data-status')); };
-    });
-    var deleteBtn = document.getElementById('ssDeleteBtn');
-    if (deleteBtn) deleteBtn.onclick = function () { deleteScenario(scenario.id); };
-    var addLinkBtn = document.getElementById('ssAddLinkBtn');
-    if (addLinkBtn) {
-      addLinkBtn.onclick = function () { addLink(scenario.id); };
-      document.getElementById('ssLinkType').onchange = loadLinkCandidates;
-      document.getElementById('ssLinkSearch').oninput = filterLinkCandidates;
-      document.getElementById('ssLinkPicker').onchange = function () {
-        document.getElementById('ssLinkId').value = this.value;
-      };
-      loadLinkCandidates();
-    }
-    Array.prototype.forEach.call(el.querySelectorAll('.ss-unlink-btn'), function (btn) {
-      btn.onclick = function () { removeLink(scenario.id, btn.getAttribute('data-type'), btn.getAttribute('data-id')); };
-    });
-    document.getElementById('ssComputeBtn').onclick = function () { computeImpact(scenario.id); };
-    var generatePackBtn = document.getElementById('ssGeneratePackBtn');
-    if (generatePackBtn) generatePackBtn.onclick = function () { generatePack(scenario.id); };
-
-    loadBoardPacks(scenario.id);
-  }
-  async function updateStatus(id, status) {
-    try { await api('/erm/api/scenarios/' + id, { method: 'PUT', body: { status: status } }); await loadScenarios(); await renderDetail(); }
-    catch (e) { toast(e.message, 'error'); }
+  async function loadDetail() {
+    try { STATE.scenario = await api('/erm/api/scenarios/' + STATE.selectedId); }
+    catch (e) { STATE.scenario = null; $('ssDetailPane').innerHTML = '<div class="ss-empty">' + esc(msg(e)) + '</div>'; }
   }
 
-  async function deleteScenario(id) {
+  // ── workspace frame: live headline + stepper ───────────────────────────
+  function stepDone(key) {
+    var s = STATE.scenario; if (!s) return false;
+    var links = s.links || [];
+    if (key === 'define') return !!(s.assumptions && s.description);
+    if (key === 'items') return links.length > 0;
+    if (key === 'shocks') return links.some(function (l) { var d = l.delta || {}; return Object.keys(d).some(function (k) { return k !== 'source' && k !== 'reason' && d[k] != null; }); });
+    if (key === 'impact') return !!(STATE.impact && STATE.impact.per_risk && STATE.impact.per_risk.length);
+    if (key === 'brief') return STATE.boardPacks.length > 0;
+    return false;
+  }
+
+  function renderWorkspace() {
+    var s = STATE.scenario; if (!s) return;
+    var el = $('ssDetailPane');
+    var steps = STEPS.map(function (st, i) {
+      return '<button type="button" role="tab" class="ss-step' + (stepDone(st[0]) ? ' done' : '') + '" data-step="' + st[0] + '" aria-selected="' + (STATE.step === st[0]) + '"><span class="ss-step-n">' + (i + 1) + '</span>' + esc(st[1]) + '</button>';
+    }).join('') + '<button type="button" role="tab" class="ss-step ss-step-gap" data-step="compare" aria-selected="' + (STATE.step === 'compare') + '">Compare</button>';
+    el.innerHTML =
+      '<div class="ss-card" style="padding-bottom:12px"><div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:flex-start">' +
+        '<div><h2 class="ss-name">' + esc(s.title) + '</h2><div class="ss-sub">' + badge(s.status, s.status) + ' ' + (s.scenario_type ? esc(s.scenario_type) + ' &middot; ' : '') + (s.horizon ? esc(s.horizon) + ' &middot; ' : '') + 'version ' + esc(s.version) + '</div></div>' +
+      '</div></div>' +
+      '<div class="ss-live" id="ssLive" aria-live="polite"><div class="ss-live-text"><span class="ss-live-label">Right now</span><span id="ssLiveText">Calculating...</span></div></div>' +
+      '<div class="ss-steps" role="tablist" aria-label="Scenario steps">' + steps + '</div>' +
+      '<div id="ssStepBody"></div>';
+    Array.prototype.forEach.call(el.querySelectorAll('.ss-step'), function (b) { b.onclick = function () { goStep(b.getAttribute('data-step')); }; });
+    renderLive();
+    renderStep();
+  }
+  async function goStep(step) {
+    STATE.step = step;
+    await OPS;
+    Array.prototype.forEach.call(document.querySelectorAll('.ss-step'), function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-step') === step)); });
+    renderStep();
+  }
+
+  function renderLive() {
+    var t = $('ssLiveText'); if (!t) return;
+    t.textContent = STATE.impact && STATE.impact.headline ? STATE.impact.headline.sentence : 'Add affected items to see what this scenario does.';
+  }
+
+  var refreshImpact = debounce(async function () {
+    if (!STATE.selectedId) return;
+    var id = STATE.selectedId;
+    try { var impact = await api('/erm/api/scenarios/' + id + '/impact'); if (id !== STATE.selectedId) return; STATE.impact = impact; }
+    catch (e) { STATE.impact = null; var t = $('ssLiveText'); if (t) t.textContent = 'The effect could not be calculated: ' + msg(e); return; }
+    renderLive();
+    refreshStepMarks();
+    if (STATE.step === 'impact' && !STATE.busy) renderStep();
+    if (STATE.step === 'shocks' && !STATE.busy) { /* sliders keep their own state; only the baseline labels need data */ }
+  }, 350);
+
+  function refreshStepMarks() {
+    Array.prototype.forEach.call(document.querySelectorAll('.ss-step[data-step]'), function (b) {
+      var k = b.getAttribute('data-step'); if (k !== 'compare') b.classList.toggle('done', stepDone(k));
+    });
+  }
+
+  async function reloadScenario(keepStep) {
+    await loadDetail();
+    await loadScenarios();
+    refreshStepMarks();
+    refreshImpact();
+    if (!keepStep) renderStep();
+  }
+
+  function renderStep() {
+    var body = $('ssStepBody'); if (!body || !STATE.scenario) return;
+    var fn = { define: stepDefine, items: stepItems, shocks: stepShocks, impact: stepImpact, brief: stepBrief, compare: stepCompare }[STATE.step] || stepDefine;
+    fn(body);
+  }
+
+  // ── step 1: define ─────────────────────────────────────────────────────
+  async function stepDefine(body) {
+    var s = STATE.scenario, users = await loadUsers();
+    var ro = CAN_MANAGE ? '' : ' disabled';
+    var statusBtns = CAN_MANAGE ? ['draft', 'active', 'archived'].map(function (st) {
+      return '<button class="btn btn-ghost ss-status-btn ss-btn-sm" type="button" data-status="' + st + '"' + (s.status === st ? ' style="border-color:var(--accent)"' : '') + '>' + st + '</button>';
+    }).join('') : '';
+    body.innerHTML =
+      '<div class="ss-card"><div class="ss-card-title">About this scenario</div>' +
+        '<p class="ss-help">Say what happens and what you are assuming. This is what the board will read, so keep it specific.</p>' +
+        '<div class="form-group"><label class="form-label" for="ssTitle">Title</label><input type="text" id="ssTitle" maxlength="200" value="' + ea(s.title) + '"' + ro + '></div>' +
+        '<div class="ss-grid2">' +
+          '<div class="form-group"><label class="form-label" for="ssType">Type</label><select id="ssType"' + ro + '>' + typeOptions(s.scenario_type) + '</select></div>' +
+          '<div class="form-group"><label class="form-label" for="ssHorizon">Horizon</label><input type="text" id="ssHorizon" maxlength="100" value="' + ea(s.horizon) + '"' + ro + '></div>' +
+          '<div class="form-group"><label class="form-label" for="ssOwner">Owner</label><select id="ssOwner"' + ro + '>' + userOptions(users, s.owner_id, 'No owner') + '</select></div>' +
+          '<div class="form-group"><label class="form-label" for="ssReview">Next review</label><input type="date" id="ssReview" value="' + ea(s.review_date || '') + '"' + ro + '></div>' +
+        '</div>' +
+        '<div class="form-group"><label class="form-label" for="ssDescription">What happens</label><textarea id="ssDescription" rows="3"' + ro + '>' + esc(s.description || '') + '</textarea></div>' +
+        '<div class="form-group"><label class="form-label" for="ssAssumptions">Assumptions</label><textarea id="ssAssumptions" rows="4"' + ro + '>' + esc(s.assumptions || '') + '</textarea></div>' +
+        (CAN_MANAGE ? '<div class="ss-row-actions"><button class="btn btn-primary" id="ssSaveBtn" type="button">Save</button>' +
+          (CAN_AI ? '<button class="btn btn-secondary" id="ssChallengeBtn" type="button">Challenge my assumptions</button>' : '') +
+          '<span style="flex:1"></span><span class="ss-sub">Status</span>' + statusBtns +
+          '<button class="btn btn-ghost ss-btn-sm" id="ssDeleteBtn" type="button" style="color:var(--red)">Delete</button></div>' : '') +
+        '<div id="ssChallengeOut"></div>' +
+      '</div>' +
+      '<div class="ss-card"><div class="ss-card-title">Evidence</div><div id="ssEvidence" class="ss-sub">Loading...</div></div>' +
+      '<div class="ss-card"><div id="ssRelated"></div></div>';
+    if (CAN_MANAGE) {
+      $('ssSaveBtn').onclick = saveDefine;
+      Array.prototype.forEach.call(body.querySelectorAll('.ss-status-btn'), function (b) { b.onclick = function () { setStatus(b.getAttribute('data-status')); }; });
+      $('ssDeleteBtn').onclick = deleteScenario;
+      if ($('ssChallengeBtn')) $('ssChallengeBtn').onclick = runChallenge;
+    }
+    if (typeof RelatedItems !== 'undefined') RelatedItems.mount($('ssRelated'), 'erm', 'scenario', s.id, { canEdit: CAN_MANAGE });
+    loadEvidence(s.id);
+  }
+
+  function typeOptions(selected) {
+    var list = STATE.types.slice();
+    if (selected && list.indexOf(selected) < 0) list.push(selected);
+    return '<option value="">Not set</option>' + list.map(function (t) { return '<option' + (t === selected ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('');
+  }
+
+  async function saveDefine() {
+    var s = STATE.scenario;
+    var body = { title: $('ssTitle').value.trim(), scenario_type: $('ssType').value, horizon: $('ssHorizon').value.trim(), owner_id: $('ssOwner').value || null,
+                 review_date: $('ssReview').value || null, description: $('ssDescription').value.trim(), assumptions: $('ssAssumptions').value.trim() };
+    if (!body.title) { toast('Title is required', 'error'); return; }
+    try { await api('/erm/api/scenarios/' + s.id, { method: 'PUT', body: body }); toast('Saved', 'success'); await reloadScenario(false); renderWorkspace(); }
+    catch (e) { toast(msg(e), 'error'); }
+  }
+  async function setStatus(status) {
+    try { await api('/erm/api/scenarios/' + STATE.scenario.id, { method: 'PUT', body: { status: status } }); await reloadScenario(false); renderWorkspace(); }
+    catch (e) { toast(msg(e), 'error'); }
+  }
+  async function deleteScenario() {
     if (!confirm('Delete this scenario? This cannot be undone.')) return;
     try {
-      await api('/erm/api/scenarios/' + id, { method: 'DELETE' });
-      STATE.selectedId = null;
-      await loadScenarios();
-      document.getElementById('ssDetailPane').innerHTML = '<div class="ss-empty">Select a scenario, or create a new one.</div>';
-    } catch (e) { toast(e.message, 'error'); }
+      await api('/erm/api/scenarios/' + STATE.scenario.id, { method: 'DELETE' });
+      STATE.selectedId = null; STATE.scenario = null; STATE.impact = null;
+      await loadScenarios(); renderEmptyState();
+    } catch (e) { toast(msg(e), 'error'); }
   }
-
-  var linkCandidates = [];
-  async function loadLinkCandidates() {
-    var type = document.getElementById('ssLinkType').value;
-    var routes = { risk: '/erm/api/risks' };
-    var pickerWrap = document.getElementById('ssLinkPickerWrap');
-    var idWrap = document.getElementById('ssLinkIdWrap');
-    pickerWrap.style.display = routes[type] ? '' : 'none';
-    document.getElementById('ssRiskOverrideWrap').style.display = type === 'risk' ? '' : 'none';
-    idWrap.style.display = routes[type] ? 'none' : '';
-    document.getElementById('ssLinkId').value = '';
-    document.getElementById('ssLinkSearch').value = '';
-    if (!routes[type]) { linkCandidates = []; return; }
-    var picker = document.getElementById('ssLinkPicker');
-    picker.innerHTML = '<option value="">Loading...</option>';
+  async function runChallenge() {
+    var out = $('ssChallengeOut'); out.innerHTML = '<div class="ss-empty">Thinking...</div>';
     try {
-      var rows = await api(routes[type]);
-      // The detail pane may have been replaced while the request was in flight.
-      if (!document.getElementById('ssLinkPicker') || document.getElementById('ssLinkType').value !== type) return;
-      linkCandidates = (Array.isArray(rows) ? rows : rows.items || []).map(function (row) {
-        return { id: row.id, label: row.title || row.name || ('#' + row.id) };
-      });
-      filterLinkCandidates();
-    } catch (e) {
-      picker.innerHTML = '<option value="">Could not load items; enter an ID</option>';
-      idWrap.style.display = '';
-    }
+      var r = await aiApi('/erm/api/scenarios/' + STATE.scenario.id + '/ai/challenge');
+      out.innerHTML = '<div class="ss-ai"><h4>Questions to consider ' + aiBadge('ai') + '</h4><ul>' +
+        r.questions.map(function (q) { return '<li>' + esc(q.text) + '</li>'; }).join('') + '</ul></div>';
+      if (!r.questions.length) out.innerHTML = '<div class="ss-empty">No questions came back.</div>';
+    } catch (e) { out.innerHTML = '<div class="ss-issue">' + esc(msg(e)) + '</div>'; }
   }
-  function filterLinkCandidates() {
-    var picker = document.getElementById('ssLinkPicker');
-    if (!picker) return;
-    var term = document.getElementById('ssLinkSearch').value.trim().toLowerCase();
-    var rows = linkCandidates.filter(function (row) { return String(row.label).toLowerCase().indexOf(term) >= 0; });
-    picker.innerHTML = '<option value="">'+(rows.length?'Choose an item':'No matches')+'</option>' +
-      rows.slice(0, 100).map(function (row) { return '<option value="' + Number(row.id) + '">' + esc(row.label) + '</option>'; }).join('');
-  }
-
-  async function addLink(scenarioId) {
-    var type = document.getElementById('ssLinkType').value;
-    var id = parseInt(document.getElementById('ssLinkId').value || (document.getElementById('ssLinkPicker') && document.getElementById('ssLinkPicker').value), 10);
-    var deltaRaw = document.getElementById('ssLinkDelta').value.trim();
-    var delta = {};
-    if (deltaRaw) {
-      try { delta = JSON.parse(deltaRaw); } catch (e) { toast('Delta must be valid JSON', 'error'); return; }
-    }
-    if (type === 'risk') {
-      var likelihood = document.getElementById('ssLikelihoodOverride').value;
-      var impact = document.getElementById('ssImpactOverride').value;
-      if (likelihood) delta.likelihood_override = Number(likelihood);
-      if (impact) delta.impact_override = Number(impact);
-    }
-    if (!id) { toast('Choose an item or enter a valid ID', 'error'); return; }
+  async function loadEvidence(id) {
+    var el = $('ssEvidence'); if (!el) return;
+    var attach = '<a class="ss-link-a" href="/evidence/?attach=erm:scenario:' + num(id) + '">Attach evidence in the Vault</a>';
     try {
-      await api('/erm/api/scenarios/' + scenarioId + '/links', { method: 'POST', body: { link_type: type, link_id: id, delta: delta } });
-      toast('Link added', 'success');
-      await renderDetail();
-    } catch (e) { toast(e.message, 'error'); }
+      var rows = await api('/evidence/api/linked?module=erm&entity_type=scenario&entity_id=' + num(id));
+      el.innerHTML = (rows.length ? '<ul style="margin:0 0 8px;padding-left:18px">' + rows.map(function (r) {
+        return '<li><a class="ss-link-a" href="/evidence/?open=item:' + num(r.id) + '">' + esc(r.title) + '</a></li>'; }).join('') + '</ul>'
+        : '<div style="margin-bottom:8px">No evidence attached. Loss data, incident reports or supplier terms that support the assumptions belong here.</div>') + (CAN_MANAGE ? attach : '');
+    } catch (e) { el.textContent = 'Evidence could not be loaded just now.'; }
   }
 
-  async function removeLink(scenarioId, type, id) {
-    try { await api('/erm/api/scenarios/' + scenarioId + '/links/' + type + '/' + id, { method: 'DELETE' }); await renderDetail(); }
-    catch (e) { toast(e.message, 'error'); }
+  // ── step 2: affected items ─────────────────────────────────────────────
+  function linkedSet(type) {
+    var m = {}; (STATE.scenario.links || []).forEach(function (l) { if (l.link_type === type) m[l.link_id] = true; }); return m;
+  }
+  function templateIdFor(type) { var t = STATE.templates.filter(function (x) { return x.type === type; })[0]; return t ? t.id : ''; }
+
+  async function stepItems(body) {
+    var tabs = LINK_TYPES.map(function (t) {
+      var n = (STATE.scenario.links || []).filter(function (l) { return l.link_type === t[0]; }).length;
+      return '<button type="button" class="ss-chip" data-type="' + t[0] + '" aria-pressed="' + (STATE.itemType === t[0]) + '">' + esc(t[1]) + (n ? ' (' + n + ')' : '') + '</button>';
+    }).join('');
+    body.innerHTML = '<div class="ss-card"><div class="ss-card-title">What is affected?</div>' +
+      '<p class="ss-help">Tick the risks, controls, indicators, objectives and outside events this scenario touches. Suggested ones match the scenario type. You only see records in your own business units.</p>' +
+      '<div class="ss-tabs" role="group" aria-label="Record type">' + tabs + '</div>' +
+      '<div class="ss-row-actions" style="margin-bottom:8px"><input type="text" id="ssItemSearch" placeholder="Search by name" aria-label="Search records" style="flex:1;min-width:180px">' +
+        (CAN_AI && CAN_MANAGE ? '<button class="btn btn-secondary ss-btn-sm" id="ssGapsBtn" type="button">What am I missing? (AI)</button>' : '') + '</div>' +
+      '<div id="ssGapsOut"></div><div id="ssItemList"><div class="ss-empty">Loading...</div></div></div>';
+    Array.prototype.forEach.call(body.querySelectorAll('[data-type]'), function (b) { b.onclick = function () { STATE.itemType = b.getAttribute('data-type'); stepItems(body); }; });
+    $('ssItemSearch').oninput = debounce(loadItemList, 250);
+    if ($('ssGapsBtn')) $('ssGapsBtn').onclick = runGaps;
+    loadItemList();
   }
 
-  async function computeImpact(scenarioId) {
-    var el = document.getElementById('ssImpactResult');
-    el.innerHTML = '<div class="ss-empty">Computing...</div>';
-    try { renderImpact(el, await api('/erm/api/scenarios/' + scenarioId + '/impact')); }
-    catch (e) { el.innerHTML = '<div class="ss-empty">' + esc(e.message) + '</div>'; }
-  }
-
-  function renderImpact(el, impact) {
-    var html = '';
-    html += '<table class="ss-table"><thead><tr><th></th><th>Baseline</th><th>Scenario</th></tr></thead><tbody>';
-    var labels = { avg_irr: 'Avg Inherent', avg_rrr: 'Avg Residual', emv_i_total: 'EMV Inherent', emv_r_total: 'EMV Residual' };
-    ['avg_irr', 'avg_rrr', 'emv_i_total', 'emv_r_total'].forEach(function (key) {
-      var b = impact.baseline_totals[key], s = impact.scenario_totals[key];
-      html += '<tr><td>' + labels[key] + '</td><td>' + (b === null || b === undefined ? 'N/A' : b) + '</td><td>' + (s === null || s === undefined ? 'N/A' : s) + '</td></tr>';
+  async function loadItemList() {
+    var list = $('ssItemList'); if (!list) return;
+    var type = STATE.itemType, q = $('ssItemSearch') ? $('ssItemSearch').value.trim() : '';
+    var rows;
+    try { rows = await api('/erm/api/scenarios/candidates?type=' + encodeURIComponent(type) + '&q=' + encodeURIComponent(q) + '&template=' + encodeURIComponent(templateIdFor(STATE.scenario.scenario_type))); }
+    catch (e) { list.innerHTML = '<div class="ss-issue">' + esc(msg(e)) + '</div>'; return; }
+    if (type !== STATE.itemType || !$('ssItemList')) return;
+    var on = linkedSet(type);
+    if (!rows.length) { list.innerHTML = '<div class="ss-empty">' + (q ? 'No matches.' : 'Nothing of this type in your business units yet.') + '</div>'; return; }
+    list.innerHTML = rows.map(function (r) {
+      var id = num(r.id);
+      var meta = type === 'risk' ? esc(r.category || 'No category') + ' &middot; likelihood ' + num(r.likelihood) + ', impact ' + num(r.impact) : '';
+      return '<div class="ss-pick"><input type="checkbox" id="ssPick' + id + '" data-id="' + id + '"' + (on[id] ? ' checked' : '') + (CAN_MANAGE ? '' : ' disabled') + '>' +
+        '<label for="ssPick' + id + '"><span>' + esc(r.label) + (r.suggested ? ' ' + badge('draft', 'Suggested') : '') + '</span>' + (meta ? '<small>' + meta + '</small>' : '') + '</label></div>';
+    }).join('');
+    Array.prototype.forEach.call(list.querySelectorAll('input[type=checkbox]'), function (cb) {
+      cb.onchange = function () { track(toggleLink(type, parseInt(cb.getAttribute('data-id'), 10), cb)); };
     });
-    html += '</tbody></table>';
-
-    if (impact.per_risk.length) {
-      html += '<table class="ss-table" style="margin-top:10px"><thead><tr><th>Risk</th><th>Baseline IRR/RRR</th><th>Scenario IRR/RRR</th><th>Band</th></tr></thead><tbody>';
-      impact.per_risk.forEach(function (r) {
-        html += '<tr><td>' + esc(r.title) + '</td>' +
-          '<td>' + r.baseline.irr + ' / ' + (r.baseline.rrr == null ? 'N/A' : r.baseline.rrr) + '</td>' +
-          '<td>' + r.scenario.irr + ' / ' + (r.scenario.rrr == null ? 'N/A' : r.scenario.rrr) + '</td>' +
-          '<td>' + esc(r.baseline.band) + ' &rarr; ' + esc(r.scenario.band) + '</td></tr>';
-      });
-      html += '</tbody></table>';
-    }
-
-    if (impact.appetite_impact.length) {
-      html += '<table class="ss-table" style="margin-top:10px"><thead><tr><th>Category</th><th>Max Score</th><th>Baseline</th><th>Scenario</th></tr></thead><tbody>';
-      impact.appetite_impact.forEach(function (a) {
-        html += '<tr><td>' + esc(a.category) + '</td><td>' + a.max_score + '</td>' +
-          '<td>' + a.baseline_max_exposure + (a.baseline_breached ? ' ' + badge('stale', 'Breach') : '') + '</td>' +
-          '<td>' + a.scenario_max_exposure + (a.scenario_breached ? ' ' + badge('stale', 'Breach') : '') + '</td></tr>';
-      });
-      html += '</tbody></table>';
-    }
-
-    if (impact.kris.length) {
-      html += '<div style="margin-top:10px;font-size:12px"><strong>KRIs:</strong> ' + impact.kris.map(function (k) {
-        return esc(k.name) + ': ' + (k.missing ? '<em>missing</em>' : k.latest_value);
-      }).join(', ') + '</div>';
-    }
-
-    if (impact.data_quality_issues.length) {
-      html += '<div style="margin-top:10px">' + impact.data_quality_issues.map(function (i) {
-        return '<div class="ss-issue">' + esc(i.link_type) + ' #' + i.link_id + ': ' + esc(i.issue) + '</div>';
-      }).join('') + '</div>';
-    }
-
-    el.innerHTML = html;
   }
 
-  // ── Board packs ──────────────────────────────────────────────────────
-  async function loadBoardPacks(scenarioId) {
-    var el = document.getElementById('ssBoardPacks');
-    try { STATE.boardPacks = await api('/erm/api/board-packs?scenario_id=' + scenarioId); }
-    catch (e) { el.innerHTML = '<div class="ss-empty">' + esc(e.message) + '</div>'; return; }
-    renderBoardPacks(scenarioId);
+  async function toggleLink(type, id, cb) {
+    cb.disabled = true;
+    try {
+      if (cb.checked) await api('/erm/api/scenarios/' + STATE.scenario.id + '/links', { method: 'POST', body: { link_type: type, link_id: id, delta: {} } });
+      else await api('/erm/api/scenarios/' + STATE.scenario.id + '/links/' + type + '/' + id, { method: 'DELETE' });
+      await loadDetail(); refreshStepMarks(); refreshImpact();
+      Array.prototype.forEach.call(document.querySelectorAll('[data-type]'), function (b) {
+        var t = b.getAttribute('data-type'), n = (STATE.scenario.links || []).filter(function (l) { return l.link_type === t; }).length;
+        var label = LINK_TYPES.filter(function (x) { return x[0] === t; })[0][1]; b.textContent = label + (n ? ' (' + n + ')' : '');
+      });
+    } catch (e) { cb.checked = !cb.checked; toast(msg(e), 'error'); }
+    cb.disabled = false;
   }
 
-  function renderBoardPacks(scenarioId) {
-    var el = document.getElementById('ssBoardPacks');
+  async function runGaps() {
+    var out = $('ssGapsOut'); out.innerHTML = '<div class="ss-empty">Looking...</div>';
+    try {
+      var r = await aiApi('/erm/api/scenarios/' + STATE.scenario.id + '/ai/gaps');
+      if (!r.suggestions.length) { out.innerHTML = '<div class="ss-ai">Nothing obvious is missing.</div>'; return; }
+      out.innerHTML = '<div class="ss-ai"><h4>Possibly missing ' + aiBadge('ai') + '</h4>' + r.suggestions.map(function (g, i) {
+        return '<div class="ss-pick"><label><span>' + esc(g.label) + ' <small>(' + esc(g.link_type.replace('_', ' ')) + ')</small></span><small>' + esc(g.reason) + '</small></label>' +
+          '<button class="btn btn-secondary ss-btn-sm ss-gap-add" type="button" data-i="' + i + '">Add</button></div>'; }).join('') + '</div>';
+      Array.prototype.forEach.call(out.querySelectorAll('.ss-gap-add'), function (b) {
+        b.onclick = async function () {
+          var g = r.suggestions[parseInt(b.getAttribute('data-i'), 10)]; b.disabled = true;
+          try { await api('/erm/api/scenarios/' + STATE.scenario.id + '/links', { method: 'POST', body: { link_type: g.link_type, link_id: g.link_id, delta: {} } });
+                b.textContent = 'Added'; await loadDetail(); refreshStepMarks(); refreshImpact(); loadItemList(); }
+          catch (e) { b.disabled = false; toast(msg(e), 'error'); }
+        };
+      });
+    } catch (e) { out.innerHTML = '<div class="ss-issue">' + esc(msg(e)) + '</div>'; }
+  }
+
+  // ── step 3: shocks ─────────────────────────────────────────────────────
+  var LIKE = ['', 'Rare', 'Unlikely', 'Possible', 'Likely', 'Almost certain'];
+  var IMPA = ['', 'Low', 'Minor', 'Moderate', 'Major', 'Severe'];
+
+  async function stepShocks(body) {
+    if (!STATE.impact) { body.innerHTML = '<div class="ss-empty">Calculating...</div>'; await refreshNow(); }
+    var links = STATE.scenario.links || [];
+    var shockable = links.filter(function (l) { return l.link_type === 'risk' || l.link_type === 'control' || l.link_type === 'kri'; });
+    var cats = {}; ((STATE.impact && STATE.impact.per_risk) || []).forEach(function (r) { if (r.category) cats[r.category] = true; });
+    body.innerHTML = '<div class="ss-card"><div class="ss-card-title">What changes?</div>' +
+      '<p class="ss-help">For each risk, set how likely and how severe it would be if this scenario happened. For a control, say how well it would work. Leave an item alone to keep today\'s value. The headline above updates as you go.</p>' +
+      '<div class="ss-row-actions" style="margin-bottom:10px">' +
+        (Object.keys(cats).length && CAN_MANAGE ? '<select id="ssCatSel" aria-label="Category">' + Object.keys(cats).sort().map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select>' +
+          '<button class="btn btn-secondary ss-btn-sm" id="ssWorsenBtn" type="button">Worsen this category by one level</button>' : '') +
+        (CAN_AI && CAN_MANAGE ? '<button class="btn btn-secondary ss-btn-sm" id="ssShocksAiBtn" type="button">Suggest changes (AI)</button>' : '') +
+      '</div><div id="ssShocksAiOut"></div>' +
+      '<div id="ssPastEvents" class="ss-sub" style="margin-bottom:10px"></div>' +
+      '<div id="ssShockList">' + (shockable.length ? shockable.map(shockRow).join('') : '<div class="ss-empty">Pick affected items first (step 2).</div>') + '</div></div>';
+    wireShocks(body);
+    if ($('ssWorsenBtn')) $('ssWorsenBtn').onclick = worsenCategory;
+    if ($('ssShocksAiBtn')) $('ssShocksAiBtn').onclick = runShocksAi;
+    loadPastEvents();
+  }
+
+  function baselineOf(link) {
+    var r = ((STATE.impact && STATE.impact.per_risk) || []).filter(function (x) { return x.risk_id === link.link_id; })[0];
+    return r ? r.baseline : { likelihood: 3, impact: 3 };
+  }
+
+  function shockRow(l) {
+    var d = l.delta || {}, id = num(l.link_id), t = esc(l.label || ('#' + id)), src = aiBadge(d.source);
+    var dis = CAN_MANAGE ? '' : ' disabled';
+    var reason = d.reason ? '<div class="ss-sub" style="margin-top:2px">' + esc(d.reason) + '</div>' : '';
+    if (l.link_type === 'risk') {
+      var b = baselineOf(l), L = d.likelihood_override != null ? d.likelihood_override : b.likelihood, I = d.impact_override != null ? d.impact_override : b.impact;
+      return '<div class="ss-shock" data-type="risk" data-id="' + id + '"><div class="ss-shock-head"><b>' + t + '</b>' + badge('draft', 'Risk') + ' ' + src + '</div>' +
+        '<div class="ss-grid2">' +
+          '<div class="ss-range"><label class="ss-range-row" for="ssL' + id + '"><span>Likelihood</span><input type="range" min="1" max="5" step="1" id="ssL' + id + '" data-key="likelihood_override" data-base="' + num(b.likelihood) + '" value="' + num(L) + '"' + dis + '><span class="ss-range-val">' + esc(LIKE[num(L)]) + '</span></label><span class="ss-sub">Today: ' + esc(LIKE[num(b.likelihood)]) + '</span></div>' +
+          '<div class="ss-range"><label class="ss-range-row" for="ssI' + id + '"><span>Impact</span><input type="range" min="1" max="5" step="1" id="ssI' + id + '" data-key="impact_override" data-base="' + num(b.impact) + '" value="' + num(I) + '"' + dis + '><span class="ss-range-val">' + esc(IMPA[num(I)]) + '</span></label><span class="ss-sub">Today: ' + esc(IMPA[num(b.impact)]) + '</span></div>' +
+        '</div>' + reason + advancedBox(l, dis) + '</div>';
+    }
+    if (l.link_type === 'control') {
+      var cur = d.ice_score_override != null ? String(d.ice_score_override) : '';
+      return '<div class="ss-shock" data-type="control" data-id="' + id + '"><div class="ss-shock-head"><b>' + t + '</b>' + badge('draft', 'Control') + ' ' + src + '</div>' +
+        '<div class="form-group" style="margin:0;max-width:260px"><label class="form-label" for="ssC' + id + '">How well does it work in this scenario?</label><select id="ssC' + id + '" data-key="ice_score_override"' + dis + '><option value="">Keep today\'s rating</option>' +
+        ICE_CHOICES.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === cur ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('') + '</select></div>' + reason + advancedBox(l, dis) + '</div>';
+    }
+    var tv = d.target_value_override != null ? d.target_value_override : '';
+    return '<div class="ss-shock" data-type="kri" data-id="' + id + '"><div class="ss-shock-head"><b>' + t + '</b>' + badge('draft', 'Indicator') + '</div>' +
+      '<div class="form-group" style="margin:0;max-width:260px"><label class="form-label" for="ssK' + id + '">Target value in this scenario</label><input type="number" step="any" id="ssK' + id + '" data-key="target_value_override" value="' + ea(tv) + '"' + dis + '></div>' + advancedBox(l, dis) + '</div>';
+  }
+
+  function advancedBox(l, dis) {
+    return '<details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">Advanced (JSON)</summary>' +
+      '<div style="display:flex;gap:6px;margin-top:4px"><input type="text" class="ss-adv" style="flex:1;font-family:monospace;font-size:11px" value="' + ea(JSON.stringify(l.delta || {})) + '" aria-label="Changes as JSON"' + dis + '>' +
+      (dis ? '' : '<button class="btn btn-ghost ss-btn-sm ss-adv-save" type="button">Apply</button>') + '</div></details>';
+  }
+
+  function wireShocks(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('.ss-shock'), function (row) {
+      var type = row.getAttribute('data-type'), id = parseInt(row.getAttribute('data-id'), 10);
+      Array.prototype.forEach.call(row.querySelectorAll('input[type=range]'), function (r) {
+        r.oninput = function () {
+          var names = r.getAttribute('data-key') === 'likelihood_override' ? LIKE : IMPA;
+          r.parentNode.querySelector('.ss-range-val').textContent = names[parseInt(r.value, 10)];
+        };
+        r.onchange = function () { saveShock(type, id, row); };
+      });
+      Array.prototype.forEach.call(row.querySelectorAll('select[data-key],input[type=number]'), function (c) { c.onchange = function () { saveShock(type, id, row); }; });
+      var adv = row.querySelector('.ss-adv-save');
+      if (adv) adv.onclick = function () {
+        var raw = row.querySelector('.ss-adv').value.trim(), delta;
+        try { delta = JSON.parse(raw || '{}'); } catch (e) { toast('Changes must be valid JSON', 'error'); return; }
+        writeDelta(type, id, delta);
+      };
+    });
+  }
+
+  function currentDelta(type, id) {
+    var l = (STATE.scenario.links || []).filter(function (x) { return x.link_type === type && x.link_id === id; })[0];
+    return Object.assign({}, l ? l.delta : {});
+  }
+
+  // Build the delta from the controls on the row. A value equal to today's clears the override.
+  function saveShock(type, id, row) {
+    var delta = currentDelta(type, id);
+    Array.prototype.forEach.call(row.querySelectorAll('[data-key]'), function (c) {
+      var key = c.getAttribute('data-key'), v = c.value;
+      if (c.type === 'range') delta[key] = (v === c.getAttribute('data-base')) ? null : parseInt(v, 10);
+      else if (c.tagName === 'SELECT') delta[key] = v === '' ? null : parseInt(v, 10);
+      else delta[key] = v === '' ? null : Number(v);
+    });
+    if (delta.source === 'ai') delta.source = 'ai_edited'; else if (!delta.source) delta.source = 'human';
+    writeDelta(type, id, delta);
+  }
+
+  function writeDelta(type, id, delta) { return track(writeDeltaNow(type, id, delta)); }
+  async function writeDeltaNow(type, id, delta) {
+    try {
+      await api('/erm/api/scenarios/' + STATE.scenario.id + '/links', { method: 'POST', body: { link_type: type, link_id: id, delta: delta } });
+      await loadDetail(); refreshStepMarks(); refreshImpact();
+    } catch (e) { toast(msg(e), 'error'); }
+  }
+
+  async function worsenCategory() {
+    var cat = $('ssCatSel').value, risks = ((STATE.impact && STATE.impact.per_risk) || []).filter(function (r) { return r.category === cat; });
+    for (var i = 0; i < risks.length; i++) {
+      var r = risks[i], d = currentDelta('risk', r.risk_id);
+      var L = d.likelihood_override != null ? d.likelihood_override : r.baseline.likelihood, I = d.impact_override != null ? d.impact_override : r.baseline.impact;
+      d.likelihood_override = Math.min(5, L + 1); d.impact_override = Math.min(5, I + 1); d.source = d.source === 'ai' ? 'ai_edited' : 'human';
+      try { await api('/erm/api/scenarios/' + STATE.scenario.id + '/links', { method: 'POST', body: { link_type: 'risk', link_id: r.risk_id, delta: d } }); }
+      catch (e) { toast(msg(e), 'error'); break; }
+    }
+    await loadDetail(); await refreshNow(); renderStep();
+  }
+
+  async function loadPastEvents() {
+    var el = $('ssPastEvents'); if (!el) return;
+    try {
+      var c = await api('/erm/api/scenarios/' + STATE.scenario.id + '/context'), ev = c.orm_events;
+      if (!ev || !ev.count) { el.textContent = 'Context: no loss events recorded in Operational Risk over the last twelve months.'; return; }
+      el.innerHTML = 'Context: Operational Risk recorded <b>' + num(ev.count) + '</b> loss event' + (ev.count === 1 ? '' : 's') + ' in the last twelve months. Largest: ' +
+        ev.top.map(function (t) { return '<a class="ss-link-a" href="' + ea(t.url) + '">' + esc(t.title) + '</a>'; }).join(', ') + '.';
+    } catch (e) { el.textContent = ''; }
+  }
+
+  async function runShocksAi() {
+    var out = $('ssShocksAiOut'); out.innerHTML = '<div class="ss-empty">Thinking...</div>';
+    try {
+      var r = await aiApi('/erm/api/scenarios/' + STATE.scenario.id + '/ai/shocks');
+      if (!r.shocks.length) { out.innerHTML = '<div class="ss-ai">The AI did not propose any change.</div>'; return; }
+      STATE.pending = r.shocks;
+      out.innerHTML = '<div class="ss-ai"><h4>Suggested changes ' + aiBadge('ai') + '</h4>' + r.shocks.map(function (s, i) {
+        var d = s.delta, what = s.link_type === 'risk' ? 'likelihood ' + esc(LIKE[num(d.likelihood_override)]) + ', impact ' + esc(IMPA[num(d.impact_override)]) : 'control ' + num(d.ice_score_override) + '% effective';
+        return '<div class="ss-pick"><input type="checkbox" id="ssSug' + i + '" data-i="' + i + '" checked><label for="ssSug' + i + '"><span>' + esc(s.title) + ': ' + what + '</span><small>' + esc(d.reason || '') + '</small></label></div>';
+      }).join('') + '<div class="ss-row-actions" style="margin-top:8px"><button class="btn btn-primary ss-btn-sm" id="ssApplyAi" type="button">Apply ticked</button><span class="ss-sub">You can adjust each one afterwards. Applied changes are marked as AI suggested.</span></div></div>';
+      $('ssApplyAi').onclick = applyAiShocks;
+    } catch (e) { out.innerHTML = '<div class="ss-issue">' + esc(msg(e)) + '</div>'; }
+  }
+  async function applyAiShocks() {
+    var boxes = document.querySelectorAll('#ssShocksAiOut input[type=checkbox]:checked');
+    for (var i = 0; i < boxes.length; i++) {
+      var s = STATE.pending[parseInt(boxes[i].getAttribute('data-i'), 10)];
+      try { await api('/erm/api/scenarios/' + STATE.scenario.id + '/links', { method: 'POST', body: { link_type: s.link_type, link_id: s.link_id, delta: s.delta } }); }
+      catch (e) { toast(msg(e), 'error'); break; }
+    }
+    STATE.pending = null; await loadDetail(); await refreshNow(); renderStep();
+  }
+
+  async function refreshNow() {
+    try { STATE.impact = await api('/erm/api/scenarios/' + STATE.selectedId + '/impact'); } catch (e) { STATE.impact = null; }
+    renderLive(); refreshStepMarks();
+  }
+
+  // ── step 4: impact ─────────────────────────────────────────────────────
+  // A risk with no stored residual score is read on its inherent score on both sides, so the scenario's calculated
+  // residual never looks like an improvement over an inherent baseline.
+  function exposure(x, base) { return (base || x).rrr != null && x.rrr != null ? x.rrr : x.irr; }
+  function barPct(v) { return Math.max(2, Math.min(100, (Number(v) || 0) / 25 * 100)); }
+
+  async function stepImpact(body) {
+    if (!STATE.impact) { body.innerHTML = '<div class="ss-empty">Calculating...</div>'; await refreshNow(); }
+    var im = STATE.impact;
+    if (!im) { body.innerHTML = '<div class="ss-card"><div class="ss-issue">The effect could not be calculated just now.</div></div>'; return; }
+    var h = im.headline || {};
+    var html = '<div class="ss-card"><div class="ss-card-title">Effect against today</div>' +
+      '<div class="ss-stats"><div class="ss-stat"><b>' + num(h.worse) + ' / ' + num(h.risks) + '</b><span>risks get worse</span></div>' +
+      '<div class="ss-stat"><b>' + num(h.band_up) + '</b><span>move to a higher band</span></div>' +
+      '<div class="ss-stat"><b>' + num(h.new_breaches) + '</b><span>new appetite breaches</span></div>' +
+      '<div class="ss-stat"><b>' + (h.emv_multiple != null ? esc(h.emv_multiple) + 'x' : 'n/a') + '</b><span>expected residual loss</span></div></div>';
+    if (im.per_risk.length) {
+      html += '<table class="ss-table"><thead><tr><th>Risk</th><th>Exposure</th><th>Band</th><th></th></tr></thead><tbody>' + im.per_risk.map(function (r, i) {
+        var b = exposure(r.baseline), sc = exposure(r.scenario, r.baseline), cls = sc > b ? ' worse' : sc < b ? ' better' : '';
+        return '<tr><td>' + esc(r.title) + '</td><td><div class="ss-bars"><div class="ss-bar" title="Today ' + ea(b) + '"><i style="width:' + barPct(b) + '%"></i></div><div class="ss-bar scn' + cls + '" title="Scenario ' + ea(sc) + '"><i style="width:' + barPct(sc) + '%"></i></div></div>' +
+          '<span class="ss-sub">Today ' + esc(b) + ' &rarr; scenario ' + esc(sc) + '</span></td><td>' + esc(r.baseline.band) + ' &rarr; ' + esc(r.scenario.band) + '</td>' +
+          '<td>' + (CAN_MANAGE ? '<button class="btn btn-ghost ss-btn-sm ss-act-risk" type="button" data-i="' + i + '">Create action</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    } else {
+      html += '<div class="ss-empty">No risks linked yet. Add some in step 2 to see their scores move.</div>';
+    }
+    var t = im.baseline_totals, s = im.scenario_totals;
+    html += '<table class="ss-table" style="margin-top:12px"><thead><tr><th>Totals</th><th>Today</th><th>Scenario</th></tr></thead><tbody>' +
+      [['avg_irr', 'Average inherent score'], ['avg_rrr', 'Average residual score'], ['emv_i_total', 'Expected loss, inherent'], ['emv_r_total', 'Expected loss, residual']].map(function (k) {
+        return '<tr><td>' + k[1] + '</td><td>' + (t[k[0]] == null ? 'n/a' : esc(t[k[0]])) + '</td><td>' + (s[k[0]] == null ? 'n/a' : esc(s[k[0]])) + '</td></tr>'; }).join('') + '</tbody></table>';
+    if (im.appetite_impact.length) {
+      html += '<table class="ss-table" style="margin-top:12px"><thead><tr><th>Category</th><th>Appetite limit</th><th>Today</th><th>Scenario</th></tr></thead><tbody>' + im.appetite_impact.map(function (a) {
+        return '<tr><td>' + esc(a.category) + '</td><td>' + esc(a.max_score) + '</td><td>' + esc(a.baseline_max_exposure) + (a.baseline_breached ? ' ' + badge('stale', 'Over') : '') + '</td><td>' + esc(a.scenario_max_exposure) + (a.scenario_breached ? ' ' + badge('stale', 'Over') : '') + '</td></tr>'; }).join('') + '</tbody></table>';
+    }
+    if (im.kris.length) html += '<div style="margin-top:10px;font-size:12px"><strong>Indicators:</strong> ' + im.kris.map(function (k) { return esc(k.name) + ': ' + (k.missing ? '<em>no value yet</em>' : esc(k.latest_value)); }).join(', ') + '</div>';
+    if (im.data_quality_issues.length) html += '<div style="margin-top:10px">' + im.data_quality_issues.map(function (i) { return '<div class="ss-issue">' + esc(i.link_type.replace('_', ' ')) + ' #' + num(i.link_id) + ': ' + esc(String(i.issue).replace(/_/g, ' ')) + '. Fix the record or remove the link in step 2.</div>'; }).join('') + '</div>';
+    html += '<div class="ss-row-actions" style="margin-top:14px">' +
+      (CAN_AI && CAN_MANAGE ? '<button class="btn btn-secondary" id="ssExplainBtn" type="button">Explain this (AI)</button>' : '') +
+      (CAN_MANAGE ? '<button class="btn btn-secondary" id="ssActionBtn" type="button">Create action</button>' : '') +
+      (CAN_REHEARSE ? '<button class="btn btn-secondary" id="ssRehearseBtn" type="button">Rehearse in BCM</button>' : '') + '</div><div id="ssExplainOut"></div></div>';
+    body.innerHTML = html;
+    Array.prototype.forEach.call(body.querySelectorAll('.ss-act-risk'), function (b) {
+      b.onclick = function () { var r = im.per_risk[parseInt(b.getAttribute('data-i'), 10)]; openAction('Reduce exposure to: ' + r.title, 'Under scenario "' + STATE.scenario.title + '" this risk moves from ' + r.baseline.band + ' to ' + r.scenario.band + '.'); };
+    });
+    if ($('ssActionBtn')) $('ssActionBtn').onclick = function () { openAction('', h.sentence || ''); };
+    if ($('ssRehearseBtn')) $('ssRehearseBtn').onclick = rehearse;
+    if ($('ssExplainBtn')) $('ssExplainBtn').onclick = runExplain;
+  }
+
+  async function runExplain() {
+    var out = $('ssExplainOut'); out.innerHTML = '<div class="ss-empty">Thinking...</div>';
+    try {
+      var r = await aiApi('/erm/api/scenarios/' + STATE.scenario.id + '/ai/explain');
+      out.innerHTML = '<div class="ss-ai" style="margin-top:10px"><h4>In plain language ' + aiBadge('ai') + '</h4><p style="margin:0 0 8px;font-size:13px">' + esc(r.summary) + '</p><ul>' +
+        r.points.map(function (p) { return '<li>' + esc(p.text) + ' <span class="ss-sub">(' + esc(p.ref_label) + ')</span></li>'; }).join('') + '</ul></div>';
+    } catch (e) { out.innerHTML = '<div class="ss-issue">' + esc(msg(e)) + '</div>'; }
+  }
+
+  async function rehearse() {
+    if (!confirm('Create a draft tabletop exercise in Business Continuity from this scenario?')) return;
+    try { var r = await api('/erm/api/scenarios/' + STATE.scenario.id + '/rehearse', { method: 'POST', body: {} }); toast('Draft exercise created in BCM', 'success'); window.location.href = r.url; }
+    catch (e) { toast(msg(e), 'error'); }
+  }
+
+  // ── create action modal ────────────────────────────────────────────────
+  async function openAction(title, desc) {
+    var users = await loadUsers();
+    $('ssActionAssignee').innerHTML = userOptions(users, '', 'Unassigned');
+    $('ssActionTitle').value = title; $('ssActionDesc').value = desc; $('ssActionDue').value = ''; $('ssActionPriority').value = 'medium';
+    ModalManager.open('ssActionModal');
+  }
+  function wireActionModal() {
+    if (!$('ssActionSubmit')) return;
+    $('ssActionClose').onclick = $('ssActionCancel').onclick = function () { ModalManager.close('ssActionModal'); };
+    $('ssActionSubmit').onclick = async function () {
+      var title = $('ssActionTitle').value.trim();
+      if (!title) { toast('Describe the task', 'error'); return; }
+      try {
+        await api('/erm/api/scenarios/' + STATE.scenario.id + '/actions', { method: 'POST', body: { title: title, description: $('ssActionDesc').value.trim(), assigned_to: $('ssActionAssignee').value || null, due_date: $('ssActionDue').value || null, priority: $('ssActionPriority').value } });
+        ModalManager.close('ssActionModal'); toast('Task created. Find it on the task board.', 'success');
+      } catch (e) { toast(msg(e), 'error'); }
+    };
+  }
+
+  // ── step 5: brief (board packs) ────────────────────────────────────────
+  async function stepBrief(body) {
+    body.innerHTML = '<div class="ss-card"><div class="ss-card-title">Board packs</div>' +
+      '<p class="ss-help">A board pack freezes today\'s numbers for this scenario so the board reads what you saw. It goes out of date if a source record changes, and a published pack cannot be edited.</p>' +
+      (CAN_GENERATE_BOARDPACKS ? '<button class="btn btn-secondary" id="ssGeneratePackBtn" type="button" style="margin-bottom:10px">Generate board pack</button>' : '') +
+      '<div id="ssBoardPacks"></div></div>';
+    if ($('ssGeneratePackBtn')) $('ssGeneratePackBtn').onclick = generatePack;
+    loadBoardPacks();
+  }
+  async function loadBoardPacks() {
+    var el = $('ssBoardPacks');
+    try { STATE.boardPacks = await api('/erm/api/board-packs?scenario_id=' + STATE.scenario.id); }
+    catch (e) { if (el) el.innerHTML = '<div class="ss-empty">' + esc(msg(e)) + '</div>'; return; }
+    refreshStepMarks();
+    if (STATE.step === 'brief') renderBoardPacks();
+  }
+  function renderBoardPacks() {
+    var el = $('ssBoardPacks'); if (!el) return;
     if (!STATE.boardPacks.length) { el.innerHTML = '<div class="ss-empty">No board packs yet.</div>'; return; }
     el.innerHTML = STATE.boardPacks.map(function (p) {
       var statusBadge = p.status === 'published' ? badge('published', 'Published') : badge('draft', 'Draft');
-      var staleBadge = p.is_stale ? badge('stale', 'Stale') : '';
-      var narrSourceBadge = p.narrative_source && p.narrative_source !== 'none' ? badge(p.narrative_source, p.narrative_source) : '';
-      var editable = CAN_GENERATE_BOARDPACKS && p.status !== 'published';
-      var controls = '';
+      var staleBadge = p.is_stale ? badge('stale', 'Out of date') : '';
+      var src = p.narrative_source && p.narrative_source !== 'none' ? badge(p.narrative_source, p.narrative_source === 'ai' ? 'AI written' : p.narrative_source === 'ai_edited' ? 'AI, edited' : 'Written by a person') : '';
+      var editable = CAN_GENERATE_BOARDPACKS && p.status !== 'published', pid = num(p.id), controls = '';
       if (editable) {
-        controls += '<button class="btn btn-ghost ss-save-narrative" type="button" data-id="' + p.id + '" style="font-size:11px;padding:5px 10px">Save Narrative</button>';
-        controls += '<button class="btn btn-ghost ss-gen-narrative" type="button" data-id="' + p.id + '" style="font-size:11px;padding:5px 10px">Generate with AI</button>';
+        controls += '<button class="btn btn-ghost ss-save-narrative ss-btn-sm" type="button" data-id="' + pid + '">Save narrative</button>';
+        if (CAN_AI) controls += '<button class="btn btn-ghost ss-gen-narrative ss-btn-sm" type="button" data-id="' + pid + '">Write with AI</button>';
       }
-      if (CAN_PUBLISH_BOARDPACKS && p.status !== 'published') {
-        controls += '<button class="btn btn-primary ss-publish" type="button" data-id="' + p.id + '" style="font-size:11px;padding:5px 10px">Publish</button>';
-      }
-      return '<div class="ss-card" style="margin-bottom:8px">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
-          '<div><strong>#' + p.id + '</strong> &middot; ' + esc((p.as_of || '').slice(0, 16)) + ' ' + statusBadge + ' ' + staleBadge + '</div>' +
-        '</div>' +
-        (p.stale_reason ? '<div class="ss-issue">' + esc(p.stale_reason) + '</div>' : '') +
-        '<div style="font-size:12px;margin:8px 0">' + narrSourceBadge + '</div>' +
-        '<textarea class="ss-pack-narrative" data-id="' + p.id + '" rows="3" style="width:100%;font-size:12px" ' + (editable ? '' : 'disabled') + '>' + esc(p.narrative || '') + '</textarea>' +
-        (controls ? '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">' + controls + '</div>' : '') +
-      '</div>';
+      if (CAN_PUBLISH_BOARDPACKS && p.status !== 'published') controls += '<button class="btn btn-primary ss-publish ss-btn-sm" type="button" data-id="' + pid + '">Publish</button>';
+      return '<div class="ss-card" style="margin-bottom:8px"><div style="margin-bottom:6px"><strong>Pack #' + pid + '</strong> &middot; ' + esc((p.as_of || '').slice(0, 16)) + ' ' + statusBadge + ' ' + staleBadge + '</div>' +
+        (p.stale_reason ? '<div class="ss-issue">' + esc(p.stale_reason) + '</div>' : '') + '<div style="font-size:12px;margin:8px 0">' + src + '</div>' +
+        '<textarea class="ss-pack-narrative" data-id="' + pid + '" rows="4" style="width:100%;font-size:12px" aria-label="Narrative for pack ' + pid + '"' + (editable ? '' : ' disabled') + '>' + esc(p.narrative || '') + '</textarea>' +
+        (controls ? '<div class="ss-row-actions" style="margin-top:6px">' + controls + '</div>' : '') + '</div>';
     }).join('');
-
-    Array.prototype.forEach.call(el.querySelectorAll('.ss-save-narrative'), function (btn) {
-      btn.onclick = function () { saveNarrative(scenarioId, btn.getAttribute('data-id')); };
-    });
-    Array.prototype.forEach.call(el.querySelectorAll('.ss-gen-narrative'), function (btn) {
-      btn.onclick = function () { generateNarrative(scenarioId, btn.getAttribute('data-id')); };
-    });
-    Array.prototype.forEach.call(el.querySelectorAll('.ss-publish'), function (btn) {
-      btn.onclick = function () { publishPack(scenarioId, btn.getAttribute('data-id')); };
-    });
+    Array.prototype.forEach.call(el.querySelectorAll('.ss-save-narrative'), function (b) { b.onclick = function () { saveNarrative(b.getAttribute('data-id')); }; });
+    Array.prototype.forEach.call(el.querySelectorAll('.ss-gen-narrative'), function (b) { b.onclick = function () { generateNarrative(b.getAttribute('data-id')); }; });
+    Array.prototype.forEach.call(el.querySelectorAll('.ss-publish'), function (b) { b.onclick = function () { publishPack(b.getAttribute('data-id')); }; });
   }
-  async function generatePack(scenarioId) {
-    try { await api('/erm/api/board-packs', { method: 'POST', body: { scenario_id: scenarioId } }); toast('Board pack generated', 'success'); await loadBoardPacks(scenarioId); }
-    catch (e) { toast(e.message, 'error'); }
+  async function generatePack() {
+    try { await api('/erm/api/board-packs', { method: 'POST', body: { scenario_id: STATE.scenario.id } }); toast('Board pack generated', 'success'); await loadBoardPacks(); }
+    catch (e) { toast(msg(e), 'error'); }
   }
-
-  async function saveNarrative(scenarioId, packId) {
-    var textarea = document.querySelector('.ss-pack-narrative[data-id="' + packId + '"]');
+  async function saveNarrative(packId) {
+    var ta = document.querySelector('.ss-pack-narrative[data-id="' + num(packId) + '"]');
+    try { await api('/erm/api/board-packs/' + num(packId) + '/narrative', { method: 'PUT', body: { narrative: ta.value, citations: [], source: 'human' } }); toast('Narrative saved', 'success'); await loadBoardPacks(); }
+    catch (e) { toast(msg(e), 'error'); }
+  }
+  async function generateNarrative(packId) {
     try {
-      await api('/erm/api/board-packs/' + packId + '/narrative', { method: 'PUT', body: { narrative: textarea.value, citations: [], source: 'human' } });
-      toast('Narrative saved', 'success');
-      await loadBoardPacks(scenarioId);
-    } catch (e) { toast(e.message, 'error'); }
+      var r = await api('/erm/api/board-packs/' + num(packId) + '/generate-narrative', { method: 'POST', timeoutMs: 90000 });
+      if (!r.ok) { toast('AI narrative unavailable: ' + r.reason, 'error'); return; }
+      toast('AI narrative generated', 'success'); await loadBoardPacks();
+    } catch (e) { toast(msg(e), 'error'); }
   }
-
-  async function generateNarrative(scenarioId, packId) {
-    try {
-      var result = await api('/erm/api/board-packs/' + packId + '/generate-narrative', { method: 'POST' });
-      if (!result.ok) { toast('AI narrative unavailable: ' + result.reason, 'error'); return; }
-      toast('AI narrative generated', 'success');
-      await loadBoardPacks(scenarioId);
-    } catch (e) { toast(e.message, 'error'); }
-  }
-
-  async function publishPack(scenarioId, packId) {
+  async function publishPack(packId) {
     if (!confirm('Publish this board pack? It cannot be edited after publishing.')) return;
-    try { await api('/erm/api/board-packs/' + packId + '/publish', { method: 'POST' }); toast('Board pack published', 'success'); await loadBoardPacks(scenarioId); }
-    catch (e) { toast(e.message, 'error'); }
+    try { await api('/erm/api/board-packs/' + num(packId) + '/publish', { method: 'POST' }); toast('Board pack published', 'success'); await loadBoardPacks(); }
+    catch (e) { toast(msg(e), 'error'); }
   }
 
-  // New scenario modal
-  var newScenarioBtn = document.getElementById('ssNewScenarioBtn');
-  var newModalClose = document.getElementById('ssNewModalClose');
-  var newCancelBtn = document.getElementById('ssNewCancelBtn');
-  var newSubmitBtn = document.getElementById('ssNewSubmitBtn');
-  if (newScenarioBtn) newScenarioBtn.onclick = function () { ModalManager.open('ssNewModal'); };
-  if (newModalClose) newModalClose.onclick = function () { ModalManager.close('ssNewModal'); };
-  if (newCancelBtn) newCancelBtn.onclick = function () { ModalManager.close('ssNewModal'); };
-  if (newSubmitBtn) newSubmitBtn.onclick = async function () {
-    var title = document.getElementById('ssNewTitle').value.trim();
-    if (!title) { toast('Title is required', 'error'); return; }
+  // ── compare ────────────────────────────────────────────────────────────
+  async function stepCompare(body) {
+    var others = STATE.scenarios.filter(function (s) { return s.id !== STATE.selectedId; });
+    body.innerHTML = '<div class="ss-card"><div class="ss-card-title">Compare</div>' +
+      '<p class="ss-help">Set this scenario beside another to see which one hurts more, and where.</p>' +
+      '<div class="form-group" style="max-width:340px"><label class="form-label" for="ssCompareWith">Compare with</label><select id="ssCompareWith"><option value="">Choose a scenario</option>' +
+      others.map(function (s) { return '<option value="' + num(s.id) + '">' + esc(s.title) + '</option>'; }).join('') + '</select></div><div id="ssCompareOut"></div></div>';
+    $('ssCompareWith').onchange = runCompare;
+  }
+  async function runCompare() {
+    var other = parseInt($('ssCompareWith').value, 10), out = $('ssCompareOut'); if (!other) { out.innerHTML = ''; return; }
+    out.innerHTML = '<div class="ss-empty">Calculating...</div>';
     try {
-      var result = await api('/erm/api/scenarios', { method: 'POST', actionId: 'erm.scenario.create', body: {
-        title: title,
-        horizon: document.getElementById('ssNewHorizon').value.trim(),
-        assumptions: document.getElementById('ssNewAssumptions').value.trim(),
-      } });
-      ModalManager.close('ssNewModal');
-      document.getElementById('ssNewTitle').value = '';
-      document.getElementById('ssNewHorizon').value = '';
-      document.getElementById('ssNewAssumptions').value = '';
-      await loadScenarios();
-      await selectScenario(result.id);
-    } catch (e) { toast(e.detail || e.message, 'error'); }
-  };
-  loadScenarios();
+      var pair = await Promise.all([api('/erm/api/scenarios/' + STATE.selectedId + '/impact'), api('/erm/api/scenarios/' + other + '/impact')]);
+      var a = pair[0], b = pair[1], ids = {}, rows = [];
+      a.per_risk.concat(b.per_risk).forEach(function (r) { if (!ids[r.risk_id]) { ids[r.risk_id] = true; rows.push(r.risk_id); } });
+      function find(im, id) { return im.per_risk.filter(function (r) { return r.risk_id === id; })[0]; }
+      function cell(r) { return r ? esc(exposure(r.scenario, r.baseline)) + ' <span class="ss-sub">' + esc(r.scenario.band) + '</span>' : '<span class="ss-sub">not in scenario</span>'; }
+      out.innerHTML = '<div class="ss-compare"><div class="ss-live"><div class="ss-live-text"><span class="ss-live-label">' + esc(a.scenario.title) + '</span>' + esc(a.headline.sentence) + '</div></div>' +
+        '<div class="ss-live"><div class="ss-live-text"><span class="ss-live-label">' + esc(b.scenario.title) + '</span>' + esc(b.headline.sentence) + '</div></div></div>' +
+        '<table class="ss-table"><thead><tr><th>Risk</th><th>Today</th><th>' + esc(a.scenario.title) + '</th><th>' + esc(b.scenario.title) + '</th></tr></thead><tbody>' + rows.map(function (id) {
+          var ra = find(a, id), rb = find(b, id), base = (ra || rb).baseline, title = (ra || rb).title;
+          return '<tr><td>' + esc(title) + '</td><td>' + esc(exposure(base)) + ' <span class="ss-sub">' + esc(base.band) + '</span></td><td>' + cell(ra) + '</td><td>' + cell(rb) + '</td></tr>'; }).join('') + '</tbody></table>';
+    } catch (e) { out.innerHTML = '<div class="ss-issue">' + esc(msg(e)) + '</div>'; }
+  }
+
+  // ── new scenario modal ─────────────────────────────────────────────────
+  async function openNew(templateId, focusAi) {
+    if (!$('ssNewModal')) return;
+    var users = await loadUsers();
+    $('ssNewOwner').innerHTML = userOptions(users, '', 'Me');
+    $('ssNewType').innerHTML = typeOptions('');
+    ['ssNewTitle', 'ssNewHorizon', 'ssNewDescription', 'ssNewAssumptions', 'ssNewReview'].forEach(function (id) { $(id).value = ''; });
+    STATE.newLinks = []; renderNewLinks();
+    if ($('ssNewSentence')) $('ssNewSentence').value = '';
+    renderTemplatePicker(templateId);
+    if (templateId) applyTemplate(templateId);
+    ModalManager.open('ssNewModal');
+    if (focusAi && $('ssNewSentence')) $('ssNewSentence').focus();
+  }
+  function renderTemplatePicker(selected) {
+    var box = $('ssNewTemplates');
+    box.innerHTML = STATE.templates.map(function (t) {
+      return '<button type="button" class="ss-tpl" data-tpl="' + ea(t.id) + '" aria-pressed="' + (t.id === selected) + '"><b>' + esc(t.title) + '</b><span>' + esc(t.type) + '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.ss-tpl'), function (b) {
+      b.onclick = function () { applyTemplate(b.getAttribute('data-tpl')); renderTemplatePicker(b.getAttribute('data-tpl')); };
+    });
+  }
+  function applyTemplate(id) {
+    var t = STATE.templates.filter(function (x) { return x.id === id; })[0]; if (!t) return;
+    $('ssNewTitle').value = t.title; $('ssNewType').value = t.type; $('ssNewHorizon').value = t.horizon;
+    $('ssNewDescription').value = t.description; $('ssNewAssumptions').value = t.assumptions;
+  }
+  function fillNew(d) {
+    if (d.title) $('ssNewTitle').value = d.title;
+    if (d.scenario_type) $('ssNewType').value = d.scenario_type;
+    if (d.horizon) $('ssNewHorizon').value = d.horizon;
+    if (d.description) $('ssNewDescription').value = d.description;
+    if (d.assumptions) $('ssNewAssumptions').value = d.assumptions;
+  }
+  function renderNewLinks() {
+    var el = $('ssNewLinks'); if (!el) return;
+    if (!STATE.newLinks.length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="ss-sub" style="margin-bottom:4px">The AI would link these records. Untick any you do not want.</div>' + STATE.newLinks.map(function (l, i) {
+      return '<div class="ss-pick"><input type="checkbox" id="ssNewLink' + i + '" data-i="' + i + '" checked><label for="ssNewLink' + i + '"><span>' + esc(l.label) + ' <small>(' + esc(l.link_type.replace('_', ' ')) + ')</small></span><small>' + esc(l.reason) + '</small></label></div>'; }).join('');
+  }
+  async function draftWithAi() {
+    var btn = $('ssNewDraftBtn'), sentence = $('ssNewSentence').value.trim();
+    if (sentence.length < 8) { toast('Describe the scenario in a sentence', 'error'); return; }
+    btn.disabled = true; btn.textContent = 'Drafting...';
+    try {
+      var r = await aiApi('/erm/api/scenarios/ai/draft', { sentence: sentence });
+      fillNew(r); STATE.newLinks = r.links || []; renderNewLinks(); renderTemplatePicker(null);
+    } catch (e) { toast(msg(e), 'error'); }
+    btn.disabled = false; btn.textContent = 'Draft with AI';
+  }
+  async function submitNew() {
+    var title = $('ssNewTitle').value.trim();
+    if (!title) { toast('Title is required', 'error'); return; }
+    var body = { title: title, scenario_type: $('ssNewType').value, horizon: $('ssNewHorizon').value.trim(), description: $('ssNewDescription').value.trim(),
+                 assumptions: $('ssNewAssumptions').value.trim(), owner_id: $('ssNewOwner').value || null, review_date: $('ssNewReview').value || null };
+    if (STATE.origin) body.origin = STATE.origin;
+    try {
+      var result = await api('/erm/api/scenarios', { method: 'POST', actionId: 'erm.scenario.create', body: body });
+      var boxes = document.querySelectorAll('#ssNewLinks input[type=checkbox]:checked');
+      for (var i = 0; i < boxes.length; i++) {
+        var l = STATE.newLinks[parseInt(boxes[i].getAttribute('data-i'), 10)];
+        try { await api('/erm/api/scenarios/' + result.id + '/links', { method: 'POST', body: { link_type: l.link_type, link_id: l.link_id, delta: {} } }); } catch (e) { toast('Could not link ' + l.label + ': ' + msg(e), 'error'); }
+      }
+      STATE.origin = null; ModalManager.close('ssNewModal');
+      await loadScenarios(); await selectScenario(result.id);
+      goStep(boxes.length ? 'items' : 'define');
+    } catch (e) { toast(msg(e), 'error'); }
+  }
+
+  // ── boot ───────────────────────────────────────────────────────────────
+  function wire() {
+    if ($('ssNewScenarioBtn')) {
+      $('ssNewScenarioBtn').onclick = function () { openNew(null); };
+      $('ssNewModalClose').onclick = $('ssNewCancelBtn').onclick = function () { ModalManager.close('ssNewModal'); };
+      $('ssNewSubmitBtn').onclick = submitNew;
+      if ($('ssNewDraftBtn')) $('ssNewDraftBtn').onclick = draftWithAi;
+      wireActionModal();
+    }
+    $('ssListSearch').oninput = function () { STATE.search = this.value; renderScenarioList(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.ss-chips .ss-chip'), function (b) {
+      b.onclick = function () {
+        STATE.filter = b.getAttribute('data-filter');
+        Array.prototype.forEach.call(document.querySelectorAll('.ss-chips .ss-chip'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+        renderScenarioList();
+      };
+    });
+  }
+
+  async function boot() {
+    wire();
+    try { var t = await api('/erm/api/scenario-templates'); STATE.templates = t.templates; STATE.types = t.types; } catch (e) { /* templates are optional */ }
+    api('/erm/api/dashboard', { actionId: 'erm.dashboard' }).then(function (d) {
+      function put(id, v) { var el = $(id); if (el) el.textContent = v; }
+      put('ermNavRisks', d.total_enterprise_risks || 0); put('ermNavObl', d.overdue_obligations || 0); put('ermNavAssess', d.open_assessments || 0);
+      var ap = $('ermNavAppetite'); if (ap) ap.style.display = d.appetite_breaches > 0 ? '' : 'none';
+    }).catch(function () {});
+    await loadScenarios();
+    var params = new URLSearchParams(window.location.search);
+    var open = parseInt(params.get('open'), 10), model = params.get('model');
+    if (open) { selectScenario(open); }
+    else if (model && CAN_MANAGE) {
+      var p = model.split(':');
+      try {
+        var seed = await api('/erm/api/scenarios/seed?module=' + encodeURIComponent(p[0]) + '&type=' + encodeURIComponent(p[1]) + '&id=' + encodeURIComponent(p[2]));
+        await openNew(null); fillNew(seed); STATE.origin = seed.origin;
+      } catch (e) { toast(msg(e), 'error'); }
+    } else if (params.get('new') && CAN_MANAGE) openNew(null);
+    if (!STATE.selectedId) renderEmptyState();
+  }
+  boot();
 })();
 </script>
 {% endblock %}

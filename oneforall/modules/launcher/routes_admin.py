@@ -21,6 +21,9 @@ from modules.launcher._route_helpers import (
     _json_body,)
 from core.sql_like import ci_like, like_pattern
 from core.best_effort import swallowed
+from core.report_kit import identity
+from core.report_kit.identity import download_headers
+from core.timeutils import utcnow
 
 router = APIRouter()
 
@@ -765,17 +768,18 @@ async def api_admin_users_template(request: Request):
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=user_import_template.xlsx"},
+        headers=download_headers("user_import_template.xlsx"),
     )
 
 
 @router.get("/admin/api/users/export")
 @_require_cap("platform.manage_users", "platform.manage_org_users")
 async def api_admin_users_export(request: Request):
-    """Export the current (non-deleted) user list to .xlsx -- round-trips with
-    the importer's column model (which only accepts .xlsx/.xls/.xlsm) and
-    doubles as a seat-usage-per-SBU report."""
-    import openpyxl
+    """Export the current (non-deleted) user list to .xlsx: a cover, a summary with charts and the `Users` sheet, whose columns
+    are the importer's own, so the file round-trips (the importer reads the sheet named Users)."""
+    from starlette.concurrency import run_in_threadpool
+    from core.report_kit.render_xlsx import render_xlsx
+    from modules.launcher.user_export import users_report
     admin = request.state.user
     is_super = bool(admin.get("is_super_admin"))
     db = get_db()
@@ -798,30 +802,17 @@ async def api_admin_users_export(request: Request):
         role_map = {}
         for r in db.execute("SELECT user_id, role_key FROM user_roles ORDER BY role_key").fetchall():
             role_map.setdefault(r["user_id"], []).append(r["role_key"])
+        org = db.execute("SELECT name FROM organizations WHERE id=%s", (admin.get("org_id"),)).fetchone()
     finally:
         db.close()
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Users"
-    header = ["Full Name", "Email", "Username", "Roles", "Business Unit", "Status"]
-    if is_super:
-        header.insert(0, "Organization")
-    ws.append(header)
-    for r in rows:
-        line = [r["full_name"], r["email"], r["username"],
-                ",".join(role_map.get(r["id"], [])),
-                r["bu_name"] or "", "Active" if r["is_active"] else "Inactive"]
-        if is_super:
-            line.insert(0, r["org_name"] or "")
-        ws.append(line)
-
-    buf = io.BytesIO()
-    wb.save(buf)
+    report = users_report(rows, role_map, is_super, admin, org["name"] if org else "")
+    body = await run_in_threadpool(render_xlsx, report)
+    name = identity.safe_filename("ThemisIQ_user_accounts", "xlsx", when=report.meta.generated_at)
     return Response(
-        content=buf.getvalue(),
+        content=body,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=users_export.xlsx"},
+        headers=download_headers(name),
     )
 
 
@@ -1006,18 +997,19 @@ async def admin_api_logs_export(request: Request):
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Timestamp", "User", "Module", "Action", "Entity Type", "Entity ID", "Details", "IP Address"])
+    writer.writerow(["ID", "Timestamp (UTC)", "User", "Module", "Action", "Entity Type", "Entity ID", "Details", "IP Address"])
     for r in rows:
-        writer.writerow([
+        # Details and names are free text: a cell that starts like a formula is written as text (identity.csv_cell).
+        writer.writerow(identity.csv_row([
             r["id"], r["created_at"], r["full_name"] or r["username"] or "system",
             r["module"], r["action"], r["entity_type"] or "", r["entity_id"] or "",
             r["details"] or "", r["ip_address"] or ""
-        ])
+        ]))
 
     return Response(
         content=output.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=audit_log_export.csv"}
+        headers=download_headers(identity.safe_filename("ThemisIQ_audit_log", "csv", when=utcnow())),
     )
 
 

@@ -227,7 +227,7 @@
     <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px">&#10038;</div>
+    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
     <div style="font-size:14px;font-weight:700">Ask GRID AI...</div>
   </a>
 </div>
@@ -260,7 +260,7 @@
 
     <!-- Sentinel Cross-Module: Active Data Breach Banner -->
     <div id="gridSentinelBanner" style="display:none;background:rgba(245,158,11,0.10);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;align-items:center;gap:10px">
-      <span style="font-size:18px">🛡</span>
+      <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
       <div style="flex:1">
         <span style="font-size:13px;font-weight:700;color:var(--amber)">Active data breach in Sentinel</span>
         <span style="font-size:12px;color:var(--muted);margin-left:8px" id="gridSentinelBannerDetail">Ensure audit evidence is being collected for the affected systems.</span>
@@ -590,7 +590,7 @@
     <div class="card" style="max-width:800px">
       <div id="chatMessages" style="min-height:300px;max-height:500px;overflow-y:auto;padding:20px">
         <div style="text-align:center;color:var(--muted);padding:40px">
-          <div style="font-size:32px;margin-bottom:12px">&#10038;</div>
+          <div style="font-size:32px;margin-bottom:12px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
           <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">GRID AI Assistant</div>
           <div style="font-size:13px">Ask about compliance frameworks, audit best practices, or get help with controls.</div>
         </div>
@@ -2287,7 +2287,7 @@
     if(mods.sentinel){
       var dpa=mods.sentinel.dpa_status||'pending';
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#f97316';
-      parts.push('<span title="Privacy: DPA '+dpa+'" style="padding:1px 5px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700">🔒 DPA</span>');
+      parts.push('<span title="Privacy: DPA '+dpa+'" style="padding:1px 5px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> DPA</span>');
     } else {
       parts.push('<span title="Not registered in Privacy" style="padding:1px 5px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;border:1px solid var(--border)">No DPA</span>');
     }
@@ -2296,7 +2296,7 @@
       var tierCol=tier===1?'#dc2626':tier===2?'#f97316':'#16a34a';
       parts.push('<span title="BCM Tier '+tier+'" style="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.1);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
     }
-    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="cursor:help;font-size:11px">⚠</span>');
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="cursor:help;font-size:11px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
     return parts.join(' ');
   }
 
@@ -2325,7 +2325,7 @@
     if(banner){
       banner.innerHTML=dpaGaps.length
         ? '<div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:8px;font-size:12px;font-weight:600;color:#f97316">'+
-          '<span>⚠</span><span>'+dpaGaps.length+' high-criticality vendor'+(dpaGaps.length>1?'s':'')+' have no Privacy DPA record — <a href="/sentinel/vendors" style="color:#f97316;text-decoration:underline">register in Privacy</a></span></div>'
+          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+dpaGaps.length+' high-criticality vendor'+(dpaGaps.length>1?'s':'')+' have no Privacy DPA record — <a href="/sentinel/vendors" style="color:#f97316;text-decoration:underline">register in Privacy</a></span></div>'
         : '';
     }
 
@@ -2388,7 +2388,7 @@
       '<div style="padding:7px 12px;background:var(--surface2);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)">Cross-Module Coverage</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
     // Privacy
-    html+='<div style="padding:8px 12px;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">🔒 PRIVACY</div>';
+    html+='<div style="padding:8px 12px;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> PRIVACY</div>';
     if(mods.sentinel){
       var dpa=mods.sentinel.dpa_status||'pending';
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#d97706';
@@ -2400,7 +2400,7 @@
     }
     html+='</div>';
     // Resilience
-    html+='<div style="padding:8px 12px"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">🛡 RESILIENCE</div>';
+    html+='<div style="padding:8px 12px"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
     if(mods.bcm){
       var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
       html+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
@@ -2412,7 +2412,7 @@
     html+='</div></div>';
     if(flags.length){
       html+='<div style="padding:7px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
-        flags.slice(0,2).map(f=>'<div style="font-size:10px;color:#dc2626;font-weight:600">⚠ '+esc(f.msg)+'</div>').join('')+'</div>';
+        flags.slice(0,2).map(f=>'<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>').join('')+'</div>';
     }
     html+='</div>';
     return html;
@@ -2522,12 +2522,17 @@
             'Word Report'+
           '</button>'+
         '</div>'+
+        '<div style="display:flex;gap:10px;margin-top:8px">'+
+          '<button onclick="downloadReport('+a.id+',\'pdf\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" style="flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Board summary (PDF)</button>'+
+          '<button onclick="downloadReport('+a.id+',\'docx\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" style="flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Board summary (Word)</button>'+
+        '</div>'+
         '<div id="reportTrace'+a.id+'" style="display:none;margin-top:10px"></div>'+
       '</div>';
     }).join('');
   }
 
-  window.downloadReport=async function(auditId,format,btn){
+  window.downloadReport=async function(auditId,format,btn,tier){
+    const board=tier==='board';
     const origHTML=btn.innerHTML;
     btn.disabled=true;
     btn.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/></svg>Generating...</span>';
@@ -2537,7 +2542,7 @@
       traceMount.style.display='block';
       trace=window.ThinkingTrace.open(traceMount,{
         variant:'steps',
-        activeLabel:'Generating '+format.toUpperCase()+' report',
+        activeLabel:board?'Generating the board summary':'Generating '+format.toUpperCase()+' report',
         rows:[
           {primary:'Reviewing audit findings and controls'},
           {primary:'Writing the report narrative'},
@@ -2546,7 +2551,7 @@
       });
     }
     try{
-      const {blob,filename}=await ApiClient.request('/grid/api/reports/'+format+'/'+auditId, {
+      const {blob,filename}=await ApiClient.request('/grid/api/reports/'+format+'/'+auditId+(board?'?tier=board':''), {
         expect: 'blob', actionId: 'grid.report.download',
       });
       const fileName=filename||'report.'+format;
@@ -2554,7 +2559,7 @@
       const a=document.createElement('a');
       a.href=url;a.download=fileName;document.body.appendChild(a);a.click();
       document.body.removeChild(a);URL.revokeObjectURL(url);
-      if(typeof showToast==='function')showToast(format.toUpperCase()+' report downloaded','success');
+      if(typeof showToast==='function')showToast((board?'Board summary ':'')+format.toUpperCase()+' report downloaded','success');
       loadSavedReports(); // Refresh history since report was auto-saved
     }catch(e){
       if(typeof showToast==='function')showToast(e.detail||'Report generation failed','error');
@@ -2571,11 +2576,11 @@
     if(!tbody)return;
     var reports=await api('/grid/api/reports/saved')||[];
     if(!reports.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No saved reports yet. Generate a PDF or DOCX report above — it will be saved automatically.</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No saved reports yet. Generate a PDF or Word report above and it is saved here automatically.</td></tr>';
       return;
     }
     tbody.innerHTML=reports.map(function(r){
-      var sizeStr=r.file_size?(r.file_size>1048576?(r.file_size/1048576).toFixed(1)+' MB':(r.file_size/1024).toFixed(0)+' KB'):'—';
+      var sizeStr=r.file_size?(r.file_size>1048576?(r.file_size/1048576).toFixed(1)+' MB':(r.file_size/1024).toFixed(0)+' KB'):'n/a';
       var typeBadge=r.report_type==='pdf'
         ?'<span style="background:#dc262622;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase">PDF</span>'
         :'<span style="background:#2563eb22;color:#2563eb;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase">DOCX</span>';
@@ -3682,11 +3687,11 @@
       );
       return;
     }
-    var catIcons={policy:'📋',certificate:'🏅',screenshot:'🖼️',report:'📊',general:'📄',
-      policy_approval:'📋',control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
-      non_conformance:'❌',risk_assessment:'🔴',incident_record:'🚨',breach_record:'🔓'};
+    var catIcons={policy:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',certificate:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-medal></use></svg>',screenshot:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-image></use></svg>',report:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>',
+      policy_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',control_assessment:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',audit_finding:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>',audit_completion:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>',
+      non_conformance:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-x></use></svg>',risk_assessment:'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>',incident_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg>',breach_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock-open></use></svg>'};
     var rows=items.map(function(v){
-      var icon=catIcons[v.category]||'📄';
+      var icon=catIcons[v.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var sizeStr=v.file_size?(v.file_size>1048576?(v.file_size/1048576).toFixed(1)+' MB':(v.file_size/1024).toFixed(0)+' KB'):'—';
       var tags=(v.tags||'').split(',').filter(function(t){return t.trim()&&t.trim()!=='auto';}).slice(0,3);
       var tagHtml=tags.map(function(t){return '<span style="background:var(--surface3,rgba(255,255,255,0.06));padding:1px 6px;border-radius:3px;font-size:9px;color:var(--muted)">'+esc(t.trim())+'</span>';}).join(' ');
@@ -3738,10 +3743,10 @@
       el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">No items match your filters</div>';
       return;
     }
-    var catIcons={policy:'📋',certificate:'🏅',screenshot:'🖼️',report:'📊',general:'📄',
-      policy_approval:'📋',control_assessment:'📊',audit_finding:'⚠️',non_conformance:'❌'};
+    var catIcons={policy:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',certificate:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-medal></use></svg>',screenshot:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-image></use></svg>',report:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>',
+      policy_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',control_assessment:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',audit_finding:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>',non_conformance:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-x></use></svg>'};
     el.innerHTML=items.map(function(v){
-      var icon=catIcons[v.category]||'📄';
+      var icon=catIcons[v.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var sizeStr=v.file_size?(v.file_size>1048576?(v.file_size/1048576).toFixed(1)+' MB':(v.file_size/1024).toFixed(0)+' KB'):'—';
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer" '+
         'onclick="attachVaultItem('+cid+','+v.id+')" '+

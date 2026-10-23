@@ -494,7 +494,7 @@ input,select,textarea{font-family:var(--font)}
   opacity:.06;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.stat-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.stat-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:flex-start;gap:6px}
 .stat-card-hero .stat-label{color:rgba(255,255,255,0.75)}
 .stat-value{font-size:36px;font-weight:800;line-height:1;margin-bottom:8px;letter-spacing:-0.02em;animation:countUp 0.5s ease}
 .stat-card-hero .stat-value{color:white}
@@ -691,6 +691,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 
 </style>
 <link rel="stylesheet" href="/static/css/responsive.css?v=b55cdd1d6f05">
+<link rel="stylesheet" href="/static/css/icons.css?v=1">
 <link rel="stylesheet" href="/static/css/premium_theme.css?v=2">
 </head>
 
@@ -701,6 +702,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
      alongside it for the same reason -- several modules' drawers call
      DialogFocus.trap() from a bare top-level onclick/open function. -->
 <script src="/static/js/api_client.js?v=1"></script>
+<script src="/static/js/csv_export.js?v=1"></script>
 <script src="/static/js/dialog_focus.js?v=1"></script>
 
 <a href="#mainContent" class="skip-link">Skip to main content</a>
@@ -1005,7 +1007,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <div id="licenseBanner"
          data-expiry="{{ license_status.valid_until }}"
          style="display:none;align-items:center;gap:12px;padding:10px 16px;margin:0 0 16px;border-radius:10px;border:1px solid {% if ls_critical %}#fca5a5{% else %}#fcd34d{% endif %};background:{% if ls_critical %}#fef2f2{% else %}#fffbeb{% endif %};color:{% if ls_critical %}#991b1b{% else %}#92400e{% endif %};font-size:13px">
-      <span style="font-size:16px;line-height:1">{% if ls_critical %}&#9888;{% else %}&#128276;{% endif %}</span>
+      <span style="font-size:16px;line-height:1">{% if ls_critical %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>{% else %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bell></use></svg>{% endif %}</span>
       <div style="flex:1">
         {% if license_status.expired %}
           <strong>Subscription expired</strong> on {{ license_status.valid_until }} ({{ -ls_days }} day{{ '' if ls_days == -1 else 's' }} ago).

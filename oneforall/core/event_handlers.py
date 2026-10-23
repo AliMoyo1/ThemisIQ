@@ -1792,7 +1792,8 @@ def dpia_completed_handler(event_type, source_module, entity_type,
     db = get_db()
     try:
         title = payload.get("title", f"DPIA #{entity_id}")
-        risk_level = (payload.get("risk_level") or "low").lower()
+        risk_level = (payload.get("risk_level") or "unrated").lower()
+        risk_basis = payload.get("risk_basis") if payload.get("risk_basis") in ("overall", "residual") else "overall"
         recommendations = payload.get("recommendations", "")
 
         # Only escalate high-risk DPIAs
@@ -1802,7 +1803,7 @@ def dpia_completed_handler(event_type, source_module, entity_type,
                 db,
                 title=f"High-Risk DPIA: {title}",
                 description=(
-                    f"DPIA completed with {risk_level} residual risk. "
+                    f"DPIA completed with {risk_level} {risk_basis} risk. "
                     f"Recommendations: {recommendations[:200]}"
                 ),
                 source_module="sentinel", entity_type="dpia", entity_id=entity_id,
@@ -1837,7 +1838,7 @@ def dpia_completed_handler(event_type, source_module, entity_type,
             title=f"DPIA Completed: {title}",
             description=(
                 f"Data Protection Impact Assessment '{title}' completed on "
-                f"{datetime.now():%Y-%m-%d %H:%M}. Residual risk: {risk_level}. "
+                f"{datetime.now():%Y-%m-%d %H:%M}. {risk_basis.capitalize()} risk: {risk_level}. "
                 f"Recommendations: {recommendations[:200]}"
             ),
             category="dpia_record",

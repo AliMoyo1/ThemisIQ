@@ -555,8 +555,8 @@
       '<div class="msg-actions">' +
         '<span class="msg-latency">' + latency + 'ms</span>' +
         '<button class="msg-action-btn" title="Copy response" onclick="copyMsg(this)">⧉</button>' +
-        (logId ? '<button class="msg-action-btn" title="Helpful" onclick="sendFeedback(' + logId + ',1,this)">👍</button>' +
-                 '<button class="msg-action-btn" title="Not helpful" onclick="sendFeedback(' + logId + ',-1,this)">👎</button>' : '') +
+        (logId ? '<button class="msg-action-btn" title="Helpful" onclick="sendFeedback(' + logId + ',1,this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-thumbs-up></use></svg></button>' +
+                 '<button class="msg-action-btn" title="Not helpful" onclick="sendFeedback(' + logId + ',-1,this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-thumbs-down></use></svg></button>' : '') +
       '</div>';
 
     el.innerHTML = '<div class="msg-avatar">A</div>' +

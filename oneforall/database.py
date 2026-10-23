@@ -928,6 +928,20 @@ CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidenc
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
+CREATE TABLE IF NOT EXISTS generated_record_documents (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_module   TEXT NOT NULL,
+    source_type     TEXT NOT NULL,
+    source_id       INTEGER NOT NULL,
+    file_format     TEXT NOT NULL,
+    evidence_id     INTEGER NOT NULL UNIQUE REFERENCES evidence_items(id),
+    semantic_hash   TEXT NOT NULL,
+    sequence        INTEGER NOT NULL,
+    created_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(source_module, source_type, source_id, file_format, sequence)
+);
+CREATE INDEX IF NOT EXISTS idx_generated_record_source
+    ON generated_record_documents(source_module, source_type, source_id, file_format, sequence);
 CREATE TABLE IF NOT EXISTS evidence_text_index (
     evidence_id       INTEGER PRIMARY KEY REFERENCES evidence_items(id) ON DELETE CASCADE,
     org_id            INTEGER,
@@ -2175,6 +2189,20 @@ CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidenc
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
+CREATE TABLE IF NOT EXISTS generated_record_documents (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_module   TEXT NOT NULL,
+    source_type     TEXT NOT NULL,
+    source_id       INTEGER NOT NULL,
+    file_format     TEXT NOT NULL,
+    evidence_id     INTEGER NOT NULL UNIQUE REFERENCES evidence_items(id),
+    semantic_hash   TEXT NOT NULL,
+    sequence        INTEGER NOT NULL,
+    created_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(source_module, source_type, source_id, file_format, sequence)
+);
+CREATE INDEX IF NOT EXISTS idx_generated_record_source
+    ON generated_record_documents(source_module, source_type, source_id, file_format, sequence);
 CREATE TABLE IF NOT EXISTS evidence_text_index (
     evidence_id       INTEGER PRIMARY KEY REFERENCES evidence_items(id) ON DELETE CASCADE,
     org_id            INTEGER,
@@ -6160,6 +6188,7 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_dpias", "ai_research", "TEXT"),
         ("sentinel_dpias", "ai_full_dpia", "TEXT"),
         ("sentinel_dpias", "ropa_id", "INTEGER"),
+        ("sentinel_dpias", "due_date", "TEXT"),
         # Sentinel RoPA — columns in _ROPA_FIELDS missing from CREATE TABLE
         ("sentinel_ropa", "subject_count", "TEXT"),
         ("sentinel_ropa", "systems", "TEXT"),
@@ -6176,6 +6205,14 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_ropa", "dpo_email", "TEXT"),
         # Sentinel RoPA — risk level column (in CREATE TABLE but missing from older DBs)
         ("sentinel_ropa", "risk_level", "TEXT DEFAULT 'low'"),
+        # Extra fields in jurisdiction-aware record profiles. Existing columns remain authoritative.
+        ("sentinel_ropa", "details", "TEXT"),
+        ("sentinel_dpias", "details", "TEXT"),
+        ("sentinel_aiia", "details", "TEXT"),
+        ("sentinel_controllers", "representative", "TEXT"),
+        ("sentinel_controllers", "representative_contact", "TEXT"),
+        ("sentinel_controllers", "record_owner", "TEXT"),
+        ("sentinel_controllers", "last_full_review", "TEXT"),
         # Sentinel Breach — columns referenced by _BREACH_FIELDS but missing from original CREATE TABLE
         ("sentinel_breaches", "discovery_date", "TEXT"),
         ("sentinel_breaches", "incident_date", "TEXT"),
@@ -6470,6 +6507,9 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_consent", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # PLAN-36 P07: freeze scope on immutable board-pack snapshots.
         ("erm_board_packs", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # Scenario Studio: what kind of event the scenario models and when its assumptions are next reviewed.
+        ("erm_scenarios", "scenario_type", "TEXT"),
+        ("erm_scenarios", "review_date", "TEXT"),
         # Ownership of the legacy platform risk register and of SLA clocks and workflow instances, which the
         # dashboards and reports could not scope by unit before. NULL is organization wide, as everywhere
         # else; _backfill_owner_units places the rows that already exist, once.

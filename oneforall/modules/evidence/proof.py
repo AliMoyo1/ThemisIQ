@@ -82,6 +82,17 @@ def expired(expiry_date, on: str = None) -> bool:
     return bool(expiry_date) and str(expiry_date)[:10] <= (on or today())
 
 
+def link_state_label(status, expiry_date, review_status, on: str = None) -> str:
+    """The current state of one Vault file as proof for a linked record."""
+    if status == "superseded":
+        return "Replaced by a newer version"
+    if expired(expiry_date, on):
+        return "Expired"
+    if status == "archived":
+        return "Archived"
+    return OUTCOME_LABELS.get(review_status or "pending", review_status or "pending")
+
+
 def due(review_due_date, on: str = None, within_days: int = 0) -> bool:
     """True when the review date is today or past, or falls within `within_days` of `on` (the work view uses 30)."""
     if not review_due_date:

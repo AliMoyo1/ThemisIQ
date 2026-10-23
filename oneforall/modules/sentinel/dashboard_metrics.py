@@ -80,8 +80,9 @@ def metrics(db, user) -> dict:
         def dpias():
             active = scoped_count(db, user, "sentinel_dpias", "status NOT IN ('completed', 'closed')")
             total = scoped_count(db, user, "sentinel_dpias")
-            level = {lvl: scoped_count(db, user, "sentinel_dpias", "risk_level = %s", (lvl,)) for lvl in ("high", "medium", "low")}
-            return registry.build("sentinel.dpia_active", ms.measured, active, detail={"total": total, **level})
+            level = {lvl: scoped_count(db, user, "sentinel_dpias", "overall_risk = %s", (lvl,)) for lvl in ("high", "medium", "low")}
+            unrated = scoped_count(db, user, "sentinel_dpias", "overall_risk IS NULL OR overall_risk = ''")
+            return registry.build("sentinel.dpia_active", ms.measured, active, detail={"total": total, **level, "unrated": unrated})
         put(_guard("sentinel.dpia_active", dpias))
 
     if not _hidden("sentinel_dsr", user):

@@ -244,3 +244,10 @@ def test_a_question_the_guide_does_not_cover_never_reaches_the_model(ask, monkey
     body = ask("What is the capital of France?")
     assert "not sure" in body["answer"] and "go" not in body
     assert calls == []
+
+
+def test_a_typed_question_is_business_data_so_a_public_only_policy_refuses_it():
+    """The question is free text and can name anything, so the help assistant is not "public" data: an organization that
+    allows only public data can switch it off, and the guide still answers from its own knowledge base without a model."""
+    from core import ai_policy
+    assert ai_policy.FEATURES["launcher.api_trainer_ask"][1] == ("business",)

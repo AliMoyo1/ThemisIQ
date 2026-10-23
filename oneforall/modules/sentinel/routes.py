@@ -5,6 +5,7 @@ FastAPI router ported from the original Flask-based Data Protection Sentinel.
 Sentinel is an SPA: one HTML template serves the UI, everything else is JSON API.
 All routes are prefixed with /sentinel and guarded by capability-based RBAC.
 """
+import csv
 import io
 import json
 import logging
@@ -17,19 +18,23 @@ from core.timeutils import utcnow, to_dt
 log = logging.getLogger("oneforall.sentinel")
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from config import settings
-from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call, log_audit
 from core.rbac import has_capability
+from core.report_kit import identity, respond
+from core.report_kit.identity import download_headers
+from core.report_kit.model import Actor
 from core.shell_context import shell_ctx
 from core.events import (
     emit, SENTINEL_BREACH_CONFIRMED, SENTINEL_BREACH_RESOLVED,
     SENTINEL_DPIA_COMPLETED, SENTINEL_DSR_OVERDUE,
 )
 
-from modules.sentinel import data_service as ds
+from modules.sentinel import data_service as ds, dpia_document, export_reports as exp
+from modules.sentinel.record_profiles import RECORDS as RECORD_KINDS, RecordError, get_profile, regulations as record_regulations
 from modules.governance.data_service import bu_scope_ids
 from core.best_effort import swallowed
 
@@ -298,12 +303,29 @@ async def api_ropa_list(request: Request):
     return JSONResponse(entries)
 
 
+@router.get("/api/record-profile/{record}")
+@require_capability("module.sentinel.access")
+async def api_record_profile(request: Request, record: str):
+    """Field definitions and researched legal references for the selected regime."""
+    if record not in RECORD_KINDS:
+        raise HTTPException(404, "Unknown record type")
+    regulation = (request.query_params.get("regulation") or "").strip()[:64] or ds._primary_jurisdiction_key()
+    body = get_profile(record, regulation).to_json()
+    body["regulations"] = record_regulations()
+    response = JSONResponse(body)
+    response.headers["Cache-Control"] = "private, max-age=300"
+    return response
+
+
 @router.post("/api/ropa", status_code=201)
 @require_capability("sentinel.ropa.manage")
 async def api_ropa_create(request: Request):
     data = await _json_body(request)
     _check_references(request, data)
-    new_id = ds.create_ropa(data, business_unit_id=request.state.user.get("business_unit_id"))
+    try:
+        new_id = ds.create_ropa(data, business_unit_id=request.state.user.get("business_unit_id"))
+    except RecordError as exc:
+        raise HTTPException(422, str(exc)) from None
     entry = ds.get_ropa(new_id)
     return JSONResponse(entry, status_code=201)
 
@@ -320,7 +342,10 @@ async def api_ropa_update(request: Request, ropa_id: int):
     current = _scoped_or_404(request, "ropa", ropa_id)
     data = await _json_body(request)
     _check_references(request, data, current)
-    ds.update_ropa(ropa_id, data)
+    try:
+        ds.update_ropa(ropa_id, data)
+    except RecordError as exc:
+        raise HTTPException(422, str(exc)) from None
     return JSONResponse(ds.get_ropa(ropa_id))
 
 
@@ -395,8 +420,11 @@ async def api_dpia_create(request: Request):
     data = await _json_body(request)
     _check_references(request, data)
     ropa = ds.get_ropa(data["ropa_id"]) if data.get("ropa_id") else None
-    new_id = ds.create_dpia(data, business_unit_id=(ropa.get("business_unit_id") if ropa else
-                                                   request.state.user.get("business_unit_id")))
+    try:
+        new_id = ds.create_dpia(data, business_unit_id=(ropa.get("business_unit_id") if ropa else
+                                                       request.state.user.get("business_unit_id")))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
     return JSONResponse(ds.get_dpia(new_id), status_code=201)
 
 
@@ -406,17 +434,45 @@ async def api_dpia_get(request: Request, dpia_id: int):
     return JSONResponse(_scoped_or_404(request, "dpia", dpia_id))
 
 
+@router.get("/api/dpias/{dpia_id}/document")
+@require_capability("sentinel.dpia.manage")
+async def api_dpia_document(request: Request, dpia_id: int):
+    """Export one DPIA through the same scoped read as its detail page."""
+    dpia = _scoped_or_404(request, "dpia", dpia_id)
+    fmt = respond.format_of(request)
+    if fmt is None:
+        raise HTTPException(400, "Choose pdf or xlsx")
+    user = request.state.user
+    report = dpia_document.build(user, dpia)
+    reference = dpia.get("ref_number") or f"dpia_{dpia_id}"
+    stem = f"ThemisIQ_privacy_{reference}"
+    response = await respond.download(report, fmt, stem)
+    from modules.evidence import generated_records
+    from starlette.concurrency import run_in_threadpool
+    vault_state, vault_id = await run_in_threadpool(
+        generated_records.file_record, user, "sentinel", "dpia", dpia_id, report, fmt, response.body, stem)
+    response.headers["X-ThemisIQ-Vault-Record"] = str(vault_id)
+    response.headers["X-ThemisIQ-Vault-Status"] = vault_state
+    log_audit(user, "sentinel", "dpia_exported", entity_type="dpia", entity_id=dpia_id,
+              ip=respond.client_ip(request), details=f"ref={reference}; format={fmt}; tier={report.meta.tier}; vault={vault_id}; {vault_state}")
+    return response
+
+
 @router.put("/api/dpias/{dpia_id}")
 @require_capability("sentinel.dpia.manage")
 async def api_dpia_update(request: Request, dpia_id: int):
     current = _scoped_or_404(request, "dpia", dpia_id)
     data = await _json_body(request)
     _check_references(request, data, current)
-    ds.update_dpia(dpia_id, data)
+    try:
+        ds.update_dpia(dpia_id, data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
 
     # Emit DPIA completed event when status changes to completed/approved
     new_status = (data.get("status") or "").lower()
-    if new_status in ("completed", "approved"):
+    previous_status = (current.get("status") or "").lower()
+    if new_status in ("completed", "approved") and previous_status not in ("completed", "approved"):
         dpia = ds.get_dpia(dpia_id)
         emit(
             SENTINEL_DPIA_COMPLETED,
@@ -425,8 +481,9 @@ async def api_dpia_update(request: Request, dpia_id: int):
             entity_id=dpia_id,
             payload={
                 "title": dpia.get("title", "") if dpia else "",
-                "risk_level": dpia.get("risk_level", "") if dpia else "",
-                "recommendations": dpia.get("recommendations", "") if dpia else "",
+                "risk_level": (dpia.get("residual_risk") or dpia.get("overall_risk") or "") if dpia else "",
+                "risk_basis": ("residual" if dpia.get("residual_risk") else "overall") if dpia else "overall",
+                "recommendations": (dpia.get("mitigations") or "") if dpia else "",
                 "findings": dpia.get("findings", "") if dpia else "",
             },
             user_id=request.state.user["id"],
@@ -800,7 +857,10 @@ async def api_controller_list(request: Request):
 @require_capability("sentinel.controller.manage")
 async def api_controller_create(request: Request):
     data = await _json_body(request)
-    new_id = ds.create_controller(data)
+    try:
+        new_id = ds.create_controller(data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     return JSONResponse(ds.get_controller(new_id), status_code=201)
 
 
@@ -817,7 +877,10 @@ async def api_controller_get(request: Request, ctrl_id: int):
 @require_capability("sentinel.controller.manage")
 async def api_controller_update(request: Request, ctrl_id: int):
     data = await _json_body(request)
-    ds.update_controller(ctrl_id, data)
+    try:
+        ds.update_controller(ctrl_id, data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     return JSONResponse(ds.get_controller(ctrl_id))
 
 
@@ -1252,8 +1315,10 @@ async def api_settings_get(request: Request):
 @require_capability("sentinel.ropa.manage")
 async def api_settings_update(request: Request):
     data = await _json_body(request)
-    for k, v in data.items():
-        ds.set_setting(k, v)
+    try:
+        ds.update_privacy_settings(data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
     return JSONResponse({"ok": True})
 
 
@@ -1297,105 +1362,127 @@ async def api_legal_bases(request: Request, regulation: str):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# AUDIT EVIDENCE PACK (ZIP export)
+# REPORTS, THE AUDIT TRAIL AND THE EVIDENCE PACK
 # ═════════════════════════════════════════════════════════════════════════════
+
+AUDIT_EXPORT_LIMIT = 100_000      # the most recent rows of the audit trail that one export carries
+
+
+@router.get("/api/reports/{kind}")
+@require_capability("module.sentinel.access")
+async def api_report(request: Request, kind: str):
+    """The record of processing activities (`ropa`), the breach register (`breach`) or the privacy compliance score
+    (`compliance`) as a document: `?format=pdf` (the default) or `xlsx`. The first two are operational reports and the score is
+    the short board report. Each needs the capability that opens the same records on screen."""
+    spec = exp.REPORTS.get(kind)
+    if spec is None:
+        raise HTTPException(404, "Unknown report")
+    build, capability, stem = spec
+    fmt = respond.format_of(request)
+    if fmt is None:
+        raise HTTPException(400, "Choose pdf or xlsx")
+    user = request.state.user
+    if not has_capability(user, capability):
+        raise HTTPException(403, "Insufficient permissions")
+    report = build(user)
+    log_audit(user, "sentinel", "report_export", entity_type="report", ip=respond.client_ip(request),
+              details=f"report={kind}; format={fmt}; tier={report.meta.tier}")
+    return await respond.download(report, fmt, stem)
+
+
+@router.get("/api/audit/export")
+@require_capability("module.sentinel.access")
+async def api_audit_csv(request: Request):
+    """The Sentinel audit trail of the caller's organization as CSV, newest first: one row per recorded action. A cell that
+    a spreadsheet would read as a formula is written as text."""
+    user = request.state.user
+    org_id = None if (user.get("is_super_admin") or user.get("org_id") is None) else user.get("org_id")
+    columns = ["created_at_utc", "username", "action", "entity_type", "entity_id", "details", "ip_address"]
+    keys = ["created_at", "username", "action", "entity_type", "entity_id", "details", "ip_address"]
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(columns)
+    for row in ds.list_audit(limit=AUDIT_EXPORT_LIMIT, org_id=org_id):
+        writer.writerow(identity.csv_row([row.get(k) for k in keys]))
+    log_audit(user, "sentinel", "audit_trail_export", entity_type="audit_log", ip=respond.client_ip(request), details="format=csv")
+    return Response(buffer.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers=download_headers(identity.safe_filename("ThemisIQ_privacy_audit_trail", "csv", when=utcnow())))
+
 
 @router.get("/api/audit-export")
 @require_capability("module.sentinel.access")
 async def api_audit_export(request: Request):
-    """Export ZIP. A `type` query param (ropa|breach|compliance) narrows the
-    export to just that report; omitting it (or any other value) returns the
-    full evidence pack: RoPA, DPIA summaries, breach log, DSR log, vendor
-    list, policies, compliance score, and audit trail."""
-    settings = ds.get_all_settings() or {}
-    org = settings.get("org_name", "Organisation").replace(" ", "_")
-    date_str = utcnow().strftime("%Y%m%d")
-    report_type = request.query_params.get("type")
-    bu_scope = bu_scope_ids(request.state.user)
+    """A ZIP of JSON data sets. `type` (ropa, breach or compliance) gives that one data set; anything else gives the full
+    evidence pack: RoPA, impact assessments, breach log, request log, vendors, policies, audit trail and compliance score.
+    The documents (PDF, Excel) are at /api/reports/{kind}.
 
+    Each part needs the capability that opens the same records on screen; the pack used to hand every part to anyone who
+    could open the module. A part the caller may not open is left out of the full pack, and the README says so; asking for
+    it alone is a 403. Every part is complete: the lists the screens show stop at 500 rows, the pack does not."""
+    user = request.state.user
+    now = utcnow()
+    org = ds.get_all_settings() or {}
+    scope = bu_scope_ids(user)
+    org_id = None if (user.get("is_super_admin") or user.get("org_id") is None) else user.get("org_id")
+    every = exp.EVERYTHING
+    score = ds.get_compliance_score(bu_scope=scope)
+    # key: (file name in the full pack, file name when asked for alone, what it holds, capability, how it is read)
+    parts = {
+        "ropa": ("RoPA_Register", "RoPA_Report", "Record of processing activities", "module.sentinel.access",
+                 lambda: ds.list_ropa(bu_scope=scope, limit=every)),
+        "dpia": ("DPIA_Summary", None, "Impact assessments", "sentinel.dpia.manage",
+                 lambda: ds.list_dpias(bu_scope=scope, limit=every)),
+        "breach": ("Breach_Log", "Breach_Report", "Breach log", "sentinel.breach.manage",
+                   lambda: ds.list_breaches(bu_scope=scope, limit=every)),
+        "dsr": ("DSR_Log", None, "Data subject request log", "sentinel.dsr.manage",
+                lambda: ds.list_dsrs(bu_scope=scope, limit=every)),
+        "vendor": ("Vendor_Register", None, "Vendor register", "sentinel.vendor.manage", lambda: ds.list_vendors(limit=every)),
+        "audit": ("Audit_Trail", None, "Audit trail", "module.sentinel.access",
+                  lambda: ds.list_audit(limit=AUDIT_EXPORT_LIMIT, org_id=org_id)),
+        "policy": ("Policy_Register", None, "Policy register", "module.sentinel.access", lambda: ds.list_policies(limit=every)),
+        "compliance": ("Compliance_Score", "Compliance_Score", "Privacy compliance score", "module.sentinel.access", lambda: score),
+    }
+    kind = request.query_params.get("type")
+    alone = kind if kind in ("ropa", "breach", "compliance") else None
+    stamp = now.strftime("%Y%m%d")
+    included, left_out = [], []
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        if report_type == "ropa":
-            ropa = ds.list_ropa(bu_scope=bu_scope)
-            zf.writestr(f"RoPA_Report_{date_str}.json", json.dumps(ropa, indent=2, default=str))
-            zf.writestr("README.txt", (
-                "RECORD OF PROCESSING ACTIVITIES REPORT\n"
-                f"Generated: {utcnow().strftime('%d %B %Y %H:%M UTC')}\n"
-                f"Organisation: {settings.get('org_name', 'N/A')}\n"
-                f"Total processing activities: {len(ropa)}\n\n"
-                "Generated by One For All: Data Protection Sentinel Module\n"
-            ))
-        elif report_type == "breach":
-            breaches = ds.list_breaches(bu_scope=bu_scope)
-            zf.writestr(f"Breach_Report_{date_str}.json", json.dumps(breaches, indent=2, default=str))
-            zf.writestr("README.txt", (
-                "DATA BREACH INCIDENT RESPONSE REPORT\n"
-                f"Generated: {utcnow().strftime('%d %B %Y %H:%M UTC')}\n"
-                f"Organisation: {settings.get('org_name', 'N/A')}\n"
-                f"Total recorded incidents: {len(breaches)}\n\n"
-                "Generated by One For All: Data Protection Sentinel Module\n"
-            ))
-        elif report_type == "compliance":
-            score = ds.get_compliance_score(bu_scope=bu_scope) or {"overall": 0, "grade": "N/A", "breakdown": {}}
-            zf.writestr(f"Compliance_Score_{date_str}.json", json.dumps(score, indent=2, default=str))
-            zf.writestr("README.txt", (
-                "PRIVACY COMPLIANCE SCORE REPORT\n"
-                f"Generated: {utcnow().strftime('%d %B %Y %H:%M UTC')}\n"
-                f"Organisation: {settings.get('org_name', 'N/A')}\n"
-                f"Overall Compliance Score: {score.get('overall', 'N/A')}% (Grade {score.get('grade', 'N/A')})\n\n"
-                "Generated by One For All: Data Protection Sentinel Module\n"
-            ))
-        else:
-            # DPIA JSON summary
-            dpias = ds.list_dpias(bu_scope=bu_scope)
-            zf.writestr(f"DPIA_Summary_{date_str}.json", json.dumps(dpias, indent=2, default=str))
+        for key in ([alone] if alone else list(parts)):
+            stem, single, what, capability, load = parts[key]
+            if not has_capability(user, capability):
+                if alone:
+                    raise HTTPException(403, "Insufficient permissions")
+                left_out.append(f"{what} (needs the {capability} permission)")
+                continue
+            rows = load()
+            name = f"{single if alone else stem}_{stamp}.json"
+            zf.writestr(name, json.dumps(rows, indent=2, default=str))
+            included.append(f"{name}: {what}" + (f", {len(rows)} records" if isinstance(rows, list) else ""))
+        readme = [
+            ("DATA PROTECTION SENTINEL: " + (parts[alone][2].upper() if alone else "AUDIT EVIDENCE PACK")),
+            f"Module: {identity.module_name('sentinel')}",
+            f"Generated by: {Actor.of_user(user).describe()}",
+            f"Generated: {identity.format_when(now)}",
+            f"Organisation: {org.get('org_name') or 'Not recorded'}",
+        ]
+        if not alone:
+            readme += [f"DPO: {org.get('dpo_name') or 'Not recorded'} ({org.get('dpo_email') or 'no email recorded'})",
+                       f"Primary regulation: {org.get('primary_regulation') or 'Not recorded'}"]
+        readme.append("Overall compliance score: " + (f"{score['overall']}% (Grade {score['grade']})" if score["overall"] is not None
+                                                      else "not measured (no part of the score has records to measure)"))
+        readme += ["", "Contents:"] + [f"  {line}" for line in included]
+        if left_out:
+            readme += ["", "Left out, because you do not hold the permission that opens them:"] + [f"  {line}" for line in left_out]
+        readme += ["", "The records are those of the business units open to the person who generated this file."]
+        zf.writestr("README.txt", "\n".join(readme) + "\n")
 
-            # Breach log
-            breaches = ds.list_breaches(bu_scope=bu_scope)
-            zf.writestr(f"Breach_Log_{date_str}.json", json.dumps(breaches, indent=2, default=str))
-
-            # DSR log
-            dsrs = ds.list_dsrs(bu_scope=bu_scope)
-            zf.writestr(f"DSR_Log_{date_str}.json", json.dumps(dsrs, indent=2, default=str))
-
-            # Vendor register
-            vendors = ds.list_vendors()
-            zf.writestr(f"Vendor_Register_{date_str}.json", json.dumps(vendors, indent=2, default=str))
-
-            # Audit trail (scoped to the requesting user's org)
-            user = request.state.user
-            org_id = None if (user.get("is_super_admin") or user.get("org_id") is None) else user.get("org_id")
-            audit = ds.list_audit(limit=10000, org_id=org_id)
-            zf.writestr(f"Audit_Trail_{date_str}.json", json.dumps(audit, indent=2, default=str))
-
-            # Policies
-            policies = ds.list_policies()
-            zf.writestr(f"Policy_Register_{date_str}.json", json.dumps(policies, indent=2, default=str))
-
-            # Compliance score
-            score = ds.get_compliance_score(bu_scope=bu_scope) or {"overall": 0, "grade": "N/A", "breakdown": {}}
-            zf.writestr(f"Compliance_Score_{date_str}.json", json.dumps(score, indent=2, default=str))
-
-            # README
-            readme = f"""DATA PROTECTION SENTINEL: AUDIT EVIDENCE PACK
-Generated: {utcnow().strftime('%d %B %Y %H:%M UTC')}
-Organisation: {settings.get('org_name', 'N/A')}
-DPO: {settings.get('dpo_name', 'N/A')} ({settings.get('dpo_email', 'N/A')})
-Primary Regulation: {settings.get('primary_regulation', 'N/A')}
-Overall Compliance Score: {score.get('overall', 'N/A')}% (Grade {score.get('grade', 'N/A')})
-
-Generated by One For All: Data Protection Sentinel Module
-"""
-            zf.writestr("README.txt", readme)
-
-    zip_buf.seek(0)
-    suffix = f"_{report_type}" if report_type in ("ropa", "breach", "compliance") else ""
-    filename = f"AuditPack{suffix}_{org}_{date_str}.zip"
-    return StreamingResponse(
-        zip_buf,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    log_audit(user, "sentinel", "evidence_pack_export", entity_type="evidence_pack", ip=respond.client_ip(request),
+              details=f"type={alone or 'full'}; parts={len(included)}; left_out={len(left_out)}")
+    org_name = org.get("org_name") or "organisation"
+    suffix = f"_{alone}" if alone else "_evidence_pack"
+    return Response(zip_buf.getvalue(), media_type="application/zip",
+                    headers=download_headers(identity.safe_filename(f"ThemisIQ_privacy{suffix}_{org_name}", "zip", when=now)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════

@@ -26,7 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
-from modules.evidence import find as finder, inspector, proof
+from modules.evidence import find as finder, inspector, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
@@ -170,7 +170,7 @@ async def reconcile_legacy_bcm(request: Request, source_id: int):
 from modules.saved_views.data_service import register_view_schema as _register_view_schema
 _register_view_schema(
     "evidence", "items_list",
-    allowed_params={"category", "status", "q", "module", "view"},
+    allowed_params={"category", "status", "q", "module", "view", "folder"},
     sortable_fields={"updated_at", "title", "expiry_date", "status"},
     available_columns={"title", "category", "status", "expiry_date", "uploaded_by_name", "link_count"},
 )
@@ -268,7 +268,7 @@ def _not_expired() -> str:
     return f"(e.expiry_date IS NULL OR e.expiry_date > {sql_current_date()})"
 
 
-_VIEWS = ("all", "needs_filing", "unlinked", "for_review", "review_due", "recent", "expiring", "archived", "superseded")
+_VIEWS = ("all", "needs_filing", "unlinked", "for_review", "review_due", "recent", "expiring", "archived", "superseded", "generated_history")
 
 
 def _view_where(view: str, user: dict) -> tuple[list, list]:
@@ -278,6 +278,13 @@ def _view_where(view: str, user: dict) -> tuple[list, list]:
         return ["e.status = 'archived'"], []
     if view == "superseded":
         return ["e.status = 'superseded'"], []
+    if view == "generated_history":
+        return ["e.status = 'superseded' AND e.category = 'generated_record' AND e.id IN ("
+                "SELECT d.evidence_id FROM generated_record_documents d WHERE "
+                "(SELECT COUNT(*) FROM generated_record_documents newer WHERE "
+                "newer.source_module=d.source_module AND newer.source_type=d.source_type "
+                "AND newer.source_id=d.source_id AND newer.file_format=d.file_format "
+                "AND newer.sequence>d.sequence) BETWEEN 1 AND 2)"], []
     if view == "expiring":
         return ["e.status = 'current' AND e.expiry_date IS NOT NULL "
                 f"AND e.expiry_date <= {sql_date_offset('+30 days')} AND e.expiry_date > {sql_current_date()}"], []
@@ -391,6 +398,35 @@ async def api_evidence_list(request: Request):
     return JSONResponse(_library_page(request.state.user, request.query_params))
 
 
+@router.get("/api/folders")
+@require_auth
+async def api_evidence_folders(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse({"folders": vault_views.folder_counts(db, request.state.user)})
+    finally:
+        db.close()
+
+
+@router.get("/api/folders/{group}/records")
+@require_auth
+async def api_evidence_record_folders(request: Request, group: str):
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except ValueError:
+        page = 1
+    db = get_db()
+    try:
+        try:
+            data = vault_views.record_folders(db, request.state.user, group, page,
+                                              request.query_params.get("q", ""))
+        except ValueError:
+            raise HTTPException(404, "Folder not found") from None
+        return JSONResponse(data)
+    finally:
+        db.close()
+
+
 def _library_page(user: dict, qp, size: int = None) -> dict:
     """One page of the library for `user` from list parameters (a mapping with .get). `size` overrides the page sizes the
     list offers: Find evidence uses it to take the first few."""
@@ -447,9 +483,15 @@ def _library_page(user: dict, qp, size: int = None) -> dict:
     sort_key = qp.get("sort", "")
     order = _SORTS.get(sort_key) or (_SORTS["review_due"] if view == "review_due" else _SORTS["updated"])
 
-    where_sql = " AND ".join(where)
     db = get_db()
     try:
+        try:
+            folder_where, folder_params = vault_views.folder_sql(qp.get("folder", ""), user, db)
+        except ValueError:
+            raise HTTPException(404, "Folder not found") from None
+        where.append(folder_where)
+        params.extend(folder_params)
+        where_sql = " AND ".join(where)
         total = db.execute(f"SELECT COUNT(*) FROM evidence_items e WHERE {where_sql}", params).fetchone()[0]
         pages = max(1, -(-total // page_size))
         page = min(page, pages)
@@ -595,6 +637,8 @@ async def api_evidence_upload(
 
     from core.sanitize import sanitize_str as _s
     title, description, category, tags = _s(title), _s(description), _s(category), _s(tags)
+    if category == "generated_record":
+        return JSONResponse({"error": "Generated records are filed from their source module."}, status_code=422)
     expiry_date = _s(expiry_date)
     days, problems = {}, []
     for name, value in (("expiry_date", expiry_date), ("review_due_date", _s(review_due_date)),
@@ -669,6 +713,8 @@ async def api_evidence_upload(
             parent_row = _scoped_evidence_item(db, rid, user)
             if not parent_row:
                 raise HTTPException(404, "Evidence not found")
+            if parent_row["category"] == "generated_record":
+                return JSONResponse({"error": "Generated records are versioned from their source module."}, status_code=409)
             if parent_row["status"] != "current":
                 return JSONResponse({"error": "Only the current version can be replaced."}, status_code=409)
             parent_id = rid
@@ -934,6 +980,8 @@ async def api_evidence_bulk_archive(request: Request):
             return False, "Not found or outside your organization."
         if item["status"] == "archived":
             return False, "Already archived."
+        if item["category"] == "generated_record":
+            return False, "Generated records follow their own retention history."
         return True, None
 
     touched_controls = []
@@ -970,8 +1018,13 @@ async def api_evidence_update(request: Request, eid: int):
     data = await _json_body(request)
     db = get_db()
     try:
-        if not _scoped_evidence_item(db, eid, request.state.user):
+        item = _scoped_evidence_item(db, eid, request.state.user)
+        if not item:
             raise HTTPException(404, "Evidence not found")
+        if item["category"] == "generated_record":
+            return JSONResponse({"error": "Edit generated records in their source module."}, status_code=409)
+        if data.get("category") == "generated_record":
+            return JSONResponse({"error": "Generated records are filed from their source module."}, status_code=422)
         allowed = ["title", "description", "category", "tags", "status", "expiry_date", "owner_user_id",
                    "review_due_date", "period_start", "period_end"]
         sets = []
@@ -1009,8 +1062,11 @@ async def api_evidence_delete(request: Request, eid: int):
     user = request.state.user
     db = get_db()
     try:
-        if not _scoped_evidence_item(db, eid, user):
+        item = _scoped_evidence_item(db, eid, user)
+        if not item:
             raise HTTPException(404, "Evidence not found")
+        if item["category"] == "generated_record":
+            return JSONResponse({"error": "Generated records follow their own retention history."}, status_code=409)
         touched_controls = _canonical_controls_linked_to(db, [eid])
         db.execute(
             "UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
@@ -1038,8 +1094,11 @@ async def api_evidence_restore(request: Request, eid: int):
         return JSONResponse({"error": "Permission denied"}, 403)
     db = get_db()
     try:
-        if not _scoped_evidence_item(db, eid, request.state.user):
+        item = _scoped_evidence_item(db, eid, request.state.user)
+        if not item:
             raise HTTPException(404, "Evidence not found")
+        if item["category"] == "generated_record":
+            return JSONResponse({"error": "Generated records follow their own retention history."}, status_code=409)
         db.execute(
             "UPDATE evidence_items SET status = 'current', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
             (eid,),
@@ -1063,6 +1122,8 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
         item = _scoped_evidence_item(db, eid, request.state.user)
         if not item:
             return JSONResponse({"error": "Not found"}, 404)
+        if item["category"] == "generated_record":
+            return JSONResponse({"error": "Generated records follow their own retention history."}, status_code=409)
         if item["status"] != "archived":
             return JSONResponse({"error": "Only archived items can be permanently deleted"}, 400)
         touched_controls = _canonical_controls_linked_to(db, [eid])
@@ -1242,8 +1303,9 @@ async def api_evidence_download_pdf(request: Request, eid: int):
         )
 
     pdf_path, tmpdir = await run_in_threadpool(_convert_office_preview, file_path)
+    from core.report_kit.identity import safe_filename
     return FileResponse(
-        str(pdf_path), filename=Path(fname).stem + ".pdf",
+        str(pdf_path), filename=safe_filename(Path(fname).stem or "evidence", "pdf"),
         media_type="application/pdf",
         background=BackgroundTask(shutil.rmtree, tmpdir, ignore_errors=True),
     )
@@ -1623,10 +1685,18 @@ async def api_evidence_link_delete(request: Request, lid: int):
     db = get_db()
     try:
         link_row = db.execute(
-            "SELECT evidence_id, entity_type, entity_id FROM evidence_links WHERE id = %s", (lid,)
+            "SELECT evidence_id, module, entity_type, entity_id FROM evidence_links WHERE id = %s", (lid,)
         ).fetchone()
         if not link_row or not _scoped_evidence_item(db, link_row["evidence_id"], request.state.user):
             raise HTTPException(404, "Link not found")
+        generated = db.execute(
+            "SELECT source_module, source_type, source_id FROM generated_record_documents WHERE evidence_id = %s",
+            (link_row["evidence_id"],),
+        ).fetchone()
+        if (generated and link_row["module"] == generated["source_module"]
+                and link_row["entity_type"] == generated["source_type"]
+                and link_row["entity_id"] == generated["source_id"]):
+            return JSONResponse({"error": "A generated record must stay linked to its source."}, status_code=409)
         db.execute(
             "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP, deleted_by = %s WHERE id = %s",
             (_uid(request), lid),
@@ -1853,7 +1923,7 @@ _VAULT_TARGETS = (
     ("grid", "audit"), ("grid", "control"), ("grid", "nc"),
     ("bcm", "plan"), ("bcm", "incident"), ("bcm", "risk"), ("bcm", "bia"), ("bcm", "compliance_control"),
     ("sentinel", "ropa"), ("sentinel", "dpia"), ("sentinel", "breach"), ("sentinel", "dsr"), ("sentinel", "vendor"),
-    ("erm", "risk"),
+    ("erm", "risk"), ("erm", "scenario"),
     ("governance", "application"),  # proof for an AI use: shown on the Evidence tab of its workspace
 )
 # (module, entity_type) -> (table_name, name_column, url_template)
@@ -1973,6 +2043,13 @@ async def api_search_entities(request: Request):
         if q:
             where.append(f"LOWER(t.{name_col}) LIKE LOWER(%s)")
             params.append(f"%{q}%")
+        only_id = request.query_params.get("entity_id", "")
+        if only_id:  # one named record, still inside the caller's scope (the ?attach= deep link)
+            try:
+                where.append(f"t.{id_col} = %s")
+                params.append(int(only_id))
+            except ValueError:
+                return JSONResponse({"error": "entity_id must be an integer"}, status_code=400)
         sql = f"SELECT t.{id_col} AS id, t.{name_col} AS name FROM {table} t{joins}"
         if where:
             sql += " WHERE " + " AND ".join(where)

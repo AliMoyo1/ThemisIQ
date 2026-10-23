@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call, log_audit
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
+from core.report_kit import grounding, respond
 from database import get_db
 from core.events import (
     emit, BCM_INCIDENT_DECLARED, BCM_INCIDENT_RESOLVED,
@@ -24,6 +25,8 @@ templates = Jinja2Templates(directory=["modules/bcm/templates", "templates"])
 from modules.bcm import data_service as ds
 from modules.bcm import exercise_service as exs
 from modules.bcm import escalation
+from modules.bcm import board_report as board
+from modules.bcm import plan_document
 from modules.governance.data_service import bu_scope_ids
 from core.best_effort import swallowed
 
@@ -140,6 +143,7 @@ async def bcm_spa(request: Request):
         "bcm_can_manage_incidents": has_capability(user, "bcm.incident.manage"),
         "bcm_can_manage_dependencies": has_capability(user, "bcm.dependency.manage"),
         "bcm_can_manage_comms": has_capability(user, "bcm.plan.manage"),
+        "bcm_can_model_scenario": has_capability(user, "erm.scenario.manage"),
         **shell_ctx(request, active_module="bcm"),
     })
 
@@ -502,6 +506,14 @@ async def api_risk_delete(request: Request, risk_id: int):
     return JSONResponse({"ok": True})
 
 
+def _plan_or_404(request: Request, plan_id: int) -> dict:
+    """Read a visible plan; a foreign-unit ID has the same result as a missing ID."""
+    plan = ds.get_plan(plan_id, bu_scope=bu_scope_ids(request.state.user))
+    if plan is None:
+        raise HTTPException(404, "Plan not found")
+    return plan
+
+
 @router.get("/api/plans")
 @require_capability("module.bcm.access")
 async def api_plans_list(request: Request):
@@ -511,22 +523,19 @@ async def api_plans_list(request: Request):
 @router.get("/api/plans/active")
 @require_capability("module.bcm.access")
 async def api_active_plans(request: Request):
-    """Return all currently activated plans."""
-    return JSONResponse(ds.list_active_plans())
+    """Return activated plans visible to the caller."""
+    return JSONResponse(ds.list_active_plans(bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.get("/api/plans/{plan_id}")
 @require_capability("module.bcm.access")
 async def api_plan_detail(request: Request, plan_id: int):
-    p = ds.get_plan(plan_id)
-    if not p:
-        raise HTTPException(404)
-    scope = bu_scope_ids(request.state.user)
-    if scope is not None and p.get("business_unit_id") is not None and p["business_unit_id"] not in scope:
-        raise HTTPException(404)
-    p["bia_links"] = ds.list_bia_plan_links(plan_id=plan_id)
+    p = _plan_or_404(request, plan_id)
+    p["bia_links"] = ds.list_bia_plan_links(plan_id=plan_id, bu_scope=bu_scope_ids(request.state.user))
     p["reviews"] = ds.list_plan_reviews(plan_id)
     # Attach linked evidence from vault
+    from modules.evidence.scope import evidence_scope_sql
+    evidence_scope, evidence_params = evidence_scope_sql(request.state.user)
     db = get_db()
     try:
         ev = [dict(r) for r in db.execute(
@@ -534,8 +543,8 @@ async def api_plan_detail(request: Request, plan_id: int):
             "FROM evidence_items e "
             "JOIN evidence_links el ON e.id=el.evidence_id "
             "WHERE el.module='bcm' AND el.entity_type='plan' AND el.entity_id=%s "
-            "AND el.deleted_at IS NULL AND e.status != 'archived' ORDER BY e.created_at DESC",
-            (plan_id,),
+            f"AND el.deleted_at IS NULL AND e.status != 'archived' AND {evidence_scope} ORDER BY e.created_at DESC",
+            (plan_id, *evidence_params),
         ).fetchall()]
     finally:
         db.close()
@@ -544,10 +553,36 @@ async def api_plan_detail(request: Request, plan_id: int):
     return JSONResponse(p)
 
 
+@router.get("/api/plans/{plan_id}/document")
+@require_capability("module.bcm.access")
+async def api_plan_document(request: Request, plan_id: int):
+    """Export one visible continuity plan, with scope and connected proof."""
+    plan = _plan_or_404(request, plan_id)
+    fmt = respond.format_of(request)
+    if fmt is None:
+        raise HTTPException(400, "Choose pdf or xlsx")
+    user = request.state.user
+    report = plan_document.build(user, plan)
+    stem = f"ThemisIQ_continuity_plan_{plan_id}_{plan.get('title') or ''}"
+    response = await respond.download(report, fmt, stem)
+    from modules.evidence import generated_records
+    from starlette.concurrency import run_in_threadpool
+    vault_state, vault_id = await run_in_threadpool(
+        generated_records.file_record, user, "bcm", "plan", plan_id, report, fmt, response.body, stem)
+    response.headers["X-ThemisIQ-Vault-Record"] = str(vault_id)
+    response.headers["X-ThemisIQ-Vault-Status"] = vault_state
+    log_audit(user, "bcm", "plan_exported", entity_type="plan", entity_id=plan_id,
+              ip=respond.client_ip(request), details=f"version={plan.get('version') or 'n/a'}; format={fmt}; tier={report.meta.tier}; vault={vault_id}; {vault_state}")
+    return response
+
+
 @router.post("/api/plans")
 @require_capability("bcm.plan.manage")
 async def api_plan_create(request: Request):
     body = await _json_body(request)
+    # The security owner is the author's unit. The free-text plan/process owner
+    # remains a named person or team and need not hold a ThemisIQ account.
+    body["business_unit_id"] = request.state.user.get("business_unit_id")
     pid = ds.create_plan(body)
     if body.get("bia_ids"):
         for bid in body["bia_ids"]:
@@ -558,6 +593,7 @@ async def api_plan_create(request: Request):
 @router.put("/api/plans/{plan_id}")
 @require_capability("bcm.plan.manage")
 async def api_plan_update(request: Request, plan_id: int):
+    _plan_or_404(request, plan_id)
     body = await _json_body(request)
     ds.update_plan(plan_id, body)
 
@@ -582,6 +618,7 @@ async def api_plan_update(request: Request, plan_id: int):
 @router.delete("/api/plans/{plan_id}")
 @require_capability("bcm.plan.manage")
 async def api_plan_delete(request: Request, plan_id: int):
+    _plan_or_404(request, plan_id)
     ds.delete_plan(plan_id)
     return JSONResponse({"ok": True})
 
@@ -589,6 +626,7 @@ async def api_plan_delete(request: Request, plan_id: int):
 @router.get("/api/plans/{plan_id}/reviews")
 @require_capability("module.bcm.access")
 async def api_plan_reviews(request: Request, plan_id: int):
+    _plan_or_404(request, plan_id)
     return JSONResponse(ds.list_plan_reviews(plan_id))
 
 
@@ -596,9 +634,7 @@ async def api_plan_reviews(request: Request, plan_id: int):
 @require_capability("bcm.plan.manage")
 async def api_plan_activate(request: Request, plan_id: int):
     """Activate a continuity plan (BCM-17)."""
-    plan = ds.get_plan(plan_id)
-    if not plan:
-        raise HTTPException(404, "Plan not found")
+    plan = _plan_or_404(request, plan_id)
     body = await _json_body(request)
     reason = body.get("reason", "")
     incident_id = body.get("incident_id")
@@ -631,9 +667,7 @@ async def api_plan_activate(request: Request, plan_id: int):
 @require_capability("bcm.plan.manage")
 async def api_plan_deactivate(request: Request, plan_id: int):
     """Stand down an activated plan."""
-    plan = ds.get_plan(plan_id)
-    if not plan:
-        raise HTTPException(404, "Plan not found")
+    plan = _plan_or_404(request, plan_id)
     if not plan.get("is_active_plan"):
         raise HTTPException(400, "Plan is not currently active")
     body = await _json_body(request)
@@ -665,6 +699,7 @@ async def api_plan_deactivate(request: Request, plan_id: int):
 @require_capability("module.bcm.access")
 async def api_plan_activations(request: Request, plan_id: int):
     """Return the activation history for a plan."""
+    _plan_or_404(request, plan_id)
     return JSONResponse(ds.list_plan_activations(plan_id))
 
 
@@ -673,11 +708,7 @@ async def api_plan_activations(request: Request, plan_id: int):
 async def api_plan_review_create(request: Request, plan_id: int):
     from modules.bcm import ai_service as ai
     from core.ai_client import provider_name
-    plan = ds.get_plan(plan_id)
-    scope = bu_scope_ids(request.state.user)
-    if not plan or (scope is not None and plan.get("business_unit_id") is not None
-                    and plan["business_unit_id"] not in scope):
-        raise HTTPException(404)
+    plan = _plan_or_404(request, plan_id)
     try:
         result = ai.review_plan(plan)
     except RuntimeError as e:
@@ -1525,7 +1556,8 @@ async def api_ai_save_generated_plan(request: Request):
     pid = ds.create_plan({
         "title": body.get("title", "AI-Generated Plan"),
         "scope": body.get("scope"),
-        "owner": _uname(request),
+        "owner": body.get("owner") or _uname(request),
+        "business_unit_id": request.state.user.get("business_unit_id"),
         "content": body.get("content"),
         "status": "draft",
     })
@@ -1558,16 +1590,19 @@ async def api_export_csv(request: Request):
         db.close()
     columns = ["title", "description", "severity", "status", "commander",
                "affected_systems", "impact", "assigned_to", "declared_at", "resolved_at", "created_at"]
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    from core.timeutils import utcnow
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(columns)
     for r in rows:
-        writer.writerow([r[c] if c in r.keys() else "" for c in columns])
+        writer.writerow(identity.csv_row([r[c] if c in r.keys() else "" for c in columns]))
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=bcm_incidents_export.csv"},
+        media_type="text/csv; charset=utf-8",
+        headers=download_headers(identity.safe_filename("ThemisIQ_continuity_incidents", "csv", when=utcnow())),
     )
 
 
@@ -1587,7 +1622,23 @@ async def api_reports_board(request: Request):
         narrative = ai.generate_board_narrative(dashboard_metrics.for_narrative(stats))
     except RuntimeError as e:
         raise HTTPException(502, str(e))
-    return JSONResponse({"stats": stats, "narrative": narrative})
+    checked = grounding.check(narrative, stats)      # a model's draft: is every figure in it a figure of the data?
+    return JSONResponse({"stats": stats, "narrative": narrative, "narrative_check": checked.sentence(), "narrative_grounded": checked.ok})
+
+
+@router.get("/api/board-report/document")
+@require_capability("bcm.report.generate")
+async def api_board_report_document(request: Request):
+    """The Resilience board report as a document: `?format=pdf` (the default) or `xlsx`. The figures are the dashboard's and the
+    words are written from them, so no model is called and the AI narrative above stays optional."""
+    fmt = respond.format_of(request)
+    if fmt is None:
+        raise HTTPException(400, "Choose pdf or xlsx")
+    user = request.state.user
+    report = board.board_report(user)
+    log_audit(user, "bcm", "report_export", entity_type="board_report", ip=respond.client_ip(request),
+              details=f"format={fmt}; tier={report.meta.tier}")
+    return await respond.download(report, fmt, "ThemisIQ_continuity_board_report")
 
 
 from modules.bcm.routes_exercises import router as exercise_workspace_router

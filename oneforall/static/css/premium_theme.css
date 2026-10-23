@@ -183,6 +183,8 @@ body[data-module] :is(button,a,input,select,textarea,[tabindex]):focus-visible{o
   body[data-module] .dash-widget,body[data-module] .icon-sidebar{animation:none;transition:none;transform:none}
   body[data-module] .stat-card:hover,body[data-module] .card:hover,
   body[data-module] .panel-card:hover,body[data-module] .dash-widget:hover{transform:none}
+  /* Theme changes must not leave low-contrast intermediate text on screen. */
+  body[data-module] :is(.nav-item,.topbar-search,.btn){transition:none!important}
 }
 /* Module-specific surfaces that use their own class names. */
 body[data-module] .dash-greeting,body[data-module] .gov-header h2{

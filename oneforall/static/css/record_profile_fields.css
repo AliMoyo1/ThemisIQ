@@ -1,0 +1,8 @@
+.rp-heading { font-size: 1rem; font-weight: 700; margin: 12px 0 4px; }
+.rp-note { font-size: .78rem; color: var(--muted, #64716b); margin: 3px 0 8px; line-height: 1.5; }
+.rp-section { padding: 12px 0; }
+.rp-section h3 { font-size: .9rem; margin: 4px 0 12px; }
+.rp-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; }
+.rp-field label { font-size: .8rem; font-weight: 650; }
+.rp-field input, .rp-field select, .rp-field textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border-radius: 10px; background: var(--surface, #fff); color: var(--text, #24332c); border: 1px solid var(--border, #d9dfdb); font: inherit; }
+.rp-anchor { color: var(--muted, #64716b); font-size: .72rem; }
