@@ -85,7 +85,7 @@ FEATURES = {
     "grid.generate_incident_checklist":    ("Draft an incident checklist", ("business",)),
     "launcher.api_predictive_risk":        ("Predictive risk advisory", ("business",)),
     "launcher.api_tasks_ai_prioritize":    ("Prioritize tasks", ("business",)),
-    "launcher.api_trainer_ask":            ("Platform help assistant", ("public",)),
+    "launcher.api_trainer_ask":            ("Platform help assistant (reserved)", ("business",)),  # retained for stored policies; no provider call
     "launcher.api_executive_summary":      ("Executive summary", ("business",)),
     "orm.analyze_event":                   ("Analyse an operational event", ("business",)),
     "orm.generate_trend_narrative":        ("Operational trend narrative", ("business",)),

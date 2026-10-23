@@ -1149,6 +1149,7 @@ async function openDetail(eid){
   _detailEid=eid;
   var r=await fetch('/evidence/api/items/'+eid);var item=await r.json();
   if(!item||item.error){return;}
+  if(window.ThemisSelectRecord)window.ThemisSelectRecord('/evidence/?open=item:'+eid);
   evDetailItem=item;
   var icon=iconMap[item.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
   var tags=(item.tags||'').split(',').filter(function(t){return t.trim();});

@@ -136,7 +136,7 @@ def test_a_refusal_is_a_runtime_error_with_a_sentence_that_names_no_setting(worl
 
 @pytest.mark.parametrize("policy, feature", [
     ({"categories": ["public", "business"]}, "aria.ask"),
-    ({"categories": ["public"]}, "launcher.api_trainer_ask"),
+    ({"categories": ["business"]}, "launcher.api_trainer_ask"),
     ({"categories": ["business", "personal"]}, "sentinel.ai_chat"),
     ({"categories": ["business", "evidence"]}, "evidence.api_evidence_suggest_links"),
     ({"providers": ["anthropic", "ollama"]}, "aria.ask"),
