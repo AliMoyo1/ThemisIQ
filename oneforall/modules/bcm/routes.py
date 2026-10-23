@@ -140,6 +140,7 @@ async def bcm_spa(request: Request):
         "bcm_can_manage_incidents": has_capability(user, "bcm.incident.manage"),
         "bcm_can_manage_dependencies": has_capability(user, "bcm.dependency.manage"),
         "bcm_can_manage_comms": has_capability(user, "bcm.plan.manage"),
+        "bcm_can_model_scenario": has_capability(user, "erm.scenario.manage"),
         **shell_ctx(request, active_module="bcm"),
     })
 

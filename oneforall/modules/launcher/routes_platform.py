@@ -189,6 +189,16 @@ async def api_global_search(request: Request):
             results.append({"module": "bcm", "type": "plan", "id": r["id"],
                             "title": r["title"], "subtitle": "BCM Plan", "link": f"/bcm/?open=plan:{r['id']}"})
 
+        # ERM scenarios
+        sc, sp = scope(("erm", "scenario"))
+        for r in db.execute(
+            f"SELECT id, title, scenario_type FROM erm_scenarios WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "erm", "type": "scenario", "id": r["id"], "title": r["title"],
+                            "subtitle": r["scenario_type"] or "Risk scenario",
+                            "link": f"/erm/scenario-studio?open={r['id']}"})
+
         # Risk register
         sc, sp = scope(("platform", "risk"))
         for r in db.execute(
@@ -1350,6 +1360,12 @@ _TRAINER_ENTRIES = [
      "Emergency Contacts in BCM stores key personnel for crisis response. "
      "Add contacts with name, role, phone, and email. "
      "Organise them into call trees for different incident types."),
+
+    (["scenario", "scenarios", "studio", "what-if", "stress", "board pack", "board-pack"],
+     "Scenario Studio in ERM models what-if situations. Start from a template or a sentence, pick the risks, "
+     "controls and indicators affected, set what changes, and read the effect on scores and risk appetite. "
+     "You can create actions from the result, rehearse it as a BCM tabletop exercise, and freeze the numbers "
+     "in a board pack with a narrative."),
 
     (["bcm", "scenario", "library", "threat"],
      "The Scenario Library in BCM contains predefined threat scenarios "
