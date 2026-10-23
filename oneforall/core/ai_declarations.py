@@ -236,9 +236,6 @@ DECLARATIONS = {
     "launcher.api_tasks_ai_prioritize": _d("Order a person's own open tasks",
                                            "Titles and due dates of the person's own tasks", "Tasks of other people",
                                            "Any signed-in person", "A suggested order, shown", "person", "unavailable"),
-    "launcher.api_trainer_ask": _d("Reserved provider feature; Themis now answers from authorized local records and "
-                                   "the platform guide", "No prompt is sent to a provider", "Free-text questions and "
-                                   "record content", "No model call", "No AI output is produced", "person", "rules"),
     "launcher.api_executive_summary": _d("Write a board narrative from the executive figures",
                                          "The figures of the frozen run that is being made: counts only",
                                          "Record titles, content and documents", "Any signed-in person, for the "

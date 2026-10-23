@@ -235,7 +235,8 @@ def test_a_question_the_guide_does_not_cover_never_reaches_the_model(ask, monkey
     assert calls == []
 
 
-def test_a_typed_question_is_business_data_so_a_public_only_policy_refuses_it():
-    """Keep the historical feature declaration conservative if a provider-backed guide is proposed again."""
+def test_the_local_guide_is_not_an_active_provider_feature():
+    """Old policy references stay readable without advertising a model call."""
     from core import ai_policy
-    assert ai_policy.FEATURES["launcher.api_trainer_ask"][1] == ("business",)
+    assert "launcher.api_trainer_ask" in ai_policy.RETIRED_FEATURES
+    assert "launcher.api_trainer_ask" not in ai_policy.FEATURES
