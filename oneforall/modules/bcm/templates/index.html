@@ -880,6 +880,7 @@
   // The acknowledgement clock of a live incident (modules/bcm/escalation.py). Each badge carries its own colours so that
   // its contrast does not depend on the theme.
   var bcmCanManageIncidents={{ 'true' if bcm_can_manage_incidents else 'false' }};
+  var bcmCanModelScenario={{ 'true' if bcm_can_model_scenario else 'false' }};
   var bcmUserId={{ user.id }};
   function incLive(inc){return ['resolved','closed'].indexOf((inc.status||'').toLowerCase())<0;}
   function ackTime(v){
@@ -3031,7 +3032,8 @@
       case 'decisions': bcmRenderConsoleDecisions(body,footer,inc); break;
       case 'related':
         footer.replaceChildren();
-        body.innerHTML='<div id="bcmIncidentRelated"></div>';
+        body.innerHTML='<div id="bcmIncidentRelated"></div>'+
+          (bcmCanModelScenario?'<div style="margin-top:14px;font-size:12px"><a href="/erm/scenario-studio?model=bcm:incident:'+Number(inc.id)+'" style="color:var(--accent);font-weight:600;text-decoration:none">Model a worse case in Scenario Studio</a></div>':'');
         if(typeof RelatedItems!=='undefined')RelatedItems.mount(
           document.getElementById('bcmIncidentRelated'),'bcm','incident',inc.id,{canEdit:true});
         break;

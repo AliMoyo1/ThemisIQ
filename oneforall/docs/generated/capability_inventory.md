@@ -526,14 +526,22 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/erm/api/board-packs/{pack_id}/generate-narrative` | capability | erm.boardpack.generate | erm.boardpack.generate: compliance_manager, risk_owner, super_admin | - |  |
 | PUT | `/erm/api/board-packs/{pack_id}/narrative` | capability | erm.boardpack.generate | erm.boardpack.generate: compliance_manager, risk_owner, super_admin | - |  |
 | POST | `/erm/api/board-packs/{pack_id}/publish` | capability | erm.boardpack.publish | erm.boardpack.publish: risk_owner, super_admin | - |  |
+| GET | `/erm/api/scenario-templates` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/erm/api/scenarios` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | POST | `/erm/api/scenarios` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
+| POST | `/erm/api/scenarios/ai/draft` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
+| GET | `/erm/api/scenarios/candidates` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
+| GET | `/erm/api/scenarios/seed` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
 | DELETE | `/erm/api/scenarios/{scenario_id}` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
 | GET | `/erm/api/scenarios/{scenario_id}` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | PUT | `/erm/api/scenarios/{scenario_id}` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
+| POST | `/erm/api/scenarios/{scenario_id}/actions` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
+| POST | `/erm/api/scenarios/{scenario_id}/ai/{action}` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
+| GET | `/erm/api/scenarios/{scenario_id}/context` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/erm/api/scenarios/{scenario_id}/impact` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | POST | `/erm/api/scenarios/{scenario_id}/links` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
 | DELETE | `/erm/api/scenarios/{scenario_id}/links/{link_type}/{link_id}` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
+| POST | `/erm/api/scenarios/{scenario_id}/rehearse` | capability | erm.scenario.manage | erm.scenario.manage: risk_owner, super_admin | - |  |
 | GET | `/erm/scenario-studio` | capability | erm.scenario.view | erm.scenario.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 
 ## `modules.evidence.routes`
@@ -545,6 +553,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/coverage` | authenticated | - | - | - |  |
 | GET | `/evidence/api/coverage/definitions` | authenticated | - | - | - |  |
 | POST | `/evidence/api/find` | authenticated | - | - | - |  |
+| GET | `/evidence/api/folders` | authenticated | - | - | - |  |
+| GET | `/evidence/api/folders/{group}/records` | authenticated | - | - | - |  |
 | GET | `/evidence/api/inspector` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items` | authenticated | - | - | - |  |
 | POST | `/evidence/api/items` | authenticated | - | - | - |  |

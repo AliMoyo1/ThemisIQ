@@ -41,6 +41,7 @@ FACETS = {
     ("sentinel", "vendor"): (None, "updated_at", "services"),
     ("sentinel", "aiia"): ("status", "updated_at", "system_description"),
     ("erm", "risk"): ("status", "updated_at", "description"),
+    ("erm", "scenario"): ("status", "updated_at", "description"),
     ("erm", "obligation"): ("status", "updated_at", None),
     ("orm", "event"): ("status", "updated_at", "description"),
     ("orm", "kri"): ("status", "updated_at", "description"),

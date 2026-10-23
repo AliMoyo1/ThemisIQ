@@ -33,7 +33,7 @@ KIND_LABELS = {
     ("aria", "control"): "Control", ("aria", "document"): "Policy document", ("aria", "risk"): "Risk",
     ("grid", "audit"): "Audit", ("grid", "nc"): "Finding", ("grid", "control"): "Audit control",
     ("bcm", "plan"): "Continuity plan", ("bcm", "bia"): "Business impact analysis", ("bcm", "incident"): "Incident",
-    ("erm", "risk"): "Enterprise risk", ("orm", "event"): "Operational event", ("orm", "aims"): "AI management assessment",
+    ("erm", "risk"): "Enterprise risk", ("erm", "scenario"): "Risk scenario", ("orm", "event"): "Operational event", ("orm", "aims"): "AI management assessment",
     ("orm", "ai_control"): "AI control",
 }
 # Facts a header can read from the record's own table: (table, owner column, business unit column, updated column).
