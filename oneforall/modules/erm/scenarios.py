@@ -26,6 +26,7 @@ point-in-time artifact is a board pack (generate_board_pack), which never
 changes after creation except for its narrative/status/approval/staleness
 columns.
 """
+import datetime
 import hashlib
 import json
 import logging
@@ -33,6 +34,7 @@ import math
 
 from config import settings
 from core.ai_client import is_configured, create_message, safe_json_parse
+from core.events import emit
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id
 from modules.erm import data_service as ds
@@ -45,6 +47,10 @@ from modules.governance.data_service import bu_scope_ids
 log = logging.getLogger(__name__)
 
 LINK_TYPES = {"risk", "control", "kri", "objective", "external_context"}
+# Who proposed a shock and why. Carried inside the delta so a board reader can see what a machine suggested; the
+# impact calculation never reads them.
+PROVENANCE_FIELDS = {"source", "reason"}
+DELTA_SOURCES = {"human", "ai", "ai_edited"}
 SCENARIO_STATUSES = {"draft", "active", "archived"}
 
 
@@ -167,6 +173,39 @@ def get_scenario(scenario_id, bu_scope=None):
         db.close()
 
 
+def _clean_review_date(value):
+    """A review date is a calendar day or nothing."""
+    value = value.strip() if isinstance(value, str) else value
+    if not value:
+        return None
+    try:
+        return datetime.date.fromisoformat(str(value)).isoformat()
+    except ValueError:
+        raise ScenarioError("review_date must be a date like 2026-12-31")
+
+
+def _clean_owner(db, value, actor=None):
+    """The owner is an active person of the actor's own organization, or nobody."""
+    if value in (None, ""):
+        return None
+    try:
+        owner_id = int(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ScenarioError("owner_id must be a user id")
+    row = db.execute("SELECT is_active, deleted_at, org_id FROM users WHERE id=%s", (owner_id,)).fetchone()
+    if not row or not row["is_active"] or row["deleted_at"] is not None:
+        raise ScenarioError("owner must be an active user")
+    actor_org = (actor or {}).get("org_id")
+    if actor_org is not None and row["org_id"] != actor_org:
+        raise ScenarioError("owner must be an active user")
+    return owner_id
+
+
+def _clean_type(value):
+    value = value.strip() if isinstance(value, str) else ""
+    return value[:100] or None
+
+
 def create_scenario(data, actor):
     title = (data.get("title") or "").strip()
     if not title:
@@ -174,19 +213,23 @@ def create_scenario(data, actor):
     status = data.get("status", "draft")
     if status not in SCENARIO_STATUSES:
         raise ScenarioError(f"invalid status: {status}")
+    review_date = _clean_review_date(data.get("review_date"))
     db = get_db()
     try:
         business_unit_id = _resolve_write_business_unit(db, data, actor)
+        owner_id = _clean_owner(db, data.get("owner_id"), actor)
         new_id = insert_returning_id(db,
             "INSERT INTO erm_scenarios (title, description, assumptions, horizon, "
-            "owner_id, status, business_unit_id, created_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            "owner_id, status, business_unit_id, created_by, scenario_type, review_date) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (title, data.get("description"), data.get("assumptions"), data.get("horizon"),
-             data.get("owner_id"), status, business_unit_id, actor["id"]),
+             owner_id, status, business_unit_id, actor["id"], _clean_type(data.get("scenario_type")), review_date),
         )
         db.commit()
-        return new_id
     finally:
         db.close()
+    emit("erm.scenario.created", "erm", "scenario", new_id, {"title": title}, user_id=actor["id"])
+    return new_id
 
 
 def update_scenario(scenario_id, data, actor):
@@ -203,18 +246,24 @@ def update_scenario(scenario_id, data, actor):
         if not title:
             raise ScenarioError("title is required")
         business_unit_id = _resolve_write_business_unit(db, data, actor, existing=existing)
+        owner_id = _clean_owner(db, data["owner_id"], actor) if "owner_id" in data else existing["owner_id"]
+        review_date = _clean_review_date(data["review_date"]) if "review_date" in data else existing.get("review_date")
+        scenario_type = _clean_type(data["scenario_type"]) if "scenario_type" in data else existing.get("scenario_type")
         db.execute(
             "UPDATE erm_scenarios SET title=%s, description=%s, assumptions=%s, horizon=%s, "
-            "owner_id=%s, status=%s, business_unit_id=%s, version=version+1, updated_at=%s WHERE id=%s",
+            "owner_id=%s, status=%s, business_unit_id=%s, scenario_type=%s, review_date=%s, "
+            "version=version+1, updated_at=%s WHERE id=%s",
             (title, data.get("description", existing["description"]),
              data.get("assumptions", existing["assumptions"]), data.get("horizon", existing["horizon"]),
-             data.get("owner_id", existing["owner_id"]), status,
-             business_unit_id, _now(), scenario_id),
+             owner_id, status, business_unit_id, scenario_type, review_date, _now(), scenario_id),
         )
         db.commit()
-        return True
+        status_changed = status != existing["status"]
     finally:
         db.close()
+    emit("erm.scenario.updated", "erm", "scenario", scenario_id, {"status": status, "status_changed": status_changed},
+         user_id=actor["id"] if actor else None)
+    return True
 
 
 def delete_scenario(scenario_id, actor):
@@ -278,7 +327,7 @@ def _validate_delta(link_type, delta):
         "kri": {"target_value_override"},
         "objective": set(),
         "external_context": set(),
-    }[link_type]
+    }[link_type] | PROVENANCE_FIELDS
     unknown = set(delta) - allowed
     if unknown:
         raise ScenarioError(f"unsupported delta field(s) for {link_type}: {', '.join(sorted(unknown))}")
@@ -289,6 +338,16 @@ def _validate_delta(link_type, delta):
         "residual_likelihood_override", "residual_impact_override",
     }
     for key, value in delta.items():
+        if key == "source":
+            if value not in DELTA_SOURCES:
+                raise ScenarioError(f"source must be one of {sorted(DELTA_SOURCES)}")
+            normalized[key] = value
+            continue
+        if key == "reason":
+            if value is not None and not isinstance(value, str):
+                raise ScenarioError("reason must be text")
+            normalized[key] = (value or "").strip()[:300] or None
+            continue
         if value is None:
             normalized[key] = None
             continue
@@ -475,18 +534,26 @@ def compute_scenario_impact(scenario_id):
             s_emv_i = float(delta["emv_inherent_override"]) if delta.get("emv_inherent_override") is not None else b_emv_i
             s_RL = delta.get("residual_likelihood_override", risk["residual_likelihood"])
             s_RI = delta.get("residual_impact_override", risk["residual_impact"])
-            s_ice = _scenario_ice_rollup(db, risk["id"], control_overrides)
 
-            if s_ice["scored"]:
-                tier = _compute_residual_tiers(irr=s_irr, emv_i=s_emv_i, ice=s_ice)
-            elif s_RL is not None and s_RI is not None:
-                tier = _compute_residual_tiers(irr=s_irr, emv_i=s_emv_i, residual_likelihood=s_RL, residual_impact=s_RI)
-            else:
+            def _tier(irr, emv_i, ice, RL, RI):
+                if ice["scored"]:
+                    return _compute_residual_tiers(irr=irr, emv_i=emv_i, ice=ice)
+                if RL is not None and RI is not None:
+                    return _compute_residual_tiers(irr=irr, emv_i=emv_i, residual_likelihood=RL, residual_impact=RI)
                 weighted_eff = _formula_residual(db, risk["id"])
                 if weighted_eff is not None:
-                    tier = _compute_residual_tiers(irr=s_irr, emv_i=s_emv_i, weighted_effectiveness=weighted_eff)
-                else:
-                    tier = _compute_residual_tiers(irr=s_irr, emv_i=s_emv_i, default_factor=default_factor)
+                    return _compute_residual_tiers(irr=irr, emv_i=emv_i, weighted_effectiveness=weighted_eff)
+                return _compute_residual_tiers(irr=irr, emv_i=emv_i, default_factor=default_factor)
+
+            tier = _tier(s_irr, s_emv_i, _scenario_ice_rollup(db, risk["id"], control_overrides), s_RL, s_RI)
+            if risk["rrr"] is None:
+                # No stored residual score (a risk never recalculated): work the baseline out with the same ladder and
+                # no changes, so a scenario that changes nothing shows no movement instead of comparing the calculated
+                # residual with the inherent score.
+                b_tier = _tier(b_irr, b_emv_i, _scenario_ice_rollup(db, risk["id"], {}),
+                               risk["residual_likelihood"], risk["residual_impact"])
+                baseline.update(rrr=b_tier["rrr"], residual_score=b_tier["residual_score"], loa_pct=b_tier["loa_pct"],
+                                emv_residual=b_tier["emv_residual"], rrr_calculated=True)
 
             scenario_calc = {
                 "irr": s_irr, "rrr": tier["rrr"], "residual_score": tier["residual_score"],
@@ -508,11 +575,11 @@ def compute_scenario_impact(scenario_id):
                     track["scenario_max"] = scenario_calc["rrr"]
 
             baseline_irr.append(b_irr)
-            baseline_rrr.append(risk["rrr"] if risk["rrr"] is not None else b_irr)
+            baseline_rrr.append(baseline["rrr"] if baseline["rrr"] is not None else b_irr)
             if b_emv_i is not None:
                 baseline_emv_i.append(b_emv_i)
-            if risk["emv_residual"] is not None:
-                baseline_emv_r.append(risk["emv_residual"])
+            if baseline["emv_residual"] is not None:
+                baseline_emv_r.append(baseline["emv_residual"])
 
             scenario_irr.append(s_irr)
             scenario_rrr.append(tier["rrr"])
@@ -899,7 +966,7 @@ def sweep_stale_board_packs():
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT id, filters_json, source_hashes_json "
+            "SELECT id, filters_json, source_hashes_json, created_by, scenario_id "
             "FROM erm_board_packs WHERE is_stale=0"
         ).fetchall()
         newly_stale = []
@@ -920,6 +987,15 @@ def sweep_stale_board_packs():
                     ),
                 )
                 newly_stale.append(row["id"])
+                # The person who made the pack hears that its numbers no longer match the records.
+                if row["created_by"]:
+                    db.execute(
+                        "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
+                        (row["created_by"], f"Board pack #{row['id']} is out of date",
+                         "A record it was built from has changed. Open the scenario to generate a new pack.",
+                         f"/erm/scenario-studio?open={row['scenario_id']}" if row["scenario_id"] else "/erm/scenario-studio",
+                         "erm"),
+                    )
         db.commit()
         return newly_stale
     finally:
@@ -1052,9 +1128,11 @@ def publish_board_pack(board_pack_id, actor):
             db.rollback()
             raise ScenarioError("board pack was already published")
         db.commit()
-        return True
     finally:
         db.close()
+    emit("erm.scenario.published", "erm", "board_pack", board_pack_id,
+         {"scenario_id": row["scenario_id"]}, user_id=actor["id"])
+    return True
 
 
 def verify_board_pack_chain(bu_scope=None):

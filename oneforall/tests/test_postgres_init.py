@@ -4432,3 +4432,58 @@ def test_outbox_purge_send_budget_and_task_hand_over_mail_run_inside_a_tenant_on
         finally:
             db.close()
     assert _raw_rows("SELECT count(*) FROM public.email_outbox") == [(0,)], "all of it in the tenant schema"
+
+
+# ── Scenario Studio (plans/2026-10-scenario-studio) ──
+
+def test_scenario_studio_runs_on_real_postgres(pg, monkeypatch):
+    """The new scenario columns exist and the studio's reads and writes parse on PostgreSQL: type, owner, review date,
+    shock provenance, the impact with a baseline that has no stored residual, the headline, the unit scoped candidate
+    picker, the related record registration and the owner's review in My Work."""
+    from modules.erm import scenario_support as sup
+    from modules.erm import scenarios as sv
+    from modules.governance.entity_scope import describe_record
+    from modules.launcher import my_work_service
+
+    pg.init_db()
+    for module in (sv, sup):
+        monkeypatch.setattr(module, "get_db", pg.get_db_bypass_rls)
+    db = pg.get_db_bypass_rls()
+    try:
+        user_id = pg.insert_returning_id(
+            db, "INSERT INTO users (username, email, full_name, password_hash, is_active) "
+                "VALUES ('studio_pg', 'studio_pg@x.com', 'Studio PG', 'x', 1)", ())
+        unit_a = pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES ('Unit A', 1)", ())
+        unit_b = pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES ('Unit B', 1)", ())
+        mine = pg.insert_returning_id(
+            db, "INSERT INTO erm_enterprise_risks (title, status, likelihood, impact, category, business_unit_id) "
+                "VALUES ('Mine', 'open', 2, 3, 'cyber', %s)", (unit_a,))
+        theirs = pg.insert_returning_id(
+            db, "INSERT INTO erm_enterprise_risks (title, status, likelihood, impact, category, business_unit_id) "
+                "VALUES ('Theirs', 'open', 2, 3, 'cyber', %s)", (unit_b,))
+        db.commit()
+        admin = {"id": user_id, "business_unit_id": None, "is_super_admin": True, "roles": ["super_admin"]}
+        scoped = {"id": user_id, "business_unit_id": unit_a, "is_super_admin": False, "roles": ["risk_owner"]}
+
+        sid = sv.create_scenario({"title": "PG scenario", "scenario_type": "Cyber attack", "owner_id": user_id,
+                                  "review_date": "2027-01-31", "business_unit_id": unit_a}, admin)
+        got = sv.get_scenario(sid)
+        assert (got["scenario_type"], got["owner_id"], got["review_date"]) == ("Cyber attack", user_id, "2027-01-31")
+
+        sv.add_scenario_link(sid, "risk", mine, {"likelihood_override": 5, "source": "ai", "reason": "history"}, admin)
+        impact = sv.compute_scenario_impact(sid)
+        row = impact["per_risk"][0]
+        assert row["baseline"]["rrr"] is not None and row["scenario"]["irr"] > row["baseline"]["irr"]
+        assert "get worse" in sup.headline(impact)["sentence"]
+        assert sv.list_scenario_links(sid)[0]["delta"]["source"] == "ai"
+
+        assert [r["id"] for r in sup.candidates("risk", scoped)] == [mine]
+        assert {r["id"] for r in sup.candidates("risk", admin)} == {mine, theirs}
+        assert sup.context(sid, admin)["orm_events"]["count"] == 0
+
+        assert describe_record(db, ("erm", "scenario"), sid, admin)["title"] == "PG scenario"
+        owner = {"id": user_id, "org_id": None, "business_unit_id": None, "is_super_admin": True, "roles": ["super_admin"]}
+        items = my_work_service._erm_scenarios(db, owner, None)
+        assert [i["entity_id"] for i in items] == [sid] and items[0]["due_date"] == "2027-01-31"
+    finally:
+        db.close()

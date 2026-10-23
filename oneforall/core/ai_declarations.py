@@ -153,6 +153,35 @@ DECLARATIONS = {
                                             "Anything outside the snapshot",
                                             "erm.boardpack.generate", "A narrative saved with the pack whose citations "
                                             "were each checked against the snapshot", "beside_record", "unavailable"),
+    "erm.scenario_draft": _d("Draft a scenario from one sentence",
+                             "The sentence the person typed (no email addresses or long numbers) and the titles and "
+                             "categories of risks, controls and indicators in the person's business units",
+                             "Descriptions, scores, evidence and records of other units",
+                             "erm.scenario.manage and erm.ai.use",
+                             "A proposal shown in the new scenario form. Only the records a person keeps are linked",
+                             "person", "unavailable"),
+    "erm.scenario_shocks": _d("Suggest likelihood, impact or control changes for a scenario's linked items",
+                              "The scenario's title, assumptions and horizon, the linked risks and controls with "
+                              "their baseline scores, and counts of past loss events",
+                              "Descriptions, evidence and unlinked records", "erm.scenario.manage and erm.ai.use",
+                              "Suggestions shown beside each item. A person accepts or edits each one; accepted ones "
+                              "are marked as AI suggested", "person", "unavailable"),
+    "erm.scenario_gaps": _d("Suggest records that a scenario may be missing",
+                            "The scenario's title, description and assumptions and the titles of records not yet "
+                            "linked, in the person's business units", "Descriptions, scores and evidence",
+                            "erm.scenario.manage and erm.ai.use", "Suggestions shown. A person links the ones they accept",
+                            "person", "unavailable"),
+    "erm.scenario_explain": _d("Explain a scenario's impact result in plain language",
+                               "The calculated result: headline, risk titles with baseline and scenario scores, "
+                               "appetite and totals", "Descriptions, evidence and records outside the result",
+                               "erm.scenario.manage and erm.ai.use",
+                               "A summary and points shown, each tied to a risk or category in the result", "person",
+                               "unavailable"),
+    "erm.scenario_challenge": _d("Ask questions that test a scenario's assumptions",
+                                 "The scenario's own fields, how many records of each type are linked, and the "
+                                 "data quality issues found", "Record descriptions and evidence",
+                                 "erm.scenario.manage and erm.ai.use", "Questions shown. Nothing is saved", "person",
+                                 "unavailable"),
     # ── Evidence, Governance, AI Governance ─────────────────────────────────
     "evidence.api_evidence_suggest_links": _d("Suggest which controls and audits an evidence item belongs to",
                                               "The item's title, description, category and tags, and candidate "

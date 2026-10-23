@@ -1853,7 +1853,7 @@ _VAULT_TARGETS = (
     ("grid", "audit"), ("grid", "control"), ("grid", "nc"),
     ("bcm", "plan"), ("bcm", "incident"), ("bcm", "risk"), ("bcm", "bia"), ("bcm", "compliance_control"),
     ("sentinel", "ropa"), ("sentinel", "dpia"), ("sentinel", "breach"), ("sentinel", "dsr"), ("sentinel", "vendor"),
-    ("erm", "risk"),
+    ("erm", "risk"), ("erm", "scenario"),
     ("governance", "application"),  # proof for an AI use: shown on the Evidence tab of its workspace
 )
 # (module, entity_type) -> (table_name, name_column, url_template)
@@ -1973,6 +1973,13 @@ async def api_search_entities(request: Request):
         if q:
             where.append(f"LOWER(t.{name_col}) LIKE LOWER(%s)")
             params.append(f"%{q}%")
+        only_id = request.query_params.get("entity_id", "")
+        if only_id:  # one named record, still inside the caller's scope (the ?attach= deep link)
+            try:
+                where.append(f"t.{id_col} = %s")
+                params.append(int(only_id))
+            except ValueError:
+                return JSONResponse({"error": "entity_id must be an integer"}, status_code=400)
         sql = f"SELECT t.{id_col} AS id, t.{name_col} AS name FROM {table} t{joins}"
         if where:
             sql += " WHERE " + " AND ".join(where)
