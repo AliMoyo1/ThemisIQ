@@ -4,8 +4,8 @@
  * Lets a user add optional free-text guidance before an AI generation call
  * (e.g. "emphasise remote work scenarios", "keep it under 2 pages"). The
  * returned text is passed through as user input to the backend, which wraps
- * it in <user_input> tags before it reaches the model - it can never override
- * the system prompt's rules.
+ * it in <user_input> tags before it reaches the model. Model output still
+ * requires normal review because untrusted guidance may influence an answer.
  *
  * Usage:
  *   var guidance = await window.openAiGuidanceDialog({

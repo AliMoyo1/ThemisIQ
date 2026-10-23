@@ -2,21 +2,6 @@
   "route_count": 1121,
   "entries": [
     {
-      "path": "/openapi.json",
-      "methods": [
-        "GET",
-        "HEAD"
-      ],
-      "module": "fastapi.applications",
-      "gate": "unknown",
-      "capabilities": [],
-      "roles_by_capability": {},
-      "license_modules_required": [],
-      "name": "openapi",
-      "maturity": "",
-      "notes": ""
-    },
-    {
       "path": "/api/demo-request",
       "methods": [
         "OPTIONS"
@@ -17585,6 +17570,26 @@
       },
       "license_modules_required": [],
       "name": "api_key_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/admin/api-keys/business-units",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_key_business_units",
       "maturity": "",
       "notes": ""
     },

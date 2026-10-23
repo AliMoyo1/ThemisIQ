@@ -30,7 +30,14 @@ from database import get_db
 # ── Paths exempt from forced password change ────────────────────────────────
 _PW_CHANGE_EXEMPT = {"/change-password", "/logout", "/api/auth/me",
                      "/static", "/favicon.ico"}
-_MFA_PENDING_EXEMPT = {"/mfa/verify", "/logout", "/static", "/favicon.ico"}
+_MFA_PENDING_EXEMPT = {"/mfa/verify", "/mfa/setup", "/mfa/enable",
+                       "/logout", "/static", "/favicon.ico"}
+
+
+def _password_change_allowed(user: dict, path: str) -> bool:
+    return any(path.startswith(p) for p in _PW_CHANGE_EXEMPT) or (
+        bool(user.get("mfa_pending")) and path in {"/mfa/setup", "/mfa/enable"}
+    )
 
 
 # ── Auth dependency ──────────────────────────────────────────────────────────
@@ -56,9 +63,7 @@ def require_auth(func):
             path.startswith(p) for p in _MFA_PENDING_EXEMPT
         ):
             return RedirectResponse("/mfa/verify", status_code=303)
-        if user.get("must_change_password") and not any(
-            path.startswith(p) for p in _PW_CHANGE_EXEMPT
-        ):
+        if user.get("must_change_password") and not _password_change_allowed(user, path):
             return RedirectResponse("/change-password", status_code=303)
         request.state.user = user
         return await func(request, *args, **kwargs)
@@ -78,9 +83,7 @@ def require_capability(*capabilities: str):
                 path.startswith(p) for p in _MFA_PENDING_EXEMPT
             ):
                 return RedirectResponse("/mfa/verify", status_code=303)
-            if user.get("must_change_password") and not any(
-                path.startswith(p) for p in _PW_CHANGE_EXEMPT
-            ):
+            if user.get("must_change_password") and not _password_change_allowed(user, path):
                 return RedirectResponse("/change-password", status_code=303)
             if not any(has_capability(user, c) for c in capabilities):
                 raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -198,8 +201,8 @@ def check_rate_limit(key: str) -> bool:
         finally:
             db.close()
     except Exception:
-        _rl_log.warning("[rate-limit] DB check failed, failing open")
-        return True
+        _rl_log.warning("[rate-limit] DB check failed, denying login attempt")
+        return False
 
 
 def record_failed_login(key: str):
@@ -261,8 +264,8 @@ def check_ai_rate_limit(user_id: str) -> bool:
         finally:
             db.close()
     except Exception:
-        _rl_log.warning("[ai-rate-limit] DB check failed, failing open")
-        return True
+        _rl_log.warning("[ai-rate-limit] DB check failed, denying AI request")
+        return False
 
 
 def record_ai_call(user_id: str):
@@ -415,7 +418,6 @@ async def security_headers_middleware(request: Request, call_next):
 
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     if "Referrer-Policy" not in response.headers:
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
@@ -423,15 +425,29 @@ async def security_headers_middleware(request: Request, call_next):
     if not settings.DEBUG:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-    # Fonts are self-hosted under /static/fonts/ so no CDN allowlist is needed.
-    # unsafe-inline is retained until inline styles/scripts are extracted to
-    # static files; that refactor is tracked separately.
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
+    # AI Governance pages now load executable code from static files only.
+    # Other modules still have inline handlers and need their own migration.
+    strict_scripts = (request.url.path == "/ai-governance" or
+                      request.url.path.startswith("/ai-governance/")) and (
+        "text/html" in response.headers.get("Content-Type", "")
+    )
+    if strict_scripts:
+        script_sources = (
+            "'self' https://us.i.posthog.com https://eu.i.posthog.com "
+            "https://us-assets.i.posthog.com https://eu-assets.i.posthog.com "
+            "https://static.cloudflareinsights.com"
+        )
+    else:
+        script_sources = (
+            "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
             "https://us.i.posthog.com https://eu.i.posthog.com "
             "https://us-assets.i.posthog.com https://eu-assets.i.posthog.com "
-            "https://static.cloudflareinsights.com; "
+            "https://static.cloudflareinsights.com"
+        )
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        f"script-src {script_sources}; " +
+        ("script-src-attr 'none'; " if strict_scripts else "") +
         "style-src 'self' 'unsafe-inline'; "
         "font-src 'self'; "
         "img-src 'self' data:; "
@@ -570,23 +586,87 @@ class SanitizeJsonMiddleware:
 
 # ── Request Body Size Limit ──────────────────────────────────────────────────
 
-_MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+_MAX_BODY_BYTES = 5 * 1024 * 1024  # ordinary API requests
+_MAX_VAULT_BODY_BYTES = 105 * 1024 * 1024  # 100 MB file plus multipart fields
+_MAX_DOCUMENT_BODY_BYTES = 55 * 1024 * 1024  # 50 MB file plus multipart fields
+_MAX_IMPORT_BODY_BYTES = 15 * 1024 * 1024  # 10 MB workbook plus multipart fields
+_DOCUMENT_UPLOAD_PATHS = {
+    "/aria/documents/parse-upload",
+    "/aria/documents/upload-new",
+    "/aria/api/templates",
+    "/grid/api/ai/parse-checklist",
+}
+_DOCUMENT_UPLOAD_PATTERNS = (
+    re.compile(r"^/aria/documents/[^/]+/upload-revision$"),
+    re.compile(r"^/grid/api/evidence/\d+/(?:upload|replace/\d+)$"),
+)
 
 
-async def body_size_limit_middleware(request: Request, call_next):
-    """Reject oversized request bodies to prevent DoS via large payloads."""
-    cl = request.headers.get("content-length")
-    if cl:
+def _request_body_limit(scope) -> int:
+    if scope.get("method") != "POST":
+        return _MAX_BODY_BYTES
+    path = scope.get("path", "")
+    if path == "/evidence/api/items":
+        return _MAX_VAULT_BODY_BYTES
+    if path == "/erm/api/risks/import-preview":
+        return _MAX_IMPORT_BODY_BYTES
+    if path in _DOCUMENT_UPLOAD_PATHS or any(pattern.fullmatch(path) for pattern in _DOCUMENT_UPLOAD_PATTERNS):
+        return _MAX_DOCUMENT_BODY_BYTES
+    return _MAX_BODY_BYTES
+
+
+class _RequestBodyTooLarge(Exception):
+    pass
+
+
+class BodySizeLimitMiddleware:
+    """Enforce per-route byte limits even for chunked requests without a length header."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        limit = _request_body_limit(scope)
+        headers = dict(scope.get("headers", []))
+        declared = headers.get(b"content-length")
+        from fastapi.responses import JSONResponse
+        too_large = JSONResponse({"detail": "Request body too large."}, status_code=413)
+        if declared is not None:
+            try:
+                if int(declared) < 0 or int(declared) > limit:
+                    await too_large(scope, receive, send)
+                    return
+            except ValueError:
+                await JSONResponse({"detail": "Invalid Content-Length."}, status_code=400)(scope, receive, send)
+                return
+
+        received = 0
+        response_started = False
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message.get("type") == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise _RequestBodyTooLarge()
+            return message
+
+        async def tracking_send(message):
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
+
         try:
-            if int(cl) > _MAX_BODY_BYTES:
-                from fastapi.responses import JSONResponse
-                return JSONResponse(
-                    status_code=413,
-                    content={"detail": "Request body too large."},
-                )
-        except ValueError:
-            pass
-    return await call_next(request)
+            await self.app(scope, limited_receive, tracking_send)
+        except _RequestBodyTooLarge:
+            if response_started:
+                raise
+            await too_large(scope, receive, send)
 
 
 # ── CORS Blocking ────────────────────────────────────────────────────────────

@@ -243,6 +243,9 @@ def test_create_message_web_search_pause_turn_continuation(monkeypatch):
     import httpx
     from core import ai_client
 
+    # This case exercises provider response parsing; policy admission has its
+    # own tests and requires an organization in normal application calls.
+    monkeypatch.setattr(ai_client.ai_policy, "authorize", lambda *args, **kwargs: None)
     monkeypatch.setattr(ai_client, "_provider", lambda: "anthropic")
     monkeypatch.setattr(ai_client, "_key", lambda name: "test-key")
 

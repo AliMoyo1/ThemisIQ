@@ -336,7 +336,7 @@ let currentTaskId = null;
 let isDragging  = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function today(){ return new Date().toISOString().slice(0,10); }
 
@@ -708,7 +708,7 @@ function buildEntityLink(t){
   const base  = MOD_HREF[t.module] || '/';
   const label = (MOD_LABEL[t.module]||t.module) + ' / ' +
                 t.entity_type.replace(/_/g,' ') + ' #' + t.entity_id;
-  return `<a class="td-source-link" href="${esc(base)}" target="_blank">
+  return `<a class="td-source-link" href="${esc(base)}" target="_blank" rel="noopener noreferrer">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
       <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
       <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>

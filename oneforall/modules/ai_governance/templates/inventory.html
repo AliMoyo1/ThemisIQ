@@ -16,14 +16,12 @@
       {% if can_review %}<a class="btn btn-secondary" href="/ai-governance/review">Review requests</a>{% endif %}
     </div>
   </div>
-  <div id="aigInventory"></div>
+  <div id="aigInventory" data-can-register="{{ 'true' if can_register else 'false' }}"></div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
 <script src="/static/js/ai_governance_lists.js?v=6"></script>
-<script>
-  AIGov.inventory(document.getElementById('aigInventory'), { canRegister: {{ 'true' if can_register else 'false' }} });
-</script>
+<script src="/static/js/ai_governance_bootstrap.js?v=1"></script>
 {% endblock %}

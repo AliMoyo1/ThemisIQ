@@ -16,17 +16,12 @@
       {% if can_assess_configure %}<button type="button" class="btn btn-secondary" id="aigDimensionsBtn">Impact dimensions</button>{% endif %}
     </div>
   </div>
-  <div id="aigAssessments"></div>
+  <div id="aigAssessments" data-can-manage="{{ 'true' if can_assess_manage else 'false' }}"></div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
 <script src="/static/js/ai_governance_assessments.js?v=1"></script>
-<script>
-  AIGov.assessmentList(document.getElementById('aigAssessments'), {
-    canManage: {{ 'true' if can_assess_manage else 'false' }},
-    dimensionsButton: document.getElementById('aigDimensionsBtn')
-  });
-</script>
+<script src="/static/js/ai_governance_bootstrap.js?v=1"></script>
 {% endblock %}

@@ -51,13 +51,23 @@ def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
 
 
 def _production_values(**overrides):
+    from cryptography.fernet import Fernet
+
     values = dict(deploy.FORCED_SAFE_VALUES)
     values.update({
         "DATABASE_URL": "postgresql://user@127.0.0.1:5434/themisiq",
         "SECRET_KEY": "present",
+        "MFA_ENCRYPTION_KEY": Fernet.generate_key().decode("ascii"),
     })
     values.update(overrides)
     return values
+
+
+def test_validate_environment_requires_a_valid_mfa_key():
+    assert "missing required key: MFA_ENCRYPTION_KEY" in deploy.validate_environment(
+        _production_values(MFA_ENCRYPTION_KEY=""))
+    assert "MFA encryption keys must be valid Fernet keys" in deploy.validate_environment(
+        _production_values(MFA_ENCRYPTION_KEY="invalid"))
 
 
 def test_validate_environment_fails_closed_for_authoring_and_non_postgres():

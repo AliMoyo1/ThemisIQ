@@ -235,7 +235,7 @@ def test_a_request_started_from_a_flag_remembers_where_it_came_from_and_leaves_t
     page = http("get", f"/ai-governance/register?source=vendor:{vendor}&name=Beta%20Vendor", name="employee_a")
     assert page.status_code == 200 and f'"vendor:{vendor}"' in page.text and '"Beta Vendor"' in page.text
     ignored = http("get", "/ai-governance/register?source=vendor:abc&name=x", name="employee_a")
-    assert 'sourceRef: ""' in ignored.text, "a source that is not vendor:N or process:N is dropped"
+    assert 'data-source-ref=""' in ignored.text, "a source that is not vendor:N or process:N is dropped"
     row = http("post", "/ai-governance/api/requests", name="employee_a",
                json={"answers": {"name": "Beta"}, "source_ref": f"vendor:{vendor}"})
     assert row.status_code == 201 and row.json()["intake"]["source_ref"] == f"vendor:{vendor}"

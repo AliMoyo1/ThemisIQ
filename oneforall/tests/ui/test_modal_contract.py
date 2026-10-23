@@ -135,7 +135,7 @@ def test_modal_fits_mobile_viewport_without_body_overflow(
     assert not overflow, f"{modal_id} causes horizontal body overflow at 390x844"
 
 
-def test_api_key_generate_then_reveal_modal_transition(login_as, live_app):
+def test_api_key_generate_then_reveal_modal_transition(login_as, live_app, synthetic_tenant):
     """The two-step generate -> reveal flow: closing one migrated modal and
     opening another in the same click handler must not fight over the
     shared focus-trap/scroll-lock state ModalManager tracks as a stack."""
@@ -145,6 +145,8 @@ def test_api_key_generate_then_reveal_modal_transition(login_as, live_app):
     page.click('button:has-text("+ Generate Key")')
     page.wait_for_selector("#newKeyModal.open", timeout=5000)
     page.fill("#keyName", "UI Harness Key")
+    page.select_option("#keyOrg", str(synthetic_tenant["org_id"]))
+    page.select_option("#keyScopes", ["risks.read"])
     page.click('#keyForm button[type="submit"]')
 
     page.wait_for_selector("#revealModal.open", timeout=5000)

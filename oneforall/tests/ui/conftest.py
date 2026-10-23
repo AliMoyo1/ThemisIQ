@@ -256,15 +256,13 @@ def page(browser, request):
         )
 
 
-_AXE_CORE_JS = None  # lazily read once; large (~550KB), no need to re-read per test
-
-
 @pytest.fixture
 def run_axe(page):
     """Callable: run_axe() -> list of critical/serious axe-core violations
-    on the page's current state (PLAN-36 T07). Injects a locally vendored
-    axe-core (tests/ui/vendor/axe.min.js, not a live CDN fetch, so this has
-    no network dependency at test time) and runs a real accessibility scan
+    on the page's current state (PLAN-36 T07). Serves locally vendored
+    axe-core through a test-only same-origin route, so strict CSP pages can
+    load it without allowing inline scripts or making a live CDN request.
+    Runs a real accessibility scan
     via axe.run(), the same engine browser devtools' own a11y panels use.
 
     Only critical/serious are returned by default -- matching T07's own
@@ -272,13 +270,13 @@ def run_axe(page):
     minor findings are a separate, documented-with-owner category the gate
     doesn't block on. Pass impacts=(...) to widen it for a specific test.
     """
-    global _AXE_CORE_JS
-    if _AXE_CORE_JS is None:
-        axe_path = Path(__file__).parent / "vendor" / "axe.min.js"
-        _AXE_CORE_JS = axe_path.read_text(encoding="utf-8")
+    axe_path = Path(__file__).parent / "vendor" / "axe.min.js"
+    page.route("**/__test_axe_core.js", lambda route: route.fulfill(
+        path=axe_path, content_type="application/javascript",
+    ))
 
     def _do(impacts=("critical", "serious")):
-        page.add_script_tag(content=_AXE_CORE_JS)
+        page.add_script_tag(url="/__test_axe_core.js")
         results = page.evaluate("async () => await axe.run()")
         return [v for v in results["violations"] if v["impact"] in impacts]
 

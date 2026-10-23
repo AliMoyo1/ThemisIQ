@@ -11,7 +11,6 @@ import re as _re
 from datetime import datetime, timedelta
 from core.timeutils import utcnow
 from typing import Optional
-from markupsafe import Markup
 
 log = logging.getLogger("oneforall.aria")
 
@@ -51,9 +50,6 @@ from core.sql_like import ci_like, like_pattern
 from core.best_effort import swallowed
 templates.env.filters["format_dt"] = _format_dt
 templates.env.globals["ROLE_LABELS"] = ROLE_LABELS
-templates.env.filters["tojson"] = lambda v: Markup(json.dumps(
-    dict(v) if hasattr(v, "keys") else v, default=str
-))
 
 
 def _aria_render(request: Request, template: str, context: dict,
@@ -986,6 +982,9 @@ async def documents_page(request: Request,
 
     return _aria_render(request, "documents.html", {
         "user": user, "module": "aria", "docs": docs,
+        # PostgreSQL may return date objects. Normalize them before Jinja's
+        # built-in tojson escapes this data for the script context.
+        "docs_for_js": json.loads(json.dumps(docs, default=str)),
         "frameworks": frameworks,
         "filters": {
             "framework": framework, "status": status,

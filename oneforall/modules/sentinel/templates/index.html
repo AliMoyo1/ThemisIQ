@@ -1047,7 +1047,42 @@
   /* ════════════════════════════════════════════════════════════════════════
      HELPERS
      ════════════════════════════════════════════════════════════════════════ */
-  function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+  function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function snSafeUrl(value, external){
+    if(typeof value!=='string'||!value)return '';
+    try{
+      var url=new URL(value,window.location.origin);
+      if(url.username||url.password)return '';
+      if(external)return url.protocol==='https:'?url.href:'';
+      return url.origin===window.location.origin?url.pathname+url.search+url.hash:'';
+    }catch(_){return '';}
+  }
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('.sn-transfer-from-flow');
+    if (button) {
+      snOpenModal('transfer', {
+        destination: button.dataset.destination,
+        recipient_name: button.dataset.recipientName
+      });
+      return;
+    }
+    button=event.target.closest('.sn-download-dpia');
+    if (button) { snDownloadDpiaDoc(button.dataset.title); return; }
+    button=event.target.closest('.sn-add-aria-control');
+    if (button) { snAddAriaCtrlToSecurity(button.dataset.control); return; }
+    button=event.target.closest('.sn-filter-training-dept');
+    if (button) { snFilterTraining(button.dataset.department); return; }
+    button=event.target.closest('.sn-edit-jurisdiction');
+    if (button) { snEditJurisdiction(button.dataset.jurisdictionKey); return; }
+    button=event.target.closest('.sn-toggle-jurisdiction');
+    if (button) { snToggleJurisdiction(button.dataset.jurisdictionKey,button); return; }
+    button=event.target.closest('.sn-deactivate-jurisdiction');
+    if (button) { snDeactivateJurisdiction(button.dataset.jurisdictionKey); return; }
+    button=event.target.closest('.sn-save-jurisdiction');
+    if (button) { snSaveJurisdictionConfig(button.dataset.jurisdictionKey); return; }
+    button=event.target.closest('.sn-retention-from-ropa');
+    if (button) snOpenModal('retention',{category:button.dataset.category});
+  });
   function fmtDate(ts){
     if(!ts) return '—';
     var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));
@@ -1296,7 +1331,7 @@
       var r=await apiFetch('/sentinel/api/ropa/coverage-gaps');
       var items=(r&&r.items)||[];
       el.innerHTML=items.length
-        ? '<ul style="margin:0;padding-left:18px">'+items.map(function(i){return '<li><a style="color:inherit" href="'+esc(i.url).replace(/"/g,'&quot;')+'">'+esc(i.name)+'</a></li>';}).join('')+'</ul>'
+        ? '<ul style="margin:0;padding-left:18px">'+items.map(function(i){var url=snSafeUrl(i.url,false);return '<li>'+(url?'<a style="color:inherit" href="'+esc(url)+'">'+esc(i.name)+'</a>':esc(i.name))+'</li>';}).join('')+'</ul>'
         : 'Every business process you may open has a processing record.';
       el.style.display='';
     }catch(e){ el.textContent='The list could not be read just now.'; el.style.display=''; }
@@ -1772,7 +1807,7 @@
           '<div class="doc-viewer-head">'+
             '<div class="doc-viewer-title">'+esc(title)+' — '+esc(item.title||'')+'</div>'+
             '<button class="btn btn-sm btn-secondary" onclick="snCopyDpiaDoc()">⧉ Copy</button>'+
-            '<button class="btn btn-sm btn-secondary" onclick="snDownloadDpiaDoc(\''+esc(item.title||'dpia')+'\')">↓ Download</button>'+
+            '<button class="btn btn-sm btn-secondary sn-download-dpia" data-title="'+esc(item.title||'dpia')+'">↓ Download</button>'+
             '<button onclick="document.getElementById(\'snDocViewerRoot\').innerHTML=\'\'" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 8px;line-height:1">×</button>'+
           '</div>'+
           '<div class="doc-viewer-body" id="snDocViewerContent">'+esc(content)+'</div>'+
@@ -2044,7 +2079,7 @@
       if(relevant.length>0){
         panel.style.display='block';
         list.innerHTML=relevant.map(function(c){
-          return '<button type="button" class="aria-ctrl-chip" title="'+esc((c.description||c.name||'').substring(0,120))+'" onclick="snAddAriaCtrlToSecurity(\''+esc((c.ref||'')+': '+(c.name||''))+'\')" >'+
+          return '<button type="button" class="aria-ctrl-chip sn-add-aria-control" title="'+esc((c.description||c.name||'').substring(0,120))+'" data-control="'+esc((c.ref||'')+': '+(c.name||''))+'">'+
             (c.ref?'<span style="font-family:var(--mono);font-size:10px;color:var(--accent)">'+esc(c.ref)+'</span> ':'')+
             esc((c.name||'').substring(0,40))+
           '</button>';
@@ -3226,7 +3261,7 @@
           banner.style.display='flex';
           banner.innerHTML='💡 <strong style="margin-right:4px">Suggested from your RoPA:</strong>'+
             missing.slice(0,4).map(function(c){
-              return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'retention\',{category:\''+c.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')+'\'})">'+esc(c)+'</button>';
+              return '<button class="btn btn-sm btn-secondary sn-retention-from-ropa" data-category="'+esc(c)+'" style="font-size:11px;padding:2px 8px">'+esc(c)+'</button>';
             }).join('')+
             (missing.length>4?'<span style="font-size:12px;opacity:.7">+'+(missing.length-4)+' more</span>':'')+'<span style="opacity:.7;font-size:12px"> have no retention schedule yet.</span>'+
             '<button onclick="this.closest(\'.sn-suggestion-banner\').style.display=\'none\'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;color:currentColor;opacity:.6">×</button>';
@@ -3344,8 +3379,9 @@
       ]);
       if(!items.length){body.innerHTML=emptyRow(7,'No privacy notices found');return;}
       body.innerHTML=items.map(function(n){
-        var titleCell=n.url?'<a href="'+esc(n.url)+'" target="_blank" style="color:var(--accent)">'+esc(n.title)+'</a>':'<strong>'+esc(n.title)+'</strong>';
-        var urlCell=n.url?'<a href="'+esc(n.url)+'" target="_blank" style="font-size:11px;color:var(--accent)">View →</a>':'<span style="color:var(--muted)">—</span>';
+        var noticeUrl=snSafeUrl(n.url,true);
+        var titleCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">'+esc(n.title)+'</a>':'<strong>'+esc(n.title)+'</strong>';
+        var urlCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent)">View →</a>':'<span style="color:var(--muted)">—</span>';
         return '<tr><td>'+titleCell+'</td>'+
           '<td>'+esc(n.audience||n.regulation||'—')+'</td>'+
           '<td>'+esc(n.version||'1.0')+'</td>'+
@@ -3394,9 +3430,9 @@
         banner.style.display='flex';
         banner.innerHTML='⚠ <strong>'+thirdCountryFlows.length+' data flow'+(thirdCountryFlows.length>1?'s flow':' flows')+' to third countries.</strong> Ensure International Transfer records exist. '+
           thirdCountryFlows.slice(0,2).map(function(f){
-            var dest=(f.destination||'').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
-            var src=(f.source_system||f.source||'').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
-            return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'transfer\',{destination:\''+dest+'\',recipient_name:\''+src+'\'})">+ Transfer for '+esc((f.destination||'').substring(0,20))+'</button>';
+            var dest=f.destination||'';
+            var src=f.source_system||f.source||'';
+            return '<button class="btn btn-sm btn-secondary sn-transfer-from-flow" data-destination="'+esc(dest)+'" data-recipient-name="'+esc(src)+'" style="font-size:11px;padding:2px 8px">+ Transfer for '+esc(dest.substring(0,20))+'</button>';
           }).join(' ');
       }else if(banner){banner.style.display='none';}
       // Table view
@@ -3543,7 +3579,7 @@
         items.forEach(function(t){if(t.department&&depts.indexOf(t.department)===-1)depts.push(t.department);});
         if(depts.length>0){
           deptEl.innerHTML='<button type="button" class="filter-chip'+(trainingDeptFilter==='all'?' active':'')+'" onclick="snFilterTraining(\'all\')">All</button>'+
-            depts.map(function(d){return '<button type="button" class="filter-chip'+(trainingDeptFilter===d?' active':'')+'" onclick="snFilterTraining(\''+esc(d)+'\')">'+esc(d)+'</button>';}).join('');
+            depts.map(function(d){return '<button type="button" class="filter-chip sn-filter-training-dept'+(trainingDeptFilter===d?' active':'')+'" data-department="'+esc(d)+'">'+esc(d)+'</button>';}).join('');
         }else{deptEl.innerHTML='';}
       }
       snRenderTrainingRows(trainingDeptFilter==='all'?items:items.filter(function(t){return t.department===trainingDeptFilter;}));
@@ -3785,8 +3821,8 @@
             : '<span class="juris-pill info">'+esc((j.breach_hours||72)+'h breach review target')+'</span>';
           var dsrPill='<span class="juris-pill info">'+esc(j.dsr_days||30)+'d DSR review target</span>';
           var sourcePill='<span class="juris-pill warn">'+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
-          return '<div class="juris-card'+(isPrimary?' primary':'')+'" onclick="snEditJurisdiction(\''+esc(j.jurisdiction_key||j.key)+'\')">'+
-            '<div class="juris-flag">'+(j.flag||'🌐')+'</div>'+
+          return '<div class="juris-card sn-edit-jurisdiction'+(isPrimary?' primary':'')+'" data-jurisdiction-key="'+esc(j.jurisdiction_key||j.key)+'">'+
+            '<div class="juris-flag">'+esc(j.flag||'🌐')+'</div>'+
             '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span style="font-size:10px;background:var(--accent);color:white;padding:1px 6px;border-radius:100px;margin-left:4px">Primary</span>':'')+'</div>'+
             '<div class="juris-region">'+esc(j.region||'')+'</div>'+
             '<div class="juris-pills">'+breachPill+dsrPill+sourcePill+'</div>'+
@@ -3831,8 +3867,8 @@
       gridHtml+='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;grid-column:1/-1">'+esc(region)+'</div>';
       regions[region].forEach(function(j){
         var isActive=activeKeys.has(j.key);
-        gridHtml+='<div class="juris-add-card'+(isActive?' active-j':'')+'" onclick="snToggleJurisdiction(\''+esc(j.key)+'\',this)" data-key="'+esc(j.key)+'" data-active="'+(isActive?'1':'0')+'">'+
-          '<div class="juris-add-flag">'+(j.flag||'🌐')+'</div>'+
+        gridHtml+='<div class="juris-add-card sn-toggle-jurisdiction'+(isActive?' active-j':'')+'" data-jurisdiction-key="'+esc(j.key)+'" data-key="'+esc(j.key)+'" data-active="'+(isActive?'1':'0')+'">'+
+          '<div class="juris-add-flag">'+esc(j.flag||'🌐')+'</div>'+
           '<div><div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(j.key)+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">'+esc(j.authority_short||'')+'</div></div>'+
           (isActive?'<span style="margin-left:auto;font-size:18px;color:var(--accent)">&#10003;</span>':'')+
@@ -3924,10 +3960,10 @@
         '<div class="form-group"><label>Notes</label><textarea id="jurisNotes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">'+esc(configs.notes||'')+'</textarea></div>'+
 
         '<div style="display:flex;gap:8px;justify-content:space-between;margin-top:20px">'+
-          '<button class="btn btn-secondary" style="color:var(--red)" onclick="snDeactivateJurisdiction(\''+esc(key)+'\')">Remove</button>'+
+          '<button class="btn btn-secondary sn-deactivate-jurisdiction" data-jurisdiction-key="'+esc(key)+'" style="color:var(--red)">Remove</button>'+
           '<div style="display:flex;gap:8px">'+
             '<button class="btn btn-secondary" onclick="document.getElementById(\'jurisEditModal\').remove()">Cancel</button>'+
-            '<button class="btn btn-primary" onclick="snSaveJurisdictionConfig(\''+esc(key)+'\')">Save</button>'+
+            '<button class="btn btn-primary sn-save-jurisdiction" data-jurisdiction-key="'+esc(key)+'">Save</button>'+
           '</div>'+
         '</div>'+
       '</div></div>';

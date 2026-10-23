@@ -31,7 +31,7 @@
           <span style="font-size:14px" aria-hidden="true">&#10038;</span> AI Executive Summary
         </button>
         {% else %}
-        <button type="button" class="btn btn-secondary" data-quick="{{ key }}" onclick="quickRun('{{ key }}')">{{ label }}</button>
+        <button type="button" class="btn btn-secondary js-quick-report" data-quick="{{ key }}">{{ label }}</button>
         {% endif %}
         {% endfor %}
       </div>
@@ -178,7 +178,7 @@
 const typeLabels = {{ report_types | tojson }};
 var currentRun = null;
 
-function esc(s) { const d=document.createElement('div'); d.textContent=(s===null||s===undefined)?'':String(s); return d.innerHTML; }
+function esc(s) { const d=document.createElement('div'); d.textContent=(s===null||s===undefined)?'':String(s); return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function showNotice(text) {
   const el = document.getElementById('reportNotice');
@@ -637,6 +637,9 @@ async function generateExecSummary() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.js-quick-report').forEach(button => {
+    button.addEventListener('click', () => quickRun(button.dataset.quick));
+  });
   loadStats(); loadRuns();
   const open = new URLSearchParams(window.location.search).get('run');
   if (open && /^\d+$/.test(open)) viewRun(open);

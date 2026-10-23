@@ -10,22 +10,23 @@ The policy belongs to an organization and is stored as one JSON setting (`ai.pol
     providers             which providers may receive its data; empty means any the platform has configured
     categories            which kinds of data may be sent (CATEGORIES); missing means all of them
     blocked_features      single features switched off
-    monthly_token_budget  a cap on input plus output tokens in a calendar month; empty means none
+    monthly_token_budget       organization cap for a calendar month; empty means none
+    monthly_user_token_budget  per-person cap for a calendar month; empty means none
 
-An organization with no policy is in compatibility mode: whatever the platform has configured is allowed, as it was
-before this layer existed. Making "deny until a policy exists" the platform default is a release decision, not a code
-change. A policy that cannot be read refuses the call (fail closed).
+An organization must have a saved policy before its data may be sent to a model provider.
+An unreadable policy refuses the call.
 
 What a feature sends is declared once, in FEATURES below, and is not inferred from prompt text. The usage log keeps
 metadata only: who, which feature, provider, model, token counts, outcome. A prompt or an answer is never stored.
 """
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import timedelta
 
 from core.best_effort import swallowed
 from core.timeutils import utcnow
-from database import get_current_org, get_current_user_id, get_db_background
+from database import get_current_org, get_current_user_id, get_db_background, insert_returning_id
 
 log = logging.getLogger("oneforall.ai_policy")
 
@@ -119,6 +120,8 @@ class Ticket:
     provider: str
     categories: tuple
     sources: tuple = ()
+    reservation_id: "int | None" = None
+    reserved_tokens: int = 0
 
 
 def categories_for(feature: str) -> tuple:
@@ -127,26 +130,37 @@ def categories_for(feature: str) -> tuple:
 
 
 def default_policy() -> dict:
-    return {"enabled": True, "providers": [], "categories": list(CATEGORIES), "blocked_features": [],
-            "monthly_token_budget": None}
+    return {"enabled": False, "providers": [], "categories": list(CATEGORIES), "blocked_features": [],
+            "monthly_token_budget": None, "monthly_user_token_budget": None}
 
 
 def _clean_policy(raw: dict) -> dict:
-    """A stored or submitted policy, reduced to known values. Unknown providers, categories and features are dropped
-    so a typo can never widen what is allowed."""
-    budget = raw.get("monthly_token_budget")
-    try:
-        budget = int(budget) if budget not in (None, "") else None
-    except (TypeError, ValueError):
-        budget = None
-    if budget is not None and budget <= 0:
-        budget = None
+    """Normalize a saved policy; reject restrictions that could silently widen access."""
+    named_providers = raw.get("providers", [])
+    if not isinstance(named_providers, list) or any(p not in PROVIDERS for p in named_providers):
+        raise ValueError("Stored AI provider restriction is invalid")
+    named_categories = raw.get("categories", list(CATEGORIES))
+    if not isinstance(named_categories, list) or any(c not in CATEGORIES for c in named_categories):
+        raise ValueError("Stored AI category restriction is invalid")
+    blocked_features = raw.get("blocked_features", [])
+    if not isinstance(blocked_features, list) or any(f not in FEATURES for f in blocked_features):
+        raise ValueError("Stored AI feature restriction is invalid")
+    def positive_budget(name):
+        value = raw.get(name)
+        try:
+            value = int(value) if value not in (None, "") and not isinstance(value, bool) else None
+        except (TypeError, ValueError):
+            raise ValueError(f"Stored AI allowance {name} is invalid") from None
+        if raw.get(name) not in (None, "") and (value is None or value <= 0):
+            raise ValueError(f"Stored AI allowance {name} is invalid")
+        return value if value is not None and value > 0 else None
     return {
-        "enabled": bool(raw.get("enabled", True)),
-        "providers": [p for p in raw.get("providers") or [] if p in PROVIDERS],
-        "categories": [c for c in raw.get("categories", list(CATEGORIES)) if c in CATEGORIES],
-        "blocked_features": [f for f in raw.get("blocked_features") or [] if f in FEATURES],
-        "monthly_token_budget": budget,
+        "enabled": raw.get("enabled") is True,
+        "providers": list(dict.fromkeys(named_providers)),
+        "categories": list(dict.fromkeys(named_categories)),
+        "blocked_features": list(dict.fromkeys(blocked_features)),
+        "monthly_token_budget": positive_budget("monthly_token_budget"),
+        "monthly_user_token_budget": positive_budget("monthly_user_token_budget"),
     }
 
 
@@ -156,9 +170,11 @@ def parse_submitted_policy(body) -> dict:
     with a sentence that can be shown."""
     if not isinstance(body, dict):
         raise ValueError("Send the policy as an object.")
-    if not isinstance(body.get("enabled", True), bool):
-        raise ValueError("enabled must be true or false.")
-    policy = {"enabled": body.get("enabled", True)}
+    if not isinstance(body.get("enabled"), bool):
+        raise ValueError("enabled must be explicitly true or false.")
+    if body["enabled"] and body.get("approval_confirmed") is not True:
+        raise ValueError("Confirm the reviewed policy before enabling AI.")
+    policy = {"enabled": body["enabled"], "approval_confirmed": body.get("approval_confirmed") is True}
     for key, known, noun in (("providers", PROVIDERS, "provider"), ("categories", CATEGORIES, "data category"),
                              ("blocked_features", FEATURES, "feature")):
         values = body.get(key, [] if key != "categories" else list(CATEGORIES))
@@ -168,18 +184,19 @@ def parse_submitted_policy(body) -> dict:
         if unknown:
             raise ValueError(f"Unknown {noun}: {', '.join(unknown[:5])}.")
         policy[key] = list(dict.fromkeys(values))
-    budget = body.get("monthly_token_budget")
-    if budget in (None, ""):
-        policy["monthly_token_budget"] = None
-    elif isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
-        raise ValueError("monthly_token_budget must be a whole number above zero, or empty for no cap.")
-    else:
-        policy["monthly_token_budget"] = budget
+    for name in ("monthly_token_budget", "monthly_user_token_budget"):
+        budget = body.get(name)
+        if budget in (None, ""):
+            policy[name] = None
+        elif isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
+            raise ValueError(f"{name} must be a whole number above zero, or empty for no cap.")
+        else:
+            policy[name] = budget
     return policy
 
 
 def get_policy(org_id: int) -> "dict | None":
-    """The organization's stored policy, or None in compatibility mode. Raises when the stored value is unreadable,
+    """The organization's stored policy, or None if it has not been approved. Raises when the stored value is unreadable,
     which `authorize` turns into a refusal."""
     db = get_db_background()
     try:
@@ -191,12 +208,29 @@ def get_policy(org_id: int) -> "dict | None":
     stored = json.loads(row["value"])
     if not isinstance(stored, dict):
         raise ValueError("AI policy is not an object")
-    return _clean_policy(stored)
+    return _effective_policy(stored)
+
+
+def _effective_policy(raw: dict) -> dict:
+    """Old enabled rows must be reviewed by a named policy manager before use."""
+    clean = _clean_policy(raw)
+    clean["review_required"] = bool(clean["enabled"] and not (
+        isinstance(raw.get("approved_by"), int) and raw["approved_by"] > 0 and
+        isinstance(raw.get("approved_at"), str) and raw["approved_at"]
+    ))
+    if clean["review_required"]:
+        clean["enabled"] = False
+    return clean
 
 
 def save_policy(org_id: int, policy: dict, user_id: "int | None" = None) -> dict:
     """Store an organization's policy (replacing the previous one) and return what was stored."""
+    if policy.get("enabled") and (policy.get("approval_confirmed") is not True or
+                                  not isinstance(user_id, int) or user_id < 1):
+        raise ValueError("An identified policy manager must confirm the review before enabling AI")
     clean = _clean_policy(policy)
+    clean["approved_by"] = user_id if clean["enabled"] else None
+    clean["approved_at"] = utcnow().strftime("%Y-%m-%d %H:%M:%S") if clean["enabled"] else None
     clean["updated_by"] = user_id
     clean["updated_at"] = utcnow().strftime("%Y-%m-%d %H:%M:%S")
     db = get_db_background()
@@ -219,18 +253,28 @@ def _month_start() -> str:
 def tokens_used_this_month(org_id: int) -> int:
     db = get_db_background()
     try:
-        row = db.execute(
-            "SELECT COALESCE(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0) AS used "
-            "FROM ai_usage_log WHERE org_id = %s AND status = 'ok' AND created_at >= %s",
-            (org_id, _month_start()),
-        ).fetchone()
+        used = _capacity_used(db, org_id)
     finally:
         db.close()
+    return used
+
+
+def _capacity_used(db, org_id: int, user_id: "int | None" = None) -> int:
+    """Completed and in-flight allowance, including conservatively charged failures."""
+    where_user = " AND user_id = %s" if user_id is not None else ""
+    params = [org_id, _month_start()]
+    if user_id is not None:
+        params.append(user_id)
+    row = db.execute(
+        "SELECT COALESCE(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0) AS used "
+        "FROM ai_usage_log WHERE org_id = %s AND created_at >= %s "
+        f"AND status IN ('ok', 'error', 'reserved'){where_user}", params,
+    ).fetchone()
     return int(row["used"] or 0)
 
 
 def _refusal(policy: dict, org_id: int, ticket_provider: str, feature: str, categories: tuple):
-    """(reason, message) when the policy forbids this call, else None. Order: switch, provider, feature, data, budget."""
+    """(reason, message) when the policy forbids this provider, feature or data category."""
     if not policy["enabled"]:
         return "disabled", "AI features are turned off for your organization."
     if policy["providers"] and ticket_provider not in policy["providers"]:
@@ -239,25 +283,22 @@ def _refusal(policy: dict, org_id: int, ticket_provider: str, feature: str, cate
         return "feature_blocked", "This AI feature is turned off for your organization."
     if not set(categories) <= set(policy["categories"]):
         return "category_not_allowed", "Your organization's AI policy does not allow this kind of data to be sent."
-    budget = policy["monthly_token_budget"]
-    if budget is not None and tokens_used_this_month(org_id) >= budget:
-        return "budget_exhausted", "Your organization has used its AI allowance for this month."
     return None
 
 
 def org_state(provider: str) -> "tuple | None":
     """(reason, message) when the current organization's policy switches AI off as a whole (master switch or the
-    provider), for the capability state shown beside AI buttons; None when AI is usable or no organization is bound."""
+    provider), for the capability state shown beside AI buttons; None when AI is usable."""
     org_id = get_current_org()
     if org_id is None:
-        return None
+        return "org_unbound", "AI features require an organization context."
     try:
         policy = get_policy(org_id)
     except Exception:
         swallowed("ai_policy.org_state")
         return "policy_unreadable", "AI features are unavailable for your organization."
     if policy is None:
-        return None
+        return "policy_missing", "An administrator must approve your organization's AI policy before AI can be used."
     if not policy["enabled"]:
         return "disabled", "AI features are turned off for your organization."
     if policy["providers"] and provider not in policy["providers"]:
@@ -265,7 +306,7 @@ def org_state(provider: str) -> "tuple | None":
     return None
 
 
-def authorize(feature: str, *, provider: str, sources=None) -> Ticket:
+def authorize(feature: str, *, provider: str, sources=None, reserve_tokens: int = 1) -> Ticket:
     """Decide whether this call may leave the platform. Raises AIPolicyError (and records the refusal) or returns the
     Ticket to report the outcome with. The organization and the person come from the request or job context."""
     org_id, user_id = get_current_org(), get_current_user_id()
@@ -274,13 +315,69 @@ def authorize(feature: str, *, provider: str, sources=None) -> Ticket:
         categories=categories_for(feature), sources=tuple(str(s)[:120] for s in (sources or ())[:_MAX_SOURCES]),
     )
     if org_id is None:
-        return ticket  # platform scope: no organization's policy applies
+        refusal = ("org_unbound", "AI features require an organization context.")
+        record_usage(ticket, "refused", reason=refusal[0])
+        raise AIPolicyError(*refusal)
+    if not isinstance(reserve_tokens, int) or not 1 <= reserve_tokens <= 10_000_000:
+        refusal = ("request_too_large", "This AI request is too large to process.")
+        record_usage(ticket, "refused", reason=refusal[0])
+        raise AIPolicyError(*refusal)
+
+    # The setting row is the serialization point for every call in this
+    # tenant. A second worker cannot approve against the same spare budget
+    # until this transaction commits its reservation.
+    refusal = None
+    db = None
     try:
-        policy = get_policy(org_id)
-        refusal = _refusal(policy, org_id, provider, ticket.feature, ticket.categories) if policy else None
+        db = get_db_background()
+        locked = db.execute(
+            "UPDATE settings SET value=value WHERE key=%s", (_SETTING.format(org_id),)
+        ).rowcount
+        if not locked:
+            refusal = ("policy_missing", "An administrator must approve your organization's AI policy before AI can be used.")
+        else:
+            row = db.execute("SELECT value FROM settings WHERE key=%s", (_SETTING.format(org_id),)).fetchone()
+            raw = json.loads(row["value"])
+            if not isinstance(raw, dict):
+                raise ValueError("AI policy is not an object")
+            policy = _effective_policy(raw)
+            refusal = _refusal(policy, org_id, provider, ticket.feature, ticket.categories)
+            if not refusal:
+                # A worker that died after reserving still consumes its
+                # conservative allowance. Mark it as an error after two
+                # hours so the usage view does not show a call in progress.
+                stale_before = (utcnow() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+                db.execute(
+                    "UPDATE ai_usage_log SET status='error', reason='reservation_expired' "
+                    "WHERE org_id=%s AND status='reserved' AND created_at < %s",
+                    (org_id, stale_before),
+                )
+                org_cap = policy["monthly_token_budget"]
+                user_cap = policy["monthly_user_token_budget"] if user_id is not None else None
+                if org_cap is not None and _capacity_used(db, org_id) + reserve_tokens > org_cap:
+                    refusal = ("budget_exhausted", "Your organization has used its AI allowance for this month.")
+                elif user_cap is not None and _capacity_used(db, org_id, user_id) + reserve_tokens > user_cap:
+                    refusal = ("user_budget_exhausted", "Your AI allowance for this month has been used.")
+            if not refusal and _RECORDING:
+                reservation_id = insert_returning_id(
+                    db,
+                    "INSERT INTO ai_usage_log (org_id, user_id, feature, provider, status, categories, sources, input_tokens) "
+                    "VALUES (%s,%s,%s,%s,'reserved',%s,%s,%s)",
+                    (org_id, user_id, ticket.feature, provider, ",".join(ticket.categories),
+                     json.dumps(list(ticket.sources)) if ticket.sources else None, reserve_tokens),
+                )
+                if reservation_id is None:
+                    raise RuntimeError("AI budget reservation was not saved")
+                ticket = replace(ticket, reservation_id=reservation_id, reserved_tokens=reserve_tokens)
+        db.commit()
     except Exception:
         swallowed("ai_policy.authorize")
+        if db is not None:
+            db.rollback()
         refusal = ("policy_unreadable", "AI features are unavailable for your organization right now.")
+    finally:
+        if db is not None:
+            db.close()
     if refusal:
         record_usage(ticket, "refused", reason=refusal[0])
         raise AIPolicyError(*refusal)
@@ -299,14 +396,34 @@ def record_usage(ticket: Ticket, status: str, *, reason: str = "", model: str = 
     db = None
     try:
         db = get_db_background()
-        db.execute(
-            "INSERT INTO ai_usage_log (org_id, user_id, feature, provider, model, status, reason, categories, "
-            "sources, input_tokens, output_tokens, duration_ms) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (ticket.org_id, ticket.user_id, ticket.feature, ticket.provider, (model or "")[:120] or None, status,
-             (reason or "")[:120] or None, ",".join(ticket.categories),
-             json.dumps(list(ticket.sources)) if ticket.sources else None,
-             int(input_tokens or 0), int(output_tokens or 0), int(duration_ms or 0)),
-        )
+        if ticket.reservation_id is not None:
+            # Finalization and admission use the same row lock. A concurrent
+            # admission then sees either the full reservation or final usage.
+            db.execute("UPDATE settings SET value=value WHERE key=%s",
+                       (_SETTING.format(ticket.org_id),))
+            actual_input = max(0, int(input_tokens or 0))
+            actual_output = max(0, int(output_tokens or 0))
+            # Some providers do not report usage. A failed or unmetered call
+            # retains the reservation so missing telemetry cannot bypass a cap.
+            if status != "ok" or not actual_input + actual_output:
+                actual_input, actual_output = ticket.reserved_tokens, 0
+            changed = db.execute(
+                "UPDATE ai_usage_log SET model=%s, status=%s, reason=%s, input_tokens=%s, "
+                "output_tokens=%s, duration_ms=%s WHERE id=%s AND org_id=%s AND status='reserved'",
+                ((model or "")[:120] or None, status, (reason or "")[:120] or None,
+                 actual_input, actual_output, int(duration_ms or 0), ticket.reservation_id, ticket.org_id),
+            ).rowcount
+            if changed != 1:
+                raise RuntimeError("AI reservation could not be finalized")
+        else:
+            db.execute(
+                "INSERT INTO ai_usage_log (org_id, user_id, feature, provider, model, status, reason, categories, "
+                "sources, input_tokens, output_tokens, duration_ms) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (ticket.org_id, ticket.user_id, ticket.feature, ticket.provider, (model or "")[:120] or None, status,
+                 (reason or "")[:120] or None, ",".join(ticket.categories),
+                 json.dumps(list(ticket.sources)) if ticket.sources else None,
+                 int(input_tokens or 0), int(output_tokens or 0), int(duration_ms or 0)),
+            )
         db.commit()
     except Exception:
         swallowed("ai_policy.record_usage")
@@ -321,7 +438,8 @@ def usage_summary(org_id: int) -> dict:
     try:
         rows = db.execute(
             "SELECT feature, status, COUNT(*) AS calls, COALESCE(SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)), 0) AS tokens "
-            "FROM ai_usage_log WHERE org_id = %s AND created_at >= %s GROUP BY feature, status ORDER BY feature",
+            "FROM ai_usage_log WHERE org_id = %s AND created_at >= %s AND status <> 'reserved' "
+            "GROUP BY feature, status ORDER BY feature",
             (org_id, _month_start()),
         ).fetchall()
         recent = db.execute(

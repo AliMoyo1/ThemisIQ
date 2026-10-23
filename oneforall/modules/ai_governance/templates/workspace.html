@@ -13,7 +13,7 @@
       <div id="aigHeader"></div>
     </div>
   </div>
-  <div id="aigWorkspace"></div>
+  <div id="aigWorkspace" data-application-id="{{ application_id | int }}"></div>
 </div>
 {% endblock %}
 
@@ -24,7 +24,5 @@
 <script src="/static/js/ai_governance_oversight.js?v=1"></script>
 <script src="/static/js/ai_governance_review_desk.js?v=2"></script>
 <script src="/static/js/ai_governance_workspace.js?v=8"></script>
-<script>
-  AIGov.workspace(document.getElementById('aigWorkspace'), { applicationId: {{ application_id }} });
-</script>
+<script src="/static/js/ai_governance_bootstrap.js?v=1"></script>
 {% endblock %}

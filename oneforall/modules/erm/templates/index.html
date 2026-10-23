@@ -853,7 +853,25 @@
 'use strict';
 
 /* ────────────────── HELPERS ────────────────── */
-function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('.erm-delete-risk');
+  if (button) {
+    event.stopPropagation();
+    ermDeleteRisk(Number(button.dataset.riskId), button.dataset.source);
+    return;
+  }
+  button=event.target.closest('.erm-submit-responses');
+  if(button){ermSubmitResponses(Number(button.dataset.assessmentId),button.closest('.erm-modal-overlay')._questions||[]);return;}
+  button=event.target.closest('.erm-add-suggestions');
+  if(button){ermAddSuggestedQuestions(Number(button.dataset.assessmentId),button.closest('.erm-modal-overlay')._suggestions||[]);return;}
+  button=event.target.closest('.erm-add-identified-risk');
+  if(button){
+    var candidates=button.closest('.erm-modal-overlay')._candidates||[];
+    var risk=candidates[Number(button.dataset.riskIndex)];
+    if(risk)ermAddIdentifiedRisk(risk,button);
+  }
+});
 function escChartAttr(s){return esc(s).replace(/"/g,'&quot;');}
 function fmtDate(ts){if(!ts)return'—';try{var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
 function daysUntil(ds){if(!ds)return null;var diff=Math.round((new Date(ds)-new Date())/(864e5));return diff;}
@@ -1234,7 +1252,7 @@ window.ermRenderRegister=function(){
     var chk='<input type="checkbox" class="reg-chk" data-id="'+rid+'" aria-label="Select '+(isErm?'enterprise':'platform')+' risk '+rid+'" onchange="ermToggleSelect(this)" style="cursor:pointer"'+(regSelIds.has(r.id)?' checked':'')+'>';
     var aiBtn=isErm?'<button class="btn-erm-ai" onclick="event.stopPropagation();ermAiScoreRisk('+rid+',this)" title="AI score">🤖</button>':'';
     var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+rid+')" style="padding:3px 7px" title="Edit">✎</button>':'';
-    var delBtn=ERM_IS_ADMIN?'<button onclick="event.stopPropagation();ermDeleteRisk('+rid+',\''+esc(r.register_source||'erm')+'\')" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" onmouseenter="this.style.color=\'#ef4444\';this.style.borderColor=\'rgba(239,68,68,.3)\'" onmouseleave="this.style.color=\'var(--muted)\';this.style.borderColor=\'transparent\'" title="Delete risk">🗑</button>':'';
+    var delBtn=ERM_IS_ADMIN?'<button class="erm-delete-risk" data-risk-id="'+rid+'" data-source="'+esc(r.register_source||'erm')+'" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" title="Delete risk">🗑</button>':'';
     var ql=r.qualitative_score||lvl;
     var qChipHtml=qChip(ql);
     var wfStep=r.workflow_step||'draft';
@@ -1677,7 +1695,7 @@ window.ermOpenRiskDrawer=async function(id){
         (isErm?'<button class="btn-erm-ai" onclick="ermGetRemediationPlan('+id+',this)">🗺 Plan</button>':'')+
         (isErm&&r.status!=='mitigated'?'<button class="btn btn-secondary" onclick="ermQuickStatusChange('+id+',\'mitigated\')">✓ Mitigated</button>':'')+
         (!isErm?'<div style="font-size:11px;color:var(--muted);padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)">Cross-module risk — manage in source module</div>':'')+
-        (ERM_IS_ADMIN?'<button class="btn btn-secondary" style="color:var(--red);margin-left:auto" onclick="ermDeleteRisk('+id+',\''+registerSrc+'\')">Delete</button>':'')+
+        (ERM_IS_ADMIN?'<button class="btn btn-secondary erm-delete-risk" data-risk-id="'+Number(id)+'" data-source="'+esc(registerSrc)+'" style="color:var(--red);margin-left:auto">Delete</button>':'')+
       '</div>'+
       '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#ermRiskDrawer .erm-drawer-panel'));
@@ -2211,13 +2229,24 @@ window.ermLoadAppetite=async function(){
         '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(a.open_count||0)+' open risk(s)</div>'+
         topRisk+notesHtml+datesHtml+
         '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
-          '<a href="#" onclick="event.preventDefault();ermNavToCategory(\''+a.category+'\')" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
-          (a.breached?'<button class="btn btn-sm btn-secondary" onclick="ermOpenBreachAction(\''+esc(a.category)+'\')" style="color:var(--red);border-color:rgba(220,38,38,.4)">🚨 Create Remediation</button>':'')+
+          '<a href="#" data-appetite-nav="'+Number(a.id)+'" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
+          (a.breached?'<button class="btn btn-sm btn-secondary" data-appetite-breach="'+Number(a.id)+'" style="color:var(--red);border-color:rgba(220,38,38,.4)">🚨 Create Remediation</button>':'')+
         '</div>'+
       '</div>';
     }).join('');
   }catch(e){document.getElementById('ermAppetiteGrid').innerHTML='<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px">Failed: '+esc(e.message)+'</div>';}
 };
+document.getElementById('ermAppetiteGrid').addEventListener('click',function(event){
+  var nav=event.target.closest('[data-appetite-nav]');
+  var breach=event.target.closest('[data-appetite-breach]');
+  if(!nav&&!breach)return;
+  event.preventDefault();
+  var id=(nav||breach).getAttribute(nav?'data-appetite-nav':'data-appetite-breach');
+  var appetite=appetiteCache.find(function(item){return String(item.id)===id;});
+  if(!appetite)return;
+  if(nav)ermNavToCategory(appetite.category);
+  else ermOpenBreachAction(appetite.category);
+});
 window.ermNavToCategory=function(cat){regStatusFilter='';ermRouter.navigate('/erm/register');setTimeout(function(){var s=document.getElementById('regCatFilter');if(s){s.value=cat;ermRenderRegister();}},300);};
 window.ermEditAppetite=function(id){var a=appetiteCache.find(function(x){return x.id===id;});if(a)ermOpenAppetiteModal(a);};
 window.ermDeleteAppetite=async function(id){if(!confirm('Delete this appetite setting?'))return;try{await apiFetch('/erm/api/appetite/'+id,{method:'DELETE'});ermLoadAppetite();typeof showToast==='function'&&showToast('Deleted');}catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}};
@@ -2228,9 +2257,10 @@ window.ermOpenBreachAction=function(cat){
     '<div class="form-group"><label>What will you do to reduce this exposure?</label><textarea id="remedTxt" rows="3" placeholder="e.g. Review all compliance risks, schedule treatment plan review…"></textarea></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
       '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
-      '<button class="btn btn-primary" onclick="ermSubmitBreachAction(\''+cat+'\')">Create Risk Action</button>'+
+      '<button class="btn btn-primary" data-submit-breach-action>Create Risk Action</button>'+
     '</div></div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
+  document.body.lastElementChild.querySelector('[data-submit-breach-action]').addEventListener('click',function(){ermSubmitBreachAction(cat);});
 };
 window.ermSubmitBreachAction=async function(cat){
   var txt=(document.getElementById('remedTxt')||{}).value||'';
@@ -3004,9 +3034,10 @@ window.ermOpenRespond=async function(id){
       '<div class="modal-title">Respond: '+esc(a.title)+'</div>'+
       '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+qs.length+' question(s) &bull; '+esc(a.type)+'</div>'+
       '<div id="respondQs" style="max-height:420px;overflow-y:auto">'+qHtml+'</div>'+
-      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button><button class="btn btn-primary" id="submitRespBtn" onclick="ermSubmitResponses('+id+','+JSON.stringify(qs)+')">Submit Responses</button></div>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button><button class="btn btn-primary erm-submit-responses" id="submitRespBtn" data-assessment-id="'+Number(id)+'">Submit Responses</button></div>'+
     '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    document.body.lastElementChild._questions=qs;
   }catch(e){typeof showToast==='function'&&showToast('Load failed','error');}
 };
 var _scaleAnswers={};
@@ -3651,9 +3682,10 @@ window.ermSuggestQuestions=async function(assessmentId,btn){
       '</div>';}).join('')+
       '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
         '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
-        '<button class="btn btn-primary" onclick="ermAddSuggestedQuestions('+assessmentId+','+JSON.stringify(sug)+')">Add Selected</button>'+
+        '<button class="btn btn-primary erm-add-suggestions" data-assessment-id="'+Number(assessmentId)+'">Add Selected</button>'+
       '</div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    document.body.lastElementChild._suggestions=sug;
   }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Suggestion failed','error');}
 };
 
@@ -3693,13 +3725,14 @@ window.ermIdentifyRisks=async function(assessmentId,btn){
           '</div>'+
           '<div style="font-size:12px;color:var(--muted);margin:4px 0">'+esc(c.category)+'</div>'+
           '<div style="font-size:12px;line-height:1.5">'+esc(c.description||'')+'</div>'+
-          '<button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="ermAddIdentifiedRisk('+JSON.stringify(c)+',this)">+ Add to Register</button>'+
+          '<button class="btn btn-sm btn-primary erm-add-identified-risk" data-risk-index="'+i+'" style="margin-top:8px">+ Add to Register</button>'+
         '</div>';
       }).join('')+
       '<div style="display:flex;justify-content:flex-end;margin-top:14px">'+
         '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
       '</div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    document.body.lastElementChild._candidates=candidates;
   }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Identification failed','error');}
 };
 
@@ -3936,8 +3969,10 @@ function ermRenderExternalList(items){
       (it.standard_ref?'<span class="badge">'+esc(it.standard_ref)+'</span>':'');
     var caveat=it.origin==='ai_scan'?
       '<div style="font-size:11px;color:#d97706;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius);padding:6px 10px;margin-top:8px">⚠ Generated from model knowledge, not a live source. Verify independently before acting.</div>':'';
-    var sourceLink=it.source_url?
-      '<a href="'+esc(it.source_url)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent);margin-top:8px;display:inline-block">🔗 Source</a>':'';
+    var sourceUrl='';
+    try{var parsedSource=new URL(it.source_url);if(parsedSource.protocol==='https:'&&!parsedSource.username&&!parsedSource.password)sourceUrl=parsedSource.href;}catch(_){}
+    var sourceLink=sourceUrl?
+      '<a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent);margin-top:8px;display:inline-block">🔗 Source</a>':'';
     var actions='';
     if(it.status==='new'){
       actions='<button class="btn btn-sm btn-secondary" onclick="extDismiss('+it.id+')">Dismiss</button> '+

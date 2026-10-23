@@ -17,8 +17,19 @@ def _login(base_url, credentials):
     return client
 
 
+def test_org_admin_cannot_author_workflow(live_app, synthetic_tenant):
+    client = _login(live_app, synthetic_tenant["users"]["org_admin"])
+    try:
+        response = client.post("/api/workflows/definitions", json={
+            "name": "Not permitted", "steps": [{"name": "Review", "role": "org_admin"}],
+        })
+        assert response.status_code == 403
+    finally:
+        client.close()
+
+
 def test_workflow_routes_reject_other_organization(live_app, synthetic_tenant):
-    own_user = synthetic_tenant["users"]["org_admin"]["user_id"]
+    own_user = synthetic_tenant["users"]["compliance_manager"]["user_id"]
     db = database.get_db()
     try:
         db.execute("INSERT INTO organizations (name, slug) VALUES ('Workflow Other Org', 'workflow-other-org')")
@@ -72,7 +83,7 @@ def test_workflow_routes_reject_other_organization(live_app, synthetic_tenant):
     finally:
         db.close()
 
-    client = _login(live_app, synthetic_tenant["users"]["org_admin"])
+    client = _login(live_app, synthetic_tenant["users"]["compliance_manager"])
     try:
         definitions = client.get("/api/workflows/definitions")
         assert definitions.status_code == 200
@@ -184,7 +195,7 @@ def test_my_work_workflow_link_opens_instance(login_as, live_app, synthetic_tena
 
 
 def test_workflow_definition_and_start_reject_invalid_steps(live_app, synthetic_tenant):
-    user = synthetic_tenant["users"]["org_admin"]
+    user = synthetic_tenant["users"]["compliance_manager"]
     db = database.get_db()
     try:
         db.execute(
@@ -205,7 +216,7 @@ def test_workflow_definition_and_start_reject_invalid_steps(live_app, synthetic_
         ).status_code == 400
         created = client.post(
             "/api/workflows/definitions", json={
-                "name": "Valid workflow", "steps": [{"name": "Review", "role": "org_admin"}]
+                "name": "Valid workflow", "steps": [{"name": "Review", "role": "compliance_mgr"}]
             }
         )
         assert created.status_code == 201
@@ -235,16 +246,16 @@ def test_workflow_definition_and_start_reject_invalid_steps(live_app, synthetic_
 def test_next_step_failure_rolls_back_workflow_decision(
     live_app, synthetic_tenant, monkeypatch
 ):
-    from core.rbac import ORG_ADMIN
+    from core.rbac import COMPLIANCE_MGR
     from modules.launcher import routes_workflows
 
-    user = synthetic_tenant["users"]["org_admin"]
+    user = synthetic_tenant["users"]["compliance_manager"]
     client = _login(live_app, user)
     try:
         definition = client.post("/api/workflows/definitions", json={
             "name": "Rollback workflow",
             "steps": [
-                {"name": "First", "role": ORG_ADMIN},
+                {"name": "First", "role": COMPLIANCE_MGR},
                 {"name": "Second", "role": "compliance_mgr"},
             ],
         })

@@ -1,4 +1,4 @@
-# Pinned for reproducible, CVE-clean builds.
+# Version pins for reproducible builds. Run an advisory scan before release.
 # starlette CVEs (CVE-2024-47874, CVE-2025-54121, PYSEC-2026-248/249,
 # CVE-2026-48817/48818) are cleared by starlette>=1.1.0; pinned to 1.3.1.
 # Transitive security pins (cryptography, pygments, pydantic-settings,
@@ -19,7 +19,7 @@ pypdf==6.21.1
 reportlab==4.1.0
 aiofiles==23.2.1
 apscheduler==3.11.2
-psycopg2-binary>=2.9.9
+psycopg2-binary==2.9.13
 alembic==1.13.1
 pyotp==2.9.0
 qrcode[pil]==7.4.2

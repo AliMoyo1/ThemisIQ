@@ -12,17 +12,12 @@
       <div id="aigAssessmentHeader"></div>
     </div>
   </div>
-  <div id="aigAssessment"></div>
+  <div id="aigAssessment" data-assessment-id="{{ assessment_id | int }}" data-application-id="{{ application_id | int }}"></div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
 <script src="/static/js/ai_governance_assessments.js?v=1"></script>
-<script>
-  AIGov.assessmentForm(document.getElementById('aigAssessment'), {
-    assessmentId: {{ assessment_id }},
-    applicationId: {{ application_id }}
-  });
-</script>
+<script src="/static/js/ai_governance_bootstrap.js?v=1"></script>
 {% endblock %}

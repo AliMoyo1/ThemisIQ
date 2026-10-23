@@ -4,7 +4,7 @@
 #
 # themisiq.net / www.themisiq.net - landing page served from /var/www/themisiq
 # app.themisiq.net  - orange cloud (Cloudflare proxies HTTPS, we serve HTTP)
-# monitor.themisiq.net - grey cloud (direct HTTP, used by UptimeRobot)
+# monitor.themisiq.net - direct HTTP health probe only
 
 # Landing page: bare domain and www redirect.
 server {
@@ -12,6 +12,13 @@ server {
     server_name themisiq.net www.themisiq.net;
     root /var/www/themisiq;
     index index.html;
+    # These public-site headers are already installed in production. Keep them
+    # when restoring the app-specific proxy and rate-limit locations below.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
     location / {
         try_files $uri $uri/ =404;
     }
@@ -19,7 +26,22 @@ server {
 
 server {
     listen 80;
-    server_name app.themisiq.net monitor.themisiq.net;
+    server_name monitor.themisiq.net;
+
+    location = /health {
+        proxy_pass http://127.0.0.1:8080/health;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        return 404;
+    }
+}
+
+server {
+    listen 80;
+    server_name app.themisiq.net;
+    client_max_body_size 5m;
 
     # WhatsApp bridge webhook endpoints.
     # Bridge runs on port 8001 (themisiq-bridge.service).
@@ -96,6 +118,40 @@ server {
         proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header    X-Forwarded-Proto $scheme;
         proxy_http_version  1.1;
+    }
+
+    # The Vault accepts a 100 MB file with multipart overhead. The app also
+    # checks the file bytes; nginx enforces this limit for streamed requests.
+    location = /evidence/api/items {
+        client_max_body_size 105m;
+        limit_req           zone=api burst=50 nodelay;
+        proxy_pass          http://127.0.0.1:8080;
+        proxy_set_header    Host              $host;
+        proxy_set_header    X-Real-IP         $remote_addr;
+        proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $scheme;
+    }
+
+    # The existing ARIA and GRID document routes accept files up to 50 MB.
+    # Match only those upload paths so ordinary requests keep the 5 MB cap.
+    location ~ ^/(?:aria/(?:documents/(?:parse-upload|upload-new|[^/]+/upload-revision)|api/templates)|grid/api/(?:ai/parse-checklist|evidence/[0-9]+/(?:upload|replace/[0-9]+)))$ {
+        client_max_body_size 55m;
+        limit_req           zone=api burst=50 nodelay;
+        proxy_pass          http://127.0.0.1:8080;
+        proxy_set_header    Host              $host;
+        proxy_set_header    X-Real-IP         $remote_addr;
+        proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $scheme;
+    }
+
+    location = /erm/api/risks/import-preview {
+        client_max_body_size 15m;
+        limit_req           zone=api burst=50 nodelay;
+        proxy_pass          http://127.0.0.1:8080;
+        proxy_set_header    Host              $host;
+        proxy_set_header    X-Real-IP         $remote_addr;
+        proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $scheme;
     }
 
     # Module API endpoints (e.g. /aria/api/, /erm/api/): same rate limit as /api/,

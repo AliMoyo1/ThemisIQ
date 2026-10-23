@@ -174,10 +174,13 @@
           </td>
           <td>
             <input type="date" class="date-input" value="{{ ctrl.target_date or '' }}"
-              onchange="updateDate(this, {{ ctrl.id }})">
+              data-control-id="{{ ctrl.id | int }}" onchange="updateDate(this, Number(this.dataset.controlId))">
           </td>
           <td style="text-align:center">
-            <button class="edit-btn" onclick="openEditModal({{ ctrl.id }}, '{{ ctrl.name | replace("'","\\'")|replace('"','\\"') }}', '{{ ctrl.notes or '' | replace("'","\\'") | replace('"','\\"') }}', '{{ ctrl.evidence_ref or '' }}', '{{ ctrl.version or '1.0' }}', '{{ ctrl.review_date or '' }}')">
+            <button class="edit-btn js-edit-control" type="button" data-control-id="{{ ctrl.id | int }}"
+                    data-control-name="{{ ctrl.name }}" data-control-notes="{{ ctrl.notes or '' }}"
+                    data-control-evidence="{{ ctrl.evidence_ref or '' }}" data-control-version="{{ ctrl.version or '1.0' }}"
+                    data-control-review-date="{{ ctrl.review_date or '' }}">
               Edit
             </button>
           </td>
@@ -253,6 +256,13 @@ function openEditModal(id, name, notes, evid, ver, reviewDate) {
   document.getElementById('editReviewDate').value = reviewDate;
   document.getElementById('editModal').classList.add('open');
 }
+document.querySelectorAll('.js-edit-control').forEach(function (button) {
+  button.addEventListener('click', function () {
+    openEditModal(Number(button.dataset.controlId), button.dataset.controlName,
+      button.dataset.controlNotes, button.dataset.controlEvidence,
+      button.dataset.controlVersion, button.dataset.controlReviewDate);
+  });
+});
 function closeModal() { document.getElementById('editModal').classList.remove('open'); }
 async function saveModal() {
   const id = document.getElementById('editId').value;
