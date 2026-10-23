@@ -79,3 +79,7 @@ How they are used:
 - tests/test_icons.py and tests/ui/test_icons_ui.py: 34 passing.
 - Throwaway demo server, database and credentials deleted; launch entry removed.
 - Not done: commit and PR (waiting for go-ahead).
+
+## Log: merge with master and finish (2026-10-23)
+- Merged origin/master (Scenario Studio, PR 24). One conflict: the ERM sidebar moved into `_erm_sidebar.html`; took master's include and put the "Ask ERM AI" card icon change in the partial. No other emoji arrived with master (test_icons passes).
+- Added `/erm/scenario-studio` to the browser icon audit. 42 icon, studio, BCM incident and Vault link browser tests pass.

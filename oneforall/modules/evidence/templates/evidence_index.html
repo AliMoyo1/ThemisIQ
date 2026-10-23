@@ -465,7 +465,7 @@ var entityTypes={
   grid:['audit','control','non_conformance'],
   bcm:['plan','incident','risk','bia','compliance_control'],
   sentinel:['ropa','dpia','breach','dsr','vendor'],
-  erm:['risk'],
+  erm:['risk','scenario'],
   governance:['application']
 };
 
@@ -1728,7 +1728,7 @@ function loadEntityTypes(){
   if(mod&&entityTypes[mod]){
     var labels={nc:'Nonconformance',non_conformance:'Nonconformance',bia:'Business impact assessment',
       compliance_control:'Compliance control',ropa:'Processing activity',dpia:'Privacy impact assessment',
-      dsr:'Data subject request',application:'AI system or application'};
+      dsr:'Data subject request',application:'AI system or application',scenario:'Risk scenario'};
     entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;
       o.textContent=labels[t]||t.replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase();});sel.appendChild(o);});
   }
@@ -1992,6 +1992,30 @@ document.addEventListener('DOMContentLoaded',function(){
   setViewMode(evViewMode);  // Apply saved view mode to toggle buttons
   loadStats();loadEvidence();loadCoverage();loadChecks();evLoadSavedViews();
 });
+
+
+/* A record in another module can open the upload form with itself already chosen: ?attach=module:type:id */
+(function(){
+  var raw = new URLSearchParams(window.location.search).get('attach');
+  if(!raw) return;
+  var parts = raw.split(':');
+  var mod = parts[0], type = parts[1], id = parseInt(parts[2], 10);
+  if(parts.length !== 3 || !(entityTypes[mod] || []).includes(type) || !Number.isSafeInteger(id) || id <= 0) return;
+  window.history.replaceState({}, '', window.location.pathname);
+  fetch('/evidence/api/search-entities?module=' + encodeURIComponent(mod) + '&entity_type=' + encodeURIComponent(type) + '&entity_id=' + id)
+    .then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(found){
+      var hit = found && found[0];
+      if(!hit || !hit.name || hit.id !== id) return;
+      ModalManager.open('uploadModal');
+      var m = document.getElementById('uploadLinkModule'); m.value = mod; uploadTargetModuleChanged();
+      document.getElementById('uploadLinkType').value = type;
+      uploadTarget = {module: mod, entity_type: type, entity_id: id};
+      var selected = document.getElementById('uploadLinkSelected');
+      selected.querySelector('span').textContent = 'Selected: ' + hit.name + ' (#' + id + ')';
+      selected.style.display = 'flex';
+    }).catch(function(){});
+})();
 
 /* ── PLAN-06 deep-link boot handler ── */
 (function(){

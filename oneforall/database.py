@@ -6470,6 +6470,9 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_consent", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # PLAN-36 P07: freeze scope on immutable board-pack snapshots.
         ("erm_board_packs", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # Scenario Studio: what kind of event the scenario models and when its assumptions are next reviewed.
+        ("erm_scenarios", "scenario_type", "TEXT"),
+        ("erm_scenarios", "review_date", "TEXT"),
         # Ownership of the legacy platform risk register and of SLA clocks and workflow instances, which the
         # dashboards and reports could not scope by unit before. NULL is organization wide, as everywhere
         # else; _backfill_owner_units places the rows that already exist, once.

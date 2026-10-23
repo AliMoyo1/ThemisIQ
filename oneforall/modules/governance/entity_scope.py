@@ -79,6 +79,8 @@ _KINDS = {
                                          title="title", url="/bcm/compliance"),
     ("erm", "risk"):          _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_enterprise_risks",
                                     title="title", url="/erm/register?open=risk:{id}"),
+    ("erm", "scenario"):      _Kind("erm", "erm.scenario.view", "business_unit_id", table="erm_scenarios",
+                                    title="title", url="/erm/scenario-studio?open={id}"),
     ("erm", "pillar"):        _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_pillars",
                                     title="name", url="/erm/objectives"),
     ("erm", "objective"):     _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_objectives",

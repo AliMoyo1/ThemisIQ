@@ -142,6 +142,7 @@ always a dict and varies per event; see the handler for the contract.
 | `erm.risk.escalated` | Severity bumped | Notifies owners |
 | `erm.risk.mitigated` / `closed` | Risk lifecycle | Linked artifacts updated |
 | `erm.appetite.breached` | KRI/threshold crossed | Admin notification |
+| `erm.scenario.created` / `.updated` / `.published` | Scenario Studio create, edit, board pack published | Audit and webhooks only |
 | `orm.event.logged` | New op-risk event | KRI auto-increment if matching `auto_update_event_type` |
 | `orm.event.elevated` | Event severity bumped | ERM risk row |
 | `orm.event.resolved` | Event closed | Linked artifacts updated |

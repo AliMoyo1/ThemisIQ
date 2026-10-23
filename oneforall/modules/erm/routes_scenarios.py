@@ -23,6 +23,9 @@ from core.rbac import has_capability
 from modules.erm.routes import _json_body, _uid
 from modules.governance.data_service import bu_scope_ids
 from modules.erm import scenarios as sv
+from modules.erm import scenario_ai as sai
+from modules.erm import scenario_support as sup
+from modules.erm import scenario_templates as tpl
 
 router = APIRouter(prefix="/erm", tags=["erm-scenarios"])
 templates = Jinja2Templates(directory=["modules/erm/templates", "templates"])
@@ -41,7 +44,11 @@ async def scenario_studio_page(request: Request):
     ctx = shell_ctx(request, active_module="erm", active_section="scenario-studio")
     return templates.TemplateResponse(request, "scenario_studio.html", {
         "user": user,
+        "can_manage_frameworks": has_capability(user, "erm.framework.manage"),
+        "can_view_scenarios": has_capability(user, "erm.scenario.view"),
         "can_manage_scenarios": has_capability(user, "erm.scenario.manage"),
+        "can_use_ai": has_capability(user, "erm.scenario.manage") and has_capability(user, "erm.ai.use"),
+        "can_rehearse": has_capability(user, "erm.scenario.manage") and has_capability(user, "bcm.exercise.manage"),
         "can_generate_boardpacks": has_capability(user, "erm.boardpack.generate"),
         "can_publish_boardpacks": has_capability(user, "erm.boardpack.publish"),
         **ctx,
@@ -67,7 +74,66 @@ async def api_scenarios_create(request: Request):
         return _error_response(exc, 403)
     except sv.ScenarioError as exc:
         return _error_response(exc)
+    sup.link_origin(new_id, body.get("origin"), request.state.user)
     return JSONResponse({"ok": True, "id": new_id}, status_code=201)
+
+
+# Literal paths below are registered before GET /api/scenarios/{scenario_id}: the integer conversion of that
+# parameterized route would otherwise answer 422 for them.
+
+@router.get("/api/scenario-templates")
+@require_capability("erm.scenario.view")
+async def api_scenario_templates(request: Request):
+    return JSONResponse({"templates": tpl.public_templates(), "types": tpl.SCENARIO_TYPES})
+
+
+@router.get("/api/scenarios/candidates")
+@require_capability("erm.scenario.view")
+async def api_scenario_candidates(request: Request):
+    qp = request.query_params
+    try:
+        rows = sup.candidates(qp.get("type", ""), request.state.user, qp.get("q", ""), qp.get("template") or None)
+    except sv.ScenarioError as exc:
+        return _error_response(exc)
+    return JSONResponse(rows)
+
+
+@router.get("/api/scenarios/seed")
+@require_capability("erm.scenario.manage")
+async def api_scenario_seed(request: Request):
+    qp = request.query_params
+    try:
+        record_id = int(qp.get("id", ""))
+    except (TypeError, ValueError, OverflowError):
+        raise HTTPException(400, "id must be an integer")
+    try:
+        return JSONResponse(sup.seed_from_record(qp.get("module", ""), qp.get("type", ""), record_id, request.state.user))
+    except sv.ScenarioError as exc:
+        return _error_response(exc, 404)
+
+
+def _ai_gate(request):
+    """AI help needs the right to edit scenarios and to use ERM's assistant, and the hourly allowance."""
+    user = request.state.user
+    if not has_capability(user, "erm.ai.use"):
+        raise HTTPException(403, "You do not have access to the AI assistant in ERM")
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
+    return None
+
+
+@router.post("/api/scenarios/ai/draft")
+@require_capability("erm.scenario.manage")
+async def api_scenario_ai_draft(request: Request):
+    refused = _ai_gate(request)
+    if refused:
+        return refused
+    body = await _json_body(request)
+    try:
+        return JSONResponse(sai.draft(body.get("sentence"), request.state.user))
+    except sv.ScenarioError as exc:
+        return _error_response(exc)
 
 
 @router.get("/api/scenarios/{scenario_id}")
@@ -154,7 +220,70 @@ async def api_scenario_impact(request: Request, scenario_id: int):
         raise HTTPException(404, "Scenario not found")
     if not scenario:
         raise HTTPException(404, "Scenario not found")
-    return JSONResponse(sv.compute_scenario_impact(scenario_id))
+    impact = sv.compute_scenario_impact(scenario_id)
+    impact["headline"] = sup.headline(impact)
+    return JSONResponse(impact)
+
+
+def _visible_or_404(request, scenario_id):
+    try:
+        scenario = sv.get_scenario(scenario_id, bu_scope=bu_scope_ids(request.state.user))
+    except sv.ForbiddenScopeError:
+        raise HTTPException(404, "Scenario not found")
+    if not scenario:
+        raise HTTPException(404, "Scenario not found")
+    return scenario
+
+
+@router.get("/api/scenarios/{scenario_id}/context")
+@require_capability("erm.scenario.view")
+async def api_scenario_context(request: Request, scenario_id: int):
+    _visible_or_404(request, scenario_id)
+    return JSONResponse(sup.context(scenario_id, request.state.user))
+
+
+@router.post("/api/scenarios/{scenario_id}/actions")
+@require_capability("erm.scenario.manage")
+async def api_scenario_action(request: Request, scenario_id: int):
+    _visible_or_404(request, scenario_id)
+    body = await _json_body(request)
+    try:
+        task_id = sup.create_action(scenario_id, body, request.state.user)
+    except sv.ScenarioError as exc:
+        return _error_response(exc)
+    return JSONResponse({"ok": True, "task_id": task_id}, status_code=201)
+
+
+@router.post("/api/scenarios/{scenario_id}/rehearse")
+@require_capability("erm.scenario.manage")
+async def api_scenario_rehearse(request: Request, scenario_id: int):
+    _visible_or_404(request, scenario_id)
+    if not has_capability(request.state.user, "bcm.exercise.manage"):
+        raise HTTPException(403, "You need to be allowed to plan exercises in BCM")
+    try:
+        exercise_id = sup.rehearse_in_bcm(scenario_id, request.state.user)
+    except sv.ScenarioError as exc:
+        return _error_response(exc)
+    return JSONResponse({"ok": True, "exercise_id": exercise_id, "url": "/bcm/exercises"}, status_code=201)
+
+
+_AI_ACTIONS = {"shocks": sai.shocks, "gaps": sai.gaps, "explain": sai.explain, "challenge": sai.challenge}
+
+
+@router.post("/api/scenarios/{scenario_id}/ai/{action}")
+@require_capability("erm.scenario.manage")
+async def api_scenario_ai(request: Request, scenario_id: int, action: str):
+    run = _AI_ACTIONS.get(action)
+    if run is None:
+        raise HTTPException(404, "Unknown AI action")
+    _visible_or_404(request, scenario_id)
+    refused = _ai_gate(request)
+    if refused:
+        return refused
+    try:
+        return JSONResponse(run(scenario_id, request.state.user))
+    except sv.ScenarioError as exc:
+        return _error_response(exc)
 
 
 # ── Board packs ──────────────────────────────────────────────────────────────

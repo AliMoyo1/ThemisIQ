@@ -10,7 +10,7 @@ import pytest
 
 PAGES = [
     "/", "/aria/", "/aria/ai-generator", "/aria/ask", "/aria/mapping", "/aria/frameworks", "/grid/", "/bcm/",
-    "/sentinel/", "/erm/", "/orm/", "/evidence/", "/vendors", "/tasks", "/reports", "/workflows", "/risk-register",
+    "/sentinel/", "/erm/", "/erm/scenario-studio", "/orm/", "/evidence/", "/vendors", "/tasks", "/reports", "/workflows", "/risk-register",
     "/people", "/admin/users", "/admin/email", "/admin/api-keys", "/admin/security",
 ]
 
