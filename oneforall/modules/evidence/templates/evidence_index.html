@@ -1231,17 +1231,17 @@ async function openDetail(eid){
       '<span style="color:var(--muted)">Title</span>'+
       '<div class="ev-editable" id="ev-field-title">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.title)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineEdit(\'title\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="ev-edit-btn" aria-label="Edit title" onclick="evInlineEdit(\'title\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Category</span>'+
       '<div class="ev-editable" id="ev-field-category">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.category)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineSelect(\'category\','+eid+',\''+catOpts.replace(/'/g,"\\'")+'\')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="ev-edit-btn" aria-label="Edit category" onclick="evInlineSelect(\'category\','+eid+',\''+catOpts.replace(/'/g,"\\'")+'\')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Status</span>'+
       '<div class="ev-editable" id="ev-field-status">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.status)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="ev-edit-btn" aria-label="Edit status" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Owner</span>'+
       '<div class="ev-editable" id="ev-field-owner_user_id"><span class="ev-field-val" style="color:var(--text)">'+escHtml(item.owner_name||'No owner')+'</span>'+
@@ -1253,7 +1253,7 @@ async function openDetail(eid){
         '<span class="ev-field-val" style="color:'+(item.expiry_date?'var(--warn,#d97706)':'var(--muted)')+'">'+
           (item.expiry_date?fmtDate(item.expiry_date)+' '+expiryBadgeHtml(item.expiry_date):'Not set')+
         '</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="ev-edit-btn" aria-label="Edit expiry date" onclick="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Review due</span>'+
       '<div class="ev-editable" id="ev-field-review_due_date"><span class="ev-field-val" style="color:var(--text)">'+(item.review_due_date?fmtDate(item.review_due_date):'Not set')+'</span>'+

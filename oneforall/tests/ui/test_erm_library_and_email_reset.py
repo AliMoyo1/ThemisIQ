@@ -60,7 +60,7 @@ def test_organization_user_cannot_see_manage_controls_on_a_global_template(
     page.wait_for_selector("#ermLibGrid .lib-card", timeout=5000)
 
     card = page.locator(".lib-card", has_text="Ransomware Attack")  # a seeded global template
-    assert card.locator("text=🌐 Global").count() == 1
+    assert card.get_by_text("Global", exact=True).count() == 1
     assert card.get_by_role("button", name="Edit").count() == 0
     assert card.get_by_role("button", name="Retire").count() == 0
     assert not page.console_errors, f"unexpected console/page errors: {page.console_errors}"
