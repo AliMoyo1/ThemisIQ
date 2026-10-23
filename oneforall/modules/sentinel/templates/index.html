@@ -319,7 +319,7 @@
     <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px">&#10022;</div>
+    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
     <div style="font-size:14px;font-weight:700">Ask Sentinel AI...</div>
     <div style="font-size:11px;opacity:0.7;margin-top:4px">Data protection guidance</div>
   </a>
@@ -491,7 +491,7 @@
       <div class="section-sub">Article 30 GDPR — Register of processing activities</div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-secondary" onclick="snAiScoreAllRopa()" title="AI-score risk for all unscored activities">🧠 Score All Risks</button>
+      <button class="btn btn-secondary" onclick="snAiScoreAllRopa()" title="AI-score risk for all unscored activities"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Score All Risks</button>
       <button class="btn btn-primary" onclick="snOpenRopaDrawer(null)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Record
@@ -865,7 +865,7 @@
       <div class="section-sub">Internal data protection policies and procedures</div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-secondary" onclick="snOpenDraftPolicyModal()">✨ Draft with AI</button>
+      <button class="btn btn-secondary" onclick="snOpenDraftPolicyModal()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Draft with AI</button>
       <button class="btn btn-primary" onclick="snOpenModal('policy')">+ Add Policy</button>
     </div>
   </div>
@@ -888,7 +888,7 @@
       <div class="section-sub">Article 13 &amp; 14 GDPR — Published privacy notices</div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-secondary" onclick="snOpenGenerateNoticeModal()">✨ Generate with AI</button>
+      <button class="btn btn-secondary" onclick="snOpenGenerateNoticeModal()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate with AI</button>
       <button class="btn btn-primary" onclick="snOpenModal('notice')">+ Add Notice</button>
     </div>
   </div>
@@ -1056,6 +1056,8 @@
      HELPERS
      ════════════════════════════════════════════════════════════════════════ */
   function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  /* Country code chip for a jurisdiction (emoji flags are not used). */
+  function snFlag(code){return code?'<span class="flag-chip">'+esc(code)+'</span>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-globe></use></svg>';}
   function snSafeUrl(value, external){
     if(typeof value!=='string'||!value)return '';
     try{
@@ -1516,7 +1518,7 @@
       var banner=document.getElementById('snRopaGapBanner');
       if(banner&&dpiaGap>0){
         banner.style.display='flex';
-        banner.innerHTML='⚠ <strong>'+dpiaGap+' high-risk activit'+(dpiaGap>1?'ies have':'y has')+' no DPIA.</strong>'+
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+dpiaGap+' high-risk activit'+(dpiaGap>1?'ies have':'y has')+' no DPIA.</strong>'+
           '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" onclick="snSetRopaRisk(\'high\',document.querySelector(\'#snRopaRiskChips .filter-chip:nth-child(3)\'))">Show high-risk →</button>';
       }else if(banner){banner.style.display='none';}
       var filtered=ropaRiskFilter?items.filter(function(r){return(r.risk_level||'low')===ropaRiskFilter;}):items;
@@ -1526,7 +1528,7 @@
 
   function snDpiaStatusCell(r){
     if(r.dpia_id) return '<span class="dpia-badge-linked" onclick="sentinelRouter.navigate(\'/sentinel/dpia\')" title="DPIA linked — click to view">✓ DPIA →</span>';
-    if(r.dpia_required||r.risk_level==='high'||r.risk_level==='critical') return '<span class="dpia-badge-required">⚠ Required</span>';
+    if(r.dpia_required||r.risk_level==='high'||r.risk_level==='critical') return '<span class="dpia-badge-required"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Required</span>';
     return '<span style="color:var(--muted);font-size:11px">—</span>';
   }
 
@@ -1535,8 +1537,8 @@
       '<button class="btn btn-sm btn-secondary" onclick="snOpenRopaDrawer('+r.id+')" title="Edit" style="padding:4px 8px">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
       '</button>'+
-      '<button class="btn-ai" onclick="snAiScoreRopa('+r.id+',this)" title="AI: score risk level">🧠</button>'+
-      (!r.dpia_id?'<button class="btn-spawn" onclick="snSpawnDpia('+r.id+')" title="Create DPIA from this record">🚀 DPIA</button>':'')+
+      '<button class="btn-ai" onclick="snAiScoreRopa('+r.id+',this)" title="AI: score risk level"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>'+
+      (!r.dpia_id?'<button class="btn-spawn" onclick="snSpawnDpia('+r.id+')" title="Create DPIA from this record"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> DPIA</button>':'')+
       '<button class="btn btn-sm btn-secondary" onclick="snDeleteRecord(\'ropa\','+r.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
       '</button>'+
@@ -1605,7 +1607,7 @@
       var banner=document.getElementById('snDpiaOverdueBanner');
       if(banner&&overdue>0){
         banner.style.display='flex';
-        banner.innerHTML='⚠ <strong>'+overdue+' DPIA'+(overdue>1?'s are':' is')+' past their due date.</strong>'+
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+overdue+' DPIA'+(overdue>1?'s are':' is')+' past their due date.</strong>'+
           '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" onclick="snSetDpiaStatus(\'in_progress\',document.querySelector(\'#snDpiaStatusChips .filter-chip:nth-child(3)\'))">Show in-progress →</button>';
       }else if(banner){banner.style.display='none';}
       snRenderDpiaRows(dpiaStatusFilter?items.filter(function(d){return d.status===dpiaStatusFilter;}):items);
@@ -1618,9 +1620,9 @@
       '<button class="btn btn-sm btn-secondary" onclick="snEditDpia('+d.id+')" title="Edit" style="padding:4px 8px">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
       '</button>'+
-      '<button class="btn-ai" onclick="snAiResearchDpia('+d.id+',this)" title="AI: generate research report">🔬</button>'+
-      '<button class="btn-ai" onclick="snAiGenerateDpia('+d.id+',this)" title="AI: generate full DPIA document">✨</button>'+
-      (hasDoc?'<button class="btn-ai" onclick="snViewDpiaDoc('+d.id+')" title="View generated document">📄</button>':'')+
+      '<button class="btn-ai" onclick="snAiResearchDpia('+d.id+',this)" title="AI: generate research report"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-microscope></use></svg></button>'+
+      '<button class="btn-ai" onclick="snAiGenerateDpia('+d.id+',this)" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></button>'+
+      (hasDoc?'<button class="btn-ai" onclick="snViewDpiaDoc('+d.id+')" title="View generated document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg></button>':'')+
       '<a class="btn btn-sm btn-secondary" href="/sentinel/api/dpias/'+d.id+'/document" title="Download this assessment as a PDF" aria-label="Download PDF of '+esc(d.title||'this assessment')+'" style="padding:4px 8px;font-size:11px">PDF</a>'+
       '<button class="btn btn-sm btn-secondary" onclick="snDeleteRecord(\'dpia\','+d.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
@@ -1727,7 +1729,7 @@
   };
 
   window.snAiScoreRopa=async function(ropaId,btn){
-    var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
     try{
       var r=await apiFetch('/sentinel/api/ai/score-ropa/'+ropaId,{method:'POST'});
       var item=ropaCache.find(function(x){return x.id===ropaId;});
@@ -1764,7 +1766,7 @@
         placeholder:'e.g. Focus on cross-border transfer risk, reference our existing vendor contracts...'
       });
     }
-    var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
     try{
       var r=await apiFetch('/sentinel/api/ai/research',{method:'POST',body:{
         activity_type:item.activity_type||item.title||'',
@@ -1793,7 +1795,7 @@
         placeholder:'e.g. Emphasise data minimisation measures, keep the risk section concise...'
       });
     }
-    var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
     try{
       var r=await apiFetch('/sentinel/api/ai/generate/'+dpiaId,{method:'POST',body:{custom_instructions:guidance||''}});
       var text=r.content||r.dpia||r.text||'';
@@ -1892,16 +1894,16 @@
       '<div class="ropa-drawer-head">'+
         '<div class="ropa-drawer-title">'+(isEdit?'Edit Processing Activity':'New Processing Activity')+'</div>'+
         (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
-        (isEdit?'<button class="btn-ai" onclick="snAiScoreRopa('+id+',this)" title="AI score risk">🧠 Score</button>':'')+
-        (isEdit&&!r.dpia_id?'<button class="btn-spawn" onclick="snSpawnDpia('+id+')" style="margin-left:4px" title="Create linked DPIA">🚀 Spawn DPIA</button>':'')+
+        (isEdit?'<button class="btn-ai" onclick="snAiScoreRopa('+id+',this)" title="AI score risk"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Score</button>':'')+
+        (isEdit&&!r.dpia_id?'<button class="btn-spawn" onclick="snSpawnDpia('+id+')" style="margin-left:4px" title="Create linked DPIA"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> Spawn DPIA</button>':'')+
         (isEdit&&r.dpia_id?'<span style="font-size:11px;color:var(--good);font-weight:700;margin-left:4px" onclick="sentinelRouter.navigate(\'/sentinel/dpia\');document.getElementById(\'snRopaDrawerWrap\').remove()">✓ DPIA Linked →</span>':'')+
         '<button onclick="document.getElementById(\'snRopaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
       '</div>'+
       '<div class="ropa-drawer-tabs">'+
-        '<span class="ropa-drawer-tab active" data-tab="basic" onclick="snRopaDrawerTab(this)">📋 Basic Info</span>'+
-        '<span class="ropa-drawer-tab" data-tab="data" onclick="snRopaDrawerTab(this)">🗂 Data Details</span>'+
-        '<span class="ropa-drawer-tab" data-tab="systems" onclick="snRopaDrawerTab(this)">⚙ Systems & Processors</span>'+
-        '<span class="ropa-drawer-tab" data-tab="risk" onclick="snRopaDrawerTab(this)">🛡 Risk & Compliance</span>'+
+        '<span class="ropa-drawer-tab active" data-tab="basic" onclick="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Basic Info</span>'+
+        '<span class="ropa-drawer-tab" data-tab="data" onclick="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-database></use></svg> Data Details</span>'+
+        '<span class="ropa-drawer-tab" data-tab="systems" onclick="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg> Systems & Processors</span>'+
+        '<span class="ropa-drawer-tab" data-tab="risk" onclick="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Risk & Compliance</span>'+
       '</div>'+
       '<div class="ropa-drawer-body">'+
 
@@ -1911,7 +1913,7 @@
           '<div class="form-row">'+snDrawerField('rd_dept','Department','datalist',f('department'),false,_snRopaFieldOptions('department',SN_DEPARTMENTS),'e.g. Marketing, HR, Finance')+snDrawerField('rd_owner','Owner / Responsible','text',f('owner'),false,null,'Name or team')+'</div>'+
           snDrawerField('rd_purpose','Purpose of Processing','textarea',f('purpose'),false,null,'Why is this data being processed?')+
           '<div class="form-group"><label for="rd_legal_basis" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Legal Basis'+
-          ' <button type="button" class="btn-ai" style="font-size:10px;padding:2px 7px;margin-left:6px" onclick="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose">🧠 Suggest</button></label>'+
+          ' <button type="button" class="btn-ai" style="font-size:10px;padding:2px 7px;margin-left:6px" onclick="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggest</button></label>'+
           '<select id="rd_legal_basis" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box"><option value="">Select...</option>'+
           (SN_LEGAL_BASES[initialReg]||[]).map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+
           '</select><div id="snLegalBasisSuggestion" style="display:none;margin-top:8px"></div></div>'+
@@ -1947,7 +1949,7 @@
           snDrawerField('rd_transfer_safeguard','Transfer Safeguard','select',f('transfer_safeguard'),false,['','Adequacy Decision','SCCs','BCRs','Consent','Derogation'])+
           // ARIA cross-module suggestions
           '<div id="snAriaCtrlPanel" class="aria-suggestions" style="display:none">'+
-            '<div class="aria-suggestions-title">🔗 Relevant ARIA Controls — click to add to Security Measures</div>'+
+            '<div class="aria-suggestions-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Relevant ARIA Controls — click to add to Security Measures</div>'+
             '<div id="snAriaCtrlList" style="line-height:2"></div>'+
           '</div>'+
         '</div>'+
@@ -1961,7 +1963,7 @@
           '</label>'+
           snDrawerField('rd_security','Security Measures Applied','textarea',f('security_measures'),false,null,'Technical and organisational measures protecting this processing activity')+
           '<div id="snRopaProfileFields"></div>'+
-          (isEdit&&r.ai_risk_notes?'<div class="ai-risk-panel"><div class="ai-risk-panel-label">🧠 AI Risk Assessment</div>'+esc(r.ai_risk_notes)+'</div>':'')+
+          (isEdit&&r.ai_risk_notes?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Risk Assessment</div>'+esc(r.ai_risk_notes)+'</div>':'')+
         '</div>'+
       '</div>'+
       '<div class="ropa-drawer-footer">'+
@@ -2066,7 +2068,7 @@
         snRenderRopaRows(filtered);
       }
     }).catch(function(){
-      if(typeof showToast==='function')showToast('Auto risk-scoring unavailable — click 🧠 to score manually','warn');
+      if(typeof showToast==='function')showToast('Auto risk-scoring unavailable. Use the AI score button to score manually','warn');
     });
   }
 
@@ -2195,7 +2197,7 @@
     var regulation=document.getElementById('rd_regulation')?document.getElementById('rd_regulation').value:'';
     var activityName=document.getElementById('rd_name')?document.getElementById('rd_name').value:'';
     if(!purpose){if(typeof showToast==='function')showToast('Enter a Purpose of Processing first','warn');return;}
-    var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
     var box=document.getElementById('snLegalBasisSuggestion');
     try{
       var specialCats=(typeof snGetChips==='function')?snGetChips('snRopaSC').join(', '):'';
@@ -2206,7 +2208,7 @@
       _snLegalBasisSuggestion=r.legal_basis;
       box.style.display='block';
       box.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:12px">'+
-        '<div style="font-weight:700;margin-bottom:3px">🧠 AI suggests: '+esc(r.legal_basis)+'</div>'+
+        '<div style="font-weight:700;margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI suggests: '+esc(r.legal_basis)+'</div>'+
         '<div style="color:var(--muted);margin-bottom:8px">'+esc(r.rationale||'')+'</div>'+
         '<button type="button" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 9px" onclick="snApplyLegalBasis()">Apply</button> '+
         '<button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:3px 9px" onclick="document.getElementById(\'snLegalBasisSuggestion\').style.display=\'none\'">Dismiss</button>'+
@@ -2254,15 +2256,15 @@
       '<div class="ropa-drawer-head">'+
         '<div class="ropa-drawer-title">'+(isEdit?'Edit DPIA':'New DPIA Assessment')+'</div>'+
         (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
-        (isEdit?'<button class="btn-ai" onclick="snAiResearchDpia('+id+',this)" title="AI: generate research report">🔬 Research</button>':'')+
-        (isEdit?'<button class="btn-ai" onclick="snAiGenerateDpia('+id+',this)" style="margin-left:4px" title="AI: generate full DPIA document">✨ Generate</button>':'')+
+        (isEdit?'<button class="btn-ai" onclick="snAiResearchDpia('+id+',this)" title="AI: generate research report"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-microscope></use></svg> Research</button>':'')+
+        (isEdit?'<button class="btn-ai" onclick="snAiGenerateDpia('+id+',this)" style="margin-left:4px" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate</button>':'')+
         '<button onclick="document.getElementById(\'snDpiaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
       '</div>'+
       '<div class="ropa-drawer-tabs">'+
-        '<span class="ropa-drawer-tab active" data-tab="basics" onclick="snDpiaDrawerTab(this)">📋 Basics</span>'+
-        '<span class="ropa-drawer-tab" data-tab="data" onclick="snDpiaDrawerTab(this)">🗂 Data</span>'+
-        '<span class="ropa-drawer-tab" data-tab="risks" onclick="snDpiaDrawerTab(this)">🛡 Risks</span>'+
-        '<span class="ropa-drawer-tab" data-tab="review" onclick="snDpiaDrawerTab(this)">✅ Review</span>'+
+        '<span class="ropa-drawer-tab active" data-tab="basics" onclick="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Basics</span>'+
+        '<span class="ropa-drawer-tab" data-tab="data" onclick="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-database></use></svg> Data</span>'+
+        '<span class="ropa-drawer-tab" data-tab="risks" onclick="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Risks</span>'+
+        '<span class="ropa-drawer-tab" data-tab="review" onclick="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg> Review</span>'+
       '</div>'+
       '<div class="ropa-drawer-body">'+
 
@@ -2330,7 +2332,7 @@
           '<div class="form-group">'+
             '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
               '<label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0">Identified Risks</label>'+
-              '<button type="button" class="btn-ai" id="snDpiaSuggestRisksBtn" onclick="snAiSuggestRisks()">🤖 Suggest Risks with AI</button>'+
+              '<button type="button" class="btn-ai" id="snDpiaSuggestRisksBtn" onclick="snAiSuggestRisks()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg> Suggest Risks with AI</button>'+
             '</div>'+
             '<div id="snDpiaRiskSuggestions" style="display:none;margin-bottom:10px"></div>'+
             '<textarea id="dd_risks" rows="6" placeholder="Describe each risk, e.g. \'Unauthorised access (Likelihood: Medium, Impact: High)\'" style="'+fsta+'">'+esc(Array.isArray(f('risks'))?f('risks').join('\n'):f('risks'))+'</textarea>'+
@@ -2349,7 +2351,7 @@
           '</label>'+
           fg('Consultation Notes','<textarea id="dd_consult_notes" rows="3" placeholder="Notes from DPO or supervisory authority consultation" style="'+fsta+'">'+esc(f('consult_notes'))+'</textarea>')+
           '<div id="snDpiaProfileFields"></div>'+
-          (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label">🧠 AI Document available</div><button class="btn-ai" onclick="snViewDpiaDoc('+id+')" style="margin-top:4px">📄 View Document</button></div>':'')+
+          (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Document available</div><button class="btn-ai" onclick="snViewDpiaDoc('+id+')" style="margin-top:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> View Document</button></div>':'')+
         '</div>'+
       '</div>'+
       '<div class="ropa-drawer-footer">'+
@@ -2447,7 +2449,7 @@
     var regEl=document.getElementById('dd_regulation');var reg=regEl?regEl.value:'GDPR';
     var cats=snGetChips('snDpiaDC').concat(snGetChips('snDpiaSC'));
     if(!actType&&!cats.length){if(typeof showToast==='function')showToast('Select an activity type or data categories first','error');return;}
-    var orig=btn.innerHTML;btn.innerHTML='⏳ Thinking...';btn.disabled=true;
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg> Thinking...';btn.disabled=true;
     panel.style.display='block';
     panel.innerHTML='';
     var trace=window.ThinkingTrace.open(panel,{
@@ -2578,7 +2580,7 @@
       var tierCol=tier===1?'#dc2626':tier===2?'#f97316':'#16a34a';
       parts.push('<span title="Registered in Resilience — Tier '+tier+'" style="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.12);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
     }
-    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="padding:1px 5px;border-radius:4px;background:rgba(220,38,38,.1);color:#dc2626;font-size:10px;font-weight:700;cursor:help">⚠</span>');
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="padding:1px 5px;border-radius:4px;background:rgba(220,38,38,.1);color:#dc2626;font-size:10px;font-weight:700;cursor:help"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
     return parts.length?parts.join(' '):'<span style="font-size:10px;color:var(--muted)">Privacy only</span>';
   }
 
@@ -2607,7 +2609,7 @@
       if(criticalGaps.length&&banner){
         banner.style.display='block';
         banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:8px;font-size:12px;font-weight:600;color:#dc2626">'+
-          '<span>⚠</span><span>'+criticalGaps.length+' vendor'+(criticalGaps.length>1?'s':'')+' with critical risk flags — check cross-module coverage in <a href="/vendors" style="color:#dc2626;text-decoration:underline">Vendor Directory</a></span></div>';
+          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+criticalGaps.length+' vendor'+(criticalGaps.length>1?'s':'')+' with critical risk flags — check cross-module coverage in <a href="/vendors" style="color:#dc2626;text-decoration:underline">Vendor Directory</a></span></div>';
       }
 
       body.innerHTML=items.map(function(v){
@@ -2639,7 +2641,7 @@
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
         // Audit badge
         panelHtml+='<div style="padding:8px 12px;border-right:1px solid var(--border)">'+
-          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px">📋 AUDIT</div>';
+          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
         if(mods.grid){
           var ass=mods.grid.latest_assessment;
           panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
@@ -2652,7 +2654,7 @@
         panelHtml+='</div>';
         // Resilience badge
         panelHtml+='<div style="padding:8px 12px">'+
-          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px">🛡 RESILIENCE</div>';
+          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
         if(mods.bcm){
           var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
           panelHtml+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
@@ -2665,7 +2667,7 @@
         panelHtml+='</div></div>';
         if(flags.length){
           panelHtml+='<div style="padding:8px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
-            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600">⚠ '+esc(f.msg)+'</div>';}).join('')+
+            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+
           '</div>';
         }
         panelHtml+='</div>';
@@ -3260,7 +3262,7 @@
     if(!dest||dest.trim()==='') return '<span style="color:var(--muted)">—</span>';
     if(snIsEEA(dest)) return '<span class="adeq-ok">✓ EEA</span>';
     if(snIsAdequate(dest)) return '<span class="adeq-ok">✓ Adequate</span>';
-    if(safeguards&&safeguards.trim()) return '<span class="adeq-warn">⚠ SCCs</span>';
+    if(safeguards&&safeguards.trim()) return '<span class="adeq-warn"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> SCCs</span>';
     return '<span class="adeq-bad">✗ No safeguard</span>';
   }
 
@@ -3326,7 +3328,7 @@
         var banner=document.getElementById('snRetentionBanner');
         if(banner&&missing.length>0){
           banner.style.display='flex';
-          banner.innerHTML='💡 <strong style="margin-right:4px">Suggested from your RoPA:</strong>'+
+          banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> <strong style="margin-right:4px">Suggested from your RoPA:</strong>'+
             missing.slice(0,4).map(function(c){
               return '<button class="btn btn-sm btn-secondary sn-retention-from-ropa" data-category="'+esc(c)+'" style="font-size:11px;padding:2px 8px">'+esc(c)+'</button>';
             }).join('')+
@@ -3495,7 +3497,7 @@
       var banner=document.getElementById('snFlowsBanner');
       if(banner&&thirdCountryFlows.length>0){
         banner.style.display='flex';
-        banner.innerHTML='⚠ <strong>'+thirdCountryFlows.length+' data flow'+(thirdCountryFlows.length>1?'s flow':' flows')+' to third countries.</strong> Ensure International Transfer records exist. '+
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+thirdCountryFlows.length+' data flow'+(thirdCountryFlows.length>1?'s flow':' flows')+' to third countries.</strong> Ensure International Transfer records exist. '+
           thirdCountryFlows.slice(0,2).map(function(f){
             var dest=f.destination||'';
             var src=f.source_system||f.source||'';
@@ -3636,7 +3638,7 @@
       var banner=document.getElementById('snTrainingExpiryBanner');
       if(banner&&expiring>0){
         banner.style.display='flex';
-        banner.innerHTML='⚠ <strong>'+expiring+' certification'+(expiring>1?'s expire':' expires')+' within 30 days.</strong>'+
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+expiring+' certification'+(expiring>1?'s expire':' expires')+' within 30 days.</strong>'+
           '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" onclick="snFilterTraining(\'expiring\')">Show expiring →</button>';
       }else if(banner){banner.style.display='none';}
       // Dept filter chips
@@ -3670,7 +3672,7 @@
     body.innerHTML=items.map(function(t){
       var expired=t.expiry_date&&new Date(t.expiry_date)<now;
       var soon=!expired&&t.expiry_date&&(new Date(t.expiry_date)-now)/86400000<=30;
-      var expCell=expired?'<span style="color:var(--red);font-weight:700">'+fmtDate(t.expiry_date)+' &#9888;</span>':
+      var expCell=expired?'<span style="color:var(--red);font-weight:700">'+fmtDate(t.expiry_date)+' <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>':
         soon?'<span style="color:var(--amber);font-weight:700">'+fmtDate(t.expiry_date)+' !</span>':fmtDate(t.expiry_date);
       return '<tr><td>'+esc(t.staff_name||'—')+'</td><td>'+esc(t.training_name||'—')+'</td>'+
         '<td>'+esc(t.training_type||t.type||'—')+'</td><td>'+esc(t.department||'—')+'</td>'+
@@ -3714,7 +3716,7 @@
     var html='<div class="modal-overlay" id="snGenNoticeModal" onclick="if(event.target===this)this.remove()">'+
       '<div class="modal-box" style="max-width:480px">'+
         '<button class="modal-close" onclick="document.getElementById(\'snGenNoticeModal\').remove()">×</button>'+
-        '<div class="modal-title">✨ Generate Privacy Notice with AI</div>'+
+        '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Privacy Notice with AI</div>'+
         '<div class="form-group"><label>Jurisdiction / Regulation</label>'+
           '<select id="snGenNoticeReg"><option value="">Select...</option>'+
           REGULATION_LIST.map(function(r){return '<option>'+r+'</option>';}).join('')+
@@ -3775,7 +3777,7 @@
     var html='<div class="modal-overlay" id="snDraftPolicyModal" onclick="if(event.target===this)this.remove()">'+
       '<div class="modal-box" style="max-width:480px">'+
         '<button class="modal-close" onclick="document.getElementById(\'snDraftPolicyModal\').remove()">×</button>'+
-        '<div class="modal-title">✨ Draft Policy with AI</div>'+
+        '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Draft Policy with AI</div>'+
         '<div class="form-group"><label>Policy Type</label>'+
           '<select id="snDraftPolicyType">'+
           ['Data Protection Policy','Acceptable Use Policy','Data Retention Policy',
@@ -3889,7 +3891,7 @@
           var dsrPill='<span class="juris-pill info">'+esc(j.dsr_days||30)+'d DSR review target</span>';
           var sourcePill='<span class="juris-pill warn">'+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
           return '<div class="juris-card sn-edit-jurisdiction'+(isPrimary?' primary':'')+'" data-jurisdiction-key="'+esc(j.jurisdiction_key||j.key)+'">'+
-            '<div class="juris-flag">'+esc(j.flag||'🌐')+'</div>'+
+            '<div class="juris-flag">'+snFlag(j.flag)+'</div>'+
             '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span style="font-size:10px;background:var(--accent);color:white;padding:1px 6px;border-radius:100px;margin-left:4px">Primary</span>':'')+'</div>'+
             '<div class="juris-region">'+esc(j.region||'')+'</div>'+
             '<div class="juris-pills">'+breachPill+dsrPill+sourcePill+'</div>'+
@@ -3909,7 +3911,7 @@
       } else {
         statsBody.innerHTML=items.map(function(s){
           var j=window._jurisRules[s.regulation]||{};
-          return '<tr><td><span style="font-size:16px">'+(j.flag||'🌐')+'</span> '+esc(s.regulation)+'</td>'+
+          return '<tr><td><span style="font-size:16px">'+snFlag(j.flag)+'</span> '+esc(s.regulation)+'</td>'+
             '<td>'+s.ropa+'</td><td>'+s.dpias+'</td><td>'+s.breaches+'</td><td>'+s.dsrs+'</td>'+
             '<td><strong>'+s.total+'</strong></td></tr>';
         }).join('');
@@ -3935,7 +3937,7 @@
       regions[region].forEach(function(j){
         var isActive=activeKeys.has(j.key);
         gridHtml+='<div class="juris-add-card sn-toggle-jurisdiction'+(isActive?' active-j':'')+'" data-jurisdiction-key="'+esc(j.key)+'" data-key="'+esc(j.key)+'" data-active="'+(isActive?'1':'0')+'">'+
-          '<div class="juris-add-flag">'+esc(j.flag||'🌐')+'</div>'+
+          '<div class="juris-add-flag">'+snFlag(j.flag)+'</div>'+
           '<div><div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(j.key)+'</div>'+
           '<div style="font-size:11px;color:var(--muted)">'+esc(j.authority_short||'')+'</div></div>'+
           (isActive?'<span style="margin-left:auto;font-size:18px;color:var(--accent)">&#10003;</span>':'')+
@@ -4005,7 +4007,7 @@
     var html='<div class="modal-overlay" id="jurisEditModal" onclick="if(event.target===this)this.remove()">'+
       '<div class="modal-box" style="max-width:560px">'+
         '<button class="modal-close" onclick="document.getElementById(\'jurisEditModal\').remove()">&#10005;</button>'+
-        '<div style="font-size:24px;margin-bottom:4px">'+(j.flag||'🌐')+'</div>'+
+        '<div style="font-size:24px;margin-bottom:4px">'+snFlag(j.flag)+'</div>'+
         '<div class="modal-title">'+esc(key)+'</div>'+
         '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">'+esc(j.name||'')+'</div>'+
 

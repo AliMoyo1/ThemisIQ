@@ -17,7 +17,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "GDPR": {
         "name": "EU General Data Protection Regulation",
         "region": "Europe",
-        "flag": "🇪🇺",
+        "flag": "EU",
         "authority": "National Data Protection Authority (Supervisory Authority)",
         "authority_short": "National DPA",
         "breach_hours": 72,
@@ -33,7 +33,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "UK GDPR": {
         "name": "UK General Data Protection Regulation",
         "region": "Europe",
-        "flag": "🇬🇧",
+        "flag": "GB",
         "authority": "Information Commissioner's Office (ICO)",
         "authority_short": "ICO",
         "breach_hours": 72,
@@ -49,7 +49,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Zimbabwe CDPA": {
         "name": "Cyber and Data Protection Act [Chapter 12:07]",
         "region": "Africa",
-        "flag": "🇿🇼",
+        "flag": "ZW",
         "authority": "Postal and Telecommunications Regulatory Authority (POTRAZ)",
         "authority_short": "POTRAZ",
         "breach_hours": 24,
@@ -65,7 +65,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "South Africa POPIA": {
         "name": "Protection of Personal Information Act 4 of 2013",
         "region": "Africa",
-        "flag": "🇿🇦",
+        "flag": "ZA",
         "authority": "Information Regulator (South Africa)",
         "authority_short": "Information Regulator",
         "breach_hours": None,
@@ -81,7 +81,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Kenya DPA": {
         "name": "Data Protection Act No. 24 of 2019",
         "region": "Africa",
-        "flag": "🇰🇪",
+        "flag": "KE",
         "authority": "Office of the Data Protection Commissioner (ODPC)",
         "authority_short": "ODPC",
         "breach_hours": 72,
@@ -97,7 +97,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Nigeria NDPR": {
         "name": "Nigeria Data Protection Act 2023 / NDPR 2019",
         "region": "Africa",
-        "flag": "🇳🇬",
+        "flag": "NG",
         "authority": "Nigeria Data Protection Commission (NDPC)",
         "authority_short": "NDPC",
         "breach_hours": 72,
@@ -113,7 +113,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Ghana DPA": {
         "name": "Data Protection Act 2012 (Act 843)",
         "region": "Africa",
-        "flag": "🇬🇭",
+        "flag": "GH",
         "authority": "Data Protection Commission (DPC) Ghana",
         "authority_short": "DPC Ghana",
         "breach_hours": None,
@@ -129,7 +129,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "UAE PDPL": {
         "name": "Federal Decree-Law No. 45 of 2021 on Personal Data Protection",
         "region": "Middle East",
-        "flag": "🇦🇪",
+        "flag": "AE",
         "authority": "UAE Data Office",
         "authority_short": "UAE Data Office",
         "breach_hours": 72,
@@ -145,7 +145,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Saudi PDPL": {
         "name": "Personal Data Protection Law (Royal Decree M/19, 2021)",
         "region": "Middle East",
-        "flag": "🇸🇦",
+        "flag": "SA",
         "authority": "National Data Management Office (NDMO) / SDAIA",
         "authority_short": "NDMO/SDAIA",
         "breach_hours": 72,
@@ -161,7 +161,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Qatar DPL": {
         "name": "Personal Data Privacy Protection Law No. 13 of 2016",
         "region": "Middle East",
-        "flag": "🇶🇦",
+        "flag": "QA",
         "authority": "Ministry of Transport and Communications (MOTC) Qatar",
         "authority_short": "MOTC Qatar",
         "breach_hours": None,
@@ -177,7 +177,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Bahrain PDPL": {
         "name": "Personal Data Protection Law 2018",
         "region": "Middle East",
-        "flag": "🇧🇭",
+        "flag": "BH",
         "authority": "Personal Data Protection Authority (PDPA) Bahrain",
         "authority_short": "PDPA Bahrain",
         "breach_hours": 72,
@@ -193,7 +193,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Canada PIPEDA": {
         "name": "Personal Information Protection and Electronic Documents Act",
         "region": "Americas",
-        "flag": "🇨🇦",
+        "flag": "CA",
         "authority": "Office of the Privacy Commissioner of Canada (OPC)",
         "authority_short": "OPC Canada",
         "breach_hours": None,
@@ -209,7 +209,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Canada Bill C-11": {
         "name": "Consumer Privacy Protection Act (Bill C-11 / CPPA)",
         "region": "Americas",
-        "flag": "🇨🇦",
+        "flag": "CA",
         "authority": "Office of the Privacy Commissioner of Canada (OPC)",
         "authority_short": "OPC Canada",
         "breach_hours": None,
@@ -225,7 +225,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "USA CCPA/CPRA": {
         "name": "California Consumer Privacy Act / Privacy Rights Act",
         "region": "Americas",
-        "flag": "🇺🇸",
+        "flag": "US",
         "authority": "California Privacy Protection Agency (CPPA)",
         "authority_short": "CPPA (CA)",
         "breach_hours": None,
@@ -241,7 +241,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Brazil LGPD": {
         "name": "Lei Geral de Proteção de Dados Pessoais (Law 13,709/2018)",
         "region": "Americas",
-        "flag": "🇧🇷",
+        "flag": "BR",
         "authority": "Autoridade Nacional de Proteção de Dados (ANPD)",
         "authority_short": "ANPD",
         "breach_hours": 48,
@@ -257,7 +257,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "India DPDP": {
         "name": "Digital Personal Data Protection Act 2023",
         "region": "Asia-Pacific",
-        "flag": "🇮🇳",
+        "flag": "IN",
         "authority": "Data Protection Board of India",
         "authority_short": "Data Protection Board",
         "breach_hours": None,
@@ -273,7 +273,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Singapore PDPA": {
         "name": "Personal Data Protection Act 2012 (revised 2021)",
         "region": "Asia-Pacific",
-        "flag": "🇸🇬",
+        "flag": "SG",
         "authority": "Personal Data Protection Commission (PDPC)",
         "authority_short": "PDPC",
         "breach_hours": 72,
@@ -289,7 +289,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Australia Privacy Act": {
         "name": "Privacy Act 1988 (Cth)",
         "region": "Asia-Pacific",
-        "flag": "🇦🇺",
+        "flag": "AU",
         "authority": "Office of the Australian Information Commissioner (OAIC)",
         "authority_short": "OAIC",
         "breach_hours": 720,
@@ -305,7 +305,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "New Zealand Privacy Act": {
         "name": "Privacy Act 2020",
         "region": "Asia-Pacific",
-        "flag": "🇳🇿",
+        "flag": "NZ",
         "authority": "Office of the Privacy Commissioner (OPC) New Zealand",
         "authority_short": "OPC NZ",
         "breach_hours": None,
@@ -321,7 +321,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "Japan APPI": {
         "name": "Act on Protection of Personal Information (APPI) 2022",
         "region": "Asia-Pacific",
-        "flag": "🇯🇵",
+        "flag": "JP",
         "authority": "Personal Information Protection Commission (PPC) Japan",
         "authority_short": "PPC Japan",
         "breach_hours": 720,
@@ -337,7 +337,7 @@ JURISDICTION_RULES: dict[str, dict] = {
     "South Korea PIPA": {
         "name": "Personal Information Protection Act (PIPA) 2023",
         "region": "Asia-Pacific",
-        "flag": "🇰🇷",
+        "flag": "KR",
         "authority": "Personal Information Protection Commission (PIPC) South Korea",
         "authority_short": "PIPC Korea",
         "breach_hours": 72,

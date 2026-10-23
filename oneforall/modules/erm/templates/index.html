@@ -346,7 +346,7 @@
       <option value="">All Categories</option>
     </select>
     <label class="sr-only" for="regSearch">Search risks</label>
-    <input class="erm-search" id="regSearch" placeholder="🔍 Search risks…" oninput="ermRenderRegister()">
+    <input class="erm-search" id="regSearch" placeholder="Search risks…" oninput="ermRenderRegister()">
   </div>
   <!-- Import result banner -->
   <div id="ermImportResult" style="display:none" class="card" style="margin-bottom:14px;padding:16px"></div>
@@ -415,7 +415,7 @@
   </div>
   <div class="erm-filter-bar" style="margin-bottom:16px">
     <label class="sr-only" for="libSearch">Search templates</label>
-    <input class="erm-search" id="libSearch" placeholder="🔍 Search templates…" oninput="ermFilterLibrary()" style="max-width:320px">
+    <input class="erm-search" id="libSearch" placeholder="Search templates…" oninput="ermFilterLibrary()" style="max-width:320px">
     <button type="button" class="erm-chip active" data-industry="">All Industries</button>
     <button type="button" class="erm-chip" data-industry="telecom">Telecom</button>
     <button type="button" class="erm-chip" data-industry="banking">Banking</button>
@@ -564,7 +564,7 @@
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-secondary" onclick="extOpenAddModal()">+ Add Item</button>
-      <button class="btn btn-primary" id="extScanBtn" style="display:none" onclick="extRunScan(this)">🔍 Scan for emerging risks</button>
+      <button class="btn btn-primary" id="extScanBtn" style="display:none" onclick="extRunScan(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Scan for emerging risks</button>
     </div>
   </div>
   <div id="extScanState" role="status" style="font-size:12px;color:var(--muted)"></div>
@@ -594,7 +594,7 @@
     <button type="button" class="erm-chip" data-status="compliant">Compliant</button>
     <button type="button" class="erm-chip" data-status="non_compliant">Non-Compliant</button>
     <button type="button" class="erm-chip" data-status="under_review">Under Review</button>
-    <input class="erm-search" id="oblSearch" placeholder="🔍 Search regulator…" oninput="ermRenderObligations()" style="max-width:220px">
+    <input class="erm-search" id="oblSearch" placeholder="Search regulator…" oninput="ermRenderObligations()" style="max-width:220px">
   </div>
   <div id="oblAlertBanner" style="display:none;margin-bottom:12px"></div>
   <div class="card">
@@ -641,8 +641,8 @@
       <div class="section-sub">AI-generated board narratives and risk analytics</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-secondary" onclick="window.open('/erm/api/board-report/document','_blank')">&#8595; Board Report PDF</button>
-      <button class="btn-erm-ai" id="ermBoardRptBtn" onclick="ermBoardReport(this)">&#128202; Generate AI Narrative</button>
+      <button class="btn btn-secondary" onclick="window.open('/erm/api/board-report/document','_blank')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Board Report PDF</button>
+      <button class="btn-erm-ai" id="ermBoardRptBtn" onclick="ermBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Generate AI Narrative</button>
     </div>
   </div>
   <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:20px"></div>
@@ -1009,7 +1009,7 @@ function ermRenderAppetitePanel(statuses){
     return'<div style="margin-bottom:10px" title="Residual exposure vs appetite (post-control RRR, or IRR when not yet assessed)">'+
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
         '<div style="font-size:12px;font-weight:600;text-transform:capitalize">'+esc(a.category)+'</div>'+
-        '<div style="font-size:11px;font-weight:700;color:'+ragColor+'">'+(a.breached?'⚠ BREACH':a.current_max_score+'/'+a.max_score)+'</div>'+
+        '<div style="font-size:11px;font-weight:700;color:'+ragColor+'">'+(a.breached?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> BREACH':a.current_max_score+'/'+a.max_score)+'</div>'+
       '</div>'+
       '<div class="gauge-bar" style="margin:4px 0 0"><div class="gauge-fill '+cls+'" style="width:'+pct+'%"></div></div>'+
     '</div>';
@@ -1092,7 +1092,7 @@ function ermRenderTopCritical(risks){
 function ermRenderActionsRequired(actions){
   var el=document.getElementById('ermActionsRequired');if(!el)return;
   if(!actions.length){el.innerHTML='<div style="color:var(--good,#16a34a);text-align:center;padding:16px;font-size:13px">✓ No actions required</div>';return;}
-  var icons={unowned_risk:'👤',overdue_review:'📅',overdue_obligation:'⚠'};
+  var icons={unowned_risk:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg>',overdue_review:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg>',overdue_obligation:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>'};
   el.innerHTML=actions.map(function(a){
     return'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">'+
       '<div style="font-size:16px;flex-shrink:0">'+(icons[a.type]||'!')+'</div>'+
@@ -1161,7 +1161,7 @@ window.ermRenderRegister=function(){
     {label:'Showing',value:filtered.length},{label:'Critical',value:critical,color:'var(--red)'},{label:'High',value:high,color:'var(--amber)'},{label:'ERM',value:erm},{label:'Auto-Elevated',value:elevated,sub:'from other modules'}
   ]);
   var banner=document.getElementById('regXmBanner');
-  if(banner){if(elevated>0){banner.style.display='';banner.innerHTML='<div class="xm-banner"><span style="font-size:18px">📥</span><div><strong>'+elevated+' risk'+(elevated>1?'s':'')+'</strong> auto-elevated from GRID, BCM, Sentinel or ORM. Review and assign owners.</div></div>';}else{banner.style.display='none';}}
+  if(banner){if(elevated>0){banner.style.display='';banner.innerHTML='<div class="xm-banner"><span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-inbox></use></svg></span><div><strong>'+elevated+' risk'+(elevated>1?'s':'')+'</strong> auto-elevated from GRID, BCM, Sentinel or ORM. Review and assign owners.</div></div>';}else{banner.style.display='none';}}
   var body=document.getElementById('ermRegBody');
   if(!filtered.length){body.innerHTML=emptyRow(13,'No risks match current filters');return;}
   body.innerHTML=filtered.map(function(r){
@@ -1177,9 +1177,9 @@ window.ermRenderRegister=function(){
     var reviewStr=reviewDays===null?'—':reviewDays<0?'<span style="color:var(--red);font-weight:700">'+Math.abs(reviewDays)+'d overdue</span>':'<span style="color:var(--good,#16a34a)">'+reviewDays+'d</span>';
     var rid=parseInt(r.id,10)||0;
     var chk='<input type="checkbox" class="reg-chk" data-id="'+rid+'" aria-label="Select '+(isErm?'enterprise':'platform')+' risk '+rid+'" onchange="ermToggleSelect(this)" style="cursor:pointer"'+(regSelIds.has(r.id)?' checked':'')+'>';
-    var aiBtn=isErm?'<button class="btn-erm-ai" onclick="event.stopPropagation();ermAiScoreRisk('+rid+',this)" title="AI score">🤖</button>':'';
-    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+rid+')" style="padding:3px 7px" title="Edit">✎</button>':'';
-    var delBtn=ERM_IS_ADMIN?'<button class="erm-delete-risk" data-risk-id="'+rid+'" data-source="'+esc(r.register_source||'erm')+'" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" title="Delete risk">🗑</button>':'';
+    var aiBtn=isErm?'<button class="btn-erm-ai" onclick="event.stopPropagation();ermAiScoreRisk('+rid+',this)" title="AI score"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg></button>':'';
+    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+rid+')" style="padding:3px 7px" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>':'';
+    var delBtn=ERM_IS_ADMIN?'<button class="erm-delete-risk" data-risk-id="'+rid+'" data-source="'+esc(r.register_source||'erm')+'" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" title="Delete risk"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>':'';
     var ql=r.qualitative_score||lvl;
     var qChipHtml=qChip(ql);
     var wfStep=r.workflow_step||'draft';
@@ -1598,7 +1598,7 @@ window.ermOpenRiskDrawer=async function(id){
         '</div>'+
         // ── Assessment section (PLAN-24: CF-grouped ICE scoring) ──
         '<div class="erm-drawer-section">'+
-          '<div class="erm-drawer-section-title">🛡️ Assessment'+
+          '<div class="erm-drawer-section-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Assessment'+
             (r.risk_ref?' <span class="badge" style="font-family:monospace;font-size:11px;margin-left:6px">'+esc(r.risk_ref)+'</span>':'')+
             (r.irr_score!=null?' <span class="badge" style="font-size:11px;margin-left:4px">IRR '+r.irr_score+'</span>':'')+
           '</div>'+
@@ -1608,7 +1608,7 @@ window.ermOpenRiskDrawer=async function(id){
         '</div>'+
         // ── Treatments section (PLAN-25: per-CF treatment plans) ──
         '<div class="erm-drawer-section">'+
-          '<div class="erm-drawer-section-title">🔧 Treatments</div>'+
+          '<div class="erm-drawer-section-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-wrench></use></svg> Treatments</div>'+
           '<div id="ermTreatmentsList" style="font-size:13px;color:var(--muted)">Loading...</div>'+
           '<div id="ermTreatmentsFooter"></div>'+
         '</div>'+
@@ -1617,8 +1617,8 @@ window.ermOpenRiskDrawer=async function(id){
       // ── Footer ──
       '<div class="erm-drawer-foot">'+
         (isErm?'<button class="btn btn-primary" style="padding:7px 16px" onclick="ermCloseRiskDrawer();ermOpenRiskModal(_drawerRisk)">Edit</button>':'')+
-        (isErm?'<button class="btn-erm-ai" onclick="ermAiScoreRisk('+id+',this)">🤖 AI Score</button>':'')+
-        (isErm?'<button class="btn-erm-ai" onclick="ermGetRemediationPlan('+id+',this)">🗺 Plan</button>':'')+
+        (isErm?'<button class="btn-erm-ai" onclick="ermAiScoreRisk('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg> AI Score</button>':'')+
+        (isErm?'<button class="btn-erm-ai" onclick="ermGetRemediationPlan('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-map></use></svg> Plan</button>':'')+
         (isErm&&r.status!=='mitigated'?'<button class="btn btn-secondary" onclick="ermQuickStatusChange('+id+',\'mitigated\')">✓ Mitigated</button>':'')+
         (!isErm?'<div style="font-size:11px;color:var(--muted);padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)">Cross-module risk — manage in source module</div>':'')+
         (ERM_IS_ADMIN?'<button class="btn btn-secondary erm-delete-risk" data-risk-id="'+Number(id)+'" data-source="'+esc(registerSrc)+'" style="color:var(--red);margin-left:auto">Delete</button>':'')+
@@ -2110,7 +2110,7 @@ window.ermGetRemediationPlan=async function(id,btn){
     var stepsHtml=(plan.steps||[]).map(function(s){return'<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><strong>'+s.step+'.</strong> '+esc(s.action)+'<span style="float:right;color:var(--muted)">'+esc(s.timeline||'')+'</span></div>';}).join('');
     var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
       '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
-      '<div class="modal-title">🗺 AI Remediation Plan</div>'+
+      '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-map></use></svg> AI Remediation Plan</div>'+
       '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">'+esc(plan.summary||'')+'</p>'+
       stepsHtml+
       (plan.success_criteria?'<div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px"><strong>Success criteria:</strong> '+esc(plan.success_criteria)+'</div>':'')+
@@ -2134,15 +2134,15 @@ window.ermLoadAppetite=async function(){
     grid.innerHTML=appetiteCache.map(function(a){
       var pct=a.max_score>0?Math.min(100,Math.round((a.current_max_score/a.max_score)*100)):0;
       var breachColor=a.breached?'var(--red)':pct>=80?'var(--amber)':'var(--good,#16a34a)';
-      var statusTxt=a.breached?'🔴 ABOVE APPETITE':pct>=80?'🟡 APPROACHING':'🟢 WITHIN APPETITE';
+      var statusTxt=a.breached?'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> ABOVE APPETITE':pct>=80?'<svg class=ic-amber aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> APPROACHING':'<svg class=ic-green aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> WITHIN APPETITE';
       var fillCls=a.breached?'gauge-breach':pct>=80?'gauge-warn':'gauge-ok';
-      var topRisk=a.top_risk?'<div style="font-size:11px;color:var(--muted);margin-top:8px;padding:7px;background:var(--surface2);border-radius:var(--radius)">⚠ Highest: <a href="#" onclick="event.preventDefault();ermOpenRiskDrawer('+a.top_risk.id+')" style="color:var(--accent);text-decoration:none;font-weight:600">'+esc(a.top_risk.title.slice(0,50))+'</a> — score <strong>'+a.top_risk.score+'</strong></div>':'';
+      var topRisk=a.top_risk?'<div style="font-size:11px;color:var(--muted);margin-top:8px;padding:7px;background:var(--surface2);border-radius:var(--radius)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Highest: <a href="#" onclick="event.preventDefault();ermOpenRiskDrawer('+a.top_risk.id+')" style="color:var(--accent);text-decoration:none;font-weight:600">'+esc(a.top_risk.title.slice(0,50))+'</a> — score <strong>'+a.top_risk.score+'</strong></div>':'';
       var notesHtml=a.tolerance_notes?'<details style="margin-top:10px;font-size:12px"><summary style="cursor:pointer;color:var(--muted)">Tolerance notes ▼</summary><div style="padding:6px 0;color:var(--text);line-height:1.5">'+esc(a.tolerance_notes)+'</div></details>':'';
       var datesHtml=(a.review_date||a.effective_date)?'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+(a.effective_date?'Effective: '+fmtDate(a.effective_date)+' &nbsp;':'')+(a.review_date?'Review: '+fmtDate(a.review_date):'')+'</div>':'';
       return'<div class="appetite-card">'+
         '<div style="position:absolute;top:12px;right:12px;display:flex;gap:6px">'+
           '<button onclick="ermEditAppetite('+a.id+')" class="btn btn-sm btn-secondary" style="padding:3px 8px">Edit</button>'+
-          '<button onclick="ermDeleteAppetite('+a.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px" title="Delete">🗑</button>'+
+          '<button onclick="ermDeleteAppetite('+a.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px" title="Delete"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>'+
         '</div>'+
         '<div style="font-size:16px;font-weight:800;text-transform:capitalize;margin-bottom:4px">'+esc(a.category)+'</div>'+
         '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Appetite: <strong style="text-transform:capitalize">'+esc(a.appetite_level||'—')+'</strong></div>'+
@@ -2156,7 +2156,7 @@ window.ermLoadAppetite=async function(){
         topRisk+notesHtml+datesHtml+
         '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
           '<a href="#" data-appetite-nav="'+Number(a.id)+'" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
-          (a.breached?'<button class="btn btn-sm btn-secondary" data-appetite-breach="'+Number(a.id)+'" style="color:var(--red);border-color:rgba(220,38,38,.4)">🚨 Create Remediation</button>':'')+
+          (a.breached?'<button class="btn btn-sm btn-secondary" data-appetite-breach="'+Number(a.id)+'" style="color:var(--red);border-color:rgba(220,38,38,.4)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Create Remediation</button>':'')+
         '</div>'+
       '</div>';
     }).join('');
@@ -2179,7 +2179,7 @@ window.ermDeleteAppetite=async function(id){if(!confirm('Delete this appetite se
 window.ermOpenBreachAction=function(cat){
   var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:500px">'+
     '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
-    '<div class="modal-title">🚨 Remediation Action — '+esc(cat)+'</div>'+
+    '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Remediation Action — '+esc(cat)+'</div>'+
     '<div class="form-group"><label>What will you do to reduce this exposure?</label><textarea id="remedTxt" rows="3" placeholder="e.g. Review all compliance risks, schedule treatment plan review…"></textarea></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
       '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
@@ -2277,7 +2277,7 @@ window.ermFilterLibrary=function(){
     var score=(item.default_likelihood||3)*(item.default_impact||3);
     var tags=(item.tags||'').split(',').filter(Boolean).map(function(t){return'<span class="lib-tag">'+esc(t.trim())+'</span>';}).join('');
     var isGlobal=(item.org_id==null);
-    var scopeBadge='<span class="lib-tag" style="background:'+(isGlobal?'var(--surface3)':'var(--accent-soft,var(--surface3))')+'" title="'+(isGlobal?'Platform-wide template':'Your organization\'s own template')+'">'+(isGlobal?'🌐 Global':'🏢 Organization')+'</span>';
+    var scopeBadge='<span class="lib-tag" style="background:'+(isGlobal?'var(--surface3)':'var(--accent-soft,var(--surface3))')+'" title="'+(isGlobal?'Platform-wide template':'Your organization\'s own template')+'">'+(isGlobal?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-globe></use></svg> Global':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-building></use></svg> Organization')+'</span>';
     var manageBtns=ermCanManageLibraryItem(item)?(
       '<button class="btn btn-sm btn-secondary" onclick="ermEditLibraryItem('+item.id+')">Edit</button>'+
       '<button class="btn btn-sm btn-secondary" style="color:var(--red,#dc2626)" onclick="ermRetireLibraryItem('+item.id+')">Retire</button>'
@@ -2291,7 +2291,7 @@ window.ermFilterLibrary=function(){
       '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px">'+esc((item.description||'').slice(0,100))+((item.description||'').length>100?'…':'')+'</div>'+
       (tags?'<div style="margin-bottom:8px">'+tags+'</div>':'')+
       '<div style="display:flex;gap:10px;font-size:11px;color:var(--muted);margin-bottom:10px"><span>Score: <strong>'+score+'</strong></span><span>'+esc(item.typical_treatment||'mitigate')+'</span></div>'+
-      (item.regulatory_references?'<div style="font-size:11px;color:var(--muted);margin-bottom:10px">📋 '+esc(item.regulatory_references)+'</div>':'')+
+      (item.regulatory_references?'<div style="font-size:11px;color:var(--muted);margin-bottom:10px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+esc(item.regulatory_references)+'</div>':'')+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
         '<button class="btn btn-sm btn-primary" onclick="ermQuickAddRisk('+item.id+',this)">+ Quick Add</button>'+
         '<button class="btn btn-sm btn-secondary" onclick="ermCustomizeFromLib('+item.id+')">Customize First</button>'+
@@ -2812,7 +2812,7 @@ window.ermRenderObligations=function(){
   });
   var overdue=filtered.filter(function(o){return o.status!=='compliant'&&o.due_date&&new Date(o.due_date)<new Date();});
   var banner=document.getElementById('oblAlertBanner');
-  if(banner){if(overdue.length){banner.style.display='';banner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--red)">⚠ <strong>'+overdue.length+' obligation'+(overdue.length>1?'s':'')+'</strong> overdue and not compliant.</div>';}else{banner.style.display='none';}}
+  if(banner){if(overdue.length){banner.style.display='';banner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--red)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+overdue.length+' obligation'+(overdue.length>1?'s':'')+'</strong> overdue and not compliant.</div>';}else{banner.style.display='none';}}
   var body=document.getElementById('ermOblBody');
   if(!filtered.length){body.innerHTML=emptyRow(7,'No obligations match');return;}
   body.innerHTML=filtered.map(function(o){
@@ -2926,8 +2926,8 @@ window.ermOpenAssessmentDetail=async function(id){
       '<div id="aqList" style="max-height:280px;overflow-y:auto">'+qHtml+'</div>'+addQHtml+
       '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
-        (isDraft?'<button class="btn-erm-ai" onclick="ermSuggestQuestions('+id+',this)">🧠 Suggest Questions</button>':'')+
-        (a.status==='closed'||a.status==='active'?'<button class="btn-erm-ai" onclick="ermIdentifyRisks('+id+',this)">🔍 Identify Risks</button>':'')+
+        (isDraft?'<button class="btn-erm-ai" onclick="ermSuggestQuestions('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggest Questions</button>':'')+
+        (a.status==='closed'||a.status==='active'?'<button class="btn-erm-ai" onclick="ermIdentifyRisks('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Identify Risks</button>':'')+
         (isDraft?'<button class="btn btn-primary" onclick="ermLaunchAssessment('+id+');this.closest(\'.erm-modal-overlay\').remove()">Launch</button>':'')+
       '</div>'+
     '</div></div>';
@@ -3074,7 +3074,7 @@ window.ermLoadReports=async function(){
       try{
         var ap=await apiFetch('/erm/api/appetite/status');
         if(ap&&ap.length){
-          matrix.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+ap.map(function(a){var icon=a.breached?'🔴':((a.current_max_score/(a.max_score||1))>=0.8?'🟡':'✅');return'<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:var(--radius);font-size:12px">'+icon+'<span style="text-transform:capitalize">'+esc(a.category)+'</span></div>';}).join('')+'</div>';
+          matrix.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+ap.map(function(a){var icon=a.breached?'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>':((a.current_max_score/(a.max_score||1))>=0.8?'<svg class=ic-amber aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>');return'<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:var(--radius);font-size:12px">'+icon+'<span style="text-transform:capitalize">'+esc(a.category)+'</span></div>';}).join('')+'</div>';
         }else{matrix.innerHTML='<div style="color:var(--muted);font-size:12px">No appetite configured</div>';}
       }catch(e){matrix.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load</div>';}
     }
@@ -3446,7 +3446,7 @@ window.ermLoadIndicators=async function(){
         var names=kriCache.filter(function(k){return k.threshold_crit&&k.current_value>=k.threshold_crit;}).map(function(k){return esc(k.name);});
         breachBanner.style.display='';
         breachBanner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px">'+
-          '<span style="font-size:18px">🔴</span><div><strong>'+breaching+' KRI'+(breaching>1?'s':'')+' at critical threshold:</strong> '+names.join(', ')+'</div></div>';
+          '<span style="font-size:18px"><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg></span><div><strong>'+breaching+' KRI'+(breaching>1?'s':'')+' at critical threshold:</strong> '+names.join(', ')+'</div></div>';
       }else{breachBanner.style.display='none';}
     }
     // Nav badge
@@ -3465,7 +3465,7 @@ window.ermLoadIndicators=async function(){
           '<div style="font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(k.name)+'</div>'+
           '<span style="font-size:18px;font-weight:900;color:'+trendColor+';flex-shrink:0;margin-left:8px">'+trendIcon+'</span>'+
         '</div>'+
-        (k.risk_title?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px;font-weight:600">⚡ '+esc(k.risk_title)+'</div>':'')+
+        (k.risk_title?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> '+esc(k.risk_title)+'</div>':'')+
         '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">'+
           '<div class="kri-val-big" style="color:'+statusColor+'">'+val+'</div>'+
           '<div style="font-size:12px;color:var(--muted)">'+(k.unit||'')+'</div>'+
@@ -3473,18 +3473,18 @@ window.ermLoadIndicators=async function(){
         gaugeHtml+
         '<div class="kri-threshold-labels">'+
           '<span>0</span>'+
-          (warn?'<span style="color:var(--amber)">⚠ '+warn+'</span>':'')+
-          (crit?'<span style="color:var(--red)">🔴 '+crit+'</span>':'')+
+          (warn?'<span style="color:var(--amber)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+warn+'</span>':'')+
+          (crit?'<span style="color:var(--red)"><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> '+crit+'</span>':'')+
         '</div>'+
         '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--muted)">'+
-          (k.frequency?'<span>📅 '+esc(k.frequency)+'</span>':'')+
-          (k.owner_name?'<span>👤 '+esc(k.owner_name)+'</span>':'')+
-          (k.last_updated?'<span>🕐 '+fmtDate(k.last_updated)+'</span>':'')+
+          (k.frequency?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+esc(k.frequency)+'</span>':'')+
+          (k.owner_name?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg> '+esc(k.owner_name)+'</span>':'')+
+          (k.last_updated?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clock></use></svg> '+fmtDate(k.last_updated)+'</span>':'')+
         '</div>'+
         '<div style="margin-top:12px;display:flex;gap:6px">'+
           '<button class="btn btn-sm btn-secondary" onclick="ermOpenKriValueModal('+k.id+','+val+')">Update Value</button>'+
           '<button class="btn btn-sm btn-secondary" onclick="ermOpenKriModal('+k.id+')">Edit</button>'+
-          '<button onclick="ermDeleteKri('+k.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;margin-left:auto">🗑</button>'+
+          '<button onclick="ermDeleteKri('+k.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;margin-left:auto"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>'+
         '</div>'+
       '</div>';
     }).join('');
@@ -3598,7 +3598,7 @@ window.ermSuggestQuestions=async function(assessmentId,btn){
     if(!sug.length){typeof showToast==='function'&&showToast('No suggestions returned','error');return;}
     var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
       '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
-      '<div class="modal-title">🧠 Suggested Questions</div>'+
+      '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggested Questions</div>'+
       '<div style="margin-bottom:14px;font-size:13px;color:var(--muted)">Select questions to add to the assessment:</div>'+
       sug.map(function(q,i){return'<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)">'+
         '<input type="checkbox" id="sugQ'+i+'" checked style="margin-top:3px">'+
@@ -3638,7 +3638,7 @@ window.ermIdentifyRisks=async function(assessmentId,btn){
     if(!candidates.length){typeof showToast==='function'&&showToast('No risks identified from responses','error');return;}
     var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
       '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
-      '<div class="modal-title">🔍 Identified Risks</div>'+
+      '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Identified Risks</div>'+
       '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">'+candidates.length+' risk(s) identified from assessment responses:</div>'+
       candidates.map(function(c,i){
         var score=(c.likelihood||3)*(c.impact||3);
@@ -3893,11 +3893,11 @@ function ermRenderExternalList(items){
     var chips=(it.pillar?'<span class="badge" style="margin-right:4px">'+esc(it.pillar)+'</span>':'')+
       (it.standard_ref?'<span class="badge">'+esc(it.standard_ref)+'</span>':'');
     var caveat=it.origin==='ai_scan'?
-      '<div style="font-size:11px;color:#d97706;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius);padding:6px 10px;margin-top:8px">⚠ Generated from model knowledge, not a live source. Verify independently before acting.</div>':'';
+      '<div style="font-size:11px;color:#d97706;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius);padding:6px 10px;margin-top:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Generated from model knowledge, not a live source. Verify independently before acting.</div>':'';
     var sourceUrl='';
     try{var parsedSource=new URL(it.source_url);if(parsedSource.protocol==='https:'&&!parsedSource.username&&!parsedSource.password)sourceUrl=parsedSource.href;}catch(_){}
     var sourceLink=sourceUrl?
-      '<a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent);margin-top:8px;display:inline-block">🔗 Source</a>':'';
+      '<a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent);margin-top:8px;display:inline-block"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Source</a>':'';
     var actions='';
     if(it.status==='new'){
       actions='<button class="btn btn-sm btn-secondary" onclick="extDismiss('+it.id+')">Dismiss</button> '+

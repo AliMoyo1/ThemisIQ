@@ -1171,10 +1171,9 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
         # ── Notify admins on first high/critical prediction in this period ──
         if result["risk_level"] in ("high", "critical"):
             from core.event_handlers import _notify_admins
-            level_emoji = "🔴" if result["risk_level"] == "critical" else "🟠"
             _notify_admins(
                 db, "platform",
-                f"{level_emoji} Predictive Risk Alert: ΔP +{result['delta_p']}%",
+                f"Predictive Risk Alert ({result['risk_level'].upper()}): ΔP +{result['delta_p']}%",
                 f"The AI risk engine has flagged a {result['risk_level'].upper()} risk probability increase. "
                 f"Cyber: {result['delta_cyber']}% | Ops: {result['delta_operational']}% | "
                 f"Compliance: {result['delta_compliance']}%",

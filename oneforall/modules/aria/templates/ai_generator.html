@@ -332,7 +332,7 @@
 
       <button type="button" class="btn btn-ghost" id="guideAiBtn" onclick="openAriaGuidance()"
               style="width:100%;margin-bottom:8px;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:6px">
-        <span id="guideAiBtnText">🎯 Guide the AI (optional)</span>
+        <span id="guideAiBtnText"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guide the AI (optional)</span>
       </button>
 
       <button class="btn-generate" id="generateBtn" onclick="generatePolicy()" disabled>
@@ -341,7 +341,7 @@
       </button>
 
       <div class="cost-note">
-        ⏱ Generation takes 10–20 seconds. Each generation costs approx. $0.01–0.02 (Anthropic).
+        <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-timer></use></svg> Generation takes 10–20 seconds. Each generation costs approx. $0.01–0.02 (Anthropic).
       </div>
 
       {# ── My Drafts (PLAN-35 T10) -- editable drafts only, fetched live
@@ -745,7 +745,7 @@ function filterControls() {
   results.innerHTML = filtered.map(function (c, idx) {
     var sClass  = statusClass(c.status);
     var hasDoc  = docCtrlRefs.has(currentFwName + '|' + c.ref);
-    var docBadge = hasDoc ? '<span class="ctrl-has-doc" title="Document exists in library">📄</span>' : '';
+    var docBadge = hasDoc ? '<span class="ctrl-has-doc" title="Document exists in library"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg></span>' : '';
     var statusLabel = c.status ? ('<span class="ctrl-status ctrl-status-' + sClass + '">' + esc(c.status) + '</span>') : '';
     // IMS badge
     var imsBadgeHtml = '';
@@ -805,7 +805,7 @@ function selectControl(id, ref, name, desc) {
   if (imsEl && ctrl && ctrl.ims_status) {
     var badges = {
       integrated: { bg:'#16a34a', label:'✓ Integrated Control', msg:'Can generate one document covering all mapped frameworks' },
-      partial:    { bg:'#d97706', label:'⚠ Partial Match', msg:'Mapped to some but not all selected frameworks' },
+      partial:    { bg:'#d97706', label:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Partial Match', msg:'Mapped to some but not all selected frameworks' },
       unique:     { bg:'#dc2626', label:'✕ Framework-Specific', msg:'Unique to this framework, document will not be integrated' },
     };
     var b = badges[ctrl.ims_status];
@@ -861,7 +861,7 @@ async function openAriaGuidance() {
   ariaCustomInstructions = guidance;
   var btnText = document.getElementById('guideAiBtnText');
   if (btnText) {
-    btnText.textContent = guidance ? '🎯 Guidance added ✓ (edit)' : '🎯 Guide the AI (optional)';
+    btnText.innerHTML = guidance ? '<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guidance added ✓ (edit)' : '<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guide the AI (optional)';
   }
 }
 

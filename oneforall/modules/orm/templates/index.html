@@ -156,7 +156,7 @@
 </div>
 <div class="sidebar-bottom">
   <a href="/orm/chat" data-spa="/orm/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer">
-    <div style="font-size:24px;margin-bottom:8px">&#128200;</div>
+    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trending-up></use></svg></div>
     <div style="font-size:14px;font-weight:700">Ask ORM AI...</div>
     <div style="font-size:11px;opacity:0.7;margin-top:4px">Root cause &amp; remediation</div>
   </a>
@@ -189,21 +189,21 @@
 
   <!-- SLA overdue banner -->
   <div id="ormSlaBanner" style="display:none;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
-    <span style="font-size:18px">⏰</span>
+    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg></span>
     <span style="flex:1"><strong id="ormSlaCount">0</strong> event(s) have breached SLA response or resolution deadlines.</span>
     <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" style="flex-shrink:0;cursor:pointer">View Events</a>
   </div>
 
   <!-- Sentinel breach banner -->
   <div id="ormSentinelBanner" style="display:none;background:rgba(8,145,178,.07);border:1px solid rgba(8,145,178,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
-    <span style="font-size:18px">&#128737;</span>
+    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
     <span style="flex:1"><strong>Active data breach in Sentinel.</strong> Review fraud and system failure events for potential data exposure.</span>
     <a href="/sentinel/" class="btn btn-sm btn-secondary" style="flex-shrink:0">View Sentinel</a>
   </div>
 
   <!-- BCM active incident banner -->
   <div id="ormBcmBanner" style="display:none;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
-    <span style="font-size:18px">&#9889;</span>
+    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg></span>
     <span style="flex:1"><strong>Active BCM Incident in progress.</strong> Operational events during this period should be logged and linked to the incident.</span>
     <a href="/bcm/incidents" class="btn btn-sm btn-secondary" style="flex-shrink:0">View Incident</a>
   </div>
@@ -259,7 +259,7 @@
   <!-- Charts + Insights + Top 5 -->
   <div class="three-col animate-fade-up anim-2">
     <div class="panel-card">
-      <div class="panel-title">&#9889; Smart Insights</div>
+      <div class="panel-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Smart Insights</div>
       <div id="ormInsights" style="font-size:13px;line-height:1.8;color:var(--text)"><div style="color:var(--muted)">Loading…</div></div>
     </div>
     <div class="panel-card" style="grid-column:span 2">
@@ -271,7 +271,7 @@
   <!-- Top 5 + Recent events -->
   <div class="three-col animate-fade-up anim-3">
     <div class="panel-card">
-      <div class="panel-title">&#128184; Top 5 by Financial Impact</div>
+      <div class="panel-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-banknote></use></svg> Top 5 by Financial Impact</div>
       <div id="ormTop5"></div>
     </div>
     <div class="card" style="grid-column:span 2">
@@ -298,7 +298,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-sm btn-secondary" onclick="ormExportCSV()">&#8595; Export CSV</button>
-      <button class="btn btn-sm btn-secondary" onclick="ormOpenTemplates()" style="gap:5px">&#128203; Templates</button>
+      <button class="btn btn-sm btn-secondary" onclick="ormOpenTemplates()" style="gap:5px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Templates</button>
       <button class="btn btn-primary" onclick="ormOpenEventModal()">+ Log Event</button>
     </div>
   </div>
@@ -310,24 +310,24 @@
     <button class="orm-chip" data-val="investigating" onclick="ormChipStatus(this)">Investigating</button>
     <button class="orm-chip" data-val="resolved" onclick="ormChipStatus(this)">Resolved</button>
     <button class="orm-chip" data-val="closed" onclick="ormChipStatus(this)">Closed</button>
-    <button class="orm-chip" data-val="recurring" onclick="ormChipStatus(this)">&#128260; Recurring</button>
+    <button class="orm-chip" data-val="recurring" onclick="ormChipStatus(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring</button>
   </div>
 
   <!-- Type chip bar -->
   <div class="orm-filter-bar" id="evtTypeBar" style="margin-bottom:14px">
     <button class="orm-chip active" data-val="" onclick="ormChipType(this)">All Types</button>
-    <button class="orm-chip" data-val="process_failure" onclick="ormChipType(this)">&#9881; Process Failure</button>
-    <button class="orm-chip" data-val="fraud" onclick="ormChipType(this)">&#128680; Fraud</button>
-    <button class="orm-chip" data-val="system_failure" onclick="ormChipType(this)">&#128187; System Failure</button>
-    <button class="orm-chip" data-val="human_error" onclick="ormChipType(this)">&#128100; Human Error</button>
-    <button class="orm-chip" data-val="outage" onclick="ormChipType(this)">&#128268; Outage</button>
-    <button class="orm-chip" data-val="vendor_failure" onclick="ormChipType(this)">&#128230; Vendor Failure</button>
-    <button class="orm-chip" data-val="customer_impact" onclick="ormChipType(this)">&#128101; Customer Impact</button>
+    <button class="orm-chip" data-val="process_failure" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg> Process Failure</button>
+    <button class="orm-chip" data-val="fraud" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Fraud</button>
+    <button class="orm-chip" data-val="system_failure" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-laptop></use></svg> System Failure</button>
+    <button class="orm-chip" data-val="human_error" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg> Human Error</button>
+    <button class="orm-chip" data-val="outage" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-plug></use></svg> Outage</button>
+    <button class="orm-chip" data-val="vendor_failure" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-package></use></svg> Vendor Failure</button>
+    <button class="orm-chip" data-val="customer_impact" onclick="ormChipType(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> Customer Impact</button>
   </div>
 
   <!-- Search + severity + dept row -->
   <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-    <input class="orm-search" id="evtSearch" placeholder="&#128269; Search events…" oninput="evtFilters.search=this.value.trim().toLowerCase();ormRenderEvents()">
+    <input class="orm-search" id="evtSearch" placeholder="Search events…" oninput="evtFilters.search=this.value.trim().toLowerCase();ormRenderEvents()">
     <select id="evtSevFilter" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="evtFilters.sev=this.value;ormRenderEvents()">
       <option value="">All Severities</option>
       <option value="critical">Critical</option>
@@ -364,7 +364,7 @@
       <div class="section-sub">Monitor operational risk thresholds and trigger alerts</div>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-secondary" onclick="ormOpenKriLibrary()">&#128218; From Library</button>
+      <button class="btn btn-secondary" onclick="ormOpenKriLibrary()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-library></use></svg> From Library</button>
       <button class="btn btn-primary" onclick="ormOpenKriModal()">+ Add KRI</button>
     </div>
   </div>
@@ -394,8 +394,8 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-sm btn-secondary" onclick="ormExportCSV()">&#8595; Export CSV</button>
-      <button class="btn btn-sm btn-secondary" onclick="window.open('/orm/api/board-report/document','_blank')">&#8595; Board Report PDF</button>
-      <button class="btn-orm-ai" id="ormBoardBtn" onclick="ormBoardReport(this)">&#128202; AI Narrative</button>
+      <button class="btn btn-sm btn-secondary" onclick="window.open('/orm/api/board-report/document','_blank')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Board Report PDF</button>
+      <button class="btn-orm-ai" id="ormBoardBtn" onclick="ormBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> AI Narrative</button>
     </div>
   </div>
 
@@ -446,7 +446,7 @@
     </div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-primary" onclick="ormOpenRcsaModal()">+ New (Blank)</button>
-      <button class="btn btn-primary" onclick="ormOpenTemplatePickerModal()">&#128203; From Template</button>
+      <button class="btn btn-primary" onclick="ormOpenTemplatePickerModal()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> From Template</button>
     </div>
   </div>
 
@@ -539,10 +539,10 @@
       </div>
       <!-- Suggested prompt chips -->
       <div id="ormPromptChips" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px;border-top:1px solid var(--border);background:var(--surface2)">
-        <button class="orm-chip" onclick="ormSendPromptChip('What are my top financial loss events this month?')">&#128184; Top loss events</button>
-        <button class="orm-chip" onclick="ormSendPromptChip('Suggest corrective actions for recurring process failures')">&#128260; Recurring failures</button>
-        <button class="orm-chip" onclick="ormSendPromptChip('Which departments have the most operational risk events?')">&#127968; Department breakdown</button>
-        <button class="orm-chip" onclick="ormSendPromptChip('Help me write a board summary of operational risk this month')">&#128202; Board summary</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('What are my top financial loss events this month?')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-banknote></use></svg> Top loss events</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('Suggest corrective actions for recurring process failures')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring failures</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('Which departments have the most operational risk events?')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-house></use></svg> Department breakdown</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('Help me write a board summary of operational risk this month')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Board summary</button>
       </div>
       <div style="display:flex;gap:10px;padding:16px;border-top:1px solid var(--border)">
         <input type="text" id="ormChatInput" placeholder="Ask about operational risks…" style="flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')ormSendChat()">
@@ -588,8 +588,8 @@ function timeAgo(ts){if(!ts)return'';var s=Math.floor((Date.now()-new Date(ts.in
 function fmtCurrency(v){v=parseFloat(v)||0;if(v>=1000000)return'$'+(v/1000000).toFixed(1)+'M';if(v>=1000)return'$'+(v/1000).toFixed(1)+'K';return'$'+v.toFixed(0);}
 function sevBadge(s){var m={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};return'<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc((s||'?').toUpperCase())+'</span>';}
 function statusBadge(s){var m={open:'badge-high',investigating:'badge-progress',resolved:'badge-complete',closed:'badge-draft',recurring:'badge-critical'};var lbl=(s||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});return'<span class="badge '+(m[s]||'badge-draft')+'">'+esc(lbl)+'</span>';}
-var typeIcons={process_failure:'⚙',fraud:'🚨',system_failure:'💻',human_error:'👤',outage:'🔌',vendor_failure:'📦',customer_impact:'👥'};
-function typeIcon(t){return typeIcons[t]||'⚠';}
+var typeIcons={process_failure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg>',fraud:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg>',system_failure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-laptop></use></svg>',human_error:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg>',outage:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-plug></use></svg>',vendor_failure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-package></use></svg>',customer_impact:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg>'};
+function typeIcon(t){return typeIcons[t]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>';}
 function spinner(cols){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
 function emptyRow(cols,msg){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
 async function apiFetch(url,opts){
@@ -770,7 +770,7 @@ async function ormLoadDashboard(){
       if(d.kri_alerts&&d.kri_alerts.length){
         kBanner.style.display='';
         kBanner.innerHTML='<div style="background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px">'+
-          '<span style="font-size:16px">&#9888;</span>'+
+          '<span style="font-size:16px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>'+
           '<span><strong>Organization-wide KRI Alerts:</strong> '+d.kri_alerts.map(function(k){return esc(k.name)+' ('+k.value+') is <strong>'+k.level+'</strong>';}).join(', ')+'</span>'+
           '<a href="/orm/indicators" data-spa="/orm/indicators" style="margin-left:auto;cursor:pointer;color:var(--accent);font-weight:700;font-size:12px">View KRIs →</a>'+
         '</div>';
@@ -816,15 +816,15 @@ async function ormLoadDashboard(){
     var byType=d.by_type||[];
     var total=d.total_events||0;
     if(total===0)insights.push('&#10003; No events recorded in the last 30 days');
-    if(recurring>0)insights.push('&#128260; <strong>'+recurring+'</strong> recurring event'+(recurring>1?'s':'')+' this period — consider root cause analysis');
+    if(recurring>0)insights.push('<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> <strong>'+recurring+'</strong> recurring event'+(recurring>1?'s':'')+' this period — consider root cause analysis');
     var fraudRow=byType.find(function(t){return t.event_type==='fraud';});
-    if(fraudRow&&fraudRow.cnt>0)insights.push('&#128680; <strong>'+fraudRow.cnt+'</strong> fraud event'+(fraudRow.cnt>1?'s':'')+' — review for data exposure with Sentinel');
+    if(fraudRow&&fraudRow.cnt>0)insights.push('<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> <strong>'+fraudRow.cnt+'</strong> fraud event'+(fraudRow.cnt>1?'s':'')+' — review for data exposure with Sentinel');
     var sysRow=byType.find(function(t){return t.event_type==='system_failure'||t.event_type==='outage';});
-    if(sysRow&&sysRow.cnt>0)insights.push('&#128187; <strong>'+sysRow.cnt+'</strong> system/outage event'+(sysRow.cnt>1?'s':'')+' — check BCM plans');
-    if(d.financial_loss_delta>0)insights.push('&#128200; Financial loss up <strong>'+fmtCurrency(d.financial_loss_delta)+'</strong> vs previous period');
+    if(sysRow&&sysRow.cnt>0)insights.push('<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-laptop></use></svg> <strong>'+sysRow.cnt+'</strong> system/outage event'+(sysRow.cnt>1?'s':'')+' — check BCM plans');
+    if(d.financial_loss_delta>0)insights.push('<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trending-up></use></svg> Financial loss up <strong>'+fmtCurrency(d.financial_loss_delta)+'</strong> vs previous period');
     else if(d.financial_loss_delta<0)insights.push('&#10003; Financial loss down <strong>'+fmtCurrency(Math.abs(d.financial_loss_delta))+'</strong> vs previous period');
     var resolved=byType.reduce(function(s,t){return s+(t.cnt||0);},0);
-    if(d.kri_alerts&&d.kri_alerts.length>0)insights.push('&#9888; <strong>'+d.kri_alerts.length+'</strong> KRI'+( d.kri_alerts.length>1?'s':'')+' breaching thresholds');
+    if(d.kri_alerts&&d.kri_alerts.length>0)insights.push('<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+d.kri_alerts.length+'</strong> KRI'+( d.kri_alerts.length>1?'s':'')+' breaching thresholds');
     var insEl=document.getElementById('ormInsights');
     if(insEl)insEl.innerHTML=insights.length?insights.map(function(i){return'<div style="padding:3px 0">'+i+'</div>';}).join(''):'<div style="color:var(--muted)">No significant insights this period.</div>';
 
@@ -961,10 +961,10 @@ function ormRenderEvents(){
   if(!filtered.length){body.innerHTML=emptyRow(10,'No events match the current filters');return;}
   var now=Date.now();
   body.innerHTML=filtered.map(function(e){
-    var recurBadge=e.is_recurring?'<span class="badge badge-critical" style="font-size:9px;padding:1px 5px;margin-right:4px">&#128260;</span>':'';
+    var recurBadge=e.is_recurring?'<span class="badge badge-critical" style="font-size:9px;padding:1px 5px;margin-right:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg></span>':'';
     var elevateBtn=!e.erm_risk_id&&(e.severity==='critical'||e.severity==='high'||(parseFloat(e.financial_impact)||0)>=10000)?
       '<button class="btn btn-sm btn-secondary" onclick="ormElevateToErm('+e.id+')" style="font-size:11px;color:var(--accent)">&#8593; ERM</button>':'';
-    var aiBtn='<button class="btn-orm-ai" onclick="ormAiAnalyze('+e.id+',this)" title="AI root cause">&#129504;</button>';
+    var aiBtn='<button class="btn-orm-ai" onclick="ormAiAnalyze('+e.id+',this)" title="AI root cause"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
     var detDate=e.detected_at||e.created_at;
     // SLA chip
     var slaHtml='<span style="color:var(--muted);font-size:11px">—</span>';
@@ -974,8 +974,8 @@ function ormRenderEvents(){
       var resDue=e.resolution_due_at?new Date(e.resolution_due_at.includes('T')?e.resolution_due_at:e.resolution_due_at+'Z').getTime():null;
       var overdue=(respDue&&respDue<now)||(resDue&&resDue<now);
       var dueSoon=!overdue&&((respDue&&respDue-now<86400000)||(resDue&&resDue-now<86400000));
-      if(overdue)slaHtml='<span class="sla-overdue">&#9888; OVERDUE</span>';
-      else if(dueSoon)slaHtml='<span class="sla-warn">&#9200; Due Soon</span>';
+      if(overdue)slaHtml='<span class="sla-overdue"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> OVERDUE</span>';
+      else if(dueSoon)slaHtml='<span class="sla-warn"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> Due Soon</span>';
       else if(respDue||resDue){
         var target=respDue&&respDue>now?respDue:(resDue||0);
         if(target>now){var days=Math.ceil((target-now)/86400000);slaHtml='<span class="sla-ok">'+days+'d left</span>';}
@@ -992,8 +992,8 @@ function ormRenderEvents(){
       '<td>'+slaHtml+'</td>'+
       '<td style="font-size:12px;color:var(--muted)">'+fmtDate(detDate)+'</td>'+
       '<td><div style="display:flex;gap:4px;align-items:center">'+aiBtn+elevateBtn+
-        '<button class="btn btn-sm btn-secondary" onclick="ormOpenEventModal(evtCache.find(function(x){return x.id==='+e.id+'}))" style="padding:4px 8px" title="Edit">&#9998;</button>'+
-        '<button class="btn btn-sm btn-secondary" onclick="ormDuplicateEvt('+e.id+')" style="padding:4px 8px" title="Duplicate">&#128203;</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormOpenEventModal(evtCache.find(function(x){return x.id==='+e.id+'}))" style="padding:4px 8px" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormDuplicateEvt('+e.id+')" style="padding:4px 8px" title="Duplicate"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></button>'+
         '<button class="btn btn-sm btn-secondary" onclick="ormDeleteEvt('+e.id+')" style="padding:4px 8px;color:var(--red)" title="Delete">&#10005;</button>'+
       '</div></td>'+
     '</tr>';
@@ -1074,14 +1074,14 @@ window.ormElevateToErm=async function(id){
   }catch(e){if(typeof showToast==='function')showToast('Elevation failed','error');}
 };
 window.ormAiAnalyze=async function(id,btn){
-  var orig=btn.textContent||'🧠';btn.disabled=true;btn.textContent='…';
+  var orig=btn.innerHTML;btn.disabled=true;btn.textContent='…';
   try{
     var res=await apiFetch('/orm/api/ai/analyze/'+id,{method:'POST'});
-    btn.disabled=false;btn.textContent=orig;
+    btn.disabled=false;btn.innerHTML=orig;
     document.body.insertAdjacentHTML('beforeend',
       '<div class="orm-modal-overlay" onclick="if(event.target===this)this.remove()">'+
       '<div class="modal-box" style="max-width:560px">'+
-        '<div class="modal-title">&#129504; AI Root Cause Analysis</div>'+
+        '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Root Cause Analysis</div>'+
         '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px">'+
           '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Root Cause Category</div>'+
           '<div style="font-size:15px;font-weight:700;color:var(--text);text-transform:capitalize">'+esc(res.root_cause_category||'—')+'</div>'+
@@ -1093,7 +1093,7 @@ window.ormAiAnalyze=async function(id,btn){
       '</div></div>'
     );
     ormLoadEvents();
-  }catch(e){btn.disabled=false;btn.textContent=orig;if(typeof showToast==='function')showToast('AI analysis failed','error');}
+  }catch(e){btn.disabled=false;btn.innerHTML=orig;if(typeof showToast==='function')showToast('AI analysis failed','error');}
 };
 
 /* ─────────────────────────── EVENT DRAWER ─────────────────────────── */
@@ -1118,7 +1118,7 @@ window.ormOpenEventDrawer=async function(id){
         '</div>'+
         '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
           sevBadge(e.severity)+statusBadge(e.status)+
-          (e.is_recurring?'<span class="badge badge-critical" style="font-size:10px">&#128260; Recurring</span>':'')+
+          (e.is_recurring?'<span class="badge badge-critical" style="font-size:10px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring</span>':'')+
           (e.erm_risk_id?'<span class="badge badge-complete" title="ERM Risk #'+e.erm_risk_id+'">&#8593; ERM #'+e.erm_risk_id+'</span>':'')+
         '</div>'+
       '</div>'+
@@ -1153,15 +1153,15 @@ window.ormOpenEventDrawer=async function(id){
             (e.preventive_action?'<div><div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:2px">Preventive</div><div style="font-size:13px;line-height:1.5">'+esc(e.preventive_action)+'</div></div>':'')+
           '</div>':'')+
         /* Sentinel cross-module link for fraud/customer impact */
-        (isFraud?'<div style="background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.2);border-radius:var(--radius);padding:10px 12px;margin-top:4px;font-size:12px"><span style="font-size:14px">&#128737;</span> <strong>Data exposure risk</strong> — If personal data was affected, consider raising a Sentinel incident. <a href="/sentinel/" style="color:var(--accent);font-weight:700">Open Sentinel &#8594;</a></div>':'')+
+        (isFraud?'<div style="background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.2);border-radius:var(--radius);padding:10px 12px;margin-top:4px;font-size:12px"><span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span> <strong>Data exposure risk</strong> — If personal data was affected, consider raising a Sentinel incident. <a href="/sentinel/" style="color:var(--accent);font-weight:700">Open Sentinel &#8594;</a></div>':'')+
         /* BCM link for system failures with significant downtime */
-        (isSystem&&(e.downtime_minutes||0)>=120?'<div style="background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius);padding:10px 12px;margin-top:8px;font-size:12px"><span style="font-size:14px">&#9889;</span> <strong>Significant downtime detected</strong> — Consider creating a BCM incident if business continuity is at risk. <a href="/bcm/" style="color:var(--accent);font-weight:700">Open BCM &#8594;</a></div>':'')+
+        (isSystem&&(e.downtime_minutes||0)>=120?'<div style="background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius);padding:10px 12px;margin-top:8px;font-size:12px"><span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg></span> <strong>Significant downtime detected</strong> — Consider creating a BCM incident if business continuity is at risk. <a href="/bcm/" style="color:var(--accent);font-weight:700">Open BCM &#8594;</a></div>':'')+
         /* Workflow stepper */
         '<div class="orm-drawer-section" style="margin-top:16px">'+
           '<div class="orm-drawer-section-title">Investigation Workflow</div>'+
           ormWorkflowStepper(e)+
           '<div id="wfHistory-'+e.id+'" style="margin-top:10px;display:none"></div>'+
-          '<button style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;margin-top:2px" onclick="ormToggleWfHistory('+e.id+')">&#9776; Show history</button>'+
+          '<button style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;margin-top:2px" onclick="ormToggleWfHistory('+e.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-clock></use></svg> Show history</button>'+
         '</div>'+
         /* Related events — parent + children from evtCache */
         (function(){
@@ -1181,9 +1181,9 @@ window.ormOpenEventDrawer=async function(id){
         '<div class="orm-drawer-section" id="ormRelatedItems"></div>'+
       '</div>'+
       '<div class="orm-drawer-footer">'+
-        '<button class="btn-orm-ai" onclick="ormAiAnalyzeFromDrawer('+e.id+')">&#129504; AI Analyze</button>'+
+        '<button class="btn-orm-ai" onclick="ormAiAnalyzeFromDrawer('+e.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Analyze</button>'+
         (canElevate?'<button class="btn btn-secondary" onclick="ormElevateToErm('+e.id+');ormCloseDrawer()">&#8593; Elevate to ERM</button>':'')+
-        '<button class="btn btn-sm btn-secondary" onclick="ormToggleRecurring('+e.id+','+(e.is_recurring?0:1)+')">'+(e.is_recurring?'&#10003; Recurring':'Mark &#128260; Recurring')+'</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormToggleRecurring('+e.id+','+(e.is_recurring?0:1)+')">'+(e.is_recurring?'&#10003; Recurring':'Mark <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring')+'</button>'+
         '<button class="btn btn-primary" onclick="ormOpenEventModal(window._ormDrawerEvt);ormCloseDrawer()" style="margin-left:auto">Edit</button>'+
       '</div>'+
     '</div></div>';
@@ -1384,7 +1384,7 @@ window.ormLoadKris=async function(){
       if(breaching.length){
         bb.style.display='';
         bb.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">'+
-          '<span style="font-size:20px">&#128680;</span>'+
+          '<span style="font-size:20px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg></span>'+
           '<div style="flex:1"><strong style="color:var(--red)">'+breaching.length+' KRI'+(breaching.length>1?'s':'')+' at Critical Level</strong>: '+
           breaching.map(function(k){
             var sentinelLink=(k.name||'').toLowerCase().includes('breach')||(k.name||'').toLowerCase().includes('data')?
@@ -1406,7 +1406,7 @@ window.ormLoadKris=async function(){
       if(stale.length){
         sb.style.display='';
         sb.innerHTML='<div style="background:rgba(217,119,6,.07);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px">'+
-          '<span style="font-size:18px">&#9200;</span>'+
+          '<span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg></span>'+
           '<div style="flex:1;font-size:13px"><strong style="color:var(--amber,#d97706)">'+stale.length+' KRI'+(stale.length>1?'s':'')+' haven\'t been updated in over 30 days</strong>: '+
           stale.map(function(k){return'<a href="#" style="color:var(--accent)" onclick="event.preventDefault();ormOpenKriUpdateModal(kriCache.find(function(x){return x.id==='+k.id+'}))">'+esc(k.name)+'</a>';}).join(', ')+
           ' — update them to keep your risk picture accurate.</div>'+
@@ -1444,7 +1444,7 @@ window.ormLoadKris=async function(){
       var crit=parseFloat(k.threshold_crit)||null;
       var warn=parseFloat(k.threshold_warn)||null;
       var ragColor=crit&&val>=crit?'var(--red)':warn&&val>=warn?'var(--amber,#d97706)':'var(--good,#16a34a)';
-      var status=crit&&val>=crit?'&#9888; CRITICAL':warn&&val>=warn?'&#9888; WARNING':'&#10003; OK';
+      var status=crit&&val>=crit?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> CRITICAL':warn&&val>=warn?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> WARNING':'&#10003; OK';
       var sentinelHint=(k.name||'').toLowerCase().includes('breach')||(k.name||'').toLowerCase().includes('data');
       var criticalKri=crit&&val>=crit;
       return'<div class="kri-card">'+
@@ -1456,12 +1456,12 @@ window.ormLoadKris=async function(){
         '<div style="font-size:28px;font-weight:900;color:'+ragColor+';line-height:1;cursor:pointer" onclick="ormInlineKriEdit('+k.id+',this)" title="Click to update value" id="kriVal-'+k.id+'">'+val+'<span style="font-size:13px;font-weight:400;color:var(--muted)"> '+esc(k.unit||'')+'</span></div>'+
         ormKriGauge(val,warn,crit)+
         '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:8px">'+
-          (warn?'<span>&#9888; Warn: '+warn+'</span>':'<span></span>')+
-          (crit?'<span>&#128308; Crit: '+crit+'</span>':'<span></span>')+
+          (warn?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Warn: '+warn+'</span>':'<span></span>')+
+          (crit?'<span><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> Crit: '+crit+'</span>':'<span></span>')+
         '</div>'+
         '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+
-          (k.frequency?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">&#9200; '+esc(k.frequency)+'</span>':'')+
-          (k.owner_name?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">&#128100; '+esc(k.owner_name)+'</span>':'')+
+          (k.frequency?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> '+esc(k.frequency)+'</span>':'')+
+          (k.owner_name?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg> '+esc(k.owner_name)+'</span>':'')+
           (k.last_updated?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">Updated '+timeAgo(k.last_updated)+'</span>':'')+
           (k.trend==='worsening'?'<span style="font-size:10px;color:var(--red);background:rgba(220,38,38,.08);padding:2px 7px;border-radius:100px;font-weight:700">&#8593; Worsening</span>':
            k.trend==='improving'?'<span style="font-size:10px;color:var(--good,#16a34a);background:rgba(22,163,74,.08);padding:2px 7px;border-radius:100px;font-weight:700">&#8595; Improving</span>':'')+
@@ -1471,7 +1471,7 @@ window.ormLoadKris=async function(){
           '<span style="font-size:10px;color:var(--muted);font-weight:600">7-day trend</span>'+
           '<span id="kriSpark-'+k.id+'">'+ormKriSparkline(kriHistoryCache[k.id]||[])+'</span>'+
         '</div>'+
-        (criticalKri&&sentinelHint?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px">&#128737; Breach indicator — <a href="/sentinel/" style="color:var(--accent)">Review in Sentinel</a></div>':'')+
+        (criticalKri&&sentinelHint?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Breach indicator — <a href="/sentinel/" style="color:var(--accent)">Review in Sentinel</a></div>':'')+
         '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+
           '<button class="btn btn-sm btn-secondary" onclick="ormOpenKriUpdateModal(kriCache.find(function(x){return x.id==='+k.id+'}))">Update Value</button>'+
           '<button class="btn btn-sm btn-secondary" onclick="ormOpenKriModal(kriCache.find(function(x){return x.id==='+k.id+'}))">Edit</button>'+
@@ -1712,15 +1712,15 @@ window.ormSendPromptChip=function(msg){
 
 /* ─────────────────────────── EVENT TEMPLATES ─────────────────────────── */
 var TMPL_CATEGORIES=[
-  {key:'',label:'All Templates',icon:'&#128203;',color:'var(--accent)'},
-  {key:'Cybersecurity',label:'Cybersecurity',icon:'&#128737;',color:'#dc2626'},
-  {key:'Data & Privacy',label:'Data & Privacy',icon:'&#128274;',color:'#7c3aed'},
-  {key:'Process & Operations',label:'Process & Ops',icon:'&#9881;',color:'#ea580c'},
-  {key:'Technology & Systems',label:'Technology',icon:'&#128187;',color:'#0ea5e9'},
-  {key:'People & HR',label:'People & HR',icon:'&#128100;',color:'#16a34a'},
-  {key:'Financial & Fraud',label:'Financial & Fraud',icon:'&#128178;',color:'#b45309'},
-  {key:'Vendor & Third Party',label:'Vendor & 3rd Party',icon:'&#128230;',color:'#0891b2'},
-  {key:'Compliance & Regulatory',label:'Compliance',icon:'&#9878;',color:'#be123c'}
+  {key:'',label:'All Templates',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',color:'var(--accent)'},
+  {key:'Cybersecurity',label:'Cybersecurity',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg>',color:'#dc2626'},
+  {key:'Data & Privacy',label:'Data & Privacy',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg>',color:'#7c3aed'},
+  {key:'Process & Operations',label:'Process & Ops',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg>',color:'#ea580c'},
+  {key:'Technology & Systems',label:'Technology',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-laptop></use></svg>',color:'#0ea5e9'},
+  {key:'People & HR',label:'People & HR',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg>',color:'#16a34a'},
+  {key:'Financial & Fraud',label:'Financial & Fraud',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-dollar-sign></use></svg>',color:'#b45309'},
+  {key:'Vendor & Third Party',label:'Vendor & 3rd Party',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-package></use></svg>',color:'#0891b2'},
+  {key:'Compliance & Regulatory',label:'Compliance',icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-scale></use></svg>',color:'#be123c'}
 ];
 var tmplCache=[],tmplCatFilter='',tmplSearch='';
 
@@ -1746,12 +1746,12 @@ window.ormOpenTemplates=async function(){
     '<div class="orm-tmpl-overlay" id="ormTmplOverlay" onclick="if(event.target===this)ormCloseTemplates()">'+
       '<div class="orm-tmpl-panel" onclick="event.stopPropagation()">'+
         '<div class="orm-tmpl-head">'+
-          '<div style="font-size:20px">&#128203;</div>'+
+          '<div style="font-size:20px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>'+
           '<div style="flex:1">'+
             '<div style="font-size:16px;font-weight:800;color:var(--text)">Event Templates</div>'+
             '<div style="font-size:12px;color:var(--muted)">Select a template to activate instantly or customise before logging</div>'+
           '</div>'+
-          '<input id="tmplSearch" class="orm-search" placeholder="&#128269; Search templates…" style="max-width:240px" oninput="tmplSearch=this.value.toLowerCase();ormRenderTemplates()">'+
+          '<input id="tmplSearch" class="orm-search" placeholder="Search templates…" style="max-width:240px" oninput="tmplSearch=this.value.toLowerCase();ormRenderTemplates()">'+
           '<button class="btn btn-sm btn-secondary" onclick="ormOpenTemplateModal()" title="Create custom template">+ Custom</button>'+
           '<button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:4px 8px" onclick="ormCloseTemplates()">&#10005;</button>'+
         '</div>'+
@@ -1800,7 +1800,7 @@ function ormRenderTemplates(){
   });
   if(!filtered.length){
     grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">'+
-      '<div style="font-size:32px;margin-bottom:12px">&#128203;</div>'+
+      '<div style="font-size:32px;margin-bottom:12px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>'+
       '<div style="font-size:14px;font-weight:600">No templates match your search</div>'+
       '<button class="btn btn-secondary" style="margin-top:12px" onclick="ormOpenTemplateModal()">+ Create Custom Template</button>'+
     '</div>';
@@ -1809,7 +1809,7 @@ function ormRenderTemplates(){
   grid.innerHTML=filtered.map(function(t){
     var catColor=TMPL_CAT_TEXT_COLORS[t.category]||'var(--accent)';
     var catBg=TMPL_CAT_COLORS[t.category]||'rgba(99,102,241,.1)';
-    var catObj=TMPL_CATEGORIES.find(function(c){return c.key===t.category;})||{icon:'&#128203;'};
+    var catObj=TMPL_CATEGORIES.find(function(c){return c.key===t.category;})||{icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>'};
     var tags=(t.tags||'').split(',').filter(Boolean).slice(0,3);
     var usageHint=t.usage_count>0?'<span style="font-size:10px;color:var(--muted);margin-left:auto">Used '+t.usage_count+'&#215;</span>':'';
     return'<div class="orm-tmpl-card">'+
@@ -1828,7 +1828,7 @@ function ormRenderTemplates(){
       '</div>'+
       '<div style="display:flex;gap:8px;margin-top:6px">'+
         '<button class="btn btn-primary js-activate-orm-template" data-template-id="'+Number(t.id)+'" data-template-title="'+esc(t.title)+'" style="flex:1;font-size:12px" title="Create event immediately with template defaults">&#9658; Activate</button>'+
-        '<button class="btn btn-secondary" style="flex:1;font-size:12px" onclick="ormCustomiseTemplate('+t.id+')" title="Pre-fill Log Event form for review before saving">&#9998; Customise</button>'+
+        '<button class="btn btn-secondary" style="flex:1;font-size:12px" onclick="ormCustomiseTemplate('+t.id+')" title="Pre-fill Log Event form for review before saving"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Customise</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1874,7 +1874,7 @@ window.ormOpenTemplateModal=async function(existing){
       '<div class="form-row">'+
         '<div class="form-group"><label>Template Title *</label><input id="tm_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
         '<div class="form-group"><label>Category *</label><select id="tm_cat">'+
-          TMPL_CATEGORIES.slice(1).map(function(c){return'<option value="'+c.key+'"'+(isEdit&&existing.category===c.key?' selected':'')+'>'+c.icon+' '+esc(c.label)+'</option>';}).join('')+
+          TMPL_CATEGORIES.slice(1).map(function(c){return'<option value="'+c.key+'"'+(isEdit&&existing.category===c.key?' selected':'')+'>'+esc(c.label)+'</option>';}).join('')+
         '</select></div>'+
       '</div>'+
       '<div class="form-group"><label>Description</label><textarea id="tm_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
@@ -2015,8 +2015,8 @@ window.ormLoadRcsa=async function(){
         '<td style="text-align:center"><span class="badge badge-draft">'+esc(a.risk_count||0)+'</span></td>'+
         '<td style="text-align:center"><span class="badge '+(a.open_actions>0?'badge-high':'badge-draft')+'">'+esc(a.open_actions||0)+'</span></td>'+
         '<td><div style="display:flex;gap:4px">'+
-          '<button class="btn btn-sm btn-secondary" onclick="ormOpenRcsaDetail('+a.id+')" title="Open">&#128269;</button>'+
-          '<button class="btn btn-sm btn-secondary" onclick="ormOpenRcsaModal(rcsaCache.find(function(x){return x.id==='+a.id+'}))">&#9998;</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenRcsaDetail('+a.id+')" title="Open"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg></button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenRcsaModal(rcsaCache.find(function(x){return x.id==='+a.id+'}))"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
           '<button class="btn btn-sm btn-secondary" onclick="ormDeleteRcsa('+a.id+')" style="color:var(--red)">&#10005;</button>'+
         '</div></td>'+
       '</tr>';
@@ -2170,7 +2170,7 @@ window.ormOpenRcsaDetail=async function(assessId){
                     '<div style="display:flex;justify-content:space-between;align-items:center">'+
                       '<span style="font-size:12px;font-weight:600">'+esc(c.name)+'</span>'+
                       '<div style="display:flex;gap:4px">'+
-                        '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" onclick="ormOpenRcsaControlModal('+r.id+',window._rcsaControlsCache['+c.id+'],'+assessId+')" title="Edit">&#9998;</button>'+
+                        '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" onclick="ormOpenRcsaControlModal('+r.id+',window._rcsaControlsCache['+c.id+'],'+assessId+')" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
                         '<button class="btn btn-sm btn-secondary" style="padding:1px 6px;color:var(--red)" onclick="ormDeleteRcsaControl('+c.id+','+assessId+')" title="Delete">&#10005;</button>'+
                       '</div>'+
                     '</div>'+
@@ -2199,14 +2199,14 @@ window.ormOpenRcsaDetail=async function(assessId){
                 '</div>'+
                 '<div style="display:flex;gap:6px;align-items:center">'+
                   '<span class="badge '+s+'">'+esc((ac.status||'open').replace(/_/g,' '))+'</span>'+
-                  '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" onclick="ormOpenRcsaActionModal('+ac.control_id+',window._rcsaActionsCache['+ac.id+'],'+assessId+')" title="Edit">&#9998;</button>'+
+                  '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" onclick="ormOpenRcsaActionModal('+ac.control_id+',window._rcsaActionsCache['+ac.id+'],'+assessId+')" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
                   '<button class="btn btn-sm btn-secondary" style="padding:1px 6px;color:var(--red)" onclick="ormDeleteRcsaAction('+ac.id+','+assessId+')" title="Delete">&#10005;</button>'+
                 '</div>'+
               '</div>';
             }).join('')+
           '</div>':'')+'</div>'+
       '<div class="orm-drawer-footer">'+
-        '<button class="btn btn-secondary" onclick="ormOpenRcsaModal(rcsaCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()">&#9998; Edit</button>'+
+        '<button class="btn btn-secondary" onclick="ormOpenRcsaModal(rcsaCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Edit</button>'+
         '<button class="btn btn-primary" onclick="ormCloseDrawer();ormRouter.navigate(\'/orm/assessment\')">View All Assessments</button>'+
       '</div>'+
     '</div></div>';
@@ -2390,7 +2390,7 @@ window.ormRenderAicRows=function(){
       '<td style="text-align:center">'+(c.link_count>0?'<span class="badge badge-draft">'+c.link_count+'</span>':'<span style="color:var(--muted);font-size:12px">—</span>')+'</td>'+
       '<td>'+statBadge+'</td>'+
       '<td><div style="display:flex;gap:4px">'+
-        (ormCanManageAiControls?'<button class="btn btn-sm btn-secondary" onclick="ormEditAiControl('+c.id+')" title="Edit" aria-label="Edit '+escChartAttr(c.ref)+'">&#9998;</button>'+
+        (ormCanManageAiControls?'<button class="btn btn-sm btn-secondary" onclick="ormEditAiControl('+c.id+')" title="Edit" aria-label="Edit '+escChartAttr(c.ref)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
         '<button class="btn btn-sm btn-secondary" onclick="ormToggleAiControlActive('+c.id+','+(c.is_active?'0':'1')+')" title="'+(c.is_active?'Deactivate':'Activate')+'">'+(c.is_active?'&#8863;':'&#10003;')+'</button>'+
         (canDelete?'<button class="btn btn-sm btn-secondary" onclick="ormDeleteAiControl('+c.id+')" style="color:var(--red)" title="Delete">&#10005;</button>':''):'')+
       '</div></td>'+
@@ -2505,8 +2505,8 @@ window.ormLoadAims=async function(){
         '<td style="font-size:12px">'+esc(a.owner_name||'—')+'</td>'+
         '<td style="text-align:center"><span class="badge badge-draft">'+(a.risk_count||0)+'</span></td>'+
         '<td><div style="display:flex;gap:4px">'+
-          '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsDetail('+a.id+')" title="Open">&#128269;</button>'+
-          '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+a.id+'}))" title="Edit">&#9998;</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsDetail('+a.id+')" title="Open"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg></button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+a.id+'}))" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
           '<button class="btn btn-sm btn-secondary" onclick="ormDeleteAims('+a.id+')" style="color:var(--red)" title="Delete">&#10005;</button>'+
         '</div></td>'+
       '</tr>';
@@ -2605,7 +2605,7 @@ window.ormOpenAimsDetail=async function(assessId){
         (risks.length?risks.map(function(r){return ormAimsRiskRowHtml(r,assessId);}).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No risks yet. Click "+ Add Risk" to start.</div>')+
       '</div>'+
       '<div class="orm-drawer-footer">'+
-        '<button class="btn btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()">&#9998; Edit Assessment</button>'+
+        '<button class="btn btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Edit Assessment</button>'+
       '</div>'+
     '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
@@ -2737,7 +2737,7 @@ function ormAimsControlRowHtml(c,riskId){
     '</div>'+
     '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
       '<span style="font-size:11px;color:'+iceColor+';font-weight:700" title="ICE score (higher = stronger)">ICE '+(c.ice_score||0)+'%</span>'+
-      '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsRiskControlModal('+riskId+',window._aimsRiskDetailCache['+riskId+'].controls.find(function(x){return x.id==='+c.id+'}))" title="Edit">&#9998;</button>'+
+      '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsRiskControlModal('+riskId+',window._aimsRiskDetailCache['+riskId+'].controls.find(function(x){return x.id==='+c.id+'}))" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '<button class="btn btn-sm btn-secondary" onclick="ormDeleteAimsRiskControl('+c.id+','+riskId+')" style="color:var(--red)" title="Remove">&#10005;</button>'+
     '</div>'+
   '</div>';
@@ -2776,7 +2776,7 @@ window.ormOpenAimsRiskDetail=async function(riskId,assessId){
         '</div>'+
       '</div>'+
       '<div class="orm-drawer-footer">'+
-        '<button class="btn btn-secondary" onclick="ormEditAimsRisk('+backAssessId+',window._aimsRiskDetailCache['+riskId+']);ormCloseDrawer()">&#9998; Edit Risk</button>'+
+        '<button class="btn btn-secondary" onclick="ormEditAimsRisk('+backAssessId+',window._aimsRiskDetailCache['+riskId+']);ormCloseDrawer()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Edit Risk</button>'+
         '<button class="btn btn-secondary" onclick="ormDeleteAimsRisk('+riskId+','+backAssessId+');ormCloseDrawer()" style="color:var(--red)">Delete Risk</button>'+
       '</div>'+
     '</div></div>';
@@ -2965,7 +2965,7 @@ setInterval(function(){if(ormRouter.current==='dashboard')ormLoadDashboard();},3
 
 })();
 </script>
-<script src="/static/js/orm_kri_library.js?v=1"></script>
-<script src="/static/js/orm_rcsa_templates.js?v=1"></script>
+<script src="/static/js/orm_kri_library.js?v=2"></script>
+<script src="/static/js/orm_rcsa_templates.js?v=2"></script>
 <script src="/static/js/orm_deeplink.js?v=1"></script>
 {% endblock %}

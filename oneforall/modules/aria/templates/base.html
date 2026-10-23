@@ -233,7 +233,7 @@ table:not(.data-table) tbody tr:hover{background:var(--accent-bg,var(--surface2)
 {% if user and '/ask' not in request.url.path %}
 <div class="ask-fab" id="askFab" onclick="document.getElementById('askDrawer').classList.add('open');this.classList.add('hidden');" title="Ask ARIA">
   <span class="pulse"></span>
-  <span style="position:relative;">&#128172;</span>
+  <span style="position:relative;"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-message-square></use></svg></span>
 </div>
 <div class="ask-drawer" id="askDrawer" role="dialog">
   <div class="ask-drawer-header">
@@ -245,7 +245,7 @@ table:not(.data-table) tbody tr:hover{background:var(--accent-bg,var(--surface2)
   </div>
   <div class="ask-drawer-body" id="askDrawerBody">
     <div class="ask-drawer-empty" id="askDrawerEmpty">
-      <div class="big">&#128172;</div>
+      <div class="big"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-message-square></use></svg></div>
       <h4>Ask about any policy or control</h4>
       <p>Grounded answers from your policy corpus, controls and risk register.</p>
       <div class="ask-chip-row">
@@ -257,7 +257,7 @@ table:not(.data-table) tbody tr:hover{background:var(--accent-bg,var(--surface2)
   </div>
   <div class="ask-drawer-input">
     <textarea id="askDrawerInput" placeholder="Ask a question..." rows="1"></textarea>
-    <button type="button" class="ask-drawer-send" id="askDrawerSend" title="Send">&#10148;</button>
+    <button type="button" class="ask-drawer-send" id="askDrawerSend" title="Send"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-send></use></svg></button>
   </div>
 </div>
 {% endif %}

@@ -224,7 +224,7 @@ function filterPeople() {
 function renderGrid(people) {
   var el = document.getElementById('pdGrid');
   if (!people.length) {
-    el.innerHTML = '<div class="pd-empty" style="grid-column:1/-1"><div class="pd-empty-icon">&#128101;</div><div style="font-size:15px;font-weight:600">No people found</div><div style="font-size:13px;margin-top:4px">Add staff manually or import from Excel.</div></div>';
+    el.innerHTML = '<div class="pd-empty" style="grid-column:1/-1"><div class="pd-empty-icon"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg></div><div style="font-size:15px;font-weight:600">No people found</div><div style="font-size:13px;margin-top:4px">Add staff manually or import from Excel.</div></div>';
     return;
   }
   el.innerHTML = people.map(function(p) {

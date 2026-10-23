@@ -320,11 +320,11 @@
 'use strict';
 
 const PROVIDERS = [
-  { id:'google',          icon:'✉️',  name:'Google',        sub:'Gmail / Workspace' },
-  { id:'microsoft_smtp',  icon:'📧',  name:'Microsoft',     sub:'Office 365 SMTP' },
-  { id:'microsoft_graph', icon:'☁️',  name:'Microsoft',     sub:'Graph API (service acct)' },
-  { id:'smtp',            icon:'🔧',  name:'Custom SMTP',   sub:'Any SMTP server' },
-  { id:'console',         icon:'🖥️',  name:'Console only',  sub:'Log, no emails sent' },
+  { id:'google',          icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-mail></use></svg>',  name:'Google',        sub:'Gmail / Workspace' },
+  { id:'microsoft_smtp',  icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-mail></use></svg>',  name:'Microsoft',     sub:'Office 365 SMTP' },
+  { id:'microsoft_graph', icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-cloud></use></svg>',  name:'Microsoft',     sub:'Graph API (service acct)' },
+  { id:'smtp',            icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-wrench></use></svg>',  name:'Custom SMTP',   sub:'Any SMTP server' },
+  { id:'console',         icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-monitor></use></svg>',  name:'Console only',  sub:'Log, no emails sent' },
 ];
 
 let currentProvider = '';

@@ -30,7 +30,7 @@ html[data-theme="dusk"] .framework-ribbon{background:linear-gradient(108deg,#142
 .framework-ribbon:hover .ribbon-track,.framework-ribbon:focus-within .ribbon-track{animation-play-state:paused}
 .ribbon-set{display:flex;align-items:center;gap:30px;flex:none;padding:0 15px;white-space:nowrap}
 .ribbon-set span{display:inline-flex;align-items:center;gap:30px;font-size:clamp(18px,2vw,29px);font-weight:600;line-height:1.2;letter-spacing:-.045em;color:var(--muted)}
-.ribbon-set span::before{content:"✦";color:var(--accent);font:600 11px/1 var(--font);opacity:.67}
+.ribbon-set span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);opacity:.67}
 @keyframes framework-move{to{transform:translateX(-50%)}}
 .feature-section{padding-top:clamp(120px,13vw,210px);padding-bottom:clamp(130px,13vw,210px)}
 .feature-heading{display:flex;justify-content:space-between;align-items:end;gap:55px;margin-bottom:52px}
