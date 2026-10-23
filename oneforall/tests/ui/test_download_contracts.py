@@ -10,6 +10,8 @@ a DB query), unlike evidence's file-backed download
 (modules/evidence/routes.py's api_evidence_download). That one is left for a
 follow-up once this suite has a real uploaded-file fixture; see progress.md.
 """
+import re
+
 import httpx
 import pytest
 
@@ -27,14 +29,14 @@ def _login(base_url: str, username: str, password: str) -> httpx.Client:
 
 
 # (id, path, persona holding the required capability, expected content-type
-# prefix, expected filename in Content-Disposition)
+# prefix, expected timestamped filename in Content-Disposition)
 _DOWNLOADS = [
     ("erm_risk_register_csv", "/erm/api/export/csv", "risk_owner",
-     "text/csv", "erm_risk_register.csv"),
+     "text/csv", "ThemisIQ_enterprise_risk_register"),
     ("bcm_incidents_csv", "/bcm/api/export/csv", "bcm_manager",
-     "text/csv", "bcm_incidents_export.csv"),
+     "text/csv", "ThemisIQ_continuity_incidents"),
     ("orm_events_csv", "/orm/api/export/csv", "risk_owner",
-     "text/csv", "orm_events.csv"),
+     "text/csv", "ThemisIQ_operations_risk_events"),
 ]
 
 
@@ -67,7 +69,10 @@ def test_download_contract(live_app, synthetic_tenant, name, path, persona, cont
         )
         disposition = resp.headers.get("content-disposition", "")
         assert "attachment" in disposition, f"{name}: not served as an attachment: {disposition!r}"
-        assert filename in disposition, f"{name}: filename missing from Content-Disposition: {disposition!r}"
+        assert re.fullmatch(
+            rf'attachment; filename="{re.escape(filename)}_[0-9]{{8}}_[0-9]{{4}}\.csv"',
+            disposition,
+        ), f"{name}: unexpected Content-Disposition: {disposition!r}"
         assert len(resp.content) > 0, f"{name}: empty download body"
     finally:
         client.close()
