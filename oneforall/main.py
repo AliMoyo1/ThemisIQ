@@ -281,6 +281,13 @@ async def startup():
     except Exception as exc:
         log.warning("Event delivery sweeper failed to start: %s", exc)
 
+    # Start the expired session sweeper (purges sessions rows past expires_at, once now and then every hour)
+    try:
+        from core.session_sweeper import start_scheduler as session_sweeper_start
+        session_sweeper_start()
+    except Exception as exc:
+        log.warning("Session sweeper failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -376,6 +383,11 @@ async def shutdown():
     try:
         from core.event_sweeper import stop_scheduler as event_sweeper_stop
         event_sweeper_stop()
+    except Exception:
+        pass
+    try:
+        from core.session_sweeper import stop_scheduler as session_sweeper_stop
+        session_sweeper_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")

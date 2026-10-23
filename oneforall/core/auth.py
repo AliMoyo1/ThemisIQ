@@ -241,12 +241,19 @@ def rotate_session_in_db(db, user_id: int, current_token: str) -> str:
     return new_token
 
 
-def cleanup_expired_sessions():
-    """Remove expired sessions from the DB."""
-    db = get_db()
+def cleanup_expired_sessions() -> int:
+    """Remove expired sessions from the DB and return how many were removed.
+
+    Called by core/session_sweeper.py, a job with no request or org context, so it takes the RLS bypass connection
+    like get_session_user: a policy added to sessions later would otherwise make this delete nothing, silently.
+    expires_at is TEXT holding naive UTC isoformat() strings; compare with the same format, never with
+    CURRENT_TIMESTAMP or datetime('now') (a space instead of 'T' gives wrong same-day results).
+    """
+    db = get_db_bypass_rls()
     try:
-        db.execute("DELETE FROM sessions WHERE expires_at < %s", (utcnow().isoformat(),))
+        removed = db.execute("DELETE FROM sessions WHERE expires_at < %s", (utcnow().isoformat(),)).rowcount
         db.commit()
+        return removed
     finally:
         db.close()
 
