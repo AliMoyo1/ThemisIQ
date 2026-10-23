@@ -793,12 +793,7 @@ window.exportCSV = function(){
   if(liveData?.compliance_pct!==undefined && !snapshotData.length){
     rows.push(['compliance_pct', liveData.compliance_pct, 'aria', new Date().toISOString().slice(0,10)]);
   }
-  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob = new Blob([csv],{type:'text/csv'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `aegisgrc-analytics-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
+  TiqCsv.download('analytics', rows[0], rows.slice(1));
 };
 
 /* ── Init ─────────────────────────────────────────────────────────────────── */

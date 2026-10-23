@@ -234,12 +234,14 @@ def generate_board_narrative(stats: dict) -> str:
 
 
 def _stub_board_narrative(stats: dict) -> str:
-    total_plans = stats.get("plans", 0)
-    open_incidents = stats.get("open_incidents", 0)
+    total_plans, open_incidents = stats.get("plans"), stats.get("open_incidents")
+    said = [f"maintains **{total_plans}** continuity plan(s)" if total_plans is not None else "",
+            f"has **{open_incidents}** open incident(s)" if open_incidents is not None else ""]
+    said = " and ".join(part for part in said if part)
+    lead = f"The BCM programme currently {said}.\n\n" if said else "No plan or incident figure could be read for this person.\n\n"
     return (
         "## Executive Summary\n\n"
-        f"The BCM programme currently maintains **{total_plans}** continuity "
-        f"plans with **{open_incidents}** open incident(s).\n\n"
-        "Key areas of focus: updating plans due for review and completing scheduled exercises.\n\n"
+        + lead
+        + "Key areas of focus: updating plans due for review and completing scheduled exercises.\n\n"
         f"*[Stub narrative. Configure {provider_name()} API key for full AI generation.]*"
     )

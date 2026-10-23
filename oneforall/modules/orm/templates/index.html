@@ -394,7 +394,8 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-sm btn-secondary" onclick="ormExportCSV()">&#8595; Export CSV</button>
-      <button class="btn-orm-ai" id="ormBoardBtn" onclick="ormBoardReport(this)">&#128202; Board Report</button>
+      <button class="btn btn-sm btn-secondary" onclick="window.open('/orm/api/board-report/document','_blank')">&#8595; Board Report PDF</button>
+      <button class="btn-orm-ai" id="ormBoardBtn" onclick="ormBoardReport(this)">&#128202; AI Narrative</button>
     </div>
   </div>
 
@@ -1322,16 +1323,11 @@ window.ormSaveEvent=async function(id){
 };
 
 /* ─────────────────────────── EXPORT CSV ─────────────────────────── */
+/* One export for every "Export CSV" button: the server file, which holds every event the person may open (not only the page that
+   happens to be loaded) and writes any text that starts like a formula as text. */
 window.ormExportCSV=function(){
-  var src=evtCache.length?evtCache:[];
-  if(!src.length){if(typeof showToast==='function')showToast('No events loaded — open the Events view first','error');return;}
-  var cols=['id','title','event_type','severity','status','department','process_affected','financial_impact','customers_affected','downtime_minutes','root_cause_category','detected_at','resolved_at','created_at'];
-  var csv=cols.join(',')+'\n'+src.map(function(e){
-    return cols.map(function(c){var v=(e[c]===null||e[c]===undefined)?'':String(e[c]);return'"'+v.replace(/"/g,'""')+'"';}).join(',');
-  }).join('\n');
-  var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='orm_events_'+new Date().toISOString().split('T')[0]+'.csv';a.click();
-  if(typeof showToast==='function')showToast('CSV downloaded');
+  window.location.href='/orm/api/export/csv';
+  if(typeof showToast==='function')showToast('Downloading every event you may open');
 };
 
 /* ─────────────────────────── KRI SPARKLINE ─────────────────────────── */
@@ -1659,7 +1655,7 @@ window.ormBoardReport=async function(btn){
   try{
     var res=await apiFetch('/orm/api/ai/board-report',{method:'POST',body:{days:30}});
     btn.disabled=false;btn.textContent=orig;
-    ormOpenDocViewer('ORM Board Report — '+new Date().toLocaleDateString('en-GB'),res.narrative||'No narrative generated.');
+    ormOpenDocViewer('ORM Board Report: '+new Date().toLocaleDateString('en-GB'),(res.narrative||'No narrative generated.')+(res.narrative_check?'\n\n'+res.narrative_check:''));
   }catch(e){btn.disabled=false;btn.textContent=orig;if(typeof showToast==='function')showToast('Board report failed','error');}
 };
 

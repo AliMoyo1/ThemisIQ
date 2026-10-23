@@ -17,6 +17,11 @@
 
   function statusChip(status) { return AIGov.chip(STATUS_LABEL[status] || status, STATUS_KIND[status]); }
 
+  function documentLink(row, kind, text) {
+    return el('a', { class: kind, href: '/ai-governance/api/assessments/' + row.id + '/document', download: true, text: text,
+      'aria-label': text + ' of ' + (row.ref_number || 'this assessment') });
+  }
+
   function classChip(value) {
     if (!value) return AIGov.chip('Not scored', 'muted');
     if (value === 'unrated') return AIGov.chip('Unrated: no active rating framework', 'muted');
@@ -225,9 +230,10 @@
           el('td', {}, [classChip(row.overall_classification)]),
           el('td', {}, [statusChip(row.status)]),
           el('td', { text: row.business_unit || 'Whole organization' }),
-          el('td', { text: AIGov.date(row.updated_at) })]);
+          el('td', { text: AIGov.date(row.updated_at) }),
+          el('td', {}, [documentLink(row, 'btn btn-ghost btn-sm', 'PDF')])]);
       });
-      tableWrap.appendChild(table(['Reference', 'Title', 'AI system', 'Autonomy', 'Classification', 'Status', 'Business unit', 'Updated'], rows));
+      tableWrap.appendChild(table(['Reference', 'Title', 'AI system', 'Autonomy', 'Classification', 'Status', 'Business unit', 'Updated', 'Document'], rows));
     }
 
     var search = el('input', { type: 'search', value: current.q, autocomplete: 'off' });
@@ -386,12 +392,15 @@
       }),
       AIGov.field('as_business_unit_id', 'Business unit', unitSelect, 'Leave as it is to file the assessment under the AI system\'s unit, or yours.').row]);
 
+    var profileHost = el('div', { class: 'aig-panel', id: 'as_assurance_details' });
+    var profileDefinition = null;
+
     var actions = el('div', { class: 'aig-actions' });
     var saveBtn = el('button', { type: 'button', class: 'btn btn-primary', text: id ? 'Save changes' : 'Create assessment' });
     actions.appendChild(saveBtn);
     var deleteBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Delete this assessment', hidden: !id });
     actions.appendChild(deleteBtn);
-    [basics, impacts, mitigation, review, actions].forEach(function (node) { form.appendChild(node); });
+    [basics, impacts, mitigation, review, profileHost, actions].forEach(function (node) { form.appendChild(node); });
 
     // ── Impact rows ──────────────────────────────────────────────────────
 
@@ -441,6 +450,7 @@
       else line.push('Not linked to an AI system.');
       if (a.business_unit) line.push(' Business unit: ' + a.business_unit + '.');
       header.appendChild(el('p', { class: 'aig-muted' }, line));
+      header.appendChild(el('p', {}, [documentLink(a, 'btn btn-secondary btn-sm', 'Download PDF')]));
       if (a.title) titleNode.textContent = a.title;
     }
 
@@ -498,6 +508,7 @@
         if (value !== undefined) out[key] = value;
       });
       out.impacts = impactPayload();
+      Object.assign(out, RecordProfileFields.values(profileHost));
       if (id) out.version = state.version;
       return out;
     }
@@ -522,15 +533,19 @@
       summary.hidden = true;
       saveBtn.disabled = true;
       AIGov.say(say, 'Saving...');
+      var payload;
+      try { payload = body(); }
+      catch (err) { AIGov.say(say, err.message, 'bad'); saveBtn.disabled = false; return; }
       var request = id
-        ? AIGov.api('/ai-governance/api/assessments/' + id, 'PUT', body())
-        : AIGov.api('/ai-governance/api/assessments', 'POST', body());
+        ? AIGov.api('/ai-governance/api/assessments/' + id, 'PUT', payload)
+        : AIGov.api('/ai-governance/api/assessments', 'POST', payload);
       request.then(function (data) {
         var a = data.assessment;
         var created = !id;
         id = a.id;
         renderImpacts(a.impacts);
         apply(a);
+        RecordProfileFields.mount(profileHost, profileDefinition, a);
         saveBtn.textContent = 'Save changes';
         deleteBtn.hidden = !a.can.manage;
         if (created) global.history.replaceState(null, '', '/ai-governance/assessments/' + id);
@@ -560,9 +575,11 @@
       AIGov.api('/ai-governance/api/assessment-dimensions'),
       AIGov.api('/ai-governance/api/business-units').catch(function () { return { items: [] }; }),
       id ? AIGov.api('/ai-governance/api/assessments/' + id) : Promise.resolve(null),
-      !id && startApp ? AIGov.api('/ai-governance/api/systems/' + startApp + '/aiia-prefill').catch(function () { return null; }) : Promise.resolve(null)];
+      !id && startApp ? AIGov.api('/ai-governance/api/systems/' + startApp + '/aiia-prefill').catch(function () { return null; }) : Promise.resolve(null),
+      AIGov.api('/ai-governance/api/assessment-profile')];
     Promise.all(calls).then(function (parts) {
       var dims = parts[0].items, units = parts[1].items, loaded = parts[2], prefilled = parts[3];
+      profileDefinition = parts[4];
       units.forEach(function (u) { unitSelect.appendChild(el('option', { value: String(u.id), text: u.name })); });
       AIGov.say(say, '');
       form.hidden = false;
@@ -570,6 +587,7 @@
         var a = loaded.assessment;
         renderImpacts(a.impacts);
         apply(a);
+        RecordProfileFields.mount(profileHost, profileDefinition, a);
         if (!a.can.manage) setReadOnly();
         return;
       }
@@ -581,6 +599,7 @@
         Object.keys(prefilled.fields).forEach(function (k) { start[k] = prefilled.fields[k]; });
       }
       apply(null, start);
+      RecordProfileFields.mount(profileHost, profileDefinition, start);
       if (prefilled && prefilled.fields && prefilled.fields.application_id) {
         fields.application_id.set({ id: prefilled.fields.application_id, label: prefilled.fields.ai_system_name || 'This AI system',
           url: '/ai-governance/systems/' + prefilled.fields.application_id });

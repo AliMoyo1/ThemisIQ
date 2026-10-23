@@ -994,12 +994,14 @@ async def api_evidence_download_all(request: Request, control_id: int):
 
     ctrl = ds.get_control(control_id)
     ctrl_label = (ctrl.get("control_id") or ctrl.get("name") or str(control_id)) if ctrl else str(control_id)
-    zip_name = f"evidence_{ctrl_label}.zip".replace(" ", "_")
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    zip_name = identity.safe_filename(f"evidence_{ctrl_label}", "zip")      # a control name may hold a quote or a non Latin letter
 
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+        headers=download_headers(zip_name),
     )
 
 
@@ -1095,13 +1097,15 @@ async def api_evidence_audit_download_all(request: Request, audit_id: int):
                         "was unavailable. Review the items in the Vault.")
     buf.seek(0)
 
-    audit_name = (audit.get("name") or f"audit_{audit_id}").replace(" ", "_")
-    zip_name = f"evidence_{audit_name}.zip"
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    audit_name = audit.get("name") or f"audit_{audit_id}"
+    zip_name = identity.safe_filename(f"evidence_{audit_name}", "zip")      # an audit name may hold a quote or a non Latin letter
 
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+        headers=download_headers(zip_name),
     )
 
 
@@ -2003,41 +2007,21 @@ async def api_ai_checklist(request: Request, audit_id: int):
 @router.post("/api/ai/generate-report/{audit_id}")
 @require_capability("grid.ai.report")
 async def api_ai_generate_report(request: Request, audit_id: int):
-    """Generate AI narrative for an audit report."""
+    """Generate the AI narrative for an audit report, from the same figures the report itself shows, and say whether every
+    number in it was found in those figures."""
+    from modules.grid import report_service as rpt
+
     _audit_in_scope_or_404(request, audit_id)
-    audit = ds.get_audit(audit_id)
-    if not audit:
+    data = rpt.gather(audit_id)
+    if not data:
         raise HTTPException(404, "Audit not found")
-
-    controls = audit.get("controls", [])
-    total = len(controls)
-    complete = sum(1 for c in controls if c.get("status") == "Complete")
-    overdue = sum(
-        1 for c in controls
-        if c.get("status") != "Complete" and c.get("due_date", "") and c["due_date"] < date.today().isoformat()
-    )
-    pending = total - complete - overdue
-    critical_gaps = [
-        c["name"] for c in controls
-        if c.get("risk_level") == "Critical" and c.get("status") != "Complete"
-    ][:5]
-
+    fig = rpt.figures(data)
     try:
-        narrative = ai.generate_report_narrative({
-            "auditName": audit.get("name"),
-            "framework": audit.get("framework_name"),
-            "completionPct": round(complete / total * 100) if total else 0,
-            "totalControls": total,
-            "complete": complete,
-            "pending": pending,
-            "overdue": overdue,
-            "auditDate": audit.get("audit_date"),
-            "criticalGaps": critical_gaps,
-        })
+        narrative = ai.generate_report_narrative(rpt.narrative_inputs(data, fig))
     except RuntimeError as e:
         raise HTTPException(502, str(e))
-
-    return JSONResponse({"success": True, "narrative": narrative})
+    checked, note = rpt.checked_narrative(data, fig, narrative)
+    return JSONResponse({"success": True, "narrative": narrative, "verified": checked is not None, "narrative_check": note})
 
 
 @router.post("/api/ai/chat")
@@ -2389,47 +2373,31 @@ async def api_remote_participant_add(request: Request, sid: int):
 
 # ── Report Downloads ────────────────────────────────────────────────────────
 
-@router.get("/api/reports/pdf/{audit_id}")
-@require_capability("grid.ai.report")
-async def api_report_pdf(request: Request, audit_id: int):
-    """Generate and download a branded PDF audit report."""
+def _grid_report_tier(request: Request) -> str:
+    tier = (request.query_params.get("tier") or "operational").strip().lower()
+    if tier not in ("operational", "board"):
+        raise HTTPException(400, "tier must be operational or board")
+    return tier
+
+
+_REPORT_MEDIA = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+def _grid_report_response(request: Request, audit_id: int, fmt: str):
+    """Generate the audit report in one format and return it. The figures are read once and the AI narrative (best effort,
+    checked against those figures) is written from the same ones, so the narrative and the tables cannot disagree."""
     from modules.grid import report_service as rpt
 
     _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
-
-    # Build AI narrative (best-effort — report still works without it)
-    narrative = None
-    try:
-        controls = audit.get("controls", [])
-        total = len(controls)
-        complete = sum(1 for c in controls if c.get("status") == "Complete")
-        overdue = sum(
-            1 for c in controls
-            if c.get("status") != "Complete"
-            and c.get("due_date", "")
-            and c["due_date"] < date.today().isoformat()
-        )
-        narrative = ai.generate_report_narrative({
-            "auditName": audit.get("name"),
-            "framework": audit.get("framework_name"),
-            "completionPct": round(complete / total * 100) if total else 0,
-            "totalControls": total,
-            "complete": complete,
-            "pending": total - complete - overdue,
-            "overdue": overdue,
-            "auditDate": audit.get("audit_date"),
-            "criticalGaps": [
-                c["name"] for c in controls
-                if c.get("risk_level") == "Critical" and c.get("status") != "Complete"
-            ][:5],
-        })
-    except Exception:
-        pass  # AI unavailable — generate report without narrative
-
-    result = rpt.generate_pdf_report(audit_id, narrative)
+    tier = _grid_report_tier(request)
+    make = rpt.generate_pdf_report if fmt == "pdf" else rpt.generate_docx_report
+    result = make(audit_id, actor=request.state.user, tier=tier, narrative_fn=ai.generate_report_narrative)
 
     reports_root = Path(rpt.REPORTS_DIR).resolve()
     candidate_path = Path(result["filePath"]).resolve()
@@ -2444,99 +2412,34 @@ async def api_report_pdf(request: Request, audit_id: int):
 
     # Auto-save report record
     try:
-        fp = candidate_path
+        kind = "Board summary" if tier == "board" else "Audit report"
         ds.create_report({
             "audit_id": audit_id,
-            "report_type": "pdf",
-            "title": f"{audit.get('name', 'Audit')} - PDF Report",
+            "report_type": fmt,
+            "title": f"{audit.get('name', 'Audit')}: {kind} ({fmt.upper()})",
             "filename": filename,
             "file_path": file_path,
-            "file_size": fp.stat().st_size if fp.exists() else 0,
+            "file_size": candidate_path.stat().st_size,
             "generated_by": _uid(request),
         })
     except Exception:
         pass  # Best-effort persistence
 
-    return FileResponse(
-        file_path,
-        media_type="application/pdf",
-        filename=filename,
-    )
+    return FileResponse(file_path, media_type=_REPORT_MEDIA[fmt], filename=filename)
+
+
+@router.get("/api/reports/pdf/{audit_id}")
+@require_capability("grid.ai.report")
+async def api_report_pdf(request: Request, audit_id: int):
+    """Generate and download the audit report as a PDF: `?tier=board` for the short summary for the board."""
+    return _grid_report_response(request, audit_id, "pdf")
 
 
 @router.get("/api/reports/docx/{audit_id}")
 @require_capability("grid.ai.report")
 async def api_report_docx(request: Request, audit_id: int):
-    """Generate and download a branded DOCX audit report."""
-    from modules.grid import report_service as rpt
-
-    _audit_in_scope_or_404(request, audit_id)
-    audit = ds.get_audit(audit_id)
-    if not audit:
-        raise HTTPException(404, "Audit not found")
-
-    # Build AI narrative (best-effort)
-    narrative = None
-    try:
-        controls = audit.get("controls", [])
-        total = len(controls)
-        complete = sum(1 for c in controls if c.get("status") == "Complete")
-        overdue = sum(
-            1 for c in controls
-            if c.get("status") != "Complete"
-            and c.get("due_date", "")
-            and c["due_date"] < date.today().isoformat()
-        )
-        narrative = ai.generate_report_narrative({
-            "auditName": audit.get("name"),
-            "framework": audit.get("framework_name"),
-            "completionPct": round(complete / total * 100) if total else 0,
-            "totalControls": total,
-            "complete": complete,
-            "pending": total - complete - overdue,
-            "overdue": overdue,
-            "auditDate": audit.get("audit_date"),
-            "criticalGaps": [
-                c["name"] for c in controls
-                if c.get("risk_level") == "Critical" and c.get("status") != "Complete"
-            ][:5],
-        })
-    except Exception:
-        pass
-
-    result = rpt.generate_docx_report(audit_id, narrative)
-
-    reports_root = Path(rpt.REPORTS_DIR).resolve()
-    candidate_path = Path(result["filePath"]).resolve()
-    try:
-        candidate_path.relative_to(reports_root)
-    except ValueError:
-        raise HTTPException(400, "Invalid report path")
-    if not candidate_path.exists() or not candidate_path.is_file():
-        raise HTTPException(404, "Generated report not found")
-    filename = candidate_path.name
-    file_path = str(candidate_path)
-
-    # Auto-save report record
-    try:
-        fp = candidate_path
-        ds.create_report({
-            "audit_id": audit_id,
-            "report_type": "docx",
-            "title": f"{audit.get('name', 'Audit')} - DOCX Report",
-            "filename": filename,
-            "file_path": file_path,
-            "file_size": fp.stat().st_size if fp.exists() else 0,
-            "generated_by": _uid(request),
-        })
-    except Exception:
-        pass  # Best-effort persistence
-
-    return FileResponse(
-        file_path,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=filename,
-    )
+    """Generate and download the audit report as a Word document: `?tier=board` for the short summary for the board."""
+    return _grid_report_response(request, audit_id, "docx")
 
 
 @router.get("/api/reports/list")

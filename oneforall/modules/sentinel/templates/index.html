@@ -347,7 +347,7 @@
     <div class="header-actions">
       <button class="btn btn-secondary" onclick="snExportReport()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Export Report
+        Export Evidence Pack
       </button>
     </div>
   </div>
@@ -444,6 +444,7 @@
           <div class="ring-item"><div class="ring-dot" style="background:var(--red)"></div><div class="ring-lbl">High Risk</div><div class="ring-val" id="snRiskHighVal">0</div></div>
           <div class="ring-item"><div class="ring-dot" style="background:var(--amber)"></div><div class="ring-lbl">Medium Risk</div><div class="ring-val" id="snRiskMedVal">0</div></div>
           <div class="ring-item"><div class="ring-dot" style="background:var(--green-status)"></div><div class="ring-lbl">Low Risk</div><div class="ring-val" id="snRiskLowVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" style="background:var(--surface3)"></div><div class="ring-lbl">Not rated</div><div class="ring-val" id="snRiskUnratedVal">0</div></div>
         </div>
       </div>
     </div>
@@ -709,26 +710,31 @@
     </div>
   </div>
   <div class="stats-row" style="margin-bottom:24px">
-    <div class="stat-card" style="cursor:pointer" onclick="window.open('/sentinel/api/audit-export?format=csv','_blank')">
-      <div class="stat-label">Audit Log Export</div>
+    <div class="stat-card" style="cursor:pointer" onclick="snDownload('/sentinel/api/audit/export')">
+      <div class="stat-label">Audit Trail</div>
       <div class="stat-value" style="font-size:16px">CSV</div>
-      <div class="stat-sub">Download full audit trail</div>
+      <div class="stat-sub">Every recorded action, newest first</div>
     </div>
     <div class="stat-card" style="cursor:pointer" onclick="snGenerateReport('ropa')">
       <div class="stat-label">RoPA Report</div>
-      <div class="stat-value" style="font-size:16px">Generate</div>
-      <div class="stat-sub">Processing activities summary</div>
+      <div class="stat-value" style="font-size:16px">PDF</div>
+      <div class="stat-sub">Operational report: the processing register</div>
+      <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="event.stopPropagation();snGenerateReport('ropa','xlsx')">Excel</button>
     </div>
     <div class="stat-card" style="cursor:pointer" onclick="snGenerateReport('compliance')">
       <div class="stat-label">Compliance Score</div>
       <div class="stat-value" id="snCompScore" style="font-size:16px">&mdash;</div>
-      <div class="stat-sub">Overall privacy compliance</div>
+      <div class="stat-sub">Board report: the score and what drives it</div>
+      <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="event.stopPropagation();snGenerateReport('compliance','xlsx')">Excel</button>
     </div>
+    {% if can_manage_breach_obligations %}
     <div class="stat-card" style="cursor:pointer" onclick="snGenerateReport('breach')">
       <div class="stat-label">Breach Report</div>
-      <div class="stat-value" style="font-size:16px">Generate</div>
-      <div class="stat-sub">Incident response summary</div>
+      <div class="stat-value" style="font-size:16px">PDF</div>
+      <div class="stat-sub">Operational report: the breach register</div>
+      <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="event.stopPropagation();snGenerateReport('breach','xlsx')">Excel</button>
     </div>
+    {% endif %}
   </div>
   <div class="card">
     <div class="card-header"><div class="card-title">Audit Trail</div></div>
@@ -1038,6 +1044,8 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<link rel="stylesheet" href="/static/css/record_profile_fields.css?v=1">
+<script src="/static/js/record_profile_fields.js?v=1"></script>
 <script src="/static/js/ai-guidance-dialog.js"></script>
 <script src="/static/js/thinking-trace.js"></script>
 <script>
@@ -1107,6 +1115,7 @@
   }
   function riskBadge(level){
     var map={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};
+    if(!level)return '<span class="badge" style="color:var(--muted)">Not rated</span>';
     var cls=map[(level||'').toLowerCase()]||'badge-low';
     return '<span class="badge '+cls+'">'+esc((level||'N/A').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span>';
   }
@@ -1349,12 +1358,14 @@
     var known=mHas(m);
     var dpia=known?m.detail:{};
     var counts=[Math.max(0,dpia.high||0),Math.max(0,dpia.medium||0),Math.max(0,dpia.low||0)];
-    var total=counts.reduce(function(sum,n){return sum+n;},0);
+    var unrated=Math.max(0,dpia.unrated||0);
+    var total=counts.reduce(function(sum,n){return sum+n;},0)+unrated;
     var circ=2*Math.PI*42;
     document.getElementById('snRiskTotal').textContent=known?total:'\u2014';
     document.getElementById('snRiskHighVal').textContent=known?counts[0]:'\u2014';
     document.getElementById('snRiskMedVal').textContent=known?counts[1]:'\u2014';
     document.getElementById('snRiskLowVal').textContent=known?counts[2]:'\u2014';
+    document.getElementById('snRiskUnratedVal').textContent=known?unrated:'\u2014';
     function paint(){
       var angle=-90;
       ['snRiskHigh','snRiskMed','snRiskLow'].forEach(function(id,i){
@@ -1395,7 +1406,7 @@
     var list=allDsrItems||[];
     renderDashDsrTable(status==='all'?list:list.filter(function(d){return status==='open'?(d.status==='open'||d.status==='new'):status==='completed'?(d.status==='completed'||d.status==='closed'):d.status===status;}));
   };
-  window.snExportReport=function(){window.open('/sentinel/api/audit-export?format=csv','_blank');};
+  window.snExportReport=function(){window.open('/sentinel/api/audit-export','_blank');};
 
   async function loadDashboard(){
     var data=null;
@@ -1491,7 +1502,7 @@
       var items=data.records||data.items||data||[];
       ropaCache=items;
       // Stats
-      var now=new Date();
+      var today=new Date();today.setHours(0,0,0,0);
       var high=items.filter(function(r){return r.risk_level==='high'||r.risk_level==='critical';}).length;
       var dpiaGap=items.filter(function(r){return (r.dpia_required||r.risk_level==='high'||r.risk_level==='critical')&&!r.dpia_id;}).length;
       var overdue=items.filter(function(r){return r.review_date&&new Date(r.review_date)<now;}).length;
@@ -1581,9 +1592,9 @@
       var now=new Date();
       var inProg=items.filter(function(d){return d.status==='in_progress';}).length;
       var done=items.filter(function(d){return d.status==='completed'||d.status==='approved';}).length;
-      var highRisk=items.filter(function(d){return(d.risk_level||d.overall_risk)==='high';}).length;
+      var highRisk=items.filter(function(d){return d.overall_risk==='high';}).length;
       var overdue=items.filter(function(d){
-        return d.due_date&&new Date(d.due_date)<now&&d.status!=='completed'&&d.status!=='approved';
+        return d.due_date&&new Date(String(d.due_date).substring(0,10)+'T00:00:00')<today&&d.status!=='completed'&&d.status!=='approved';
       }).length;
       snPopulateTabStats('snDpiaStats',[
         {label:'Total DPIAs',value:items.length,sub:'assessments'},
@@ -1610,6 +1621,7 @@
       '<button class="btn-ai" onclick="snAiResearchDpia('+d.id+',this)" title="AI: generate research report">🔬</button>'+
       '<button class="btn-ai" onclick="snAiGenerateDpia('+d.id+',this)" title="AI: generate full DPIA document">✨</button>'+
       (hasDoc?'<button class="btn-ai" onclick="snViewDpiaDoc('+d.id+')" title="View generated document">📄</button>':'')+
+      '<a class="btn btn-sm btn-secondary" href="/sentinel/api/dpias/'+d.id+'/document" title="Download this assessment as a PDF" aria-label="Download PDF of '+esc(d.title||'this assessment')+'" style="padding:4px 8px;font-size:11px">PDF</a>'+
       '<button class="btn btn-sm btn-secondary" onclick="snDeleteRecord(\'dpia\','+d.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
       '</button>'+
@@ -1625,7 +1637,7 @@
       return '<tr>'+
         '<td><strong>'+esc(d.title||d.name||'')+'</strong>'+(d.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(d.ref_number)+'</span>':'')+'</td>'+
         '<td>'+(d.ropa_ref?'<span class="item-id" style="cursor:pointer" onclick="sentinelRouter.navigate(\'/sentinel/ropa\')" title="'+esc(d.ropa_name||'')+'">'+esc(d.ropa_ref)+'</span>':'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'+
-        '<td>'+riskBadge(d.risk_level||d.overall_risk||d.risk)+'</td>'+
+        '<td>'+riskBadge(d.overall_risk)+'</td>'+
         '<td>'+residual+'</td>'+
         '<td>'+dpoCell+'</td>'+
         '<td>'+statusBadge(d.status)+'</td>'+
@@ -1871,6 +1883,7 @@
     var r=(id!==null&&id!==undefined)?ropaCache.find(function(x){return x.id===id;}):null;
     var isEdit=!!(r&&r.id);
     var f=function(field,def){return r?(r[field]!==undefined&&r[field]!==null?r[field]:''):(def||'');};
+    var initialReg=f('regulation',snPrimaryJurisdiction||'GDPR');
     var regs=['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR','Zimbabwe CDPA','UAE PDPL','Saudi PDPL','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','Japan APPI','South Korea PIPA'];
 
     var html=
@@ -1900,12 +1913,12 @@
           '<div class="form-group"><label for="rd_legal_basis" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Legal Basis'+
           ' <button type="button" class="btn-ai" style="font-size:10px;padding:2px 7px;margin-left:6px" onclick="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose">🧠 Suggest</button></label>'+
           '<select id="rd_legal_basis" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box"><option value="">Select...</option>'+
-          (SN_LEGAL_BASES[f('regulation','GDPR')]||SN_LEGAL_BASES['GDPR']).map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+
+          (SN_LEGAL_BASES[initialReg]||[]).map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+
           '</select><div id="snLegalBasisSuggestion" style="display:none;margin-top:8px"></div></div>'+
           '<div class="form-row">'+snDrawerField('rd_status','Status','select',f('status','active'),false,['active','draft','archived'])+
           '<div class="form-group"><label for="rd_regulation" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Jurisdiction</label>'+
-          '<select id="rd_regulation" onchange="snRopaUpdateLegalBasis(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">'+
-          '<option value="">Select...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(f('regulation','GDPR')===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+
+          '<select id="rd_regulation" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">'+
+          '<option value="">Select...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(initialReg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+
           '</select></div>'+
           '</div>'+
           snDrawerField('rd_notes','Notes','textarea',f('notes'))+
@@ -1941,12 +1954,13 @@
 
         // Tab: Risk & Compliance
         '<div class="ropa-drawer-section" id="snRopaTab_risk">'+
-          '<div class="form-row">'+snDrawerField('rd_risk','Risk Level','select',f('risk_level','low'),false,['low','medium','high','critical'])+snDrawerField('rd_review_date','Next Review Date','date',f('review_date'))+'</div>'+
+          '<div class="form-row">'+snDrawerField('rd_risk','Risk Level','select',f('risk_level'),false,['low','medium','high','critical'])+snDrawerField('rd_review_date','Next Review Date','date',f('review_date'))+'</div>'+
           '<label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:14px">'+
             '<input type="checkbox" id="rd_dpia_req"'+(f('dpia_required')?' checked':'')+' style="width:16px;height:16px">'+
             '<strong>DPIA Required</strong> <span style="color:var(--muted);font-size:12px">(mark if Article 35 applies)</span>'+
           '</label>'+
           snDrawerField('rd_security','Security Measures Applied','textarea',f('security_measures'),false,null,'Technical and organisational measures protecting this processing activity')+
+          '<div id="snRopaProfileFields"></div>'+
           (isEdit&&r.ai_risk_notes?'<div class="ai-risk-panel"><div class="ai-risk-panel-label">🧠 AI Risk Assessment</div>'+esc(r.ai_risk_notes)+'</div>':'')+
         '</div>'+
       '</div>'+
@@ -1959,6 +1973,20 @@
     '</div></div>';
 
     document.body.insertAdjacentHTML('beforeend',html);
+    RecordProfileFields.mount(document.getElementById('snRopaProfileFields'),
+      '/sentinel/api/record-profile/ropa?regulation='+encodeURIComponent(initialReg),r||{})
+      .then(function(profile){
+        RecordProfileFields.fillRegulations(document.getElementById('rd_regulation'),profile,initialReg);
+        RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile,f('legal_basis'));
+      })
+      .catch(function(e){var host=document.getElementById('snRopaProfileFields');if(host)host.textContent=e.message;});
+    document.getElementById('rd_regulation').addEventListener('change',function(){
+      var host=document.getElementById('snRopaProfileFields'),draft=Object.assign({},r||{});
+      if(host.dataset.ready==='true')Object.assign(draft,RecordProfileFields.values(host));
+      RecordProfileFields.mount(host,'/sentinel/api/record-profile/ropa?regulation='+encodeURIComponent(this.value),draft)
+        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile);})
+        .catch(function(e){host.textContent=e.message;});
+    });
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#snRopaDrawerWrap .ropa-drawer'));
     snRenderChipPicker('snRopaDC',SN_DATA_CATEGORIES,f('data_categories'));
     snRenderChipPicker('snRopaSC',SN_SPECIAL_CATS,f('special_categories'));
@@ -1992,7 +2020,7 @@
     var data={
       processing_name:g('rd_name'),department:g('rd_dept'),owner:g('rd_owner'),
       purpose:g('rd_purpose'),legal_basis:g('rd_legal_basis'),
-      status:g('rd_status'),regulation:g('rd_regulation')||'GDPR',notes:g('rd_notes'),
+      status:g('rd_status'),regulation:g('rd_regulation')||snPrimaryJurisdiction||'GDPR',notes:g('rd_notes'),
       data_categories:snGetChips('snRopaDC').concat(g('rd_data_cats')?[g('rd_data_cats')]:[]),
       special_categories:snGetChips('snRopaSC').concat(g('rd_special_cats')?[g('rd_special_cats')]:[]),
       data_subjects:g('rd_subjects'),subject_count:g('rd_subject_count'),
@@ -2004,6 +2032,8 @@
       dpia_required:document.getElementById('rd_dpia_req')&&document.getElementById('rd_dpia_req').checked?1:0,
       security_measures:g('rd_security')
     };
+    try{Object.assign(data,RecordProfileFields.values(document.getElementById('snRopaProfileFields')));}
+    catch(e){if(typeof showToast==='function')showToast(e.message,'error');return;}
     if(!data.processing_name){if(typeof showToast==='function')showToast('Activity name is required','error');return;}
     if(btn){btn.disabled=true;btn.textContent='Saving...';}
     try{
@@ -2247,16 +2277,17 @@
           fg('DPIA Title <span style="color:var(--red)">*</span>','<input type="text" id="dd_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer profiling: AI risk scoring" style="'+fs+'">')+
           fg('Processing Activity Type','<select id="dd_activity_type" style="'+fs+'"><option value="">Select activity type...</option>'+SN_ACTIVITY_TYPES.map(function(a){return '<option value="'+esc(a)+'"'+(f('activity_type')===a?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select>')+
           '<div class="form-row">'+
-            fg('Jurisdiction','<select id="dd_regulation" onchange="snDpiaUpdateLegalBasis(this.value);snDpiaUpdateJurisHint(this.value)" style="'+fs+'"><option value="">Select jurisdiction...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(reg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+'</select>')+
+            fg('Jurisdiction','<select id="dd_regulation" onchange="snDpiaUpdateJurisHint(this.value)" style="'+fs+'"><option value="">Select jurisdiction...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(reg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+'</select>')+
             fg('Status','<select id="dd_status" style="'+fs+'">'+['draft','in_progress','completed','approved'].map(function(s){return '<option value="'+s+'"'+(f('status','draft')===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select>')+
           '</div>'+
           '<div class="juris-info-banner" id="ddJurisHint" style="margin-bottom:12px"></div>'+
           fg('Legal Basis','<select id="dd_legal_basis" style="'+fs+'"><option value="">Select...</option>'+lbOpts.map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>')+
           '<div class="form-row">'+
-            fg('Assessor / Owner','<input type="text" id="dd_assessor" value="'+esc(f('assessor'))+'" placeholder="Name or team" style="'+fs+'">')+
+            fg('Assessor / Owner','<input type="text" id="dd_owner" value="'+esc(f('owner'))+'" placeholder="Name or team" style="'+fs+'">')+
             fg('Due Date','<input type="date" id="dd_due_date" value="'+esc(f('due_date'))+'" style="'+fs+'">')+
           '</div>'+
           fg('Description','<textarea id="dd_description" rows="3" placeholder="Overview of this processing and why a DPIA is needed" style="'+fsta+'">'+esc(f('description'))+'</textarea>')+
+          fg('Processing operations','<textarea id="dd_activity_desc" rows="3" placeholder="Describe collection, analysis, disclosure and deletion" style="'+fsta+'">'+esc(f('activity_desc')||f('description'))+'</textarea>')+
           fg('Linked RoPA'+(isEdit?'':' <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>'),
             '<select id="dd_ropa_link" style="'+fs+'"'+(isEdit?' onchange="snDpiaLinkRopa('+id+',this.value)"':'')+'>'+
               '<option value="">— None —</option>'+
@@ -2289,11 +2320,13 @@
             fg('International Transfer','<select id="dd_intl_transfer" style="'+fs+'"><option value="">—</option>'+['Yes','No','Planned'].map(function(o){return '<option value="'+o+'"'+(f('intl_transfer')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
             fg('Transfer Mechanism','<select id="dd_transfer_mech" style="'+fs+'"><option value="">—</option>'+['Adequacy Decision','SCCs','BCRs','Consent','Derogation','None'].map(function(o){return '<option value="'+o+'"'+(f('transfer_mech')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
           '</div>'+
+          fg('Transfer destination','<input type="text" id="dd_transfer_dest" value="'+esc(f('transfer_dest'))+'" placeholder="Country or international organisation" style="'+fs+'">')+
         '</div>'+
 
         '<div class="ropa-drawer-section" id="snDpiaTab_risks">'+
           fg('Purpose of Processing','<textarea id="dd_purpose" rows="3" placeholder="Why is this data processed? Is it necessary and proportionate?" style="'+fsta+'">'+esc(f('purpose'))+'</textarea>')+
-          fg('Necessity & Proportionality','<textarea id="dd_necessity" rows="3" placeholder="Could the purpose be achieved with less data or less intrusive means?" style="'+fsta+'">'+esc(f('necessity'))+'</textarea>')+
+          fg('Necessity','<textarea id="dd_necessity" rows="3" placeholder="Why is the processing needed for this purpose?" style="'+fsta+'">'+esc(f('necessity'))+'</textarea>')+
+          fg('Proportionality','<textarea id="dd_proportionality" rows="3" placeholder="Why is the extent of processing justified? Consider less intrusive options." style="'+fsta+'">'+esc(f('proportionality'))+'</textarea>')+
           '<div class="form-group">'+
             '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
               '<label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0">Identified Risks</label>'+
@@ -2315,6 +2348,7 @@
             '<strong>DPO Consulted</strong>'+
           '</label>'+
           fg('Consultation Notes','<textarea id="dd_consult_notes" rows="3" placeholder="Notes from DPO or supervisory authority consultation" style="'+fsta+'">'+esc(f('consult_notes'))+'</textarea>')+
+          '<div id="snDpiaProfileFields"></div>'+
           (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label">🧠 AI Document available</div><button class="btn-ai" onclick="snViewDpiaDoc('+id+')" style="margin-top:4px">📄 View Document</button></div>':'')+
         '</div>'+
       '</div>'+
@@ -2326,6 +2360,20 @@
       '</div>'+
     '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    RecordProfileFields.mount(document.getElementById('snDpiaProfileFields'),
+      '/sentinel/api/record-profile/dpia?regulation='+encodeURIComponent(reg),r||{})
+      .then(function(profile){
+        RecordProfileFields.fillRegulations(document.getElementById('dd_regulation'),profile,reg);
+        RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile,f('legal_basis'));
+      })
+      .catch(function(e){var host=document.getElementById('snDpiaProfileFields');if(host)host.textContent=e.message;});
+    document.getElementById('dd_regulation').addEventListener('change',function(){
+      var host=document.getElementById('snDpiaProfileFields'),draft=Object.assign({},r||{});
+      if(host.dataset.ready==='true')Object.assign(draft,RecordProfileFields.values(host));
+      RecordProfileFields.mount(host,'/sentinel/api/record-profile/dpia?regulation='+encodeURIComponent(this.value),draft)
+        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile);})
+        .catch(function(e){host.textContent=e.message;});
+    });
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDpiaDrawerWrap').firstElementChild);
     snRenderChipPicker('snDpiaDC',SN_DATA_CATEGORIES,f('data_categories'));
     snRenderChipPicker('snDpiaSC',SN_SPECIAL_CATS,f('special_cats'));
@@ -2350,12 +2398,13 @@
     var data={
       title:title,activity_type:g('dd_activity_type'),regulation:g('dd_regulation')||'GDPR',
       status:g('dd_status')||'draft',legal_basis:g('dd_legal_basis'),
-      assessor:g('dd_assessor'),due_date:g('dd_due_date'),description:g('dd_description'),
+      owner:g('dd_owner'),due_date:g('dd_due_date'),description:g('dd_description'),
+      activity_desc:g('dd_activity_desc'),proportionality:g('dd_proportionality'),
       data_categories:snGetChips('snDpiaDC'),
       special_cats:snGetChips('snDpiaSC'),
       data_subjects:g('dd_data_subjects'),subject_count:g('dd_subject_count'),
       retention:g('dd_retention'),systems:g('dd_systems'),processors:g('dd_processors'),
-      intl_transfer:g('dd_intl_transfer'),transfer_mech:g('dd_transfer_mech'),
+      intl_transfer:g('dd_intl_transfer'),transfer_mech:g('dd_transfer_mech'),transfer_dest:g('dd_transfer_dest'),
       purpose:g('dd_purpose'),necessity:g('dd_necessity'),
       risks:[g('dd_risks')].filter(Boolean),
       mitigations:g('dd_mitigations'),overall_risk:g('dd_overall_risk'),
@@ -2363,6 +2412,8 @@
       dpo_consulted:document.getElementById('dd_dpo_consulted')&&document.getElementById('dd_dpo_consulted').checked?1:0,
       consult_notes:g('dd_consult_notes')
     };
+    try{Object.assign(data,RecordProfileFields.values(document.getElementById('snDpiaProfileFields')));}
+    catch(e){if(typeof showToast==='function')showToast(e.message,'error');return;}
     if(btn){btn.disabled=true;btn.textContent='Saving...';}
     try{
       if(id){
@@ -2672,11 +2723,13 @@
     try{
       var score=await apiFetch('/sentinel/api/compliance-score');
       var el=document.getElementById('snCompScore');
-      if(el) el.textContent=(score.score||score.overall||'--')+'%';
+      if(el) el.textContent=(score.overall===null||score.overall===undefined)?'Not measured':score.overall+'%';
     }catch(e){}
   };
-  window.snGenerateReport=function(type){
-    window.open('/sentinel/api/audit-export?format=csv&type='+encodeURIComponent(type),'_blank');
+  window.snDownload=function(url){window.open(url,'_blank');};
+  /* type: ropa | breach | compliance; format: pdf (the default) or xlsx */
+  window.snGenerateReport=function(type,format){
+    window.snDownload('/sentinel/api/reports/'+encodeURIComponent(type)+'?format='+encodeURIComponent(format||'pdf'));
   };
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -2758,7 +2811,7 @@
         {name:'residual_risk',label:'Residual Risk (post-mitigation)',type:'select',options:['low','medium','high']},
         {name:'risk_level',label:'Assessment Risk Level',type:'select',options:['low','medium','high']},
         {name:'status',label:'Status',type:'select',options:['draft','in_progress','completed','approved']},
-        {name:'assessor',label:'Assessor',type:'text'},
+        {name:'owner',label:'Assessor / Owner',type:'text'},
         {name:'due_date',label:'Due Date',type:'date'},
         {name:'dpo_consulted',label:'DPO Consulted',type:'select',options:['0','1']},
         {name:'consult_notes',label:'Consultation Notes',type:'textarea'},
@@ -2922,14 +2975,28 @@
         {name:'org_name',label:'Organisation Name',type:'text',required:true},
         {name:'country',label:'Country',type:'text'},
         {name:'sector',label:'Sector / Industry',type:'text'},
-        {name:'role',label:'Role',type:'select',options:['joint_controller','processor','dpo','regulator']},
+        {name:'role',label:'Role',type:'select',options:['controller','joint_controller','processor','dpo','regulator']},
+        {name:'is_primary',label:'Primary organisation',type:'select',options:['0','1']},
         {name:'registration_number',label:'Registration Number',type:'text'},
+        {name:'address',label:'Registered address',type:'textarea'},
         {name:'controller_name',label:'Controller Contact Name',type:'text'},
         {name:'controller_email',label:'Controller Contact Email',type:'text'},
+        {name:'controller_phone',label:'Controller Contact Phone',type:'text'},
         {name:'dpo_name',label:'DPO Name',type:'text'},
         {name:'dpo_email',label:'DPO Email',type:'text'},
+        {name:'dpo_phone',label:'DPO Phone',type:'text'},
+        {name:'representative',label:'Representative',type:'text'},
+        {name:'representative_contact',label:'Representative Contact',type:'text'},
+        {name:'contact_name',label:'Joint Controller Contact Name',type:'text'},
+        {name:'contact_email',label:'Joint Controller Contact Email',type:'text'},
         {name:'regulator_name',label:'Regulator',type:'text'},
+        {name:'regulator_ref',label:'Regulator Reference',type:'text'},
+        {name:'regulation',label:'Regulation',type:'text'},
+        {name:'agreement_date',label:'Agreement Date',type:'date'},
         {name:'agreement_ref',label:'Agreement Reference',type:'text'},
+        {name:'responsibilities',label:'Agreed Responsibilities',type:'textarea'},
+        {name:'record_owner',label:'Register Owner',type:'text'},
+        {name:'last_full_review',label:'Last Full Review',type:'date'},
         {name:'notes',label:'Notes',type:'textarea'}
       ]
     },

@@ -1,5 +1,33 @@
 {
   "routes": {
+    "GET /sentinel/api/record-profile/{record}": {
+      "maturity": "gated",
+      "notes": "RoPA and DPIA field definitions require Privacy module access. Jurisdiction references are researched but not approved legal wording; users must review them before filing."
+    },
+    "GET /ai-governance/api/assessment-profile": {
+      "maturity": "gated",
+      "notes": "AI impact assessment field definitions require assessment view access. The profile is an internal assurance template, not an independent decision or approved statutory checklist."
+    },
+    "GET /sentinel/api/reports/{kind}": {
+      "maturity": "gated",
+      "notes": "RoPA and compliance score documents need module access; the breach register also needs sentinel.breach.manage, checked in the handler as the breach list does. Records are limited to the caller's business units."
+    },
+    "GET /sentinel/api/audit-export": {
+      "maturity": "gated",
+      "notes": "Each part of the evidence pack needs the capability of its own list (breach, request, impact assessment, vendor); a part the caller may not open is left out and named in the README."
+    },
+    "GET /sentinel/api/dpias/{dpia_id}/document": {
+      "maturity": "gated",
+      "notes": "One DPIA as PDF or Excel. Requires sentinel.dpia.manage, scoped record access, and an audited download. Related records and Vault files follow the reader's access."
+    },
+    "GET /bcm/api/plans/{plan_id}/document": {
+      "maturity": "gated",
+      "notes": "One continuity plan as PDF or Excel. Requires BCM module access, scoped plan access, and an audited download. Covered processes are scoped separately."
+    },
+    "GET /ai-governance/api/assessments/{assessment_id}/document": {
+      "maturity": "gated",
+      "notes": "One AI impact assessment as PDF or Excel. Requires ai_assessment.view, scoped assessment access, and an audited download. Hidden linked records are omitted."
+    },
     "GET /aria/documents/{doc_id}/workbench": {
       "maturity": "gated",
       "notes": "Implemented page; ARIA module access is required."

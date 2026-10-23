@@ -2522,12 +2522,17 @@
             'Word Report'+
           '</button>'+
         '</div>'+
+        '<div style="display:flex;gap:10px;margin-top:8px">'+
+          '<button onclick="downloadReport('+a.id+',\'pdf\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" style="flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Board summary (PDF)</button>'+
+          '<button onclick="downloadReport('+a.id+',\'docx\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" style="flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Board summary (Word)</button>'+
+        '</div>'+
         '<div id="reportTrace'+a.id+'" style="display:none;margin-top:10px"></div>'+
       '</div>';
     }).join('');
   }
 
-  window.downloadReport=async function(auditId,format,btn){
+  window.downloadReport=async function(auditId,format,btn,tier){
+    const board=tier==='board';
     const origHTML=btn.innerHTML;
     btn.disabled=true;
     btn.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/></svg>Generating...</span>';
@@ -2537,7 +2542,7 @@
       traceMount.style.display='block';
       trace=window.ThinkingTrace.open(traceMount,{
         variant:'steps',
-        activeLabel:'Generating '+format.toUpperCase()+' report',
+        activeLabel:board?'Generating the board summary':'Generating '+format.toUpperCase()+' report',
         rows:[
           {primary:'Reviewing audit findings and controls'},
           {primary:'Writing the report narrative'},
@@ -2546,7 +2551,7 @@
       });
     }
     try{
-      const {blob,filename}=await ApiClient.request('/grid/api/reports/'+format+'/'+auditId, {
+      const {blob,filename}=await ApiClient.request('/grid/api/reports/'+format+'/'+auditId+(board?'?tier=board':''), {
         expect: 'blob', actionId: 'grid.report.download',
       });
       const fileName=filename||'report.'+format;
@@ -2554,7 +2559,7 @@
       const a=document.createElement('a');
       a.href=url;a.download=fileName;document.body.appendChild(a);a.click();
       document.body.removeChild(a);URL.revokeObjectURL(url);
-      if(typeof showToast==='function')showToast(format.toUpperCase()+' report downloaded','success');
+      if(typeof showToast==='function')showToast((board?'Board summary ':'')+format.toUpperCase()+' report downloaded','success');
       loadSavedReports(); // Refresh history since report was auto-saved
     }catch(e){
       if(typeof showToast==='function')showToast(e.detail||'Report generation failed','error');
@@ -2571,11 +2576,11 @@
     if(!tbody)return;
     var reports=await api('/grid/api/reports/saved')||[];
     if(!reports.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No saved reports yet. Generate a PDF or DOCX report above — it will be saved automatically.</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No saved reports yet. Generate a PDF or Word report above and it is saved here automatically.</td></tr>';
       return;
     }
     tbody.innerHTML=reports.map(function(r){
-      var sizeStr=r.file_size?(r.file_size>1048576?(r.file_size/1048576).toFixed(1)+' MB':(r.file_size/1024).toFixed(0)+' KB'):'—';
+      var sizeStr=r.file_size?(r.file_size>1048576?(r.file_size/1048576).toFixed(1)+' MB':(r.file_size/1024).toFixed(0)+' KB'):'n/a';
       var typeBadge=r.report_type==='pdf'
         ?'<span style="background:#dc262622;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase">PDF</span>'
         :'<span style="background:#2563eb22;color:#2563eb;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase">DOCX</span>';

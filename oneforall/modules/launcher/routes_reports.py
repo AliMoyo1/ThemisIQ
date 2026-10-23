@@ -14,14 +14,20 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from core.best_effort import swallowed
 from core.rbac import user_capabilities, user_modules
+from core.report_kit import identity
+from core.report_kit.identity import download_headers
+from core.report_kit.render_html import render_html
+from core.report_kit.render_pdf import render_pdf
+from core.report_kit.render_xlsx import render_xlsx
 from core.timeutils import utcnow
 from database import insert_returning_id
 from modules.governance.data_service import bu_scope_ids
 from modules.governance.entity_scope import canonical_key, describe_record
-from modules.launcher import report_builders as builders, report_snapshot as snap
+from modules.launcher import report_builders as builders, report_documents as documents, report_snapshot as snap
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
@@ -49,12 +55,15 @@ REPORT_TYPES = {
 }
 
 # The groups the page offers when somebody creates a report. A case report is made from a record, not from this list.
+# Board reports come first: short, summary first and decision oriented. Every other group is operational (the working detail).
 REPORT_GROUPS = [
+    ("Board reports", ["executive_brief", "executive_summary", "preset_board"]),
     ("Standard reports", ["compliance_summary", "risk_report", "audit_status", "privacy_overview", "bcm_readiness",
-                          "sla_performance", "executive_brief", "executive_summary"]),
+                          "sla_performance"]),
     ("Business continuity", ["bcm_coverage", "bcm_plans", "bcm_incidents", "bcm_exercises", "bcm_summary"]),
-    ("By audience", ["preset_specialist", "preset_management", "preset_board"]),
+    ("By audience", ["preset_specialist", "preset_management"]),
 ]
+REPORT_TIERS = {key: documents.tier_of(key) for key in REPORT_TYPES}
 
 QUICK_DESCRIPTION = "Quick report"
 _AUTO = object()  # "find the earlier run yourself"
@@ -83,30 +92,8 @@ def _ip(request) -> str:
 def _scope_of(db, user) -> dict:
     """Who the figures cover, in words and in identifiers."""
     units = bu_scope_ids(user)
-    org_name = None
-    try:
-        row = db.execute("SELECT name FROM organizations WHERE id = %s", (user.get("org_id"),)).fetchone()
-        org_name = row["name"] if row else None
-    except Exception:
-        swallowed("report scope: organization name")
-        org_name = None
-    if units is None:
-        label, ids = "Whole organization", None
-    elif units == [-1]:
-        label, ids = "Organization-wide records only (no business unit is assigned to this person)", []
-    else:
-        ids = sorted(int(u) for u in units)
-        root = None
-        try:
-            marks = ",".join(["%s"] * len(ids))
-            names = {r["id"]: r["name"] for r in db.execute(
-                f"SELECT id, name FROM business_units WHERE id IN ({marks})", ids).fetchall()}
-            root = names.get(user.get("business_unit_id"))
-        except Exception:
-            swallowed("report scope: business unit names")
-            root = None
-        label = (root or "Own business unit") + (f" and {len(ids) - 1} unit{'s' if len(ids) > 2 else ''} below it"
-                                                  if len(ids) > 1 else "") + ", and organization-wide records"
+    org_name = documents.org_name_of(db, user) or None
+    label, ids = documents.scope_words(db, user)
     scope = {"org_id": user.get("org_id"), "org_name": org_name, "whole_organization": units is None,
              "business_unit_ids": ids, "organization_wide_only": units == [-1], "modules": sorted(user_modules(user)),
              "capabilities": sorted(user_capabilities(user)),
@@ -134,8 +121,10 @@ def _envelope(db, user, definition_id, name, report_type, parameters, previous=N
     env = {
         "format": snap.FORMAT,
         "run": {"definition_id": definition_id, "definition_name": name, "report_type": report_type,
-                "type_label": REPORT_TYPES[report_type], "definition_version": version, "generated_at": now,
-                "generated_by": {"id": user["id"], "name": user.get("full_name") or user.get("username")}},
+                "type_label": REPORT_TYPES[report_type], "tier": documents.tier_of(report_type),
+                "definition_version": version, "generated_at": now,
+                "generated_by": {"id": user["id"], "name": user.get("full_name") or user.get("username"),
+                                 "username": user.get("username")}},
         "scope": scope,
         "period": {"basis": "as_of", "as_of": now,
                    "note": "Every figure is read at the moment the report is generated. There is no period filter."},
@@ -388,6 +377,7 @@ async def reports_page(request: Request):
     """Reporting engine page."""
     ctx = shell_ctx(request, active_module="platform", active_section="reports")
     ctx["report_types"] = REPORT_TYPES
+    ctx["report_tiers"] = REPORT_TIERS
     ctx["report_groups"] = [(title, [(k, REPORT_TYPES[k]) for k in keys]) for title, keys in REPORT_GROUPS]
     return shell_templates.TemplateResponse(request, "reports.html", ctx)
 
@@ -639,6 +629,9 @@ async def api_report_run_get(request: Request, run_id: int):
         db.close()
     if shown.get("frozen"):
         shown["figures"] = sorted(snap.flatten(shown.get("result")))
+        check = documents.narrative_check(shown.get("snapshot") or {})
+        if check is not None:
+            shown["narrative_check"] = check.sentence()
     shown["can_share"] = shown.get("frozen") and not shown["shared"]
     shown["can_signoff"] = (shown.get("frozen") and shown["shared"] and
                             has_capability(user, "platform.report.signoff"))
@@ -830,40 +823,107 @@ async def api_report_run_note(request: Request, run_id: int):
     return _JSONResp({"id": note_id, "run_id": run_id, "kind": kind, "figure": figure}, status_code=201)
 
 
+def _frozen_run(request, user, run_id, action):
+    """(row, envelope, None) for a saved run this person may open and that is intact, else (None, None, the refusal)."""
+    db = get_db()
+    try:
+        row, refusal = _open(db, user, run_id, request, action)
+    finally:
+        db.close()
+    if refusal:
+        return None, None, refusal
+    if not row.get("snapshot_hash"):
+        return None, None, _JSONResp({"error": "This run was saved before reports were frozen and has no complete output to export. "
+                                               "Run the report again."}, status_code=409)
+    if not snap.intact(row.get("result_json"), row.get("snapshot_hash")):
+        return None, None, _integrity_refusal(user, run_id, request)
+    return row, json_lib.loads(row["result_json"]), None
+
+
 @router.get("/api/reports/runs/{run_id}/export")
 @require_auth
 async def api_report_run_export(request: Request, run_id: int):
     """The frozen figures of one run as a CSV file, with the scope, sources and limitations above them."""
     user = request.state.user
-    db = get_db()
-    try:
-        row, refusal = _open(db, user, run_id, request, "export")
-        if refusal:
-            return refusal
-    finally:
-        db.close()
-    if not row.get("snapshot_hash"):
-        return _JSONResp({"error": "This run was saved before reports were frozen and has no complete output to export. "
-                                   "Run the report again."}, status_code=409)
-    if not snap.intact(row.get("result_json"), row.get("snapshot_hash")):
-        return _integrity_refusal(user, run_id, request)
+    row, _env, refusal = _frozen_run(request, user, run_id, "export")
+    if refusal:
+        return refusal
     buffer = io.StringIO()
     db = get_db()
     try:
         reviews = _signoffs(db, run_id)
+        signer = db.execute("SELECT full_name, username FROM users WHERE id=%s", (reviews[-1]["signer_id"],)).fetchone() if reviews else None
     finally:
         db.close()
     rows = snap.csv_rows(json_lib.loads(row["result_json"]))
     if reviews:
         latest = reviews[-1]
+        reviewer = (signer["full_name"] or signer["username"]) if signer else f"user {latest['signer_id']}"
         rows[8:8] = [["Latest independent review", latest["decision"], latest["signed_at"]],
-                     ["Reviewer", latest["signer_id"], snap._cell(latest["reason"])],
+                     ["Reviewer", snap._cell(reviewer), snap._cell(latest["reason"])],
                      ["Draft AI narrative reviewed", "yes" if latest["narrative_reviewed"] else "no", ""]]
     csv.writer(buffer).writerows(rows)
     log_audit(user, "platform", "report_run_export", entity_type="report_run", entity_id=run_id,
-              details=f"sha256={row['snapshot_hash'][:16]}", ip=_ip(request))
-    return Response(buffer.getvalue(), media_type="text/csv; charset=utf-8", headers={
-        "Content-Disposition": f'attachment; filename="report-run-{run_id}.csv"', "Cache-Control": "no-store"})
+              details=f"format=csv; sha256={row['snapshot_hash'][:16]}", ip=_ip(request))
+    return Response(buffer.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers=download_headers(f"report-run-{run_id}.csv"))
+
+
+DOCUMENT_FORMATS = {
+    "pdf": ("application/pdf", render_pdf),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", render_xlsx),
+}
+
+
+def _document(request, user, run_id, action):
+    """(report, row, envelope, None) or (None, None, None, the refusal): the kit report of one frozen run this person may open."""
+    row, env, refusal = _frozen_run(request, user, run_id, action)
+    if refusal:
+        return None, None, None, refusal
+    db = get_db()
+    try:
+        try:
+            report = documents.build_document(env, db=db, row=row, run_id=run_id, viewer=user, exported_at=utcnow())
+        except PermissionError:
+            log_audit(user, "platform", "report_run_export_refused", entity_type="report_run", entity_id=run_id,
+                      details="case or proof scope changed", ip=_ip(request))
+            return None, None, None, _JSONResp({"error": "Not found"}, status_code=404)
+    finally:
+        db.close()
+    return report, row, env, None
+
+
+@router.get("/api/reports/runs/{run_id}/document")
+@require_auth
+async def api_report_run_document(request: Request, run_id: int):
+    """The frozen run as a document with a cover, charts and a footer: `?format=pdf` (the default) or `xlsx`. A board report
+    (executive brief, executive summary, board preset) is the short, decision oriented document; every other type is operational."""
+    fmt = (request.query_params.get("format") or "pdf").lower()
+    if fmt not in DOCUMENT_FORMATS:
+        return _JSONResp({"error": "Choose pdf or xlsx"}, status_code=400)
+    user = request.state.user
+    report, row, env, refusal = _document(request, user, run_id, "export")
+    if refusal:
+        return refusal
+    media_type, render = DOCUMENT_FORMATS[fmt]
+    body = await run_in_threadpool(render, report)
+    log_audit(user, "platform", "report_run_export", entity_type="report_run", entity_id=run_id,
+              details=f"format={fmt}; tier={report.meta.tier}; sha256={row['snapshot_hash'][:16]}", ip=_ip(request))
+    name = identity.safe_filename(documents.filename_stem(env, run_id), fmt, when=(env.get("run") or {}).get("generated_at"))
+    return Response(body, media_type=media_type, headers=download_headers(name))
+
+
+@router.get("/reports/runs/{run_id}/print", response_class=HTMLResponse)
+@require_auth
+async def report_run_print(request: Request, run_id: int):
+    """The print view of a frozen run: the same cover, charts and footer as the PDF, with print CSS, for the browser to print."""
+    user = request.state.user
+    report, row, env, refusal = _document(request, user, run_id, "print")
+    if refusal:
+        return refusal
+    log_audit(user, "platform", "report_run_export", entity_type="report_run", entity_id=run_id,
+              details=f"format=print; tier={report.meta.tier}; sha256={row['snapshot_hash'][:16]}", ip=_ip(request))
+    return HTMLResponse(render_html(report), headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex"})
 
 
 @router.post("/api/reports/runs/{run_id}/rerun")
@@ -944,12 +1004,14 @@ async def api_executive_summary(request: Request):
                 builders.log.warning("Executive summary narrative failed", exc_info=True)
                 problem = "The narrative could not be written just now. The figures are complete."
         env["narrative"] = narrative
+        check = documents.narrative_check(env)
         run_id = _store(db, user, defn["id"], env, previous[0] if previous else None, request)
     finally:
         db.close()
     return _JSONResp({
         "run_id": run_id, "stats": stats, "narrative": narrative["text"] if narrative else None,
         "narrative_state": narrative["state"] if narrative else "unavailable", "narrative_note": problem,
+        "narrative_check": check.sentence() if check is not None else None,
         "generated_at": env["run"]["generated_at"], "complete": env["complete"], "limitations": env["limitations"],
         "frozen": True,
     })

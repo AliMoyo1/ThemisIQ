@@ -1,64 +1,40 @@
 """
-GRID module — Report generation service.
+Audit module (GRID): the audit report as a PDF or a Word document, on the shared report kit.
 
-Produces professional branded audit reports in PDF (ReportLab) and DOCX
-(python-docx) formats.  Ported from the original AuditSphere pdfReport.js
-and wordReport.js with equivalent visual quality.
+One snapshot of the audit is read once (`gather`), every figure in the report is computed from it once (`figures`), and the
+same figures feed the cover, the charts, the tables and the narrative prompt. The cover, the footer (module, who, when, page
+numbers), the silver look and the charts belong to `core/report_kit`; this module only decides what an audit report says.
 
-Security: all inputs are sanitised before embedding in documents.
+Two tiers (PLAN_report_exports_2026-10-21.md, decision D3): the operational report carries every control, finding and
+response; the board summary is the short, decision oriented one (headline measures, three charts, the top gaps, what needs a
+decision).
+
+Security: every text is cleaned before it is placed in a document, a file name is built from numbers only, and the file is
+written inside the tenant's own report folder.
 """
 from __future__ import annotations
 
-import io
 import os
 import re
-import html as html_mod
-from datetime import datetime
-from core.timeutils import utcnow
-from database import get_current_tenant
 from pathlib import Path
 
-# ── PDF (ReportLab) ─────────────────────────────────────────────────────
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm, inch
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, HRFlowable,
-)
-from reportlab.graphics.shapes import Drawing, Rect, String
-from reportlab.graphics import renderPDF
+from core.best_effort import swallowed
+from core.email import app_origin
+from core.report_kit import grounding, identity, theme
+from core.report_kit.model import (Actor, Callout, Chart, Col, Heading, Kpi, Kpis, Meta, Paragraphs, Report, Table)
+from core.report_kit.render_docx import render_docx
+from core.report_kit.render_pdf import render_pdf
+from core.timeutils import utcnow
+from database import get_current_tenant, get_db
+from modules.evidence.scope import current_library_sql, evidence_scope_sql
 
-# ── DOCX (python-docx) ─────────────────────────────────────────────────
-from docx import Document as DocxDocument
-from docx.shared import Inches, Pt, Cm, RGBColor, Emu
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.section import WD_ORIENT
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
-
-# ── Local ───────────────────────────────────────────────────────────────
-from database import get_db
-
-# ═════════════════════════════════════════════════════════════════════════
-# Shared helpers
-# ═════════════════════════════════════════════════════════════════════════
-
-# Colour palette (matching original G.R.I.D branding)
-DARK   = "#0d0f14"
-ACCENT = "#4f8ef7"
-GREEN  = "#16a34a"
-AMBER  = "#d97706"
-RED    = "#dc2626"
-MUTED  = "#6b7280"
-LIGHT  = "#f3f4f6"
-
-# Reports directory (inside data/)
 REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "data/reports"))
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+CONTROL_ROWS = 400            # an audit with more controls than this is cut in the document, and the document says so
+SEVERITY_ORDER = ["critical", "major", "minor"]
+RISK_ORDER = ["Critical", "High", "Medium", "Low"]
+SEVERITY_COLOURS = {"Critical": theme.GRAPHITE, "High": theme.SLATE, "Medium": theme.SILVER_DEEP, "Low": theme.SILVER}
 
 
 def _report_output_dir() -> Path:
@@ -71,806 +47,361 @@ def _report_output_dir() -> Path:
     return output_dir
 
 
-def _sanitise(text: str | None) -> str:
-    """Strip any potential injection from text destined for documents."""
-    if not text:
-        return ""
-    # Remove HTML tags, control characters
-    text = re.sub(r"<[^>]+>", "", str(text))
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
-    return text.strip()
+def _clean(text) -> str:
+    return identity.clean_text(text, keep_newlines=False)
 
 
-def _xml_safe(text: str | None) -> str:
-    """Sanitise + escape XML entities for ReportLab Paragraph markup."""
-    t = _sanitise(text)
-    t = t.replace("&", "&amp;")
-    t = t.replace("<", "&lt;")
-    t = t.replace(">", "&gt;")
-    return t
-
-
-def _risk_colour(risk: str | None):
-    """Return hex colour for risk level."""
-    return {
-        "Critical": RED, "High": AMBER, "Medium": ACCENT, "Low": GREEN,
-    }.get(risk or "", MUTED)
-
-
-def _status_label(status: str | None, due_date: str | None = None) -> str:
-    today = utcnow().strftime("%Y-%m-%d")
+def _status_label(status, due_date, today) -> str:
+    """One state per control: complete, overdue (not complete and past its date), in progress, or not started."""
     if status == "Complete":
         return "Complete"
-    if due_date and due_date < today and status != "Complete":
+    if due_date and str(due_date)[:10] < today:
         return "Overdue"
-    if status == "In Progress":
-        return "In Progress"
-    return "Not Started"
+    return "In Progress" if status == "In Progress" else "Not Started"
 
 
-def _status_colour(status: str | None) -> str:
-    return {"Complete": GREEN, "In Progress": AMBER}.get(status or "", MUTED)
+# ── Reading the audit ───────────────────────────────────────────────────────
 
+def gather(audit_id: int, viewer=None) -> dict | None:
+    """Everything the report needs about one audit, read once. None when there is no such audit."""
+    from modules.grid import data_service as ds
 
-def _gather_report_data(audit_id: int) -> dict | None:
-    """Gather all data needed for a report from the database."""
     db = get_db()
     try:
         audit = db.execute(
-            "SELECT a.*, f.name AS framework_name, f.color AS framework_color "
+            "SELECT a.*, f.name AS framework_name, bu.name AS bu_name, u.full_name AS lead_name "
             "FROM grid_audits a LEFT JOIN grid_frameworks f ON a.framework_id=f.id "
-            "WHERE a.id=%s", (audit_id,)
-        ).fetchone()
+            "LEFT JOIN business_units bu ON bu.id=a.business_unit_id LEFT JOIN users u ON u.id=a.lead_id WHERE a.id=%s",
+            (audit_id,)).fetchone()
         if not audit:
             return None
         audit = dict(audit)
-
-        controls = [dict(r) for r in db.execute("""
-            SELECT c.*,
-                   u.full_name AS assignee_name,
-                   (SELECT COUNT(*) FROM grid_evidence_items WHERE control_id=c.id) AS evidence_required,
-                   (SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=c.id) AS evidence_count
-            FROM grid_controls c
-            LEFT JOIN users u ON c.assignee_id=u.id
-            WHERE c.audit_id=%s
-            ORDER BY c.control_id
-        """, (audit_id,)).fetchall()]
-
-        total = len(controls)
-        complete = sum(1 for c in controls if c.get("status") == "Complete")
-        overdue_count = sum(
-            1 for c in controls
-            if c.get("status") != "Complete" and c.get("due_date")
-            and c["due_date"] < utcnow().strftime("%Y-%m-%d")
-        )
-        pending = total - complete
-        pct = round(complete / total * 100) if total else 0
-
-        # Critical gaps for AI prompt
-        critical_gaps = [
-            _sanitise(c.get("name", ""))
-            for c in controls
-            if c.get("risk_level") in ("Critical", "High")
-            and c.get("status") != "Complete"
-        ][:5]
-
-        # ── Non-conformances ──────────────────────────────────────────
-        ncs = [dict(r) for r in db.execute("""
-            SELECT nc.*, u.full_name AS assigned_name,
-                   c.control_id AS ctrl_ref, c.name AS control_name
-            FROM grid_non_conformances nc
-            LEFT JOIN users u ON nc.assigned_to=u.id
-            LEFT JOIN grid_controls c ON nc.control_id=c.id
-            WHERE nc.audit_id=%s
-            ORDER BY CASE nc.severity WHEN 'critical' THEN 1 WHEN 'major' THEN 2
-                     WHEN 'minor' THEN 3 ELSE 4 END
-        """, (audit_id,)).fetchall()]
-
-        nc_total = len(ncs)
-        nc_open = sum(1 for n in ncs if n.get("status") != "closed" and n.get("cap_status") != "Closed")
-        nc_closed = nc_total - nc_open
-
-        # ── Evidence summary ─────────────────────────────────────────
-        ev_summary = dict(db.execute("""
-            SELECT COUNT(*) AS total_files,
-                   SUM(CASE WHEN ef.status='Approved' THEN 1 ELSE 0 END) AS approved,
-                   SUM(CASE WHEN ef.status='Rejected' THEN 1 ELSE 0 END) AS rejected,
-                   SUM(CASE WHEN ef.status='Pending' OR ef.status IS NULL THEN 1 ELSE 0 END) AS pending_review
-            FROM grid_evidence_files ef
-            JOIN grid_controls c ON ef.control_id=c.id
-            WHERE c.audit_id=%s
-        """, (audit_id,)).fetchone())
-
-        # ── Management responses ─────────────────────────────────────
-        mgmt_responses = [dict(r) for r in db.execute("""
-            SELECT nc.title, nc.severity, nc.mgmt_response_status,
-                   nc.mgmt_response, nc.response_deadline,
-                   u.full_name AS responder_name, nc.mgmt_response_at
-            FROM grid_non_conformances nc
-            LEFT JOIN users u ON nc.mgmt_response_by=u.id
-            WHERE nc.audit_id=%s AND nc.mgmt_response_status IS NOT NULL
-            ORDER BY nc.mgmt_response_at DESC
-        """, (audit_id,)).fetchall()]
-
-        # ── Sign-offs ────────────────────────────────────────────────
-        signoffs = [dict(r) for r in db.execute("""
-            SELECT s.role, s.signed_at, s.comment, u.full_name AS user_name
-            FROM grid_audit_signoffs s
-            LEFT JOIN users u ON s.user_id=u.id
-            WHERE s.audit_id=%s
-            ORDER BY s.signed_at
-        """, (audit_id,)).fetchall()]
-
-        return {
-            "audit": audit,
-            "controls": controls,
-            "auditName": _sanitise(audit.get("name", "Audit Report")),
-            "framework": _sanitise(audit.get("framework_name", "")),
-            "audit_type": _sanitise(audit.get("audit_type", "External")),
-            "auditor": _sanitise(audit.get("auditor", "N/A")),
-            "start_date": audit.get("start_date", ""),
-            "audit_date": audit.get("audit_date", "TBD"),
-            "conclusion": _sanitise(audit.get("conclusion", "")),
-            "totalControls": total,
-            "complete": complete,
-            "pending": pending,
-            "overdue": overdue_count,
-            "completionPct": pct,
-            "criticalGaps": critical_gaps,
-            "ncs": ncs,
-            "nc_total": nc_total,
-            "nc_open": nc_open,
-            "nc_closed": nc_closed,
-            "evidence_summary": ev_summary,
-            "mgmt_responses": mgmt_responses,
-            "signoffs": signoffs,
-        }
+        controls = [dict(r) for r in db.execute(
+            "SELECT c.*, u.full_name AS assignee_name, "
+            "(SELECT COUNT(*) FROM grid_evidence_items ei WHERE ei.control_id=c.id) AS items_total, "
+            "(SELECT COUNT(DISTINCT ei.id) FROM grid_evidence_items ei JOIN grid_evidence_files ef ON ef.evidence_item_id=ei.id "
+            " WHERE ei.control_id=c.id) AS items_covered, "
+            "(SELECT COUNT(*) FROM grid_evidence_files ef WHERE ef.control_id=c.id) AS files "
+            "FROM grid_controls c LEFT JOIN users u ON c.assignee_id=u.id WHERE c.audit_id=%s ORDER BY c.control_id",
+            (audit_id,)).fetchall()]
+        ncs = [dict(r) for r in db.execute(
+            "SELECT nc.*, u.full_name AS assigned_name, c.control_id AS ctrl_ref, c.name AS control_name "
+            "FROM grid_non_conformances nc LEFT JOIN users u ON nc.assigned_to=u.id LEFT JOIN grid_controls c ON nc.control_id=c.id "
+            "WHERE nc.audit_id=%s "
+            "ORDER BY CASE nc.severity WHEN 'critical' THEN 1 WHEN 'major' THEN 2 WHEN 'minor' THEN 3 ELSE 4 END, nc.id",
+            (audit_id,)).fetchall()]
+        responses = [dict(r) for r in db.execute(
+            "SELECT nc.title, nc.severity, nc.mgmt_response_status, nc.mgmt_response, nc.response_deadline, "
+            "u.full_name AS responder_name, nc.mgmt_response_at FROM grid_non_conformances nc "
+            "LEFT JOIN users u ON nc.mgmt_response_by=u.id WHERE nc.audit_id=%s AND nc.mgmt_response_status IS NOT NULL "
+            "ORDER BY nc.mgmt_response_at DESC", (audit_id,)).fetchall()]
+        signoffs = [dict(r) for r in db.execute(
+            "SELECT s.role, s.signed_at, s.comment, u.full_name AS user_name FROM grid_audit_signoffs s "
+            "LEFT JOIN users u ON s.user_id=u.id WHERE s.audit_id=%s ORDER BY s.signed_at", (audit_id,)).fetchall()]
+        vault_files = []
+        if viewer is not None:
+            scope, params = evidence_scope_sql(viewer)
+            rows = db.execute(
+                "SELECT DISTINCT e.id, e.title, e.version, el.entity_type AS source_type "
+                "FROM evidence_items e JOIN evidence_links el ON el.evidence_id=e.id "
+                f"WHERE {scope} AND {current_library_sql()} AND el.deleted_at IS NULL "
+                "AND el.module='grid' AND ("
+                "(el.entity_type='audit' AND el.entity_id=%s) OR "
+                "(el.entity_type='control' AND el.entity_id IN (SELECT id FROM grid_controls WHERE audit_id=%s)) OR "
+                "(el.entity_type='nc' AND el.entity_id IN (SELECT id FROM grid_non_conformances WHERE audit_id=%s))) "
+                "ORDER BY e.id, el.entity_type", [*params, audit_id, audit_id, audit_id],
+            ).fetchall()
+            origin = app_origin()
+            seen = set()
+            for row in rows:
+                if row["id"] in seen:
+                    continue
+                seen.add(row["id"])
+                vault_files.append({"title": row["title"], "version": row["version"],
+                                    "source": {"audit": "Audit", "control": "Control", "nc": "Finding"}.get(row["source_type"], "Record"),
+                                    "vault_url": identity.safe_link(f"{origin}/evidence/?open=item:{row['id']}") if origin else ""})
     finally:
         db.close()
+    evidence = ds.get_evidence_completeness(audit_id)   # the figures the Evidence tab shows, counted the same way
+    return {"audit": audit, "controls": controls, "ncs": ncs, "responses": responses, "signoffs": signoffs,
+            "evidence": evidence, "vault_files": vault_files, "today": utcnow().strftime("%Y-%m-%d")}
 
 
-# ═════════════════════════════════════════════════════════════════════════
-# PDF REPORT GENERATION
-# ═════════════════════════════════════════════════════════════════════════
-
-def _hex_to_rl(hex_color: str):
-    """Convert #rrggbb to reportlab Color."""
-    h = hex_color.lstrip("#")
-    return colors.HexColor(f"#{h}")
+def _nc_open(nc) -> bool:
+    """Closed means the finding's status or its corrective action plan status says closed, as everywhere else in GRID."""
+    return str(nc.get("status") or "open").lower() != "closed" and str(nc.get("cap_status") or "Open") != "Closed"
 
 
-def generate_pdf_report(audit_id: int, narrative: dict | None = None) -> dict:
-    """Generate a branded PDF audit report.
+def figures(data: dict) -> dict:
+    """Every figure of the report, computed once from one snapshot."""
+    controls, today = data["controls"], data["today"]
+    states = [_status_label(c.get("status"), c.get("due_date"), today) for c in controls]
+    total = len(controls)
+    complete = states.count("Complete")
+    by_risk = {}
+    for control, state in zip(controls, states):
+        level = str(control.get("risk_level")).title() if control.get("risk_level") else "Unrated"
+        slot = by_risk.setdefault(level, {"complete": 0, "not_complete": 0})
+        slot["complete" if state == "Complete" else "not_complete"] += 1
+    ncs = data["ncs"]
+    by_severity = {}
+    for nc in ncs:
+        severity = str(nc.get("severity") or "unrated").lower()
+        slot = by_severity.setdefault(severity, {"open": 0, "closed": 0})
+        slot["open" if _nc_open(nc) else "closed"] += 1
+    ev = data["evidence"]
+    files, approved, pending, rejected = ev["totalFiles"], ev["approvedFiles"], ev["pendingFiles"], ev["rejectedFiles"]
+    gaps = [c for c, s in zip(controls, states)
+            if s != "Complete" and str(c.get("risk_level") or "").title() in ("Critical", "High")]
+    return {
+        "total": total, "complete": complete, "not_complete": total - complete,
+        "overdue": states.count("Overdue"), "in_progress": states.count("In Progress"), "not_started": states.count("Not Started"),
+        "completion_pct": identity.pct(complete, total) if total else None,
+        "by_risk": by_risk, "critical_high_open": len(gaps), "gaps": gaps,
+        "nc_total": len(ncs), "nc_open": sum(1 for n in ncs if _nc_open(n)), "nc_closed": sum(1 for n in ncs if not _nc_open(n)),
+        "nc_by_severity": by_severity,
+        "nc_open_critical": sum(1 for n in ncs if _nc_open(n) and str(n.get("severity") or "").lower() == "critical"),
+        "files_total": files, "files_approved": approved, "files_pending": pending, "files_rejected": rejected,
+        "files_other": max(files - approved - pending - rejected, 0),
+        "items_total": ev["totalItems"], "items_with_evidence": ev["itemsWithEvidence"],
+        "responses": len(data["responses"]), "signoffs": len(data["signoffs"]), "states": states,
+    }
 
-    Returns: {"filePath": str, "fileName": str, "size": int}
-    """
-    data = _gather_report_data(audit_id)
+
+def narrative_inputs(data: dict, fig: dict) -> dict:
+    """What the model is told: the figures of the report, under the names the report uses, and nothing else."""
+    audit = data["audit"]
+    return {"auditName": audit.get("name"), "framework": audit.get("framework_name"), "completionPct": fig["completion_pct"] or 0,
+            "totalControls": fig["total"], "complete": fig["complete"], "pending": fig["not_complete"], "overdue": fig["overdue"],
+            "auditDate": audit.get("audit_date"), "criticalGaps": [_clean(c.get("name")) for c in fig["gaps"]][:5]}
+
+
+def checked_narrative(data: dict, fig: dict, narrative: dict | None):
+    """(narrative or None, a sentence saying why it was left out or how it was checked)."""
+    if not narrative:
+        return None, ""
+    text = " ".join([str(narrative.get("executive_summary") or ""), *[str(f) for f in narrative.get("key_findings") or []],
+                     str(narrative.get("conclusion") or "")])
+    if not text.strip():
+        return None, ""
+    allowed = {k: v for k, v in fig.items() if k not in ("gaps", "states")}
+    allowed["names"] = [data["audit"].get("name"), data["audit"].get("framework_name"),
+                        *[c.get("name") for c in fig["gaps"]], *[c.get("control_id") for c in fig["gaps"]]]
+    allowed["dates"] = [data["audit"].get("audit_date"), data["audit"].get("start_date"), data["audit"].get("end_date")]
+    today = utcnow()
+    result = grounding.check(text, allowed, extra=[today.day, today.month, today.year])
+    return (narrative, result.sentence()) if result.ok else (None, result.sentence())
+
+
+# ── The report ──────────────────────────────────────────────────────────────
+
+def _org_name(actor) -> str:
+    """The organization of the person who generates the report, by name (empty when it cannot be read)."""
+    try:
+        db = get_db()
+        try:
+            row = db.execute("SELECT name FROM organizations WHERE id = %s", ((actor or {}).get("org_id"),)).fetchone()
+        finally:
+            db.close()
+        return row["name"] if row else ""
+    except Exception:
+        swallowed("audit report: organization name")
+        return ""
+
+
+def build_report(data: dict, *, actor, tier: str = theme.OPERATIONAL, narrative=None, narrative_note: str = "",
+                 org_name: str = "") -> Report:
+    audit, fig = data["audit"], figures(data)
+    start, end, on = audit.get("start_date"), audit.get("end_date"), audit.get("audit_date")
+    period = (f"Audit period: {identity.format_day(start)} to {identity.format_day(end)}" if start and end else
+              f"Audit date: {identity.format_day(on)}" if on else f"As of {identity.format_when(data['today'])}")
+    scope = f"Business unit: {audit['bu_name']}" if audit.get("bu_name") else "Whole organization (this audit is not tied to one business unit)"
+    kind = "Audit report" if tier == theme.OPERATIONAL else "Summary for the board"
+    framework = _clean(audit.get("framework_name"))
+    meta = Meta(
+        title=_clean(audit.get("name")) or "Audit report", module="grid", tier=tier, org_name=org_name, scope=scope, period=period,
+        subtitle=f"{kind}: {framework}" if framework else kind,
+        generated_at=utcnow(), generated_by=Actor.of_user(actor), reference=f"Audit {audit['id']}")
+    report = Report(meta)
+    done, total = fig["complete"], fig["total"]
+    pct = fig["completion_pct"]
+    ev_share = identity.pct(fig["files_approved"], fig["files_total"]) if fig["files_total"] else None
+
+    kpis = [Kpi("Controls", identity.fmt_int(total)),
+            Kpi("Complete", identity.fmt_int(done), f"{pct}% of controls" if pct is not None else "", "good" if done else "neutral"),
+            Kpi("Not complete", identity.fmt_int(fig["not_complete"]), "includes the overdue ones"),
+            Kpi("Overdue", identity.fmt_int(fig["overdue"]), "past their due date", "bad" if fig["overdue"] else "neutral"),
+            Kpi("Open findings", identity.fmt_int(fig["nc_open"]), f"of {identity.fmt_int(fig['nc_total'])} raised",
+                "warn" if fig["nc_open"] else "neutral"),
+            Kpi("Evidence approved", identity.fmt_int(fig["files_approved"]), f"of {identity.fmt_int(fig['files_total'])} files"
+                + (f" ({ev_share}%)" if ev_share is not None else ""))]
+    messages = []
+    if pct is not None:
+        messages.append(f"{identity.fmt_int(done)} of {identity.fmt_int(total)} controls ({pct}%) are complete.")
+    if fig["overdue"]:
+        messages.append(f"{identity.plural(fig['overdue'], 'control')} {'is' if fig['overdue'] == 1 else 'are'} overdue.")
+    if fig["nc_total"]:
+        messages.append(f"{identity.fmt_int(fig['nc_open'])} of {identity.fmt_int(fig['nc_total'])} findings are still open.")
+    if fig["files_total"]:
+        messages.append(f"{identity.fmt_int(fig['files_approved'])} of {identity.fmt_int(fig['files_total'])} evidence files ({ev_share}%) are approved.")
+    decisions = []
+    if fig["nc_open_critical"]:
+        decisions.append(f"{identity.plural(fig['nc_open_critical'], 'critical finding')} still open: confirm the owner and the due date of each.")
+    if fig["overdue"]:
+        decisions.append(f"{identity.plural(fig['overdue'], 'overdue control')}: agree a recovery date for each.")
+    if fig["critical_high_open"]:
+        decisions.append(f"{identity.plural(fig['critical_high_open'], 'critical or high risk control')} not complete: confirm who completes them and by when.")
+    if fig["files_rejected"]:
+        decisions.append(f"{identity.plural(fig['files_rejected'], 'evidence file')} rejected: confirm who resubmits.")
+
+    status_rows = [r for r in (("Complete", done, theme.GRAPHITE), ("In progress", fig["in_progress"], theme.SILVER_DEEP),
+                               ("Not started", fig["not_started"], theme.SILVER_LIGHT), ("Overdue", fig["overdue"], theme.BAD)) if r[1]]
+    donut = Chart("donut", "Controls by status", [(label, value) for label, value, _ in status_rows], unit="controls", half=True,
+                  centre=f"{pct}%" if pct is not None else "", colours=[colour for _, _, colour in status_rows] or None,
+                  takeaway=(f"{identity.fmt_int(done)} of {identity.fmt_int(total)} controls are complete; "
+                            f"{identity.fmt_int(fig['overdue'])} are overdue." if total else ""),
+                  empty_text="This audit has no controls yet, so there is nothing to chart.")
+    known = RISK_ORDER + ["Unrated"]
+    risk_levels = [lvl for lvl in known if lvl in fig["by_risk"]] + [lvl for lvl in fig["by_risk"] if lvl not in known]
+    risk_stack = Chart(
+        "stack", "Controls by risk level: complete and not complete",
+        [(lvl, [("Complete", fig["by_risk"][lvl]["complete"]), ("Not complete", fig["by_risk"][lvl]["not_complete"])]) for lvl in risk_levels],
+        x_label="Number of controls", y_label="Risk level", half=True, colours=[theme.GRAPHITE, theme.SILVER],
+        takeaway=(f"{identity.plural(fig['critical_high_open'], 'critical or high risk control')} {'is' if fig['critical_high_open'] == 1 else 'are'} not complete."
+                  if total else ""), empty_text="This audit has no controls yet, so there is nothing to chart.")
+    sev_names = [s for s in SEVERITY_ORDER if s in fig["nc_by_severity"]] + [s for s in fig["nc_by_severity"] if s not in SEVERITY_ORDER]
+    nc_stack = Chart(
+        "stack", "Findings by severity: open and closed",
+        [(s.capitalize(), [("Open", fig["nc_by_severity"][s]["open"]), ("Closed", fig["nc_by_severity"][s]["closed"])]) for s in sev_names],
+        x_label="Number of findings", y_label="Severity", half=True, colours=[theme.GRAPHITE, theme.SILVER],
+        takeaway=(f"{identity.fmt_int(fig['nc_open'])} of {identity.fmt_int(fig['nc_total'])} findings are open, "
+                  f"{identity.fmt_int(fig['nc_open_critical'])} of them critical." if fig["nc_total"] else ""),
+        empty_text="No finding has been raised in this audit.")
+    ev_rows = [("Approved", fig["files_approved"]), ("Awaiting review", fig["files_pending"]), ("Rejected", fig["files_rejected"])]
+    if fig["files_other"]:
+        ev_rows.append(("Other status", fig["files_other"]))
+    evidence = Chart("bar", "Evidence files by review state", [r for r in ev_rows], x_label="Number of files", y_label="Review state", unit="files",
+                     half=True, takeaway=(f"{identity.fmt_int(fig['files_approved'])} of {identity.fmt_int(fig['files_total'])} files are approved; "
+                                          f"{identity.fmt_int(fig['files_pending'])} await review." if fig["files_total"] else ""),
+                     empty_text="No evidence file has been uploaded for this audit.")
+
+    nar_blocks = []
+    if narrative:
+        paragraphs = [p for p in (_clean(narrative.get("executive_summary")), *[("• " + _clean(f)) for f in narrative.get("key_findings") or []],
+                                  _clean(narrative.get("conclusion"))) if p and p != "• "]
+        nar_blocks = [Paragraphs("Draft narrative", paragraphs, label=f"Written by an AI model from the figures of this report, not reviewed. {narrative_note}")]
+    elif narrative_note:
+        nar_blocks = [Callout("Draft narrative left out", [narrative_note, "The figures in this report are the saved figures of the audit."], "limit")]
+
+    report.add(Heading("Headline measures", "Read from the audit when this report was generated."), Kpis(kpis))
+    if messages:
+        report.add(Callout("Key messages", messages, "note"))
+    if tier == theme.BOARD:
+        report.add(Heading("Decisions needed"), Callout("For the board to decide or note", decisions or [
+            "No item in these figures needs a board decision."], "decision"))
+        report.add(Heading("At a glance"), donut, risk_stack, nc_stack)
+        report.add(Heading("The gaps that matter most"), Table(
+            "Critical and high risk controls that are not complete", _control_columns(),
+            [_control_row(c, s) for c, s in _gap_rows(data, fig)][:5],
+            note=(f"The five with the earliest due dates of {identity.fmt_int(fig['critical_high_open'])}."
+                  if fig["critical_high_open"] > 5 else ""), empty_text="Every critical and high risk control is complete.", sheet_name="Gaps"))
+        report.add(*nar_blocks)
+    else:
+        report.add(Heading("At a glance"), donut, risk_stack, nc_stack, evidence)
+        report.add(*nar_blocks)
+        if decisions:
+            report.add(Heading("Needs attention"), Callout("What the figures call for", decisions, "decision"))
+        report.add(Heading("Controls"), Table(
+            "Every control in this audit", _control_columns(), [_control_row(c, s) for c, s in zip(data["controls"], fig["states"])][:CONTROL_ROWS],
+            note=(f"Evidence shows how many of the control's evidence items have at least one file. "
+                  + (f"Showing the first {CONTROL_ROWS} of {identity.fmt_int(total)} controls." if total > CONTROL_ROWS else "")).strip(),
+            empty_text="This audit has no controls yet.", sheet_name="Controls"))
+        ncs = data["ncs"]
+        report.add(Heading("Findings"), Table(
+            f"Findings: {identity.fmt_int(fig['nc_total'])} raised, {identity.fmt_int(fig['nc_open'])} open, {identity.fmt_int(fig['nc_closed'])} closed",
+            [Col("Finding", "title", weight=4), Col("Severity", "severity", weight=1), Col("CAP status", "cap", weight=1.3),
+             Col("State", "state", weight=0.9), Col("Assigned to", "assignee", weight=1.6), Col("Control", "control", weight=1.1)],
+            [{"title": _clean(n.get("title")), "severity": (_clean(n.get("severity")) or "n/a").capitalize(), "cap": _clean(n.get("cap_status")),
+              "state": "Open" if _nc_open(n) else "Closed", "assignee": _clean(n.get("assigned_name")), "control": _clean(n.get("ctrl_ref"))} for n in ncs],
+            max_rows=150, empty_text="No finding has been raised in this audit.", sheet_name="Findings"))
+        if data["responses"]:
+            report.add(Table("Management responses", [Col("Finding", "title", weight=3), Col("Response status", "status", weight=1.3),
+                                                      Col("By", "by", weight=1.5), Col("Response", "text", weight=4)],
+                             [{"title": _clean(r.get("title")), "status": _clean(r.get("mgmt_response_status")), "by": _clean(r.get("responder_name")),
+                               "text": identity.ellipsize(r.get("mgmt_response"), 280)} for r in data["responses"]],
+                             max_rows=60, note="Long responses are shortened here; the full text is on the finding.", sheet_name="Responses"))
+        if _clean(audit.get("conclusion")):
+            report.add(Paragraphs("Conclusion recorded by the auditor", [_clean(audit.get("conclusion"))]))
+        if data["signoffs"]:
+            report.add(Table("Sign-offs", [Col("Role", "role", weight=1.2), Col("Name", "name", weight=2), Col("Date", "date", weight=1.2, kind="date"),
+                                           Col("Comment", "comment", weight=4)],
+                             [{"role": _clean(s.get("role")).title(), "name": _clean(s.get("user_name")), "date": s.get("signed_at"),
+                               "comment": _clean(s.get("comment"))} for s in data["signoffs"]], sheet_name="Sign-offs"))
+        report.add(Heading("Connected documents"), Table(
+            "Files in the Evidence Vault", [Col("File", "title", weight=4, link="vault_url"),
+                                            Col("Version", "version", weight=1, kind="int"),
+                                            Col("Connected to", "source", weight=1.5)],
+            data.get("vault_files") or [],
+            empty_text="No Vault document linked to this audit, its controls or findings is visible to the report reader.",
+            sheet_name="Vault documents"))
+    report.add(Heading("Basis and limits"), Callout("How to read this report", [
+        "Every figure is read from the audit at the moment this report was generated.",
+        "A control is overdue when it is not complete and its due date is before today. Not complete includes the overdue ones.",
+        "Evidence counts follow the Evidence tab: a file awaiting review has the status Uploaded or Pending.",
+        "A finding is closed when its status or its corrective action plan status is Closed."], "note"))
+    return report
+
+
+def _control_columns():
+    return [Col("Control ID", "ref", weight=1.2), Col("Control", "name", weight=4.2), Col("Risk", "risk", weight=1),
+            Col("Due", "due", weight=1.3, kind="date"), Col("Evidence", "evidence", weight=1.9), Col("Status", "status", weight=1.2)]
+
+
+def _control_row(control, state) -> dict:
+    items, covered, files = control.get("items_total") or 0, control.get("items_covered") or 0, control.get("files") or 0
+    evidence = (f"{covered} of {items} items" if items else (f"{files} file(s), no checklist" if files else "No checklist"))
+    return {"ref": _clean(control.get("control_id")), "name": _clean(control.get("name")), "risk": _clean(control.get("risk_level")) or "n/a",
+            "due": control.get("due_date") or None, "evidence": evidence, "status": state}
+
+
+def _gap_rows(data, fig):
+    pairs = [(c, s) for c, s in zip(data["controls"], fig["states"])
+             if s != "Complete" and str(c.get("risk_level") or "").title() in ("Critical", "High")]
+    return sorted(pairs, key=lambda cs: (str(cs[0].get("due_date") or "9999"), str(cs[0].get("control_id") or "")))
+
+
+# ── The files ───────────────────────────────────────────────────────────────
+
+def _write(audit_id: int, extension: str, body: bytes) -> dict:
+    timestamp = int(utcnow().timestamp())
+    filename = f"grid-report-{int(audit_id)}-{timestamp}.{extension}"
+    if not re.fullmatch(rf"grid-report-\d+-\d+\.{extension}", filename):
+        raise ValueError("Unsafe report filename generated")
+    path = _report_output_dir() / filename
+    path.write_bytes(body)
+    return {"filePath": str(path), "fileName": filename, "size": len(body)}
+
+
+def prepare(audit_id: int, *, actor, tier: str = theme.OPERATIONAL, narrative_fn=None) -> Report:
+    """Read the audit, ask for a narrative with the report's own figures, check it, and build the report."""
+    data = gather(audit_id, viewer=actor)
     if not data:
         raise ValueError(f"Audit {audit_id} not found")
-
-    nar = narrative or {}
-    timestamp = int(utcnow().timestamp())
-    filename = f"grid-report-{audit_id}-{timestamp}.pdf"
-    if not re.fullmatch(r"grid-report-\d+-\d+\.pdf", filename):
-        raise ValueError("Unsafe report filename generated")
-    filepath = _report_output_dir() / filename
-
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=50, rightMargin=50, topMargin=60, bottomMargin=50,
-        title=f"{data['auditName']} — Audit Report",
-        author="G.R.I.D AI — One For All",
-    )
-
-    styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle("Brand", fontName="Helvetica-Bold", fontSize=20, textColor=_hex_to_rl(ACCENT)))
-    styles.add(ParagraphStyle("SubBrand", fontName="Helvetica", fontSize=10, textColor=_hex_to_rl(MUTED)))
-    styles.add(ParagraphStyle("ReportTitle", fontName="Helvetica-Bold", fontSize=16, textColor=_hex_to_rl(DARK), spaceAfter=6))
-    styles.add(ParagraphStyle("SectionHead", fontName="Helvetica-Bold", fontSize=13, textColor=_hex_to_rl(DARK), spaceBefore=16, spaceAfter=8))
-    styles.add(ParagraphStyle("Body", fontName="Helvetica", fontSize=10, textColor=_hex_to_rl("#333333"), leading=15, spaceAfter=8))
-    styles.add(ParagraphStyle("SmallMuted", fontName="Helvetica", fontSize=9, textColor=_hex_to_rl(MUTED)))
-    styles.add(ParagraphStyle("Bullet", fontName="Helvetica", fontSize=10, textColor=_hex_to_rl("#333333"), leading=14, bulletIndent=10, leftIndent=20, spaceAfter=4))
-    styles.add(ParagraphStyle("CenterBold", fontName="Helvetica-Bold", fontSize=12, alignment=TA_CENTER, textColor=_hex_to_rl(DARK)))
-
-    elements = []
-
-    # ── Header bar ──────────────────────────────────────────────────
-    elements.append(Paragraph("G.R.I.D AI", styles["Brand"]))
-    elements.append(Paragraph("Governance · Risk · IT · Data — Compliance Audit Report", styles["SubBrand"]))
-    elements.append(Spacer(1, 4))
-    elements.append(HRFlowable(width="100%", thickness=1, color=_hex_to_rl(ACCENT)))
-    elements.append(Spacer(1, 12))
-
-    # ── Title + metadata ────────────────────────────────────────────
-    elements.append(Paragraph(_xml_safe(data["auditName"]), styles["ReportTitle"]))
-    meta = (
-        f"Framework: {_xml_safe(data['framework'])} · Type: {_xml_safe(data['audit_type'])} · "
-        f"Auditor: {_xml_safe(data['auditor'])} · Generated: {utcnow().strftime('%d %b %Y')}"
-    )
-    elements.append(Paragraph(meta, styles["SmallMuted"]))
-    elements.append(Spacer(1, 6))
-
-    # Status pill
-    overall = _xml_safe(nar.get("overall_status", "In Progress"))
-    st_color = GREEN if overall == "On Track" else AMBER if overall == "At Risk" else RED
-    elements.append(Paragraph(
-        f'<font color="{st_color}" size="9"><b>{overall.upper()}</b></font>',
-        styles["Body"],
-    ))
-    elements.append(Spacer(1, 12))
-
-    # ── Stats row ───────────────────────────────────────────────────
-    stat_data = [
-        ["Total Controls", str(data["totalControls"]), ACCENT],
-        ["Complete", str(data["complete"]), GREEN],
-        ["Pending", str(data["pending"]), AMBER],
-        ["Overdue", str(data["overdue"]), RED],
-        ["Completion", f"{data['completionPct']}%", ACCENT],
-    ]
-    stat_table_data = [
-        [Paragraph(f'<font color="{c}" size="16"><b>{v}</b></font><br/>'
-                   f'<font color="{MUTED}" size="7">{l}</font>', styles["Body"])
-         for l, v, c in stat_data]
-    ]
-    stat_tbl = Table(stat_table_data, colWidths=[doc.width / 5] * 5)
-    stat_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), _hex_to_rl(LIGHT)),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-        ("BOX", (0, 0), (-1, -1), 0.5, _hex_to_rl("#e5e7eb")),
-    ]))
-    elements.append(stat_tbl)
-    elements.append(Spacer(1, 16))
-
-    # ── Executive Summary ───────────────────────────────────────────
-    exec_sum = _xml_safe(nar.get("executive_summary", ""))
-    if exec_sum:
-        elements.append(Paragraph("Executive Summary", styles["SectionHead"]))
-        elements.append(Paragraph(exec_sum, styles["Body"]))
-        elements.append(Spacer(1, 8))
-
-    # ── Key Findings ────────────────────────────────────────────────
-    findings = nar.get("key_findings", [])
-    if findings:
-        elements.append(Paragraph("Key Findings", styles["SectionHead"]))
-        for f in findings:
-            elements.append(Paragraph(f"• {_xml_safe(f)}", styles["Bullet"]))
-        elements.append(Spacer(1, 8))
-
-    # ── Controls Table ──────────────────────────────────────────────
-    elements.append(Paragraph("Controls Summary", styles["SectionHead"]))
-    header = ["Control ID", "Name", "Risk", "Due Date", "Evidence", "Status"]
-    tbl_data = [header]
-
-    for c in data["controls"][:60]:  # cap at 60 for PDF
-        cid = _xml_safe(c.get("control_id", "—"))
-        name = _xml_safe(c.get("name", ""))[:50]
-        risk = _xml_safe(c.get("risk_level", "—"))
-        due = c.get("due_date", "—") or "—"
-        ev = f"{c.get('evidence_count', 0)}/{c.get('evidence_required', 0) or 1}"
-        sl = _status_label(c.get("status"), c.get("due_date"))
-        tbl_data.append([cid, name, risk, due, ev, sl])
-
-    col_widths = [70, 180, 55, 70, 50, 70]
-    tbl = Table(tbl_data, colWidths=col_widths, repeatRows=1)
-    tbl_style = [
-        # Header
-        ("BACKGROUND", (0, 0), (-1, 0), _hex_to_rl(DARK)),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8),
-        ("FONTSIZE", (0, 1), (-1, -1), 7),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("GRID", (0, 0), (-1, -1), 0.3, _hex_to_rl("#e5e7eb")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]
-    # Alternating rows
-    for i in range(1, len(tbl_data)):
-        if i % 2 == 0:
-            tbl_style.append(("BACKGROUND", (0, i), (-1, i), _hex_to_rl("#f8f9fa")))
-        # Risk colour
-        risk_val = tbl_data[i][2]
-        rc = _risk_colour(risk_val)
-        tbl_style.append(("TEXTCOLOR", (2, i), (2, i), _hex_to_rl(rc)))
-        # Status colour
-        sc = _status_colour(tbl_data[i][5].replace("Overdue", "").strip() or tbl_data[i][5])
-        if "Overdue" in tbl_data[i][5]:
-            sc = RED
-        tbl_style.append(("TEXTCOLOR", (5, i), (5, i), _hex_to_rl(sc)))
-
-    tbl.setStyle(TableStyle(tbl_style))
-    elements.append(tbl)
-    elements.append(Spacer(1, 16))
-
-    # ── Evidence Summary ───────────────────────────────────────────
-    ev = data.get("evidence_summary", {})
-    if ev.get("total_files"):
-        elements.append(Paragraph("Evidence Summary", styles["SectionHead"]))
-        ev_data = [
-            ["Total Files", "Approved", "Rejected", "Pending Review"],
-            [str(ev.get("total_files", 0)), str(ev.get("approved", 0)),
-             str(ev.get("rejected", 0)), str(ev.get("pending_review", 0))],
-        ]
-        ev_tbl = Table(ev_data, colWidths=[doc.width / 4] * 4)
-        ev_tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), _hex_to_rl(DARK)),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("GRID", (0, 0), (-1, -1), 0.3, _hex_to_rl("#e5e7eb")),
-        ]))
-        elements.append(ev_tbl)
-        elements.append(Spacer(1, 16))
-
-    # ── Non-Conformances ───────────────────────────────────────────
-    ncs = data.get("ncs", [])
-    if ncs:
-        elements.append(Paragraph(
-            f"Non-Conformances ({data['nc_total']} total — "
-            f"{data['nc_open']} open, {data['nc_closed']} closed)",
-            styles["SectionHead"],
-        ))
-        nc_header = ["Title", "Severity", "CAP Status", "Assigned To", "Control"]
-        nc_tbl_data = [nc_header]
-        for nc in ncs[:40]:
-            nc_tbl_data.append([
-                _xml_safe(nc.get("title", ""))[:45],
-                _xml_safe(nc.get("severity", "—")),
-                _xml_safe(nc.get("cap_status", "Open")),
-                _xml_safe(nc.get("assigned_name", "—")),
-                _xml_safe(nc.get("ctrl_ref", "—")),
-            ])
-        nc_col_w = [160, 60, 80, 100, 60]
-        nc_tbl = Table(nc_tbl_data, colWidths=nc_col_w, repeatRows=1)
-        nc_style = [
-            ("BACKGROUND", (0, 0), (-1, 0), _hex_to_rl(RED)),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("GRID", (0, 0), (-1, -1), 0.3, _hex_to_rl("#e5e7eb")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ]
-        for i in range(1, len(nc_tbl_data)):
-            if i % 2 == 0:
-                nc_style.append(("BACKGROUND", (0, i), (-1, i), _hex_to_rl("#fef2f2")))
-            sev = nc_tbl_data[i][1]
-            sev_c = RED if sev.lower() == "critical" else AMBER if sev.lower() == "major" else MUTED
-            nc_style.append(("TEXTCOLOR", (1, i), (1, i), _hex_to_rl(sev_c)))
-        nc_tbl.setStyle(TableStyle(nc_style))
-        elements.append(nc_tbl)
-        elements.append(Spacer(1, 16))
-
-    # ── Management Responses ───────────────────────────────────────
-    mgmt = data.get("mgmt_responses", [])
-    if mgmt:
-        elements.append(Paragraph("Management Responses", styles["SectionHead"]))
-        for m in mgmt[:10]:
-            status = _xml_safe(m.get("mgmt_response_status", ""))
-            sc = GREEN if status == "Approved" else RED
-            elements.append(Paragraph(
-                f'<font color="{sc}"><b>{status}</b></font> — '
-                f'{_xml_safe(m.get("title", ""))} '
-                f'<font color="{MUTED}" size="8">(by {_xml_safe(m.get("responder_name", "—"))})</font>',
-                styles["Body"],
-            ))
-            resp_text = _xml_safe(m.get("mgmt_response", ""))
-            if resp_text:
-                elements.append(Paragraph(
-                    f'<font color="{MUTED}" size="8"><i>"{resp_text[:200]}"</i></font>',
-                    styles["Body"],
-                ))
-
-    # ── Conclusion ──────────────────────────────────────────────────
-    # Use audit conclusion first, fall back to AI-generated
-    conclusion = _xml_safe(data.get("conclusion", "")) or _xml_safe(nar.get("conclusion", ""))
-    if conclusion:
-        elements.append(Paragraph("Conclusion", styles["SectionHead"]))
-        elements.append(Paragraph(conclusion, styles["Body"]))
-
-    # ── Sign-offs ──────────────────────────────────────────────────
-    signoffs = data.get("signoffs", [])
-    if signoffs:
-        elements.append(Spacer(1, 12))
-        elements.append(Paragraph("Sign-offs", styles["SectionHead"]))
-        for s in signoffs:
-            elements.append(Paragraph(
-                f'<b>{_xml_safe(s.get("role", "").title())}</b>: '
-                f'{_xml_safe(s.get("user_name", "—"))} — '
-                f'{_xml_safe(s.get("signed_at", "")[:10])}'
-                + (f'  <font color="{MUTED}" size="8"><i>"{_xml_safe(s.get("comment", ""))}"</i></font>'
-                   if s.get("comment") else ""),
-                styles["Body"],
-            ))
-
-    # ── Footer line ─────────────────────────────────────────────────
-    elements.append(Spacer(1, 20))
-    elements.append(HRFlowable(width="100%", thickness=0.5, color=_hex_to_rl("#e5e7eb")))
-    elements.append(Paragraph(
-        f"G.R.I.D AI — One For All Compliance Platform · Confidential · "
-        f"{utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
-        styles["SmallMuted"],
-    ))
-
-    doc.build(elements)
-    pdf_bytes = buf.getvalue()
-    filepath.write_bytes(pdf_bytes)
-
-    return {"filePath": str(filepath), "fileName": filename, "size": len(pdf_bytes)}
-
-
-# ═════════════════════════════════════════════════════════════════════════
-# DOCX REPORT GENERATION
-# ═════════════════════════════════════════════════════════════════════════
-
-def _set_cell_shading(cell, hex_color: str):
-    """Set background shading on a docx table cell."""
-    shading = OxmlElement("w:shd")
-    shading.set(qn("w:fill"), hex_color.lstrip("#"))
-    shading.set(qn("w:val"), "clear")
-    cell._tc.get_or_add_tcPr().append(shading)
-
-
-def _add_run(paragraph, text: str, bold=False, size=None, color=None, italic=False):
-    """Add a run to a paragraph with formatting."""
-    run = paragraph.add_run(text)
-    run.bold = bold
-    if italic:
-        run.italic = True
-    if size:
-        run.font.size = Pt(size)
-    if color:
-        h = color.lstrip("#")
-        run.font.color.rgb = RGBColor(int(h[:2], 16), int(h[2:4], 16), int(h[4:6], 16))
-    return run
-
-
-def generate_docx_report(audit_id: int, narrative: dict | None = None) -> dict:
-    """Generate a branded DOCX audit report.
-
-    Returns: {"filePath": str, "fileName": str, "size": int}
-    """
-    data = _gather_report_data(audit_id)
-    if not data:
-        raise ValueError(f"Audit {audit_id} not found")
-
-    nar = narrative or {}
-    timestamp = int(utcnow().timestamp())
-    filename = f"grid-report-{audit_id}-{timestamp}.docx"
-    if not re.fullmatch(r"grid-report-\d+-\d+\.docx", filename):
-        raise ValueError("Unsafe report filename generated")
-    filepath = _report_output_dir() / filename
-    gen_date = utcnow().strftime("%d %B %Y")
-
-    doc = DocxDocument()
-
-    # Page setup — A4 landscape for better table layout
-    section = doc.sections[0]
-    section.orientation = WD_ORIENT.LANDSCAPE
-    section.page_width = Cm(29.7)
-    section.page_height = Cm(21.0)
-    section.top_margin = Cm(2)
-    section.bottom_margin = Cm(2)
-    section.left_margin = Cm(2.5)
-    section.right_margin = Cm(2.5)
-
-    # Default font
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Calibri"
-    font.size = Pt(10)
-    font.color.rgb = RGBColor(0x37, 0x41, 0x51)
-
-    # ── COVER PAGE ──────────────────────────────────────────────────
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.space_before = Pt(80)
-    _add_run(p, "G.R.I.D AI", bold=True, size=28, color=ACCENT)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_run(p, "Governance · Risk · IT · Data", size=12, color=MUTED, italic=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.space_before = Pt(6)
-    _add_run(p, "by One For All Compliance Platform", size=9, color=MUTED)
-
-    doc.add_paragraph()  # spacer
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.space_before = Pt(40)
-    _add_run(p, "AUDIT REPORT", bold=True, size=24, color=DARK)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.space_before = Pt(12)
-    _add_run(p, _sanitise(data["auditName"]), bold=True, size=16, color="#374151")
-
-    # Metadata table
-    doc.add_paragraph()
-    meta_items = [
-        ("Framework:", data["framework"]),
-        ("Audit Type:", data["audit_type"]),
-        ("Auditor:", data["auditor"]),
-        ("Audit Date:", data["audit_date"] or "TBD"),
-        ("Generated:", gen_date),
-        ("Status:", _sanitise(nar.get("overall_status", "In Progress"))),
-    ]
-    meta_table = doc.add_table(rows=len(meta_items), cols=2)
-    meta_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for i, (label, value) in enumerate(meta_items):
-        c0 = meta_table.cell(i, 0)
-        c1 = meta_table.cell(i, 1)
-        p0 = c0.paragraphs[0]
-        p1 = c1.paragraphs[0]
-        _add_run(p0, label, bold=True, size=9, color=MUTED)
-        color = DARK
-        if label == "Status:":
-            s = value
-            color = GREEN if s == "On Track" else AMBER if s == "At Risk" else RED
-        _add_run(p1, value, size=9, color=color)
-        # Remove borders
-        for cell in (c0, c1):
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
-            borders_el = OxmlElement("w:tcBorders")
-            for edge in ("top", "left", "bottom", "right"):
-                el = OxmlElement(f"w:{edge}")
-                el.set(qn("w:val"), "none")
-                el.set(qn("w:sz"), "0")
-                borders_el.append(el)
-            tcPr.append(borders_el)
-
-    doc.add_page_break()
-
-    # ── STATS SUMMARY ───────────────────────────────────────────────
-    doc.add_heading("Audit At a Glance", level=1)
-
-    stats_items = [
-        ("Total Controls", str(data["totalControls"]), ACCENT),
-        ("Complete", str(data["complete"]), GREEN),
-        ("Pending", str(data["pending"]), AMBER),
-        ("Overdue", str(data["overdue"]), RED),
-        ("Completion", f"{data['completionPct']}%", ACCENT),
-    ]
-    stats_table = doc.add_table(rows=2, cols=5)
-    stats_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for i, (label, value, color) in enumerate(stats_items):
-        # Value row
-        cell_v = stats_table.cell(0, i)
-        pv = cell_v.paragraphs[0]
-        pv.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _add_run(pv, value, bold=True, size=18, color=color)
-        _set_cell_shading(cell_v, LIGHT)
-        # Label row
-        cell_l = stats_table.cell(1, i)
-        pl = cell_l.paragraphs[0]
-        pl.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _add_run(pl, label, size=8, color=MUTED)
-        _set_cell_shading(cell_l, LIGHT)
-    # Remove table borders
-    for row in stats_table.rows:
-        for cell in row.cells:
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
-            borders_el = OxmlElement("w:tcBorders")
-            for edge in ("top", "left", "bottom", "right"):
-                el = OxmlElement(f"w:{edge}")
-                el.set(qn("w:val"), "none")
-                el.set(qn("w:sz"), "0")
-                borders_el.append(el)
-            tcPr.append(borders_el)
-
-    doc.add_paragraph()
-
-    # ── EXECUTIVE SUMMARY ───────────────────────────────────────────
-    exec_sum = _sanitise(nar.get("executive_summary", ""))
-    if exec_sum:
-        doc.add_heading("Executive Summary", level=1)
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Inches(0.25)
-        _add_run(p, exec_sum, size=10, color="#374151")
-        # Blue left border via XML
-        pPr = p._p.get_or_add_pPr()
-        pBdr = OxmlElement("w:pBdr")
-        left_b = OxmlElement("w:left")
-        left_b.set(qn("w:val"), "single")
-        left_b.set(qn("w:sz"), "18")
-        left_b.set(qn("w:color"), ACCENT.lstrip("#"))
-        left_b.set(qn("w:space"), "8")
-        pBdr.append(left_b)
-        pPr.append(pBdr)
-
-    # ── KEY FINDINGS ────────────────────────────────────────────────
-    findings = nar.get("key_findings", [])
-    if findings:
-        doc.add_heading("Key Findings", level=2)
-        for f in findings:
-            p = doc.add_paragraph(style="List Bullet")
-            _add_run(p, _sanitise(f), size=10, color="#374151")
-
-    doc.add_page_break()
-
-    # ── CONTROLS TABLE ──────────────────────────────────────────────
-    doc.add_heading("Controls Summary", level=1)
-
-    cols = ["Control ID", "Control Name", "Risk", "Due Date", "Evidence", "Status"]
-    ctrl_table = doc.add_table(rows=1 + len(data["controls"]), cols=len(cols))
-    ctrl_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    ctrl_table.autofit = True
-
-    # Header row
-    for j, col_name in enumerate(cols):
-        cell = ctrl_table.cell(0, j)
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _add_run(p, col_name, bold=True, size=8, color="#ffffff")
-        _set_cell_shading(cell, DARK)
-
-    # Data rows
-    for i, c in enumerate(data["controls"]):
-        row_idx = i + 1
-        bg = "#ffffff" if i % 2 == 0 else LIGHT
-
-        cid = _sanitise(c.get("control_id", "—"))
-        name = _sanitise(c.get("name", ""))[:60]
-        risk = _sanitise(c.get("risk_level", "—"))
-        due = c.get("due_date", "—") or "—"
-        ev_req = c.get("evidence_required", 0) or 1
-        ev_cnt = c.get("evidence_count", 0)
-        sl = _status_label(c.get("status"), c.get("due_date"))
-
-        row_data = [
-            (cid, ACCENT, True),
-            (name, "#374151", False),
-            (risk, _risk_colour(risk), True),
-            (due, "#374151", False),
-            (f"{ev_cnt}/{ev_req}", GREEN if ev_cnt >= ev_req else AMBER, False),
-            (sl, RED if sl == "Overdue" else _status_colour(c.get("status")), True),
-        ]
-
-        for j, (text, color, bold) in enumerate(row_data):
-            cell = ctrl_table.cell(row_idx, j)
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if j != 1 else WD_ALIGN_PARAGRAPH.LEFT
-            _add_run(p, text, bold=bold, size=8, color=color)
-            _set_cell_shading(cell, bg)
-
-    # Apply thin borders to all cells
-    tbl_xml = ctrl_table._tbl
-    tblPr = tbl_xml.tblPr if tbl_xml.tblPr is not None else OxmlElement("w:tblPr")
-    borders_el = OxmlElement("w:tblBorders")
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        el = OxmlElement(f"w:{edge}")
-        el.set(qn("w:val"), "single")
-        el.set(qn("w:sz"), "4")
-        el.set(qn("w:color"), "e5e7eb")
-        el.set(qn("w:space"), "0")
-        borders_el.append(el)
-    tblPr.append(borders_el)
-
-    # ── EVIDENCE SUMMARY ───────────────────────────────────────────
-    ev = data.get("evidence_summary", {})
-    if ev.get("total_files"):
-        doc.add_heading("Evidence Summary", level=2)
-        ev_tbl = doc.add_table(rows=2, cols=4)
-        ev_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-        for j, (label, val) in enumerate([
-            ("Total Files", str(ev.get("total_files", 0))),
-            ("Approved", str(ev.get("approved", 0))),
-            ("Rejected", str(ev.get("rejected", 0))),
-            ("Pending", str(ev.get("pending_review", 0))),
-        ]):
-            cell_h = ev_tbl.cell(0, j)
-            _add_run(cell_h.paragraphs[0], label, bold=True, size=8, color="#ffffff")
-            cell_h.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            _set_cell_shading(cell_h, DARK)
-            cell_v = ev_tbl.cell(1, j)
-            _add_run(cell_v.paragraphs[0], val, bold=True, size=12, color=ACCENT)
-            cell_v.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph()
-
-    # ── NON-CONFORMANCES ───────────────────────────────────────────
-    ncs = data.get("ncs", [])
-    if ncs:
-        doc.add_heading(
-            f"Non-Conformances ({data['nc_total']} total — "
-            f"{data['nc_open']} open, {data['nc_closed']} closed)",
-            level=1,
-        )
-        nc_cols = ["Title", "Severity", "CAP Status", "Assigned To", "Control"]
-        nc_tbl = doc.add_table(rows=1 + min(len(ncs), 40), cols=len(nc_cols))
-        nc_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-        nc_tbl.autofit = True
-        for j, col_name in enumerate(nc_cols):
-            cell = nc_tbl.cell(0, j)
-            _add_run(cell.paragraphs[0], col_name, bold=True, size=8, color="#ffffff")
-            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            _set_cell_shading(cell, RED.lstrip("#") if True else DARK)
-            _set_cell_shading(cell, RED)
-        for i, nc in enumerate(ncs[:40]):
-            row_idx = i + 1
-            bg = "#ffffff" if i % 2 == 0 else "#fef2f2"
-            sev = _sanitise(nc.get("severity", "—"))
-            sev_c = RED if sev.lower() == "critical" else AMBER if sev.lower() == "major" else MUTED
-            vals = [
-                (_sanitise(nc.get("title", ""))[:45], "#374151", False),
-                (sev, sev_c, True),
-                (_sanitise(nc.get("cap_status", "Open")), ACCENT, True),
-                (_sanitise(nc.get("assigned_name", "—")), "#374151", False),
-                (_sanitise(nc.get("ctrl_ref", "—")), MUTED, False),
-            ]
-            for j, (text, color, bold) in enumerate(vals):
-                cell = nc_tbl.cell(row_idx, j)
-                _add_run(cell.paragraphs[0], text, bold=bold, size=8, color=color)
-                _set_cell_shading(cell, bg)
-        doc.add_paragraph()
-
-    # ── MANAGEMENT RESPONSES ───────────────────────────────────────
-    mgmt = data.get("mgmt_responses", [])
-    if mgmt:
-        doc.add_heading("Management Responses", level=2)
-        for m in mgmt[:10]:
-            status = _sanitise(m.get("mgmt_response_status", ""))
-            sc = GREEN if status == "Approved" else RED
-            p = doc.add_paragraph()
-            _add_run(p, f"{status}", bold=True, size=10, color=sc)
-            _add_run(p, f" — {_sanitise(m.get('title', ''))}", size=10, color="#374151")
-            _add_run(p, f"  (by {_sanitise(m.get('responder_name', '—'))})", size=8, color=MUTED)
-            resp_text = _sanitise(m.get("mgmt_response", ""))
-            if resp_text:
-                pr = doc.add_paragraph()
-                _add_run(pr, f'"{resp_text[:200]}"', size=8, color=MUTED, italic=True)
-
-    # ── CONCLUSION ─────────────────────────────────────────────────
-    conclusion_text = data.get("conclusion") or _sanitise(nar.get("conclusion", ""))
-    if conclusion_text:
-        doc.add_heading("Conclusion", level=1)
-        p = doc.add_paragraph()
-        _add_run(p, conclusion_text, size=10, color="#374151")
-
-    # ── SIGN-OFFS ──────────────────────────────────────────────────
-    signoffs = data.get("signoffs", [])
-    if signoffs:
-        doc.add_heading("Sign-offs", level=2)
-        for s in signoffs:
-            p = doc.add_paragraph()
-            _add_run(p, f"{_sanitise(s.get('role', '').title())}: ", bold=True, size=10, color=DARK)
-            _add_run(p, _sanitise(s.get("user_name", "—")), size=10, color="#374151")
-            _add_run(p, f" — {_sanitise(s.get('signed_at', '')[:10])}", size=9, color=MUTED)
-            if s.get("comment"):
-                _add_run(p, f'  "{_sanitise(s["comment"])}"', size=8, color=MUTED, italic=True)
-
-    # ── HEADER & FOOTER ─────────────────────────────────────────────
-    header = section.header
-    header.is_linked_to_previous = False
-    hp = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
-    _add_run(hp, "G.R.I.D AI  ", bold=True, size=9, color=ACCENT)
-    _add_run(hp, f"{data['auditName']} — {data['framework']} Audit Report", size=9, color=MUTED)
-
-    footer = section.footer
-    footer.is_linked_to_previous = False
-    fp = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_run(fp, f"Generated by G.R.I.D AI — One For All  ·  {gen_date}  ·  Confidential", size=8, color=MUTED)
-
-    # ── SAVE ────────────────────────────────────────────────────────
-    doc.save(str(filepath))
-    size = filepath.stat().st_size
-
-    return {"filePath": str(filepath), "fileName": filename, "size": size}
+    fig = figures(data)
+    narrative, note = None, ""
+    if narrative_fn is not None:
+        try:
+            narrative, note = checked_narrative(data, fig, narrative_fn(narrative_inputs(data, fig)))
+        except Exception:
+            narrative, note = None, ""      # AI unavailable: the report is complete without it
+    return build_report(data, actor=actor, tier=tier, narrative=narrative, narrative_note=note, org_name=_org_name(actor))
+
+
+def generate_pdf_report(audit_id: int, *, actor, tier: str = theme.OPERATIONAL, narrative_fn=None) -> dict:
+    """Generate the PDF into the tenant's report folder. Returns {"filePath", "fileName", "size"}."""
+    return _write(audit_id, "pdf", render_pdf(prepare(audit_id, actor=actor, tier=tier, narrative_fn=narrative_fn)))
+
+
+def generate_docx_report(audit_id: int, *, actor, tier: str = theme.OPERATIONAL, narrative_fn=None) -> dict:
+    """Generate the Word document into the tenant's report folder. Returns {"filePath", "fileName", "size"}."""
+    return _write(audit_id, "docx", render_docx(prepare(audit_id, actor=actor, tier=tier, narrative_fn=narrative_fn)))

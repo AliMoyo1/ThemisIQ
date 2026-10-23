@@ -6,12 +6,14 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_module, require_capability
+from core.middleware import require_module, require_capability, log_audit
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
+from core.report_kit import grounding, respond
 from core.events import emit, ORM_EVENT_LOGGED, ORM_EVENT_ELEVATED, ORM_EVENT_RESOLVED
 from modules.orm import data_service as ds
 from modules.orm import ai_service as ai
+from modules.orm import board_report as board
 from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter(prefix="/orm", tags=["orm"])
@@ -333,7 +335,21 @@ async def api_ai_board_report(request: Request):
     days = int((await _json_body(request)).get("days", 30))
     stats = ds.get_dashboard_stats(days=days, user=request.state.user)
     narrative = ai.generate_trend_narrative(stats)
-    return JSONResponse({"narrative": narrative, "stats": stats})
+    checked = grounding.check(narrative, stats)
+    return JSONResponse({"narrative": narrative, "stats": stats, "narrative_check": checked.sentence(), "narrative_grounded": checked.ok})
+
+
+@router.get("/api/board-report/document")
+@require_capability("orm.report.generate")
+async def api_board_report_document(request: Request):
+    fmt = respond.format_of(request)
+    if fmt is None:
+        raise HTTPException(400, "Choose pdf or xlsx")
+    user = request.state.user
+    report = board.board_report(user)
+    log_audit(user, "orm", "report_export", entity_type="board_report", ip=respond.client_ip(request),
+              details=f"format={fmt}; tier={report.meta.tier}")
+    return await respond.download(report, fmt, "ThemisIQ_operations_risk_board_report")
 
 
 @router.post("/api/chat")
@@ -596,34 +612,35 @@ async def api_rcsa_action_delete(request: Request, action_id: int):
 @router.get("/api/export/csv")
 @require_capability("module.orm.access")
 async def api_export_csv(request: Request):
+    """Export only operational events visible to the caller's business unit."""
     import csv
     import io
-    from starlette.responses import StreamingResponse
+    from starlette.responses import Response
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    from core.timeutils import utcnow
     from database import get_db
+    from modules.governance.entity_scope import entity_scope_sql
+    scope, params = entity_scope_sql(("orm", "event"), request.state.user, "e")
+    columns = ["title", "event_type", "severity", "status", "department", "financial_impact", "root_cause", "reporter_name",
+               "created_at", "resolved_at"]
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT e.title, e.event_type, e.severity, e.status, e.department, "
-            "e.financial_impact, e.root_cause, u.full_name AS reporter_name, "
-            "e.created_at, e.resolved_at "
-            "FROM orm_events e LEFT JOIN users u ON u.id = e.reported_by "
-            "ORDER BY e.created_at DESC"
+            "SELECT e.title, e.event_type, e.severity, e.status, e.department, e.financial_impact, e.root_cause, "
+            "u.full_name AS reporter_name, e.created_at, e.resolved_at "
+            f"FROM orm_events e LEFT JOIN users u ON u.id = e.reported_by WHERE {scope} ORDER BY e.created_at DESC, e.id DESC",
+            params,
         ).fetchall()
     finally:
         db.close()
-    columns = ["title", "event_type", "severity", "status", "department",
-               "financial_impact", "root_cause", "reporter_name", "created_at", "resolved_at"]
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(columns)
     for r in rows:
-        writer.writerow([r[c] if c in r.keys() else "" for c in columns])
-    buf.seek(0)
-    return StreamingResponse(
-        iter([buf.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=orm_events.csv"},
-    )
+        writer.writerow(identity.csv_row(["" if r[c] is None else r[c] for c in columns]))
+    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers=download_headers(identity.safe_filename("ThemisIQ_operations_risk_events", "csv", when=utcnow())))
 
 
 # ── AI Controls Catalogue (PLAN-21) ───────────────────────────────────────────
@@ -635,13 +652,53 @@ async def api_ai_controls_list(request: Request):
     return JSONResponse(ds.list_ai_controls(
         pillar=p.get("pillar"),
         include_inactive=p.get("include_inactive") == "true",
+        bu_scope=bu_scope_ids(request.state.user),
     ))
+
+
+def _ai_control_or_404(request: Request, control_id: int) -> dict:
+    control = ds.get_ai_control(control_id, bu_scope=bu_scope_ids(request.state.user))
+    if control is None:
+        raise HTTPException(404, "Control not found")
+    return control
+
+
+def _ai_control_edit_or_404(request: Request, control_id: int) -> dict:
+    control = _ai_control_or_404(request, control_id)
+    if control.get("business_unit_id") is None and bu_scope_ids(request.state.user) is not None:
+        raise HTTPException(403, "Only a platform administrator can change a shared control")
+    return control
+
+
+def _check_catalogue_reference(request: Request, data: dict, assessment_id: int) -> None:
+    """The writer and every reader of the assessment may open a linked control."""
+    raw = data.get("catalogue_control_id")
+    if raw in (None, ""):
+        return
+    try:
+        control_id = int(raw) if not isinstance(raw, (bool, float)) else 0
+    except (TypeError, ValueError):
+        control_id = 0
+    if control_id < 1:
+        raise HTTPException(404, "Control not found")
+    control = _ai_control_or_404(request, control_id)
+    assessment = ds.get_aims_assessment(assessment_id)
+    if assessment is None or (control.get("business_unit_id") is not None
+                              and control["business_unit_id"] != assessment.get("business_unit_id")):
+        raise HTTPException(404, "Control not found")
+    data["catalogue_control_id"] = control_id
 
 
 @router.post("/api/ai-controls")
 @require_capability("orm.event.manage")
 async def api_ai_control_create(request: Request):
     body = await _json_body(request)
+    scope = bu_scope_ids(request.state.user)
+    if "business_unit_id" not in body:
+        body["business_unit_id"] = request.state.user.get("business_unit_id")
+    _check_aims_unit(request, body)
+    if scope is not None and body["business_unit_id"] is None:
+        raise HTTPException(400, "Assign a business unit before creating a custom control")
     try:
         cid = ds.create_ai_control(body)
     except ValueError as exc:
@@ -652,15 +709,13 @@ async def api_ai_control_create(request: Request):
 @router.get("/api/ai-controls/{control_id}")
 @require_capability("module.orm.access")
 async def api_ai_control_get(request: Request, control_id: int):
-    c = ds.get_ai_control(control_id)
-    if not c:
-        raise HTTPException(404)
-    return JSONResponse(c)
+    return JSONResponse(_ai_control_or_404(request, control_id))
 
 
 @router.put("/api/ai-controls/{control_id}")
 @require_capability("orm.event.manage")
 async def api_ai_control_update(request: Request, control_id: int):
+    _ai_control_edit_or_404(request, control_id)
     body = await _json_body(request)
     try:
         ds.update_ai_control(control_id, body)
@@ -672,6 +727,7 @@ async def api_ai_control_update(request: Request, control_id: int):
 @router.delete("/api/ai-controls/{control_id}")
 @require_capability("orm.event.manage")
 async def api_ai_control_delete(request: Request, control_id: int):
+    _ai_control_edit_or_404(request, control_id)
     try:
         ds.delete_ai_control(control_id)
     except ValueError as exc:
@@ -681,16 +737,63 @@ async def api_ai_control_delete(request: Request, control_id: int):
 
 # ── AIMS/ORAAT Assessments (PLAN-21) ──────────────────────────────────────────
 
+# A risk and a control link have no business unit of their own: they follow their assessment. Every route below that takes an
+# assessment, risk or link id, to read or to change it, first asks _aims_in_scope_or_404 (through the risk or link helper for
+# those two) and answers 404, never 403, for one the caller may not open: the same answer as for an id that does not exist.
+
 @router.get("/api/aims")
 @require_capability("module.orm.access")
 async def api_aims_list(request: Request):
     return JSONResponse(ds.list_aims_assessments(bu_scope=bu_scope_ids(request.state.user)))
 
 
+def _check_aims_unit(request: Request, data: dict, assessment_id: "int | None" = None) -> None:
+    """A body may only file an assessment under a business unit its writer may open (400 otherwise): the rule Sentinel applies to its
+    records. A form sends the number as text. New assessments default to the author's unit; only super admins may create
+    organization-wide records. Existing organization-wide records remain readable, but cannot be moved across a linked control."""
+    if "business_unit_id" not in data:
+        return
+    scope = bu_scope_ids(request.state.user)      # None for an administrator, who is not confined to a unit
+    unit = data["business_unit_id"]
+    if unit in (None, ""):
+        if scope is not None:
+            current = ds.get_aims_assessment(assessment_id) if assessment_id is not None else None
+            if current is None or current.get("business_unit_id") is not None:
+                raise HTTPException(400, "Only a platform administrator can make an assessment organization wide")
+        data["business_unit_id"] = None
+        current = ds.get_aims_assessment(assessment_id) if assessment_id is not None else None
+        if current is not None and current.get("business_unit_id") is not None and ds.aims_has_foreign_controls(assessment_id, None):
+            raise HTTPException(409, "Reassign linked unit controls before moving this assessment")
+        return
+    try:
+        number = None if isinstance(unit, (bool, float)) else int(unit)
+    except (TypeError, ValueError):
+        number = None
+    if number is None or number <= 0:             # also keeps -1, the "no unit" marker bu_scope_ids uses, out of the table
+        raise HTTPException(400, "Choose a business unit")
+    if scope is not None and number not in scope:
+        raise HTTPException(400, "Choose a business unit you belong to")
+    from database import get_db
+    db = get_db()
+    try:
+        known = db.execute("SELECT 1 FROM business_units WHERE id=%s AND is_active=1", (number,)).fetchone()
+    finally:
+        db.close()
+    if not known:
+        raise HTTPException(400, "Choose an active business unit")
+    current = ds.get_aims_assessment(assessment_id) if assessment_id is not None else None
+    if current is not None and current.get("business_unit_id") != number and ds.aims_has_foreign_controls(assessment_id, number):
+        raise HTTPException(409, "Reassign linked unit controls before moving this assessment")
+    data["business_unit_id"] = number
+
+
 @router.post("/api/aims")
 @require_capability("orm.event.manage")
 async def api_aims_create(request: Request):
     body = await _json_body(request)
+    if "business_unit_id" not in body:
+        body["business_unit_id"] = request.state.user.get("business_unit_id")
+    _check_aims_unit(request, body)
     body["created_by"] = _uid(request)
     aid = ds.create_aims_assessment(body)
     return JSONResponse({"id": aid}, status_code=201)
@@ -699,6 +802,7 @@ async def api_aims_create(request: Request):
 @router.get("/api/aims/{assessment_id}")
 @require_capability("module.orm.access")
 async def api_aims_get(request: Request, assessment_id: int):
+    _aims_in_scope_or_404(request, assessment_id)
     a = ds.get_aims_assessment(assessment_id)
     if not a:
         raise HTTPException(404)
@@ -708,7 +812,9 @@ async def api_aims_get(request: Request, assessment_id: int):
 @router.put("/api/aims/{assessment_id}")
 @require_capability("orm.event.manage")
 async def api_aims_update(request: Request, assessment_id: int):
+    _aims_in_scope_or_404(request, assessment_id)
     body = await _json_body(request)
+    _check_aims_unit(request, body, assessment_id)
     ds.update_aims_assessment(assessment_id, body)
     return JSONResponse({"ok": True})
 
@@ -716,22 +822,31 @@ async def api_aims_update(request: Request, assessment_id: int):
 @router.delete("/api/aims/{assessment_id}")
 @require_capability("orm.event.manage")
 async def api_aims_delete(request: Request, assessment_id: int):
+    _aims_in_scope_or_404(request, assessment_id)
     ds.delete_aims_assessment(assessment_id)
     return JSONResponse({"ok": True})
 
 
 # ── AIMS Risks ─────────────────────────────────────────────────────────────────
 
+def _aims_risk_in_scope_or_404(request: Request, risk_id: int) -> None:
+    """A risk follows its assessment. One that is not there finds no assessment (None), so it answers exactly like one in another unit."""
+    _aims_in_scope_or_404(request, ds.get_aims_risk_assessment_id(risk_id))
+
+
 @router.get("/api/aims/{assessment_id}/risks")
 @require_capability("module.orm.access")
 async def api_aims_risks_list(request: Request, assessment_id: int):
+    _aims_in_scope_or_404(request, assessment_id)
     return JSONResponse(ds.list_aims_risks(assessment_id))
 
 
 @router.post("/api/aims/{assessment_id}/risks")
 @require_capability("orm.event.manage")
 async def api_aims_risk_create(request: Request, assessment_id: int):
+    _aims_in_scope_or_404(request, assessment_id)
     body = await _json_body(request)
+    _check_catalogue_reference(request, body, assessment_id)
     try:
         rid = ds.create_aims_risk(assessment_id, body)
     except ValueError as exc:
@@ -742,6 +857,7 @@ async def api_aims_risk_create(request: Request, assessment_id: int):
 @router.get("/api/aims/risks/{risk_id}")
 @require_capability("module.orm.access")
 async def api_aims_risk_get(request: Request, risk_id: int):
+    _aims_risk_in_scope_or_404(request, risk_id)
     r = ds.get_aims_risk(risk_id)
     if not r:
         raise HTTPException(404)
@@ -751,7 +867,13 @@ async def api_aims_risk_get(request: Request, risk_id: int):
 @router.put("/api/aims/risks/{risk_id}")
 @require_capability("orm.event.manage")
 async def api_aims_risk_update(request: Request, risk_id: int):
+    _aims_risk_in_scope_or_404(request, risk_id)
     body = await _json_body(request)
+    if body.get("catalogue_control_id") in (None, ""):
+        old_id = ds.get_aims_risk_catalogue_id(risk_id)
+        if old_id and not ds.get_ai_control(old_id, bu_scope=bu_scope_ids(request.state.user)):
+            body.pop("catalogue_control_id", None)
+    _check_catalogue_reference(request, body, ds.get_aims_risk_assessment_id(risk_id))
     ds.update_aims_risk(risk_id, body)
     return JSONResponse({"ok": True})
 
@@ -759,16 +881,24 @@ async def api_aims_risk_update(request: Request, risk_id: int):
 @router.delete("/api/aims/risks/{risk_id}")
 @require_capability("orm.event.manage")
 async def api_aims_risk_delete(request: Request, risk_id: int):
+    _aims_risk_in_scope_or_404(request, risk_id)
     ds.delete_aims_risk(risk_id)
     return JSONResponse({"ok": True})
 
 
 # ── AIMS Risk <-> Control links ────────────────────────────────────────────────
 
+def _aims_link_in_scope_or_404(request: Request, link_id: int) -> None:
+    """A control link follows its risk, and so its assessment. One that is not there answers like one in another unit."""
+    _aims_in_scope_or_404(request, ds.get_aims_link_assessment_id(link_id))
+
+
 @router.post("/api/aims/risks/{risk_id}/controls")
 @require_capability("orm.event.manage")
 async def api_aims_risk_control_create(request: Request, risk_id: int):
+    _aims_risk_in_scope_or_404(request, risk_id)
     body = await _json_body(request)
+    _check_catalogue_reference(request, body, ds.get_aims_risk_assessment_id(risk_id))
     try:
         lid = ds.create_aims_risk_control(risk_id, body)
     except ValueError as exc:
@@ -779,7 +909,13 @@ async def api_aims_risk_control_create(request: Request, risk_id: int):
 @router.put("/api/aims/controls/{link_id}")
 @require_capability("orm.event.manage")
 async def api_aims_risk_control_update(request: Request, link_id: int):
+    _aims_link_in_scope_or_404(request, link_id)
     body = await _json_body(request)
+    if body.get("catalogue_control_id") in (None, ""):
+        old_id = ds.get_aims_link_catalogue_id(link_id)
+        if old_id and not ds.get_ai_control(old_id, bu_scope=bu_scope_ids(request.state.user)):
+            body.pop("catalogue_control_id", None)
+    _check_catalogue_reference(request, body, ds.get_aims_link_assessment_id(link_id))
     try:
         ds.update_aims_risk_control(link_id, body)
     except ValueError as exc:
@@ -790,15 +926,31 @@ async def api_aims_risk_control_update(request: Request, link_id: int):
 @router.delete("/api/aims/controls/{link_id}")
 @require_capability("orm.event.manage")
 async def api_aims_risk_control_delete(request: Request, link_id: int):
+    _aims_link_in_scope_or_404(request, link_id)
     ds.delete_aims_risk_control(link_id)
     return JSONResponse({"ok": True})
 
 
 # ── AIMS Aggregation ───────────────────────────────────────────────────────────
 
+def _aims_in_scope_or_404(request: Request, assessment_id: int) -> None:
+    """The assessment list is unit scoped; so is every read of one assessment's data. 404, never 403, for another unit's."""
+    from database import get_db
+    from modules.governance.entity_scope import entity_scope_sql
+    scope, params = entity_scope_sql(("orm", "aims"), request.state.user, "a")
+    db = get_db()
+    try:
+        found = db.execute(f"SELECT a.id FROM aims_assessments a WHERE a.id = %s AND {scope}", [assessment_id, *params]).fetchone()
+    finally:
+        db.close()
+    if not found:
+        raise HTTPException(404, "Assessment not found")
+
+
 @router.get("/api/aims/{assessment_id}/aggregation")
 @require_capability("module.orm.access")
 async def api_aims_aggregation(request: Request, assessment_id: int):
+    _aims_in_scope_or_404(request, assessment_id)
     return JSONResponse(ds.get_aims_aggregation(assessment_id))
 
 
@@ -807,7 +959,10 @@ async def api_aims_aggregation(request: Request, assessment_id: int):
 async def api_aims_aggregation_csv(request: Request, assessment_id: int):
     import csv
     import io
-    from starlette.responses import StreamingResponse
+    from starlette.responses import Response
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    _aims_in_scope_or_404(request, assessment_id)
     rows = ds.get_aims_aggregation(assessment_id)
     columns = ["ref", "risk_description", "impacted_pillar", "likelihood", "impact",
                "irr", "mean_factor", "residual_rating", "emv_inherent", "residual_emv",
@@ -816,10 +971,6 @@ async def api_aims_aggregation_csv(request: Request, assessment_id: int):
     writer = csv.writer(buf)
     writer.writerow(columns)
     for r in rows:
-        writer.writerow([r.get(c, "") for c in columns])
-    buf.seek(0)
-    return StreamingResponse(
-        iter([buf.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=aims_aggregation_{assessment_id}.csv"},
-    )
+        writer.writerow(identity.csv_row([r.get(c, "") for c in columns]))
+    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers=download_headers(f"ThemisIQ_aims_aggregation_{int(assessment_id)}.csv"))

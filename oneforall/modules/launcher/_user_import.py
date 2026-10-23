@@ -68,7 +68,8 @@ def parse_users_excel(file_bytes, is_super: bool, caller_org_id):
     """
     import openpyxl
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-    ws = wb.active
+    # An exported file has a cover sheet first; the users are on the sheet named Users. A plain file has just one sheet.
+    ws = wb["Users"] if "Users" in wb.sheetnames else wb.active
 
     db = get_db()
     try:
