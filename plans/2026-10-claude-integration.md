@@ -56,3 +56,5 @@ For each row, first inspect whether the linked source record and ownership rule 
 ## Verification and release state
 
 No tests or deployment have been performed for this integrated branch. Static diff inspection, `git diff --check` and capability inventory generation are the local checks so far. Verify commit and merge state in Git. The source worktrees' own results are recorded in their plans and must not be presented as checks of this branch.
+
+PR #25's first backend CI run reported ten failures in older exact-shape report assertions: seven SLA fixtures did not expect the new `by_status` field, two brief fixtures still expected platform-only critical risks, and one snapshot fixture did not expect the generator username. The report source plan documents these additive fields and the two-register brief. Existing assertions were aligned to that contract. The CI backend job had finished just under its 40-minute limit; its timeout was raised to 65 minutes because the source worktree's complete backend run took 57 minutes. A fresh PR CI result is required before merge. No local test run was made for this correction.

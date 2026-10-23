@@ -100,7 +100,7 @@ def test_the_envelope_says_who_when_for_which_scope_and_what_was_read(world):
     dpo = world.users["dpo_a"]
     _, run = _quick(dpo, "privacy_overview")
     snap = run["snapshot"]
-    assert snap["run"]["generated_by"] == {"id": dpo["id"], "name": "dpo_a"}
+    assert snap["run"]["generated_by"] == {"id": dpo["id"], "name": "dpo_a", "username": "dpo_a"}
     assert snap["run"]["report_type"] == "privacy_overview" and snap["run"]["definition_version"]
     assert snap["scope"]["business_unit_ids"] == sorted([world.unit["A"], world.unit["A1"]])
     assert snap["scope"]["whole_organization"] is False
