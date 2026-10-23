@@ -61,6 +61,7 @@ jobs:
         working-directory: oneforall
         run: |
           python -m pip_audit -r requirements.txt
+          python -m pip_audit -r requirements-preview.txt
           python -m pip_audit -r requirements-dev.txt
           python -m pip_audit -r requirements-browser-dev.txt
 
