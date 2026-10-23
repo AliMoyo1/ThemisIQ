@@ -1591,7 +1591,7 @@
       var data=await apiFetch('/sentinel/api/dpias');
       var items=data.records||data.items||data||[];
       dpiaCache=items;
-      var now=new Date();
+      var today=new Date();today.setHours(0,0,0,0);  // overdue means before today, as for subject requests
       var inProg=items.filter(function(d){return d.status==='in_progress';}).length;
       var done=items.filter(function(d){return d.status==='completed'||d.status==='approved';}).length;
       var highRisk=items.filter(function(d){return d.overall_risk==='high';}).length;
@@ -2352,6 +2352,7 @@
           fg('Consultation Notes','<textarea id="dd_consult_notes" rows="3" placeholder="Notes from DPO or supervisory authority consultation" style="'+fsta+'">'+esc(f('consult_notes'))+'</textarea>')+
           '<div id="snDpiaProfileFields"></div>'+
           (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Document available</div><button class="btn-ai" onclick="snViewDpiaDoc('+id+')" style="margin-top:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> View Document</button></div>':'')+
+          (isEdit?fg('Documents in the Evidence Vault','<div id="snDpiaDocs" style="font-size:13px;color:var(--muted)">Loading...</div>'):'')+
         '</div>'+
       '</div>'+
       '<div class="ropa-drawer-footer">'+
@@ -2377,11 +2378,31 @@
         .catch(function(e){host.textContent=e.message;});
     });
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDpiaDrawerWrap').firstElementChild);
+    if(isEdit)snLoadDpiaDocuments(id);
     snRenderChipPicker('snDpiaDC',SN_DATA_CATEGORIES,f('data_categories'));
     snRenderChipPicker('snDpiaSC',SN_SPECIAL_CATS,f('special_cats'));
     var dsubEl=document.getElementById('snDpiaDSub');
     if(dsubEl)dsubEl.innerHTML=SN_SUBJECTS.map(function(s){return '<button type="button" class="chip-pick" onclick="snAppendSubject(\'dd_data_subjects\',\''+esc(s)+'\')">'+esc(s)+'</button>';}).join('');
     if(reg)snDpiaUpdateJurisHint(reg);
+  };
+
+  // The documents a DPIA relies on are linked to it in the Evidence Vault. A report on the DPIA reads the same list
+  // (the connected view of the record), so what a person sees here is what the report points to.
+  window.snLoadDpiaDocuments=async function(id){
+    var box=document.getElementById('snDpiaDocs');
+    if(!box)return;
+    var local=function(u){return typeof u==='string'&&u.charAt(0)==='/'&&u.charAt(1)!=='/'?u:'#';};
+    var hint='<div style="margin-top:8px;font-size:12px">To add a document, link it to this DPIA in the <a href="/evidence/">Evidence Vault</a>.</div>'+
+      '<div style="margin-top:4px;font-size:12px"><a href="/governance/connected/sentinel/dpia/'+id+'">Open the connected view</a> to see every record and document connected to it.</div>';
+    try{
+      var data=await apiFetch('/governance/api/connected/sentinel/dpia/'+id);
+      var items=(data.proof&&data.proof.items)||[];
+      box.innerHTML=(items.length?items.map(function(d){
+        return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--border)">'+
+          '<a href="'+esc(local(d.url))+'" style="font-weight:600">'+esc(d.title)+'</a>'+
+          '<span style="font-size:11px">'+esc(d.state)+(d.expiry_date?', expires '+esc(fmtDate(d.expiry_date)):'')+'</span></div>';
+      }).join(''):'<div>No document is linked to this DPIA yet.</div>')+hint;
+    }catch(e){box.innerHTML='<div>The linked documents could not be read just now.</div>'+hint;}
   };
 
   window.snDpiaDrawerTab=function(tab){
