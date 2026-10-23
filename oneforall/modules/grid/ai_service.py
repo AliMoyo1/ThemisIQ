@@ -124,8 +124,9 @@ def generate_report_narrative(audit_data: dict) -> dict:
             f"Completion: {audit_data.get('completionPct', 0)}%, "
             f"Total: {audit_data.get('totalControls', 0)}, "
             f"Complete: {audit_data.get('complete', 0)}, "
-            f"Pending: {audit_data.get('pending', 0)}, "
-            f"Overdue: {audit_data.get('overdue', 0)}\n"
+            f"Not yet complete (this includes the overdue ones): {audit_data.get('pending', 0)}, "
+            f"Overdue (part of the not yet complete): {audit_data.get('overdue', 0)}\n"
+            "Use only these figures and state none that is not given here.\n"
             f"Audit date: {audit_data.get('auditDate', 'TBD')}, "
             f"Critical gaps: {', '.join(audit_data.get('criticalGaps', [])[:5]) or 'None'}\n"
             'Return ONLY JSON: {"executive_summary":"3-4 sentences",'

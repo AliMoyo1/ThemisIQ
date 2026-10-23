@@ -2516,83 +2516,26 @@ async def api_ims_status(request: Request):
 @router.get("/export/excel")
 @require_module("aria")
 async def export_excel(request: Request):
-    user = request.state.user
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    """The controls register of every active framework as a workbook: a cover, a summary with charts, one sheet per framework."""
+    from fastapi.responses import Response
+    from starlette.concurrency import run_in_threadpool
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    from core.report_kit.render_xlsx import render_xlsx
+    from modules.aria.export_report import controls_report
 
+    user = request.state.user
     db = get_db()
     try:
-        frameworks = db.execute(
-            "SELECT * FROM frameworks WHERE is_active = 1 ORDER BY name"
-        ).fetchall()
-        wb = Workbook()
-        wb.remove(wb.active)
-        hdr_fill = PatternFill("solid", start_color="1A2744", end_color="1A2744")
-        hdr_font = Font(name="Calibri", bold=True, color="FFFFFF", size=10)
-        thin = Side(style="thin", color="CCCCCC")
-        border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-        for fw in frameworks:
-            safe_title = _re.sub(r'[\\/*?\[\]:]', '-', fw["name"])[:31]
-            ws = wb.create_sheet(safe_title)
-            ws.sheet_view.showGridLines = False
-            headers = [
-                "Ref", "Control Name", "Category", "Doc Type",
-                "Document Title", "Owner", "Status", "Priority",
-                "Target Date", "Review Date", "Version", "Notes",
-            ]
-            for c, h in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=c, value=h)
-                cell.font = hdr_font
-                cell.fill = hdr_fill
-                cell.alignment = Alignment(
-                    horizontal="center", vertical="center"
-                )
-                cell.border = border
-            ws.row_dimensions[1].height = 24
-
-            controls = db.execute(
-                "SELECT * FROM controls WHERE framework_id=%s ORDER BY ref",
-                (fw["id"],),
-            ).fetchall()
-            for i, ctrl in enumerate(controls, 2):
-                bg = "F8FAFC" if i % 2 == 0 else "FFFFFF"
-                row_fill = PatternFill("solid", start_color=bg, end_color=bg)
-                vals = [
-                    ctrl["ref"], ctrl["name"], ctrl["category"],
-                    ctrl["doc_type"], ctrl["document_title"], ctrl["owner"],
-                    ctrl["status"], ctrl["priority"], ctrl["target_date"],
-                    ctrl["review_date"], ctrl["version"], ctrl["notes"],
-                ]
-                for c, v in enumerate(vals, 1):
-                    cell = ws.cell(row=i, column=c, value=v or "")
-                    cell.fill = row_fill
-                    cell.border = border
-                    cell.font = Font(name="Calibri", size=9)
-                    cell.alignment = Alignment(
-                        vertical="center", wrap_text=c in (2, 3, 5, 12)
-                    )
-                ws.row_dimensions[i].height = 18
-
-            widths = [10, 28, 22, 12, 35, 18, 16, 12, 14, 14, 10, 30]
-            for c, w in enumerate(widths, 1):
-                col_letter = ws.cell(row=1, column=c).column_letter
-                ws.column_dimensions[col_letter].width = w
+        org = db.execute("SELECT name FROM organizations WHERE id = %s", (user.get("org_id"),)).fetchone()
+        report = controls_report(db, user, org["name"] if org else "")
     finally:
         db.close()
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    fname = "ARIA_Export_" + datetime.now().strftime("%Y%m%d_%H%M") + ".xlsx"
-    return StreamingResponse(
-        buf,
-        media_type=(
-            "application/vnd.openxmlformats-officedocument"
-            ".spreadsheetml.sheet"
-        ),
-        headers={"Content-Disposition": "attachment; filename=" + fname},
-    )
+    body = await run_in_threadpool(render_xlsx, report)
+    log_audit(user, "aria", "Exported the controls register to Excel")
+    name = identity.safe_filename("ThemisIQ_Governance_controls_register", "xlsx", when=report.meta.generated_at)
+    return Response(body, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers=download_headers(name))
 
 
 # -- Audit Log (ARIA-scoped) -------------------------------------------------
@@ -3031,11 +2974,13 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
     )
     safe_title = _re.sub(r'[^\w\s\-]', '', raw_title).strip()
     safe_title = _re.sub(r'\s+', ' ', safe_title)
-    filename = f"{safe_title}.docx" if safe_title else "Policy Document.docx"
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    filename = identity.safe_filename(safe_title or "Policy Document", "docx")      # \w keeps letters a download header cannot carry
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=download_headers(filename),
     )
 
 

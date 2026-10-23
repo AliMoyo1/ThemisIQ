@@ -136,13 +136,14 @@ def suggest_ice_rationale(control_title: str, control_description: str, ice_sugg
 
 def generate_board_narrative(stats: dict, appetite_status: list) -> str:
     if not is_configured():
-        return _stub_board_narrative(stats)
+        return _stub_board_narrative(stats, appetite_status)
     breached = [a["category"] for a in appetite_status if a.get("breached")]
     prompt = (
         "You are writing the Enterprise Risk section of a board-level governance report. "
         "Write a professional 3-4 paragraph executive narrative.\n\n"
         f"Risk Statistics: {json.dumps(stats, default=str)}\n"
-        f"Risk Appetite Breaches: {breached or 'None'}\n\n"
+        f"Risk appetite: {len(appetite_status)} categories have a limit; above the limit: {breached or 'none'}."
+        f"{'' if appetite_status else ' No limit is set, so do not say that risk is within appetite.'}\n\n"
         "Cover: overall risk profile, critical/high risks, appetite status, "
         "top risk categories, and recommended board actions. "
         "Use professional tone. Format as plain paragraphs (no markdown headers)."
@@ -151,17 +152,23 @@ def generate_board_narrative(stats: dict, appetite_status: list) -> str:
         return create_message([{"role": "user", "content": prompt}], max_tokens=1500, feature="erm.generate_board_narrative")
     except Exception as exc:
         log.error("ERM board narrative failed: %s", exc)
-        return _stub_board_narrative(stats)
+        return _stub_board_narrative(stats, appetite_status)
 
 
-def _stub_board_narrative(stats: dict) -> str:
+def _stub_board_narrative(stats: dict, appetite_status: list = None) -> str:
     total = stats.get("total_risks", 0)
     crit = stats.get("critical", 0)
     breaches = stats.get("appetite_breaches", 0)
+    limits = appetite_status or []
+    if not limits:
+        appetite_line = "No risk appetite is set, so exposure cannot be compared with appetite."
+    elif breaches:
+        appetite_line = f"{breaches} risk(s) are above the appetite set for their category, requiring board attention."
+    else:
+        appetite_line = "Every risk is within the appetite set for its category."
     return (
         f"The enterprise risk register currently contains {total} open risk items, "
-        f"of which {crit} are rated critical. "
-        f"{'Risk appetite is being breached in ' + str(breaches) + ' category/categories, requiring immediate board attention.' if breaches else 'All risks are currently within approved appetite thresholds.'}\n\n"
+        f"of which {crit} are rated critical. {appetite_line}\n\n"
         "The Board is requested to note the current risk profile and approve the proposed treatment plans "
         "for any above-appetite exposures.\n\n"
         f"*[Full AI narrative requires {provider_name()} API key to be configured.]*"

@@ -1038,15 +1038,33 @@ def _resolve_ice_score(data):
 
 # ── AI Controls Catalogue ──────────────────────────────────────────────────
 
-def list_ai_controls(pillar=None, include_inactive=False):
+def list_ai_controls(pillar=None, include_inactive=False, bu_scope=None):
     db = get_db()
     try:
+        units = list(bu_scope) if bu_scope is not None else None
+        if units is None:
+            count_scope, count_params = "", []
+        elif units:
+            marks = ",".join(["%s"] * len(units))
+            count_scope, count_params = f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({marks}))", units
+        else:
+            count_scope, count_params = " AND a.business_unit_id IS NULL", []
         sql = (
             "SELECT c.*, "
-            "(SELECT COUNT(*) FROM aims_risk_controls rc WHERE rc.catalogue_control_id=c.id) "
+            "(SELECT COUNT(*) FROM aims_risk_controls rc "
+            "JOIN aims_risks r ON r.id=rc.risk_id JOIN aims_assessments a ON a.id=r.assessment_id "
+            f"WHERE rc.catalogue_control_id=c.id{count_scope}) + "
+            "(SELECT COUNT(*) FROM aims_risks r JOIN aims_assessments a ON a.id=r.assessment_id "
+            f"WHERE r.catalogue_control_id=c.id{count_scope}) "
             "AS link_count FROM ai_control_catalogue c WHERE 1=1"
         )
-        params = []
+        params = list(count_params) + list(count_params)
+        if units is not None:
+            if units:
+                sql += f" AND (c.business_unit_id IS NULL OR c.business_unit_id IN ({marks}))"
+                params.extend(units)
+            else:
+                sql += " AND c.business_unit_id IS NULL"
         if not include_inactive:
             sql += " AND c.is_active=1"
         if pillar:
@@ -1058,12 +1076,15 @@ def list_ai_controls(pillar=None, include_inactive=False):
         db.close()
 
 
-def get_ai_control(control_id):
+def get_ai_control(control_id, bu_scope=None):
     db = get_db()
     try:
-        return _dict(db.execute(
+        control = _dict(db.execute(
             "SELECT * FROM ai_control_catalogue WHERE id=%s", (control_id,)
         ).fetchone())
+        if control is None or bu_scope is None:
+            return control
+        return control if control.get("business_unit_id") is None or control["business_unit_id"] in bu_scope else None
     finally:
         db.close()
 
@@ -1120,7 +1141,9 @@ def delete_ai_control(control_id):
         if row["source"] == "built_in":
             raise ValueError("Built-in controls cannot be deleted. Deactivate instead.")
         linked = db.execute(
-            "SELECT COUNT(*) c FROM aims_risk_controls WHERE catalogue_control_id=%s", (control_id,)
+            "SELECT (SELECT COUNT(*) FROM aims_risk_controls WHERE catalogue_control_id=%s) + "
+            "(SELECT COUNT(*) FROM aims_risks WHERE catalogue_control_id=%s) AS c",
+            (control_id, control_id),
         ).fetchone()["c"]
         if linked:
             raise ValueError("This control is linked to one or more risks and cannot be deleted. Deactivate instead.")
@@ -1160,6 +1183,36 @@ def get_aims_assessment(assessment_id):
         ).fetchone())
     finally:
         db.close()
+
+
+def aims_has_foreign_controls(assessment_id, target_unit):
+    """A unit move must not expose names of controls linked under another unit."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT 1 FROM aims_risks r JOIN ai_control_catalogue c ON c.id=r.catalogue_control_id "
+            "WHERE r.assessment_id=%s AND c.business_unit_id IS NOT NULL "
+            "AND (c.business_unit_id <> %s OR %s IS NULL) "
+            "UNION ALL "
+            "SELECT 1 FROM aims_risks r JOIN aims_risk_controls rc ON rc.risk_id=r.id "
+            "JOIN ai_control_catalogue c ON c.id=rc.catalogue_control_id "
+            "WHERE r.assessment_id=%s AND c.business_unit_id IS NOT NULL "
+            "AND (c.business_unit_id <> %s OR %s IS NULL) LIMIT 1",
+            (assessment_id, target_unit, target_unit, assessment_id, target_unit, target_unit),
+        ).fetchone()
+        return row is not None
+    finally:
+        db.close()
+
+
+def _mask_foreign_catalogue(db, risk, assessment_unit):
+    control_id = risk.get("catalogue_control_id")
+    if not control_id:
+        return
+    control = db.execute("SELECT business_unit_id FROM ai_control_catalogue WHERE id=%s", (control_id,)).fetchone()
+    if control and control["business_unit_id"] is not None and control["business_unit_id"] != assessment_unit:
+        risk["catalogue_control_id"] = None
+        risk["catalogue_control_restricted"] = True
 
 
 def create_aims_assessment(data):
@@ -1225,7 +1278,10 @@ def list_aims_risks(assessment_id):
             "FROM aims_risks r WHERE r.assessment_id=%s "
             "ORDER BY r.likelihood*r.impact DESC", (assessment_id,)
         ).fetchall())
+        owner = db.execute("SELECT business_unit_id FROM aims_assessments WHERE id=%s", (assessment_id,)).fetchone()
+        unit = owner["business_unit_id"] if owner else None
         for r in rows:
+            _mask_foreign_catalogue(db, r, unit)
             r["computed"] = compute_aims_risk(db, r["id"])
         return rows
     finally:
@@ -1238,13 +1294,42 @@ def get_aims_risk(risk_id):
         risk = _dict(db.execute("SELECT * FROM aims_risks WHERE id=%s", (risk_id,)).fetchone())
         if not risk:
             return None
+        owner = db.execute("SELECT business_unit_id FROM aims_assessments WHERE id=%s", (risk["assessment_id"],)).fetchone()
+        unit = owner["business_unit_id"] if owner else None
+        _mask_foreign_catalogue(db, risk, unit)
         risk["controls"] = _dicts(db.execute(
-            "SELECT rc.*, cc.ref AS catalogue_ref, cc.title AS catalogue_title, cc.pillar AS catalogue_pillar "
+            "SELECT rc.*, cc.ref AS catalogue_ref, cc.title AS catalogue_title, cc.pillar AS catalogue_pillar, "
+            "cc.business_unit_id AS catalogue_unit "
             "FROM aims_risk_controls rc LEFT JOIN ai_control_catalogue cc ON cc.id=rc.catalogue_control_id "
             "WHERE rc.risk_id=%s ORDER BY rc.id", (risk_id,)
         ).fetchall())
+        for link in risk["controls"]:
+            foreign = link.pop("catalogue_unit", None)
+            if foreign is not None and foreign != unit:
+                link.update(catalogue_control_id=None, catalogue_ref=None, catalogue_title=None,
+                            catalogue_pillar=None, catalogue_control_restricted=True)
         risk["computed"] = compute_aims_risk(db, risk_id)
         return risk
+    finally:
+        db.close()
+
+
+def get_aims_risk_assessment_id(risk_id):
+    """The assessment a risk is filed under, or None when there is no such risk. A risk has no business unit of its own:
+    it follows its assessment, so the routes find the assessment here before they touch the risk."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT assessment_id FROM aims_risks WHERE id=%s", (risk_id,)).fetchone()
+        return row["assessment_id"] if row else None
+    finally:
+        db.close()
+
+
+def get_aims_risk_catalogue_id(risk_id):
+    db = get_db()
+    try:
+        row = db.execute("SELECT catalogue_control_id FROM aims_risks WHERE id=%s", (risk_id,)).fetchone()
+        return row["catalogue_control_id"] if row else None
     finally:
         db.close()
 
@@ -1317,6 +1402,28 @@ _AIMS_RC_FIELDS = (
 )
 
 
+def get_aims_link_assessment_id(link_id):
+    """The assessment a risk to control link is filed under (through its risk), or None when there is no such link."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT r.assessment_id FROM aims_risk_controls rc JOIN aims_risks r ON r.id=rc.risk_id WHERE rc.id=%s",
+            (link_id,),
+        ).fetchone()
+        return row["assessment_id"] if row else None
+    finally:
+        db.close()
+
+
+def get_aims_link_catalogue_id(link_id):
+    db = get_db()
+    try:
+        row = db.execute("SELECT catalogue_control_id FROM aims_risk_controls WHERE id=%s", (link_id,)).fetchone()
+        return row["catalogue_control_id"] if row else None
+    finally:
+        db.close()
+
+
 def create_aims_risk_control(risk_id, data):
     treatment = data.get("treatment") or "mitigate"
     if treatment not in _TREATMENTS:
@@ -1380,7 +1487,9 @@ def compute_aims_risk(db, risk_id):
         return None
     controls = db.execute(
         "SELECT rc.*, cc.pillar AS catalogue_pillar FROM aims_risk_controls rc "
-        "LEFT JOIN ai_control_catalogue cc ON cc.id = rc.catalogue_control_id "
+        "JOIN aims_risks r ON r.id=rc.risk_id JOIN aims_assessments a ON a.id=r.assessment_id "
+        "LEFT JOIN ai_control_catalogue cc ON cc.id=rc.catalogue_control_id "
+        "AND (cc.business_unit_id IS NULL OR cc.business_unit_id=a.business_unit_id) "
         "WHERE rc.risk_id=%s", (risk_id,)
     ).fetchall()
 
@@ -1418,6 +1527,8 @@ def get_aims_aggregation(assessment_id):
     """One row per risk reproducing the workbook's Aggregation Sheet."""
     db = get_db()
     try:
+        owner = db.execute("SELECT business_unit_id FROM aims_assessments WHERE id=%s", (assessment_id,)).fetchone()
+        unit = owner["business_unit_id"] if owner else None
         risks = db.execute(
             "SELECT * FROM aims_risks WHERE assessment_id=%s ORDER BY id", (assessment_id,)
         ).fetchall()
@@ -1429,6 +1540,7 @@ def get_aims_aggregation(assessment_id):
                 (r["id"],),
             ).fetchone()["c"]
             row = _dict(r)
+            _mask_foreign_catalogue(db, row, unit)
             row.update(computed or {})
             row["total_treatment_cost"] = control_cost
             out.append(row)

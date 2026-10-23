@@ -14,11 +14,12 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_capability
+from core.middleware import log_audit, require_capability
+from core.report_kit import respond
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
-from modules.ai_governance import (assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
+from modules.ai_governance import (assessment_document, assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
                                    import_rules, imports, monitoring, outstanding, oversight, overview, platform_features,
                                    precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
@@ -620,6 +621,15 @@ async def api_unmap_control(request: Request):
 
 # ── The AI impact assessment (moved here from Sentinel, plans/ai-governance/06) ──
 
+@router.get("/api/assessment-profile")
+@require_capability("ai_assessment.view")
+async def api_assessment_profile(request: Request):
+    """Internal assurance fields; this is not an approved legal checklist."""
+    from modules.sentinel.record_profiles import get_profile
+    response = JSONResponse(get_profile("aiia").to_json())
+    response.headers["Cache-Control"] = "private, max-age=300"
+    return response
+
 @router.get("/api/assessments")
 @require_capability("ai_assessment.view")
 async def api_assessments(request: Request):
@@ -653,6 +663,38 @@ async def api_assessment(request: Request, assessment_id: int):
         shown = assessments.get_assessment(db, user, assessment_id)
         return None if shown is None else {"assessment": shown}
     return _read(request, work)
+
+
+@router.get("/api/assessments/{assessment_id}/document")
+@require_capability("ai_assessment.view")
+async def api_assessment_document(request: Request, assessment_id: int):
+    """Export one assessment through the same business-unit read as its detail page."""
+    user = request.state.user
+    db = get_db()
+    try:
+        shown = assessments.get_assessment(db, user, assessment_id)
+    except ServiceError as exc:
+        return _error(exc)
+    finally:
+        db.close()
+    if shown is None:
+        return JSONResponse({"ok": False, "error": "Not found."}, status_code=404)
+    fmt = respond.format_of(request)
+    if fmt is None:
+        return JSONResponse({"ok": False, "error": "Choose pdf or xlsx."}, status_code=400)
+    report = assessment_document.build(user, shown)
+    reference = shown.get("ref_number") or f"assessment_{assessment_id}"
+    stem = f"ThemisIQ_ai_governance_{reference}"
+    response = await respond.download(report, fmt, stem)
+    from modules.evidence import generated_records
+    from starlette.concurrency import run_in_threadpool
+    vault_state, vault_id = await run_in_threadpool(
+        generated_records.file_record, user, "sentinel", "aiia", assessment_id, report, fmt, response.body, stem)
+    response.headers["X-ThemisIQ-Vault-Record"] = str(vault_id)
+    response.headers["X-ThemisIQ-Vault-Status"] = vault_state
+    log_audit(user, "ai_governance", "ai_assessment_exported", "ai_assessment", assessment_id,
+              ip=respond.client_ip(request), details=f"ref={reference}; format={fmt}; tier={report.meta.tier}; vault={vault_id}; {vault_state}")
+    return response
 
 
 @router.put("/api/assessments/{assessment_id}")

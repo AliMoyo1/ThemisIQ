@@ -96,7 +96,7 @@ def _connections(db, user, key, record_id) -> list:
 def _proof(db, user, key, record_id) -> dict:
     scope, params = evidence_scope_sql(user)
     rows = db.execute(
-        "SELECT e.id, e.title, e.version, e.status, e.expiry_date, l.review_status, l.reviewed_at FROM evidence_links l "
+        "SELECT e.id, e.title, e.category, e.version, e.status, e.expiry_date, l.review_status, l.reviewed_at FROM evidence_links l "
         "JOIN evidence_items e ON e.id = l.evidence_id WHERE l.module = %s AND l.entity_type = %s AND l.entity_id = %s "
         f"AND l.deleted_at IS NULL AND e.status != 'archived' AND {scope} ORDER BY e.updated_at DESC, e.id DESC LIMIT 50",
         [key[0], key[1], record_id, *params]).fetchall()
@@ -111,7 +111,8 @@ def _proof(db, user, key, record_id) -> dict:
             status = r["review_status"] or "pending"
             state = proof.OUTCOME_LABELS.get(status, status)
             tone = {"accepted": "good", "pending": "warn"}.get(status, "bad")
-        items.append({"title": r["title"], "url": f"/evidence/?open=item:{r['id']}", "version": r["version"], "state": state,
+        items.append({"id": r["id"], "title": r["title"], "category": r["category"],
+                      "url": f"/evidence/?open=item:{r['id']}", "version": r["version"], "state": state,
                       "tone": tone, "expiry_date": str(r["expiry_date"] or "")[:10] or None})
     counts = {"files": len(items), "accepted": sum(1 for i in items if i["state"] == "Accepted")}
     return {"key": "evidence", "title": MODULE_TITLES["evidence"], "state": "ok" if items else "empty", "items": items,
@@ -123,6 +124,16 @@ def _signals(db, user, key, record_id) -> dict:
     items = change_signals.for_entity(db, user, key, record_id)
     return {"key": "changes", "title": "Changes to look at", "state": "ok" if items else "empty", "items": items,
             "note": None if items else "No connected record has changed since anything was published."}
+
+
+def proof_of(db, user: dict, module, entity_type, record_id) -> "dict | None":
+    """Only the proof section for a record the viewer is allowed to open."""
+    key = canonical_key(module, entity_type)
+    if not is_linkable(key) or isinstance(record_id, bool) or not isinstance(record_id, int) or record_id < 1:
+        return None
+    if describe_record(db, key, record_id, user) is None:
+        return None
+    return _guarded("Proof held in the Evidence Vault", lambda: _proof(db, user, key, record_id))
 
 
 def get_connected(db, user: dict, module, entity_type, record_id) -> "dict | None":

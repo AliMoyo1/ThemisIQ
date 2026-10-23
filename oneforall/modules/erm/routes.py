@@ -13,10 +13,12 @@ from fastapi.templating import Jinja2Templates
 from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call, log_audit
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
+from core.report_kit import grounding, respond
 from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED, ERM_RISK_UPDATED
 from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
 from modules.erm import acceptance
+from modules.erm import board_report as board
 from modules.erm import ai_service as ai
 from modules.erm import scan_jobs
 from modules.governance.data_service import bu_scope_ids
@@ -1258,7 +1260,23 @@ async def api_ai_board_report(request: Request):
     stats = ds.get_dashboard_stats(user=request.state.user)
     appetite_status = ds.get_appetite_status(user=request.state.user)
     narrative = ai.generate_board_narrative(stats, appetite_status)
-    return JSONResponse({"narrative": narrative, "stats": stats})
+    checked = grounding.check(narrative, [stats, appetite_status])      # a model's draft: is every figure in it a figure of the data?
+    return JSONResponse({"narrative": narrative, "stats": stats, "narrative_check": checked.sentence(), "narrative_grounded": checked.ok})
+
+
+@router.get("/api/board-report/document")
+@require_capability("erm.report.generate")
+async def api_board_report_document(request: Request):
+    """The Enterprise Risk board report as a document: `?format=pdf` (the default) or `xlsx`. The figures are the dashboard's and the
+    words are written from them, so no model is called and the AI narrative above stays optional."""
+    fmt = respond.format_of(request)
+    if fmt is None:
+        raise HTTPException(400, "Choose pdf or xlsx")
+    user = request.state.user
+    report = board.board_report(user)
+    log_audit(user, "erm", "report_export", entity_type="board_report", ip=respond.client_ip(request),
+              details=f"format={fmt}; tier={report.meta.tier}")
+    return await respond.download(report, fmt, "ThemisIQ_enterprise_risk_board_report")
 
 
 @router.post("/api/chat")
@@ -1545,16 +1563,19 @@ async def api_export_csv(request: Request):
     columns = ["name", "category", "risk_level", "status", "likelihood", "impact",
                "owner_name", "source_module", "created_at", "updated_at",
                "risk_ref", "irr_score", "loa_pct", "rrr", "emv_inherent", "emv_residual"]
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    from core.timeutils import utcnow
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(columns)
     for r in list(erm_rows) + list(rr_rows):
-        writer.writerow(["" if (c not in r.keys() or r[c] is None) else r[c] for c in columns])
+        writer.writerow(identity.csv_row(["" if (c not in r.keys() or r[c] is None) else r[c] for c in columns]))
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=erm_risk_register.csv"},
+        media_type="text/csv; charset=utf-8",
+        headers=download_headers(identity.safe_filename("ThemisIQ_enterprise_risk_register", "csv", when=utcnow())),
     )
 
 
