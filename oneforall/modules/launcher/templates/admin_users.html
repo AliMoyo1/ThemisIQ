@@ -295,8 +295,8 @@
 {% if flash and flash.type in ('new_user', 'reset_pw') %}
 <div class="flash-ok">
   <div style="font-size:16px; font-weight:700; color:var(--good); margin-bottom:6px;">
-    {% if flash.type == 'new_user' %}✅ User created — temporary password below
-    {% else %}🔑 Password reset for {{ flash.full_name or flash.username }}{% endif %}
+    {% if flash.type == 'new_user' %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg> User created — temporary password below
+    {% else %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-key></use></svg> Password reset for {{ flash.full_name or flash.username }}{% endif %}
   </div>
   <p style="font-size:13px; color:var(--text); margin:0 0 14px;">
     This password is shown <strong>once only</strong>. Share it securely with

@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="topbar">
-  <span class="page-title">📈 Reporting Engine</span>
+  <span class="page-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trending-up></use></svg> Reporting Engine</span>
   <div class="topbar-actions">
     <button class="btn btn-secondary" onclick="showTab('runs')">Recent Runs</button>
     <button class="btn btn-secondary" onclick="showTab('definitions')">Definitions</button>
@@ -28,7 +28,7 @@
         {% for key, label in items %}
         {% if key == 'executive_summary' %}
         <button type="button" class="btn btn-primary" data-quick="{{ key }}" onclick="generateExecSummary()" style="display:inline-flex;align-items:center;gap:4px">
-          <span style="font-size:14px" aria-hidden="true">&#10038;</span> AI Executive Summary
+          <span style="font-size:14px" aria-hidden="true"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Executive Summary
         </button>
         {% else %}
         <button type="button" class="btn btn-secondary js-quick-report" data-quick="{{ key }}">{{ label }}</button>
@@ -45,7 +45,7 @@
   <!-- AI Executive Summary Panel -->
   <div id="execSummaryPanel" class="card" style="padding:24px;margin-bottom:16px;display:none;border-left:3px solid var(--accent)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div style="font-size:16px;font-weight:700;color:var(--text)">&#10038; Executive Board Summary <span style="font-size:11px;font-weight:600;color:var(--muted);margin-left:8px">Draft: not reviewed</span></div>
+      <div style="font-size:16px;font-weight:700;color:var(--text)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Executive Board Summary <span style="font-size:11px;font-weight:600;color:var(--muted);margin-left:8px">Draft: not reviewed</span></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" onclick="window.print()" style="font-size:12px">Print</button>
         <button class="btn btn-secondary" onclick="document.getElementById('execSummaryPanel').style.display='none'" style="font-size:12px">Close</button>

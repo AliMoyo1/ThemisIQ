@@ -104,7 +104,7 @@ var _vdAll=[], _vdFilter='all';
 
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function rb(v){var m={critical:'rgba(220,38,38,.12)',high:'rgba(249,115,22,.12)',medium:'rgba(217,119,6,.12)',low:'rgba(22,163,74,.12)'};var t={critical:'#dc2626',high:'#f97316',medium:'#d97706',low:'#16a34a'};var k=(v||'medium').toLowerCase();return '<span style="background:'+(m[k]||m.medium)+';color:'+(t[k]||t.medium)+';padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;text-transform:capitalize">'+esc(k)+'</span>';}
-function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'⏳';return '<span class="vd-badge '+c+'">'+ico+' DPA '+(s||'pending')+'</span>';}
+function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-hourglass></use></svg>';return '<span class="vd-badge '+c+'">'+ico+' DPA '+(s||'pending')+'</span>';}
 
 var VD_CAN_FLAG_AI = {{ 'true' if can_flag_ai else 'false' }};
 var VD_AI_ON = {{ 'true' if can_ai_use else 'false' }};
@@ -151,27 +151,27 @@ function vdRender(){
     return true;
   });
   if(!items.length){
-    document.getElementById('vdGrid').innerHTML='<div class="vd-empty" style="grid-column:1/-1"><div class="vd-empty-icon">🏢</div><div class="vd-empty-title">No vendors found</div><div>Try adjusting your search or filters</div></div>';
+    document.getElementById('vdGrid').innerHTML='<div class="vd-empty" style="grid-column:1/-1"><div class="vd-empty-icon"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-building></use></svg></div><div class="vd-empty-title">No vendors found</div><div>Try adjusting your search or filters</div></div>';
     return;
   }
   document.getElementById('vdGrid').innerHTML=items.map(function(v){
     var flagClass=v.risk_flag?'flag-'+v.risk_flag:'';
     var pct=Math.round((v.coverage/3)*100);
     var senBadge=v.sentinel&&v.sentinel.id
-      ? '<span class="vd-badge present">🔒 Privacy</span>'+(v.sentinel.dpa_status==='expired'?'<span class="vd-badge danger">DPA Expired</span>':v.sentinel.dpa_status==='signed'?'':'<span class="vd-badge warn">No DPA</span>')
-      : '<span class="vd-badge absent">🔒 Privacy</span>';
+      ? '<span class="vd-badge present"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> Privacy</span>'+(v.sentinel.dpa_status==='expired'?'<span class="vd-badge danger">DPA Expired</span>':v.sentinel.dpa_status==='signed'?'':'<span class="vd-badge warn">No DPA</span>')
+      : '<span class="vd-badge absent"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> Privacy</span>';
     var gridBadge=v.grid&&v.grid.id
-      ? '<span class="vd-badge present">📋 Audit</span>'
-      : '<span class="vd-badge absent">📋 Audit</span>';
+      ? '<span class="vd-badge present"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Audit</span>'
+      : '<span class="vd-badge absent"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Audit</span>';
     var bcmBadge=v.bcm&&v.bcm.id
-      ? '<span class="vd-badge present">🛡 Resilience</span>'+(v.bcm.tier?'<span class="vd-badge present">Tier '+v.bcm.tier+'</span>':'')
-      : '<span class="vd-badge absent">🛡 Resilience</span>';
+      ? '<span class="vd-badge present"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Resilience</span>'+(v.bcm.tier?'<span class="vd-badge present">Tier '+v.bcm.tier+'</span>':'')
+      : '<span class="vd-badge absent"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Resilience</span>';
     return '<div class="vd-card '+flagClass+'" onclick="vdOpenDrawer('+v.id+')">'+
       '<div class="vd-card-name">'+esc(v.name)+'</div>'+
       '<div class="vd-card-services">'+esc(v.services||v.country||'No description')+'</div>'+
       '<div class="vd-coverage-bar"><div class="vd-coverage-fill" style="width:'+pct+'%"></div></div>'+
       '<div class="vd-coverage">'+senBadge+gridBadge+bcmBadge+'</div>'+
-      (v.risk_flag?'<div class="vd-flag-row"><span class="vd-flag '+v.risk_flag+'">⚠ Risk flag — click to view</span></div>':'')+
+      (v.risk_flag?'<div class="vd-flag-row"><span class="vd-flag '+v.risk_flag+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Risk flag — click to view</span></div>':'')+
     '</div>';
   }).join('');
 }
@@ -195,7 +195,7 @@ async function vdOpenDrawer(canonicalId){
     // Flags
     if(flags.length){
       html+='<div style="margin-bottom:14px">'+flags.map(function(f){
-        return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:7px;margin-bottom:5px;font-size:12px;font-weight:600;color:#dc2626"><span>⚠</span>'+esc(f.msg)+'</div>';
+        return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:7px;margin-bottom:5px;font-size:12px;font-weight:600;color:#dc2626"><span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>'+esc(f.msg)+'</div>';
       }).join('')+'</div>';
     }
     // AI use: does this vendor use AI, or embed it in what it sells us?
@@ -217,7 +217,7 @@ async function vdOpenDrawer(canonicalId){
     }
     // Privacy / Sentinel
     html+='<div class="vd-module-section">'+
-      '<div class="vd-module-head"><div class="vd-module-icon sentinel">🔒</div><span>Privacy (Sentinel)</span></div>';
+      '<div class="vd-module-head"><div class="vd-module-icon sentinel"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg></div><span>Privacy (Sentinel)</span></div>';
     if(sen){
       html+='<div class="vd-kv"><span class="vd-kv-k">DPA Status</span><span class="vd-kv-v">'+dpaBadge(sen.dpa_status)+'</span></div>'+
         '<div class="vd-kv"><span class="vd-kv-k">Type</span><span class="vd-kv-v">'+esc(sen.type||'—')+'</span></div>'+
@@ -232,7 +232,7 @@ async function vdOpenDrawer(canonicalId){
     html+='</div>';
     // Audit / GRID
     html+='<div class="vd-module-section">'+
-      '<div class="vd-module-head"><div class="vd-module-icon grid">📋</div><span>Audit (GRID)</span></div>';
+      '<div class="vd-module-head"><div class="vd-module-icon grid"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div><span>Audit (GRID)</span></div>';
     if(grid){
       var ass=grid.latest_assessment;
       html+='<div class="vd-kv"><span class="vd-kv-k">Risk Level</span><span class="vd-kv-v">'+rb(grid.risk_level)+'</span></div>'+
@@ -248,7 +248,7 @@ async function vdOpenDrawer(canonicalId){
     html+='</div>';
     // Resilience / BCM
     html+='<div class="vd-module-section">'+
-      '<div class="vd-module-head"><div class="vd-module-icon bcm">🛡</div><span>Resilience (BCM)</span></div>';
+      '<div class="vd-module-head"><div class="vd-module-icon bcm"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></div><span>Resilience (BCM)</span></div>';
     if(bcm){
       html+='<div class="vd-kv"><span class="vd-kv-k">Criticality</span><span class="vd-kv-v">'+rb(bcm.criticality||'medium')+'</span></div>'+
         '<div class="vd-kv"><span class="vd-kv-k">Tier</span><span class="vd-kv-v">Tier '+esc(String(bcm.tier||3))+'</span></div>'+
@@ -366,7 +366,7 @@ async function vdCreateCanonical(e){
   return false;
 }
 
-function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'⏳';return '<span class="vd-badge '+c+'">'+ico+' '+(s||'pending')+'</span>';}
+function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-hourglass></use></svg>';return '<span class="vd-badge '+c+'">'+ico+' '+(s||'pending')+'</span>';}
 
 vdLoad();
 </script>

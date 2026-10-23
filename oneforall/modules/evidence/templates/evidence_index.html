@@ -160,7 +160,7 @@
 <!-- Full-page drag-drop zone (catches drops anywhere) -->
 <div id="pageDropZone" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);align-items:center;justify-content:center;pointer-events:none">
   <div style="background:var(--surface);border:3px dashed var(--accent);border-radius:20px;padding:40px 60px;text-align:center">
-    <div style="font-size:36px;margin-bottom:8px">📎</div>
+    <div style="font-size:36px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-paperclip></use></svg></div>
     <div style="font-size:16px;font-weight:700;color:var(--accent)">Drop to upload evidence</div>
   </div>
 </div>
@@ -454,11 +454,11 @@ var evStateKind={needs_filing:'warn',awaiting_review:'warn',returned:'bad',expir
 var evCanBulkArchive = {{ 'true' if can_bulk_archive else 'false' }};
 var evSelectionMode = false, evSelectedIds = new Set(), evVisibleIds = [];
 var evLoadSeq = 0;
-var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
-  procedure:'📝',training:'🎓',general:'📄',policy_approval:'📋',
-  control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
-  non_conformance:'❌',risk_assessment:'🔴',incident_record:'🚨',breach_record:'🔓',
-  dpia_record:'🛡️',dsr_overdue:'⏰',plan_approval:'✅'};
+var iconMap={policy:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',certificate:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-medal></use></svg>',screenshot:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-image></use></svg>',report:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',
+  procedure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-pen></use></svg>',training:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-graduation-cap></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>',policy_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',
+  control_assessment:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',audit_finding:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>',audit_completion:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>',
+  non_conformance:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-x></use></svg>',risk_assessment:'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>',incident_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg>',breach_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock-open></use></svg>',
+  dpia_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg>',dsr_overdue:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg>',plan_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>'};
 var modColors={aria:'#7e8062',grid:'#1a6b3a',bcm:'#8a8a5b',sentinel:'#00a5c8',erm:'#dc3c50',governance:'#0f766e',platform:'#6b7280'};
 var entityTypes={
   aria:['control','document','risk','framework'],
@@ -551,7 +551,7 @@ async function loadStats(){
     '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Expiring 30d</div>'+
       '<div style="font-size:24px;font-weight:700;color:var(--warn,#d97706);margin-top:4px">'+s.expiring_soon+'</div>'+
-      (exp7?'<div style="font-size:10px;color:var(--bad,#dc2626);font-weight:600;margin-top:4px">⚠ '+exp7+' within 7 days</div>':'')+
+      (exp7?'<div style="font-size:10px;color:var(--bad,#dc2626);font-weight:600;margin-top:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+exp7+' within 7 days</div>':'')+
     '</button>'+
     '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'needs_filing\',document.getElementById(\'nav-unlinked\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Needs filing</div>'+
@@ -583,7 +583,7 @@ async function loadStats(){
   if(recent.length){
     rs.style.display='block';
     ri.innerHTML=recent.map(function(r){
-      var icon=iconMap[r.category]||'📄';
+      var icon=iconMap[r.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var ago=timeAgo(r.created_at);
       return '<button type="button" class="ev-recent-card" style="text-align:left;font:inherit" onclick="openDetail('+r.id+')">'+
         '<div style="font-size:18px;margin-bottom:4px">'+icon+'</div>'+
@@ -807,7 +807,7 @@ async function loadEvidence(){
   if(evViewMode==='table'){
     grid.style.display='none';tbl.style.display='block';
     body.innerHTML=items.map(function(item){
-      var icon=iconMap[item.category]||'📄';
+      var icon=iconMap[item.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var source=item.file_name?escHtml(item.file_name):'<span style="color:var(--muted)">System record, no file</span>';
       var owner=item.owner_name?escHtml(item.owner_name):'<span style="color:var(--muted)">No owner</span>';
       var due=item.review_due_date?fmtDate(item.review_due_date)+(item.review_due?' <span class="ev-chip ev-chip-warn">due</span>':''):'<span style="color:var(--muted)">Not set</span>';
@@ -831,7 +831,7 @@ async function loadEvidence(){
   } else {
     tbl.style.display='none';grid.style.display='grid';
     grid.innerHTML=items.map(function(item){
-      var icon=iconMap[item.category]||'📄';
+      var icon=iconMap[item.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       return '<button type="button" class="card" style="padding:16px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="openDetail('+item.id+')">'+
         '<div style="display:flex;align-items:flex-start;gap:12px">'+
           '<span style="font-size:28px">'+icon+'</span>'+
@@ -1080,7 +1080,7 @@ async function openDetail(eid){
   var r=await fetch('/evidence/api/items/'+eid);var item=await r.json();
   if(!item||item.error){return;}
   evDetailItem=item;
-  var icon=iconMap[item.category]||'\u{1F4C4}';
+  var icon=iconMap[item.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
   var tags=(item.tags||'').split(',').filter(function(t){return t.trim();});
   var links=item.links||[];
   var mime=(item.mime_type||'').toLowerCase();
@@ -1161,21 +1161,21 @@ async function openDetail(eid){
       '<span style="color:var(--muted)">Title</span>'+
       '<div class="ev-editable" id="ev-field-title">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.title)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineEdit(\'title\','+eid+',this)">&#9998;</button>'+
+        '<button class="ev-edit-btn" onclick="evInlineEdit(\'title\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Category</span>'+
       '<div class="ev-editable" id="ev-field-category">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.category)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineSelect(\'category\','+eid+',\''+catOpts.replace(/'/g,"\\'")+'\')">&#9998;</button>'+
+        '<button class="ev-edit-btn" onclick="evInlineSelect(\'category\','+eid+',\''+catOpts.replace(/'/g,"\\'")+'\')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Status</span>'+
       '<div class="ev-editable" id="ev-field-status">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.status)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')">&#9998;</button>'+
+        '<button class="ev-edit-btn" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Owner</span>'+
       '<div class="ev-editable" id="ev-field-owner_user_id"><span class="ev-field-val" style="color:var(--text)">'+escHtml(item.owner_name||'No owner')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the owner" onclick="evInlineOwner('+eid+')">&#9998;</button></div>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the owner" onclick="evInlineOwner('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
       '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'Unknown')+'</span>'+
       '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
       '<span style="color:var(--muted)">Expiry</span>'+
@@ -1183,17 +1183,17 @@ async function openDetail(eid){
         '<span class="ev-field-val" style="color:'+(item.expiry_date?'var(--warn,#d97706)':'var(--muted)')+'">'+
           (item.expiry_date?fmtDate(item.expiry_date)+' '+expiryBadgeHtml(item.expiry_date):'Not set')+
         '</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1">&#9998;</button>'+
+        '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
       '<span style="color:var(--muted)">Review due</span>'+
       '<div class="ev-editable" id="ev-field-review_due_date"><span class="ev-field-val" style="color:var(--text)">'+(item.review_due_date?fmtDate(item.review_due_date):'Not set')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the review date" onclick="evInlineEdit(\'review_due_date\','+eid+',this)">&#9998;</button></div>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the review date" onclick="evInlineEdit(\'review_due_date\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
       '<span style="color:var(--muted)">Period from</span>'+
       '<div class="ev-editable" id="ev-field-period_start"><span class="ev-field-val" style="color:var(--text)">'+(item.period_start?fmtDate(item.period_start):'Not set')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the start of the period" onclick="evInlineEdit(\'period_start\','+eid+',this)">&#9998;</button></div>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the start of the period" onclick="evInlineEdit(\'period_start\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
       '<span style="color:var(--muted)">Period to</span>'+
       '<div class="ev-editable" id="ev-field-period_end"><span class="ev-field-val" style="color:var(--text)">'+(item.period_end?fmtDate(item.period_end):'Not set')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the end of the period" onclick="evInlineEdit(\'period_end\','+eid+',this)">&#9998;</button></div>'+
+        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the end of the period" onclick="evInlineEdit(\'period_end\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
       (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:9px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
     '</div></div>';
 
@@ -1219,7 +1219,7 @@ async function openDetail(eid){
 
   /* Tags -- editable */
   html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Tags '+
-    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evEditTags('+eid+')">&#9998; edit</button></div>'+
+    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evEditTags('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> edit</button></div>'+
     '<div id="ev-tags-display">'+(tags.length?tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join(''):'<span style="font-size:12px;color:var(--muted)">No tags</span>')+'</div>'+
     '<div id="ev-tags-editor" style="display:none">'+
       '<input class="ev-inline-input" type="text" id="ev-input-tags" value="'+escHtml(item.tags||'')+'" placeholder="tag1, tag2, tag3">'+
@@ -1232,7 +1232,7 @@ async function openDetail(eid){
 
   /* Description -- editable */
   html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Description '+
-    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evEditDesc('+eid+')">&#9998; edit</button></div>'+
+    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evEditDesc('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> edit</button></div>'+
     '<div id="ev-desc-display">'+(item.description?'<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div>':'<span style="font-size:12px;color:var(--muted)">No description</span>')+'</div>'+
     '<div id="ev-desc-editor" style="display:none">'+
       '<textarea class="ev-inline-input" id="ev-input-description" rows="4" style="resize:vertical">'+escHtml(item.description||'')+'</textarea>'+
@@ -1244,7 +1244,7 @@ async function openDetail(eid){
   '</div>';
 
   /* Linked Entities */
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between;align-items:center">Linked Entities ('+links.length+') <button onclick="aiSuggestLinks('+eid+')" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:13px">&#10038;</span> AI Suggest</button></div>';
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between;align-items:center">Linked Entities ('+links.length+') <button onclick="aiSuggestLinks('+eid+')" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:13px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Suggest</button></div>';
   html+='<div id="aiSuggestBox" style="display:none;margin-bottom:8px"></div>';
   if(links.length){
     var specs2=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
@@ -1430,7 +1430,7 @@ async function verifyIntegrity(eid){
   el.innerHTML='<div class="ev-section" style="padding:8px 20px"><span style="color:var(--accent);font-size:12px">Verifying...</span></div>';
   var r=await fetch('/evidence/api/items/'+eid+'/verify');var d=await r.json();
   var col=d.verified?'var(--good,#16a34a)':'var(--bad,#dc2626)';
-  var icon=d.verified?'✅':'❌';
+  var icon=d.verified?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-x></use></svg>';
   el.innerHTML='<div class="ev-section" style="padding:8px 20px;background:'+(d.verified?'#dcfce722':'#fee2e222')+'"><span style="color:'+col+';font-size:12px;font-weight:600">'+icon+' '+escHtml(d.message)+'</span></div>';
 }
 
@@ -1925,7 +1925,7 @@ async function handleUpload(e){
         warn.style.display='block';
         return;
       }
-      warn.innerHTML='⚠️ <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
+      warn.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
         '<div style="display:flex;gap:8px;margin-top:8px">'+
           '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="ModalManager.close(\'uploadModal\');openDetail('+d.existing_id+')">View Existing</button>'+
           '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="ModalManager.close(\'uploadModal\');openLinkToModal('+d.existing_id+')">Link Existing</button>'+

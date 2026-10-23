@@ -208,7 +208,7 @@
     <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px">✦</div>
+    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
     <div style="font-size:14px;font-weight:700">Ask ThemisIQ AI…</div>
   </div>
 </div>
@@ -376,7 +376,7 @@
 <div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;overflow:hidden">
   <!-- Collapsed bar — always visible once loaded -->
   <div id="prBar" onclick="togglePredictiveRisk()" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-    <span style="font-size:15px;flex-shrink:0">&#128302;</span>
+    <span style="font-size:15px;flex-shrink:0"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-telescope></use></svg></span>
     <span style="font-size:13px;font-weight:700;color:var(--text)">Predictive Risk Intelligence</span>
     <span id="prBadge" class="badge" style="display:none;flex-shrink:0"></span>
     <!-- Inline summary (shown when collapsed) -->
@@ -415,28 +415,28 @@
 
   <!-- Sentinel: Open Breaches -->
   <div class="stat-card" id="ccSentinelCard" onclick="window.location.href='/sentinel/'" style="cursor:pointer" title="Open Data Protection Sentinel">
-    <div class="stat-label">🛡 Open Breaches</div>
+    <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Open Breaches</div>
     <div class="stat-value" id="ccSentinelBreaches" style="color:var(--muted)">—</div>
     <div class="stat-sub" id="ccSentinelSub">Sentinel</div>
   </div>
 
   <!-- ERM: Appetite Breaches -->
   <div class="stat-card" id="ccErmCard" onclick="window.location.href='/erm/'" style="cursor:pointer" title="Open Enterprise Risk Management">
-    <div class="stat-label">⚖ Appetite Breaches</div>
+    <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-scale></use></svg> Appetite Breaches</div>
     <div class="stat-value" id="ccErmBreaches" style="color:var(--muted)">—</div>
     <div class="stat-sub">ERM</div>
   </div>
 
   <!-- ORM: Open Events (30d) -->
   <div class="stat-card" id="ccOrmCard" onclick="window.location.href='/orm/'" style="cursor:pointer" title="Open Operational Risk Management">
-    <div class="stat-label">⚠ Open Events (30d)</div>
+    <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Open Events (30d)</div>
     <div class="stat-value" id="ccOrmEvents" style="color:var(--muted)">—</div>
     <div class="stat-sub">ORM</div>
   </div>
 
   <!-- BCM: Active Incidents -->
   <div class="stat-card" id="ccBcmCard" onclick="window.location.href='/bcm/'" style="cursor:pointer" title="Open Business Continuity">
-    <div class="stat-label">🚨 Active Incidents</div>
+    <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Active Incidents</div>
     <div class="stat-value" id="ccBcmIncidents" style="color:var(--muted)">—</div>
     <div class="stat-sub">BCM</div>
   </div>
@@ -1274,12 +1274,12 @@ function _renderPredictivePanel(d, col) {
   // A figure the engine did not supply is a dash. It is not 0 (no breaches) and not 100 per cent.
   var telVal = function(v, fmt){ return (v === null || v === undefined || isNaN(Number(v))) ? 'n/a' : (fmt ? fmt(Number(v)) : String(v)); };
   var telChips = [
-    {icon:'&#128737;', label:'Breaches',    val:telVal(tel.breach_raw_count), link:'/sentinel/'},
-    {icon:'&#9881;',   label:'Open NCs',    val:telVal(tel.nc_count),         link:'/grid/'},
-    {icon:'&#9200;',   label:'BCM (days)',  val:telVal(tel.days_since_exercise, function(n){return String(Math.round(n));}), link:'/bcm/'},
-    {icon:'&#9888;',   label:'Recurring Ops',val:telVal(tel.orm_recurring),   link:'/orm/'},
-    {icon:'&#128202;', label:'ARIA %',      val:telVal(tel.compliance_pct, function(n){return n.toFixed(0)+'%';}), link:'/aria/'},
-    {icon:'&#128308;', label:'Appetite',    val:telVal(tel.appetite_breaches), link:'/erm/'},
+    {icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg>', label:'Breaches',    val:telVal(tel.breach_raw_count), link:'/sentinel/'},
+    {icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg>',   label:'Open NCs',    val:telVal(tel.nc_count),         link:'/grid/'},
+    {icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg>',   label:'BCM (days)',  val:telVal(tel.days_since_exercise, function(n){return String(Math.round(n));}), link:'/bcm/'},
+    {icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>',   label:'Recurring Ops',val:telVal(tel.orm_recurring),   link:'/orm/'},
+    {icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>', label:'ARIA %',      val:telVal(tel.compliance_pct, function(n){return n.toFixed(0)+'%';}), link:'/aria/'},
+    {icon:'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>', label:'Appetite',    val:telVal(tel.appetite_breaches), link:'/erm/'},
   ];
   var chipHtml = telChips.map(function(c){
     return '<a href="' + c.link + '" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text);text-decoration:none;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
@@ -1299,7 +1299,7 @@ function _renderPredictivePanel(d, col) {
       .replace(/\n/g, '<br>');
     advHtml =
       '<div style="background:rgba(' + _hexToRgb(col.hex) + ',.06);border:1px solid rgba(' + _hexToRgb(col.hex) + ',.2);border-radius:var(--radius);padding:14px 16px;margin-top:16px">' +
-      '<div style="font-size:10px;font-weight:700;color:' + col.hex + ';text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">&#129504; AI Advisory</div>' +
+      '<div style="font-size:10px;font-weight:700;color:' + col.hex + ';text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Advisory</div>' +
       '<div style="font-size:13px;line-height:1.7;color:var(--text)">' + adv + '</div>' +
       '</div>';
   }

@@ -118,7 +118,7 @@
 <!-- ── Partial Matches ── -->
 <div id="partSection" style="display:none;margin-bottom:20px;">
   <div class="ims-section-header">
-    <div class="ims-section-icon" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,.3);">⚠</div>
+    <div class="ims-section-icon" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,.3);"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></div>
     <div>
       <div style="font-size:15px;font-weight:700;color:var(--text);">Partial Matches</div>
       <div style="font-size:12px;color:var(--muted);">Present in some but not all selected frameworks.</div>
@@ -319,7 +319,7 @@ function renderCtrlList(items, status) {
   if (!items.length) return '<div style="padding:16px;color:var(--muted);font-size:13px;font-style:italic;">None</div>';
   return items.map(c => {
     var docBadge = c.has_doc
-      ? '<span class="ctrl-doc-badge" title="Document exists">&#128196; Doc</span>'
+      ? '<span class="ctrl-doc-badge" title="Document exists"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Doc</span>'
       : '';
     return `
     <div class="ctrl-map-card" data-control-id="${Number(c.id)}" data-framework-name="${esc(c.fw_name||'')}" data-control-ref="${esc(c.ref||'')}" data-control-name="${esc(c.name||'')}" data-framework-id="${Number(c.framework_id)||0}" data-has-doc="${c.has_doc?'true':'false'}">

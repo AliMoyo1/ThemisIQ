@@ -105,7 +105,7 @@ body.tb-select-mode .task-card{padding-right:34px}
   </span>
   <div class="topbar-actions" style="display:flex;gap:8px">
     <button class="btn btn-secondary" id="aiPriBtn" onclick="aiPrioritize()" title="AI-powered priority suggestions">
-      <span style="font-size:14px">&#10038;</span> AI Prioritize
+      <span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Prioritize
     </button>
     <button class="btn btn-secondary" id="selectModeBtn" onclick="toggleSelectMode()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>
@@ -455,7 +455,7 @@ function renderCard(t){
     <div class="tc-title">${esc(t.title)}</div>
     <div class="tc-meta">
       ${ml ? `<span class="tc-mod" style="background:${mc}18;color:${mc}">${esc(ml)}</span>` : ''}
-      ${t.due_date ? `<span class="tc-due${over?' overdue':''}">${over?'⚠ ':''}${fmtDate(t.due_date)||t.due_date}</span>` : ''}
+      ${t.due_date ? `<span class="tc-due${over?' overdue':''}">${over?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> ':''}${fmtDate(t.due_date)||t.due_date}</span>` : ''}
     </div>
     ${t.assigned_name ? `<div class="tc-assignee">
       <span class="tc-avatar" style="background:${avColor}">${esc(init)}</span>
@@ -569,7 +569,7 @@ window.aiPrioritize = async function(){
   }catch(e){
     if(typeof showToast==='function')showToast(e.detail || 'AI prioritization failed','error');
   }finally{
-    btn.disabled=false;btn.innerHTML='<span style="font-size:14px">&#10038;</span> AI Prioritize';
+    btn.disabled=false;btn.innerHTML='<span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Prioritize';
   }
 };
 
@@ -581,7 +581,7 @@ function showAiPriPanel(ranked){
   panel.className='card';
   panel.style.cssText='padding:16px 20px;margin-bottom:16px;border-left:3px solid var(--accent)';
   var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-    '<div style="font-size:14px;font-weight:700;color:var(--text)">&#10038; AI Priority Suggestions</div>'+
+    '<div style="font-size:14px;font-weight:700;color:var(--text)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> AI Priority Suggestions</div>'+
     '<div style="display:flex;gap:8px">'+
       '<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="applyAiPriorities()">Apply All</button>'+
       '<button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="document.getElementById(\'aiPriPanel\').remove()">Dismiss</button>'+
