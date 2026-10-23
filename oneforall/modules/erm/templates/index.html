@@ -1452,6 +1452,7 @@ window.ermOpenRiskDrawer=async function(id){
     var r=await apiFetch('/erm/api/risks/'+id);
     if(!r){var rr=regCache.find(function(x){return x.id===id;});r=rr||null;}
     if(!r){ermCloseRiskDrawer();return;}
+    if(window.ThemisSelectRecord)window.ThemisSelectRecord('/erm/register?open=risk:'+id);
     _drawerRisk=r;
     var score=(r.likelihood||0)*(r.impact||0);
     var qScore=r.qualitative_score||scoreToBand(r.likelihood,r.impact);

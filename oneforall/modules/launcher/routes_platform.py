@@ -1052,36 +1052,8 @@ async def api_tasks_ai_prioritize(request: Request):
 #  PLATFORM TRAINER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Themis answers from the platform knowledge base in core/platform_guide.py.
-_THEMIS_AI_CACHE: dict[str, tuple[dict, float]] = {}
-_THEMIS_RATE: dict[int, list[float]] = {}
-_THEMIS_RATE_LIMIT = 10
-_THEMIS_RATE_WINDOW = 60
-_THEMIS_CACHE_TTL = 300
+# Themis answers locally from scoped records or the platform knowledge base.
 _THEMIS_MAX_INPUT = 500
-
-
-def _themis_rate_ok(user_id: int) -> bool:
-    """Return True if user_id has not exceeded the AI call rate limit."""
-    import time
-    now = time.time()
-    window = _THEMIS_RATE.get(user_id, [])
-    window = [t for t in window if now - t < _THEMIS_RATE_WINDOW]
-    if len(window) >= _THEMIS_RATE_LIMIT:
-        _THEMIS_RATE[user_id] = window
-        return False
-    window.append(now)
-    _THEMIS_RATE[user_id] = window
-    return True
-
-
-def _themis_cached(question: str) -> dict | None:
-    """Return a cached guide answer if still fresh. Keys include the retrieved entries, so they never cross roles."""
-    import time
-    entry = _THEMIS_AI_CACHE.get(question)
-    if entry and time.time() - entry[1] < _THEMIS_CACHE_TTL:
-        return entry[0]
-    return None
 
 
 @router.get("/api/onboarding")
@@ -1105,24 +1077,29 @@ async def api_onboarding(request: Request):
 @router.post("/api/trainer/ask")
 @require_auth
 async def api_trainer_ask(request: Request):
-    """Themis: answer a how-to question from the platform knowledge base (core.platform_guide).
-
-    The guide never sees the page. A model, when used, receives only the masked question and the entries this
-    person may use, and it can point to one of those entries; anything else is dropped.
-    """
-    from core import onboarding, platform_guide as guide
-    from core.ai_client import create_message, is_configured, safe_json_parse
+    """Answer from authorized live work or the local role-aware platform guide."""
+    from core import onboarding, platform_guide as guide, themis_work
     data = await _json_body(request)
-    question = str(data.get("question") or "").strip()
-    page = str(data.get("page") or "/")[:200]
+    if not isinstance(data, dict):
+        return _JSONResp({"answer": "Send a question as text."}, status_code=400)
+    raw_question = data.get("question")
+    if raw_question is not None and not isinstance(raw_question, str):
+        return _JSONResp({"answer": "Send a question as text."}, status_code=400)
+    question = (raw_question or "").strip()
+    page = data.get("page")
+    page = page[:200] if isinstance(page, str) else "/"
     if not question:
         return _JSONResp({"answer": "Please ask a question about the platform."})
     if len(question) > _THEMIS_MAX_INPUT:
         return _JSONResp({"answer": "Please keep your question shorter (under 500 characters)."})
 
     user = request.state.user
+    areas = onboarding.open_areas(user)
+    work_answer = themis_work.maybe_answer(question, page, user, areas, get_db)
+    if work_answer is not None:
+        return _JSONResp(work_answer, headers={"Cache-Control": "no-store"})
     masked = guide.mask(question)  # from here on the raw question is not used
-    results, best_hidden = guide.search(masked, user, onboarding.open_areas(user), page=page, hidden=True)
+    results, best_hidden = guide.search(masked, user, areas, page=page, hidden=True)
     found = [r for r in results if r[0] >= guide.MIN_SCORE]
     if best_hidden >= guide.MIN_SCORE and (not found or best_hidden > found[0][0]):
         return _JSONResp({"answer": guide.not_for_you()})  # never names or links the page itself
@@ -1130,31 +1107,7 @@ async def api_trainer_ask(request: Request):
         return _JSONResp({"answer": guide.not_covered()})
     allowed = {e["id"] for _, e in found}
     best = found[0][1]
-    direct = {"answer": best["answer"], "source": "kb", "go": guide.target(best["id"], allowed)}
-    if not is_configured() or not _themis_rate_ok(user.get("id", 0)):
-        return _JSONResp(direct)
-
-    cache_key = masked.lower() + "|" + ",".join(sorted(allowed))
-    cached = _themis_cached(cache_key)
-    if cached:
-        return _JSONResp(cached)
-    try:
-        raw = create_message(
-            [{"role": "user", "content": "Help entries:\n\n" + guide.passages(found) + "\n\nQuestion: " + masked}],
-            system=guide.SYSTEM_PROMPT, max_tokens=500, feature="launcher.api_trainer_ask",
-        )
-    except Exception:
-        log.info("Themis answered from the knowledge base: the AI call was refused or failed")
-        return _JSONResp(direct)
-    parsed = safe_json_parse(raw, fallback={})
-    answer = str(parsed.get("answer") or "").strip() if isinstance(parsed, dict) else ""
-    if not answer:
-        return _JSONResp(direct)
-    reply = {"answer": answer.replace("\u2014", ", "), "source": "ai",
-             "go": guide.target(str(parsed.get("go") or ""), allowed)}
-    import time
-    _THEMIS_AI_CACHE[cache_key] = (reply, time.time())
-    return _JSONResp(reply)
+    return _JSONResp({"answer": best["answer"], "source": "kb", "go": guide.target(best["id"], allowed)})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-<!-- ═══ THEMIS — AI Help Bubble + Tooltip Mode ═══ -->
+<!-- ═══ THEMIS — Platform guide and selected-work help ═══ -->
 <div id="trainerBubble" class="trainer-bubble">
   <button class="trainer-icon" data-trainer-action="toggle" aria-label="Open Themis, your platform guide" aria-haspopup="true" aria-expanded="false" aria-controls="trainerPanel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -30,12 +30,13 @@
     <div class="trainer-ask" id="trainerAskView" role="tabpanel" aria-labelledby="trainerTabAsk">
     <div class="trainer-messages" id="trainerMessages">
       <div class="trainer-msg bot">
-        <div class="trainer-msg-content">Hi! I'm Themis, your platform guide. Ask me <strong>how to do anything</strong> in ThemisIQ. For example:<br><br>&bull; "How do I create an audit?"<br>&bull; "How do I log a data breach?"<br>&bull; "How do I register an AI use?"<br>&bull; "What is the Risk Register?"<br><br>New here? Open <strong>Get started</strong> for guided tours. You can also turn on <strong>Tooltip Mode</strong> to see explanations when you hover over elements.</div>
+        <div class="trainer-msg-content">Hi! I'm Themis. Ask where to start or about the audit, incident, risk, DPIA, control, Vault item or AI record you have open. I can prepare a draft for you to review and copy.<br><br>Open <strong>Get started</strong> for guided tours, or turn on <strong>Tooltip Mode</strong> for help on the page.</div>
       </div>
     </div>
+    <div class="trainer-case-suggestions" id="trainerCaseSuggestions" aria-label="Questions about this record" hidden></div>
     <div class="trainer-input-wrap">
       <label for="trainerInput" class="sr-only">Ask Themis a question</label>
-      <input type="text" id="trainerInput" placeholder="Ask about any feature...">
+      <input type="text" id="trainerInput" placeholder="Ask about the record you have open...">
       <button data-trainer-action="send" class="trainer-send" aria-label="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
@@ -88,7 +89,20 @@
 .trainer-go{display:block;margin-top:8px;border:1px solid var(--accent,#1e293b);background:var(--accent,#1e293b);color:#fff;border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;}
 .trainer-go:disabled{background:none;color:var(--muted,#6b7280);border-color:var(--border2,rgba(0,0,0,.15));cursor:default;}
 .trainer-go:focus-visible{outline:2px solid var(--accent,#1e293b);outline-offset:2px;}
-.ai-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:1px 5px;border-radius:3px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;margin-left:6px;vertical-align:middle;}
+.trainer-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.trainer-action{display:inline-flex;align-items:center;border-radius:8px;padding:5px 8px;background:var(--surface,#fff);color:var(--accent,#1e293b);font-size:12px;font-weight:600;text-decoration:none;}
+.trainer-action:hover,.trainer-sources a:hover{text-decoration:underline;}
+.trainer-action:focus-visible,.trainer-sources a:focus-visible,.trainer-case-suggestions button:focus-visible{outline:2px solid var(--accent,#1e293b);outline-offset:2px;}
+.trainer-sources{display:flex;flex-direction:column;gap:3px;margin-top:10px;padding-top:7px;border-top:1px solid var(--border,rgba(0,0,0,.08));font-size:11px;}
+.trainer-sources span{font-weight:700;color:var(--muted,#6b7280);}
+.trainer-sources a{color:var(--accent,#1e293b);overflow-wrap:anywhere;}
+.trainer-sources small{color:var(--muted,#6b7280);margin-top:-2px;}
+.trainer-case-suggestions{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 8px;}
+.trainer-case-suggestions[hidden]{display:none;}
+.trainer-case-suggestions button{border:1px solid var(--border2,rgba(0,0,0,.13));background:var(--surface,#fff);color:var(--text,#111);border-radius:999px;padding:5px 9px;font:inherit;font-size:11px;cursor:pointer;}
+.trainer-case-suggestions button:hover{border-color:var(--accent,#1e293b);}
+.trainer-origin{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.3px;padding:2px 6px;border-radius:999px;background:var(--surface,#fff);color:var(--muted,#6b7280);margin-left:6px;vertical-align:middle;}
+.trainer-draft{display:block;width:100%;min-height:130px;margin:9px 0;padding:8px;resize:vertical;border:1px solid var(--border2,rgba(0,0,0,.13));border-radius:8px;background:var(--surface,#fff);color:var(--text,#111);font:inherit;box-sizing:border-box;}
 
 /* ── Tooltip Mode Banner ── */
 .trainer-banner{

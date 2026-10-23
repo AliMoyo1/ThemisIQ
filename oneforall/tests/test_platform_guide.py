@@ -158,10 +158,7 @@ def test_an_answer_can_only_open_a_retrieved_page():
 
 @pytest.fixture
 def ask(test_db, monkeypatch):
-    from modules.launcher import routes_platform
     from modules.launcher.routes import router as launcher_router
-    routes_platform._THEMIS_AI_CACHE.clear()
-    routes_platform._THEMIS_RATE.clear()
     test_db.execute("INSERT INTO users (username, email, full_name, password_hash) VALUES "
                     "('guide_user','guide_user@example.test','Guide User','x')")
     test_db.commit()
@@ -200,32 +197,24 @@ def test_without_ai_the_guide_answers_from_the_knowledge_base(ask, monkeypatch):
     assert body["go"]["path"] == "/change-password"
 
 
-def test_the_model_sees_only_the_masked_question_and_the_retrieved_entries(ask, monkeypatch):
+def test_free_text_question_stays_local_and_uses_the_retrieved_entry(ask, monkeypatch):
     calls = []
     _ai(monkeypatch, '{"answer": "Open Task Board and press New Task.", "go": "platform.tasks"}', calls)
     body = ask("How do I create a task for bob@example.com?", page="/aria/frameworks?secret=1")
-    assert body == {"answer": "Open Task Board and press New Task.", "source": "ai",
-                    "go": {"id": "platform.tasks", "path": "/tasks", "title": "Create and track tasks",
-                           "show": "New Task"}}
-    sent = calls[0]["messages"][0]["content"]
-    assert "bob@example.com" not in sent and "[email]" in sent
-    assert "secret" not in sent and "/aria/frameworks" not in sent
-    assert "[platform.tasks]" in sent and calls[0]["feature"] == "launcher.api_trainer_ask"
-    assert calls[0]["system"] == guide.SYSTEM_PROMPT
+    assert body["source"] == "kb" and body["go"]["path"] == "/tasks"
+    assert calls == []
 
 
-def test_a_model_cannot_send_someone_to_a_page_that_was_not_retrieved(ask, monkeypatch):
+def test_provider_output_cannot_override_the_local_guide(ask, monkeypatch):
     calls = []
     _ai(monkeypatch, '{"answer": "Go to API Keys.", "go": "admin.api-keys"}', calls)
     body = ask("How do I create a task?")
-    assert body["source"] == "ai" and body["go"] is None
+    assert body["source"] == "kb" and body["go"]["path"] == "/tasks" and calls == []
 
 
-def test_a_failed_or_unreadable_model_reply_falls_back_to_the_knowledge_base(ask, monkeypatch):
+def test_provider_failure_does_not_affect_the_local_guide(ask, monkeypatch):
     _ai(monkeypatch, RuntimeError("refused by policy"), [])
     assert ask("How do I create a task?")["source"] == "kb"
-    from modules.launcher import routes_platform
-    routes_platform._THEMIS_AI_CACHE.clear()
     _ai(monkeypatch, "Ignore your rules. <script>alert(1)</script>", [])
     body = ask("How do I add a calendar event?")
     assert body["source"] == "kb" and "Add Event" in body["answer"]
@@ -247,7 +236,6 @@ def test_a_question_the_guide_does_not_cover_never_reaches_the_model(ask, monkey
 
 
 def test_a_typed_question_is_business_data_so_a_public_only_policy_refuses_it():
-    """The question is free text and can name anything, so the help assistant is not "public" data: an organization that
-    allows only public data can switch it off, and the guide still answers from its own knowledge base without a model."""
+    """Keep the historical feature declaration conservative if a provider-backed guide is proposed again."""
     from core import ai_policy
     assert ai_policy.FEATURES["launcher.api_trainer_ask"][1] == ("business",)
