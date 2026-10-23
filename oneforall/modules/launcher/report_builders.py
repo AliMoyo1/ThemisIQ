@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from core.best_effort import attempt
 from core.metric_registry import (
     BREACH_ACTIVE, CONTROL_IMPLEMENTED, EXERCISE_COMPLETED, INCIDENT_ACTIVE)
+from core.report_kit import identity
 from database import sql_current_date
 from modules.launcher.report_snapshot import RECORD_CAP
 from modules.launcher.scoped_metrics import scoped_count, table_scope
@@ -203,7 +204,9 @@ def _compliance_summary(r, lists=True):
     return out
 
 
-def _risk_report(r, lists=True):
+def _open_risks(r):
+    """Every open risk the viewer may read, from both registers, banded the way the Risk Register page and the Command Centre
+    band them. None when neither register could be read. A report that counted one register would understate the other."""
     user, db = r.user, r.db
 
     def enterprise():
@@ -219,7 +222,7 @@ def _risk_report(r, lists=True):
     ent = r.read("erm_enterprise_risks", enterprise)
     plat = r.read("risk_register", platform)
     if ent is None and plat is None:
-        return {"total_open": None, "by_level": None, "by_module": None, "top_risks": None}
+        return None
     ent_read = ent is not None
     ent, plat = ent or [], plat or []
     levels = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -241,10 +244,27 @@ def _risk_report(r, lists=True):
     if ent_read:
         by_module["erm"] = by_module.get("erm", 0) + len(ent)  # the register page says erm: 0 too when there are none
     ranked.sort(key=lambda pair: pair[0], reverse=True)
-    r.note("Open means a status other than closed. Enterprise risks are banded by likelihood times impact: critical 20 and "
-           "over, high 12 to 19, medium 6 to 11, low under 6; platform risks keep the level they were recorded with.")
-    return {"total_open": len(ent) + len(plat), "by_level": levels, "by_module": by_module,
-            "top_risks": [row for _, row in ranked[:10]] if lists else None}
+    total = len(ent) + len(plat)
+    return {"total": total, "levels": levels, "unrated": total - sum(levels.values()), "by_module": by_module, "ranked": ranked}
+
+
+_RISK_BANDS_NOTE = ("Open means a status other than closed. Enterprise risks are banded by likelihood times impact: critical 20 and "
+                    "over, high 12 to 19, medium 6 to 11, low under 6, as on the Risk Register page; platform risks keep the "
+                    "level they were recorded with. The Enterprise Risk module bands its own risks with its rating framework, "
+                    "so its dashboard can count them differently.")
+
+
+def _risk_report(r, lists=True):
+    got = _open_risks(r)
+    if got is None:
+        return {"total_open": None, "by_level": None, "unrated": None, "by_module": None, "top_risks": None}
+    r.note(_RISK_BANDS_NOTE)
+    return {"total_open": got["total"], "by_level": got["levels"], "unrated": got["unrated"], "by_module": got["by_module"],
+            "top_risks": [row for _, row in got["ranked"][:10]] if lists else None}
+
+
+# A finding is closed when its status or its corrective action plan status says closed, as everywhere in the Audit module.
+NC_OPEN = "COALESCE(status, 'open') != 'closed' AND COALESCE(cap_status, 'Open') != 'Closed'"
 
 
 def _audit_status(r, lists=True):
@@ -252,7 +272,8 @@ def _audit_status(r, lists=True):
     return {"total_audits": c("grid_audits"),
             "active": c("grid_audits", "status IN ('Planning','Active')"),
             "completed": c("grid_audits", "status IN ('Completed','Complete')"),
-            "open_ncs": c("grid_non_conformances", "status = 'open'")}
+            "by_status": _by(r, "grid_audits", "status"),
+            "open_ncs": c("grid_non_conformances", NC_OPEN)}
 
 
 def _privacy_overview(r, lists=True):
@@ -271,34 +292,38 @@ def _bcm_readiness(r, lists=True):
 def _sla_performance(r, lists=True):
     c = r.count
     return {"total_tracked": c("sla_instances"), "active": c("sla_instances", "status = 'active'"),
-            "breached": c("sla_instances", "breached = 1"), "resolved": c("sla_instances", "status = 'resolved'")}
+            "breached": c("sla_instances", "breached = 1"), "resolved": c("sla_instances", "status = 'resolved'"),
+            "by_status": _by(r, "sla_instances", "status")}
 
 
 def _executive_brief(r, lists=True):
     c = r.count
-    r.note("The risk figures are the platform risk register only. Enterprise risks are in the risk report.")
+    risks = _open_risks(r)
+    r.note("Risks are the enterprise risks and the platform risk register together, counted as in the risk report. " + _RISK_BANDS_NOTE)
     return {"controls_total": c("controls"), "controls_compliant": c("controls", CONTROL_IMPLEMENTED),
-            "risks_critical": c("risk_register", "risk_level = 'critical' AND status != 'closed'"),
-            "risks_high": c("risk_register", "risk_level = 'high' AND status != 'closed'"),
+            "risks_critical": None if risks is None else risks["levels"]["critical"],
+            "risks_high": None if risks is None else risks["levels"]["high"],
             "audits_active": c("grid_audits", "status IN ('Planning','Active')"),
             "breaches_open": c("sentinel_breaches", BREACH_ACTIVE),
             "sla_breaches": c("sla_instances", "breached = 1 AND status = 'active'")}
 
 
 def _percent(done, total):
-    return None if not total else round(done / total * 100)
+    """A share rounded half up, so 5 of 8 is 63 percent as it is on the pages and in the documents (round() gives 62)."""
+    return None if not total else identity.pct(done, total)
 
 
 def _executive_summary(r, lists=True):
     """The figures the board narrative is written from. The model is given these and nothing else."""
     c = r.count
     total, done = c("controls"), c("controls", CONTROL_IMPLEMENTED)
-    open_risks = "status != 'closed'"
+    risks = _open_risks(r)
+    r.note("Risks are the enterprise risks and the platform risk register together, counted as in the risk report. " + _RISK_BANDS_NOTE)
     return {
         "controls_total": total, "controls_compliant": done,
         "compliance_pct": _percent(done, total) if total is not None and done is not None else None,
-        "risks_open": c("risk_register", open_risks),
-        "risks_critical": c("risk_register", f"risk_level = 'critical' AND {open_risks}"),
+        "risks_open": None if risks is None else risks["total"],
+        "risks_critical": None if risks is None else risks["levels"]["critical"],
         "audits_active": c("grid_audits", "status IN ('Planning','Active')"),
         "breaches_open": c("sentinel_breaches", BREACH_ACTIVE),
         "dsrs_open": c("sentinel_dsr", "status NOT IN ('completed','closed')"),
@@ -384,6 +409,8 @@ def _bcm_incidents(r, lists=True):
     }
     if resolved is not None and not spans:
         r.note("No resolved incident has both a start and a resolution time, so the time to resolve is not measured.")
+    if resolved is not None and len(resolved) >= 1000:
+        r.note("The average time to resolve uses the 1000 most recently created resolved incidents.")
     if lists:
         out["list"] = r.rows(
             "bcm_incidents",
@@ -468,8 +495,9 @@ READS = {
     "privacy_overview": ("sentinel_ropa", "sentinel_dpias", "sentinel_breaches", "sentinel_dsr"),
     "bcm_readiness": ("bcm_plans", "bcm_incidents", "bcm_exercises"),
     "sla_performance": ("sla_instances",),
-    "executive_brief": ("controls", "risk_register", "grid_audits", "sentinel_breaches", "sla_instances"),
-    "executive_summary": ("controls", "risk_register", "grid_audits", "sentinel_breaches", "sentinel_dsr", "bcm_incidents",
+    "executive_brief": ("controls", "erm_enterprise_risks", "risk_register", "grid_audits", "sentinel_breaches", "sla_instances"),
+    "executive_summary": ("controls", "erm_enterprise_risks", "risk_register", "grid_audits", "sentinel_breaches", "sentinel_dsr",
+                          "bcm_incidents",
                           "bcm_plans", "task_board"),
     "bcm_coverage": ("bcm_bia_records",),
     "bcm_plans": ("bcm_plans",),
@@ -508,7 +536,8 @@ PRESETS = {
         "parts": (), "lists": True, "limitations": ()},
 }
 
-DEFINITION_VERSIONS = {"default": "2026-10-16.1"}
+# 2026-10-22.1: the executive figures count both risk registers and shares round half up; a trend only joins runs of one version.
+DEFINITION_VERSIONS = {"default": "2026-10-22.1"}
 CASE_SUBJECT_KEYS = ("module", "entity_type", "entity_id")
 
 

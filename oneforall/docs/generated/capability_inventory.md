@@ -28,12 +28,14 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/ai-governance/api/applications/search` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessment-dimensions` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/assessment-dimensions` | capability | ai_assessment.configure | ai_assessment.configure: dpo, org_admin, privacy_analyst, super_admin | - |  |
+| GET | `/ai-governance/api/assessment-profile` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - | gated: AI impact assessment field definitions require assessment view access. The profile is an internal assurance template, not an independent decision or approved statutory checklist. |
 | GET | `/ai-governance/api/assessments` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/assessments` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessments/link-options` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | DELETE | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/assessments/{assessment_id}/document` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - | gated: One AI impact assessment as PDF or Excel. Requires ai_assessment.view, scoped assessment access, and an audited download. Hidden linked records are omitted. |
 | GET | `/ai-governance/api/business-units` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/canonical-controls` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | DELETE | `/ai-governance/api/control-mappings` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -267,6 +269,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/bcm/api/bia/{bia_id}/impact-rows` | capability | bcm.bia.manage | bcm.bia.manage: bcm_manager, super_admin | - |  |
 | POST | `/bcm/api/bia/{bia_id}/resources` | capability | bcm.bia.manage | bcm.bia.manage: bcm_manager, super_admin | - |  |
 | POST | `/bcm/api/bia/{bia_id}/seed-standard-rows` | capability | bcm.bia.manage | bcm.bia.manage: bcm_manager, super_admin | - |  |
+| GET | `/bcm/api/board-report/document` | capability | bcm.report.generate | bcm.report.generate: bcm_manager, super_admin | - |  |
 | GET | `/bcm/api/chat` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/chat` | capability | bcm.ai.use | bcm.ai.use: bcm_manager, bcm_responder, incident_commander, super_admin | - |  |
 | POST | `/bcm/api/chat/clear` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
@@ -351,6 +354,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/bcm/api/plans/{plan_id}/activate` | capability | bcm.plan.manage | bcm.plan.manage: bcm_manager, super_admin | - |  |
 | GET | `/bcm/api/plans/{plan_id}/activations` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/plans/{plan_id}/deactivate` | capability | bcm.plan.manage | bcm.plan.manage: bcm_manager, super_admin | - |  |
+| GET | `/bcm/api/plans/{plan_id}/document` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm | gated: One continuity plan as PDF or Excel. Requires BCM module access, scoped plan access, and an audited download. Covered processes are scoped separately. |
 | GET | `/bcm/api/plans/{plan_id}/reviews` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/plans/{plan_id}/reviews` | capability | bcm.plan.manage | bcm.plan.manage: bcm_manager, super_admin | - |  |
 | POST | `/bcm/api/reports/board` | capability | bcm.report.generate | bcm.report.generate: bcm_manager, super_admin | - |  |
@@ -429,6 +433,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/erm/api/assessments/{assessment_id}/respond` | capability | module.erm.access | module.erm.access: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | erm |  |
 | GET | `/erm/api/assessments/{assessment_id}/responses` | capability | module.erm.access | module.erm.access: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | erm |  |
 | POST | `/erm/api/assessments/{assessment_id}/suggest-questions` | capability | erm.ai.use | erm.ai.use: compliance_manager, risk_owner, super_admin | - |  |
+| GET | `/erm/api/board-report/document` | capability | erm.report.generate | erm.report.generate: compliance_manager, risk_owner, super_admin | - |  |
 | DELETE | `/erm/api/cfs/{cf_id}` | capability | erm.risk.manage | erm.risk.manage: risk_owner, super_admin | - |  |
 | PUT | `/erm/api/cfs/{cf_id}` | capability | erm.risk.manage | erm.risk.manage: risk_owner, super_admin | - |  |
 | GET | `/erm/api/chat` | capability | module.erm.access | module.erm.access: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | erm |  |
@@ -548,6 +553,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/coverage` | authenticated | - | - | - |  |
 | GET | `/evidence/api/coverage/definitions` | authenticated | - | - | - |  |
 | POST | `/evidence/api/find` | authenticated | - | - | - |  |
+| GET | `/evidence/api/folders` | authenticated | - | - | - |  |
+| GET | `/evidence/api/folders/{group}/records` | authenticated | - | - | - |  |
 | GET | `/evidence/api/inspector` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items` | authenticated | - | - | - |  |
 | POST | `/evidence/api/items` | authenticated | - | - | - |  |
@@ -1003,6 +1010,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/api/reports/quick-run` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs/{run_id}` | authenticated | - | - | - |  |
+| GET | `/api/reports/runs/{run_id}/document` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs/{run_id}/export` | authenticated | - | - | - |  |
 | POST | `/api/reports/runs/{run_id}/notes` | authenticated | - | - | - |  |
 | POST | `/api/reports/runs/{run_id}/rerun` | authenticated | - | - | - |  |
@@ -1012,6 +1020,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/api/reports/runs/{run_id}/signoff` | authenticated | - | - | - |  |
 | POST | `/api/reports/{rid}/run` | authenticated | - | - | - |  |
 | GET | `/reports` | authenticated | - | - | - |  |
+| GET | `/reports/runs/{run_id}/print` | authenticated | - | - | - |  |
 
 ## `modules.launcher.routes_risks`
 
@@ -1112,6 +1121,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/orm/api/aims/{assessment_id}/aggregation/csv` | capability | module.orm.access | module.orm.access: audit_lead, bcm_manager, compliance_manager, risk_owner, super_admin | orm |  |
 | GET | `/orm/api/aims/{assessment_id}/risks` | capability | module.orm.access | module.orm.access: audit_lead, bcm_manager, compliance_manager, risk_owner, super_admin | orm |  |
 | POST | `/orm/api/aims/{assessment_id}/risks` | capability | orm.event.manage | orm.event.manage: compliance_manager, risk_owner, super_admin | - |  |
+| GET | `/orm/api/board-report/document` | capability | orm.report.generate | orm.report.generate: compliance_manager, risk_owner, super_admin | - |  |
 | GET | `/orm/api/chat` | capability | module.orm.access | module.orm.access: audit_lead, bcm_manager, compliance_manager, risk_owner, super_admin | orm |  |
 | POST | `/orm/api/chat` | capability | orm.ai.use | orm.ai.use: compliance_manager, risk_owner, super_admin | - |  |
 | POST | `/orm/api/chat/clear` | capability | module.orm.access | module.orm.access: audit_lead, bcm_manager, compliance_manager, risk_owner, super_admin | orm |  |
@@ -1194,7 +1204,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/sentinel/api/ai/suggest-legal-basis` | capability | sentinel.ai.assess | sentinel.ai.assess: dpo, privacy_analyst, super_admin | - |  |
 | POST | `/sentinel/api/ai/vendor-check/{vendor_id}` | capability | sentinel.ai.assess | sentinel.ai.assess: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/audit` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
-| GET | `/sentinel/api/audit-export` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| GET | `/sentinel/api/audit-export` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel | gated: Each part of the evidence pack needs the capability of its own list (breach, request, impact assessment, vendor); a part the caller may not open is left out and named in the README. |
+| GET | `/sentinel/api/audit/export` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | POST | `/sentinel/api/breach-obligations/{obligation_id}/decision` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | PUT | `/sentinel/api/breach-obligations/{obligation_id}/facts` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | GET | `/sentinel/api/breaches` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
@@ -1226,6 +1237,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/sentinel/api/dpias/{dpia_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/dpias/{dpia_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | PUT | `/sentinel/api/dpias/{dpia_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
+| GET | `/sentinel/api/dpias/{dpia_id}/document` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - | gated: One DPIA as PDF or Excel. Requires sentinel.dpia.manage, scoped record access, and an audited download. Related records and Vault files follow the reader&#x27;s access. |
 | POST | `/sentinel/api/dpias/{dpia_id}/link-ropa` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/dsrs` | capability | sentinel.dsr.manage | sentinel.dsr.manage: dpo, privacy_analyst, super_admin | - |  |
 | POST | `/sentinel/api/dsrs` | capability | sentinel.dsr.manage | sentinel.dsr.manage: dpo, privacy_analyst, super_admin | - |  |
@@ -1258,6 +1270,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/sentinel/api/policies/{policy_id}` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/policies/{policy_id}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | PUT | `/sentinel/api/policies/{policy_id}` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |
+| GET | `/sentinel/api/record-profile/{record}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel | gated: RoPA and DPIA field definitions require Privacy module access. Jurisdiction references are researched but not approved legal wording; users must review them before filing. |
+| GET | `/sentinel/api/reports/{kind}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel | gated: RoPA and compliance score documents need module access; the breach register also needs sentinel.breach.manage, checked in the handler as the breach list does. Records are limited to the caller&#x27;s business units. |
 | GET | `/sentinel/api/retention` | capability | sentinel.retention.manage | sentinel.retention.manage: dpo, privacy_analyst, super_admin | - |  |
 | POST | `/sentinel/api/retention` | capability | sentinel.retention.manage | sentinel.retention.manage: dpo, privacy_analyst, super_admin | - |  |
 | DELETE | `/sentinel/api/retention/{rid}` | capability | sentinel.retention.manage | sentinel.retention.manage: dpo, privacy_analyst, super_admin | - |  |

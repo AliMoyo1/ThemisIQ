@@ -13,6 +13,8 @@ from core.timeutils import utcnow, to_dt
 from core.change_watch import watched
 from database import get_db, insert_returning_id, sql_current_date
 from core.sql_like import ci_like, like_pattern
+from modules.sentinel.record_profiles import RecordError, get_profile
+from core.report_kit.identity import pct
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -177,10 +179,29 @@ def _unit_counter(db, bu_scope):
 
 # ── Row converters ───────────────────────────────────────────────────────────
 
+def _json_or_text(val):
+    """Keep older free-text recipients and measures instead of reading them as empty lists."""
+    if val is None or val == "":
+        return []
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+        except ValueError:
+            return val
+        return parsed if isinstance(parsed, list) else val
+    return val
+
+
 def _ropa_row(row):
     d = dict(row)
-    for f in ("data_categories", "special_categories", "processors", "recipients", "security_measures"):
+    for f in ("data_categories", "special_categories"):
         d[f] = _parse_json(d.get(f), [])
+    for f in ("processors", "recipients", "security_measures"):
+        d[f] = _json_or_text(d.get(f))
+    profile = get_profile("ropa", d.get("regulation"))
+    d = profile.expand(d)
+    made, needed = profile.completeness(d)
+    d["readiness"] = {"made": made, "needed": needed, "gaps": [gap.label for gap in profile.gaps(d)]}
     return d
 
 
@@ -189,6 +210,13 @@ def _dpia_row(row):
     d["data_categories"] = _parse_json(d.get("data_categories"), [])
     d["special_cats"] = _parse_json(d.get("special_cats"), [])
     d["risks"] = _parse_json(d.get("risks"), [])
+    # The historical column default was medium even when nobody rated the DPIA.
+    # The assessor's overall rating is the only reliable source for this alias.
+    d["risk_level"] = d.get("overall_risk") or None
+    profile = get_profile("dpia", d.get("regulation"))
+    d = profile.expand(d)
+    made, needed = profile.completeness(d)
+    d["readiness"] = {"made": made, "needed": needed, "gaps": [gap.label for gap in profile.gaps(d)]}
     return d
 
 
@@ -222,20 +250,43 @@ _ROPA_FIELDS = [
 ]
 _ROPA_JSON = ["data_categories", "special_categories", "processors", "recipients", "security_measures"]
 
+_ROPA_SYSTEM = ("regulation", "dpia_id", "ai_risk_notes")
+
+
+def _record_values(profile, data, existing_details=None, system_fields=()):
+    """Validated profile columns and JSON details, plus explicitly permitted system fields."""
+    columns, details, errors = profile.prepare(data, existing_details)
+    if errors:
+        raise RecordError(errors)
+    values = {k: data[k] for k in system_fields if k in data}
+    values.update(columns)
+    if details is not None:
+        values["details"] = json.dumps(details)
+    return values
+
 
 def create_ropa(data, business_unit_id=None):
     data.setdefault("processing_name", "Untitled Entry")
     data.setdefault("regulation", _primary_jurisdiction_key())
     data.setdefault("status", "active")
-    data.setdefault("risk_level", "low")
-    data["business_unit_id"] = business_unit_id
-    return _generic_create("sentinel_ropa", _ROPA_FIELDS + ["business_unit_id"], data,
+    data.setdefault("risk_level", None)
+    values = _record_values(get_profile("ropa", data["regulation"]), data, system_fields=_ROPA_SYSTEM)
+    values["business_unit_id"] = business_unit_id
+    return _generic_create("sentinel_ropa", _ROPA_FIELDS + ["details", "business_unit_id"], values,
                            ref_prefix="ROPA", json_fields=_ROPA_JSON)
 
 
 @watched("sentinel", "ropa")
 def update_ropa(ropa_id, data):
-    _generic_update("sentinel_ropa", set(_ROPA_FIELDS), data, ropa_id, json_fields=_ROPA_JSON)
+    db = get_db()
+    try:
+        row = db.execute("SELECT regulation, details FROM sentinel_ropa WHERE id=%s", (ropa_id,)).fetchone()
+    finally:
+        db.close()
+    stored = _parse_json(row["details"], {}) if row else {}
+    values = _record_values(get_profile("ropa", data.get("regulation") or (row["regulation"] if row else None)), data,
+                            stored if isinstance(stored, dict) else {}, system_fields=_ROPA_SYSTEM)
+    _generic_update("sentinel_ropa", set(_ROPA_FIELDS) | {"details"}, values, ropa_id, json_fields=_ROPA_JSON)
 
 def get_ropa(ropa_id):
     return _generic_get("sentinel_ropa", ropa_id, _ropa_row)
@@ -280,11 +331,16 @@ def list_ropa(search=None, regulation=None, status=None, risk=None, limit=500, b
         sql += " AND risk_level=%s"
         params.append(risk)
     if bu_scope is not None:
-        ph = ",".join(["%s"] * len(bu_scope))
-        sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
-        params.extend(bu_scope)
-    sql += " ORDER BY updated_at DESC LIMIT %s"
-    params.append(limit)
+        if bu_scope:
+            ph = ",".join(["%s"] * len(bu_scope))
+            sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+            params.extend(bu_scope)
+        else:
+            sql += " AND business_unit_id IS NULL"
+    sql += " ORDER BY updated_at DESC"
+    if limit is not None:
+        sql += " LIMIT %s"
+        params.append(limit)
     db = get_db()
     try:
         rows = db.execute(sql, params).fetchall()
@@ -302,11 +358,43 @@ _DPIA_FIELDS = [
     "dpo_name", "dpo_email", "activity_type", "activity_desc", "purpose", "legal_basis",
     "data_categories", "special_cats", "data_subjects", "subject_count", "retention",
     "systems", "processors", "intl_transfer", "transfer_dest", "transfer_mech",
-    "necessity", "proportionality", "risks", "overall_risk", "residual_risk",
+    "necessity", "proportionality", "risks", "overall_risk", "residual_risk", "risk_level",
     "dpo_consulted", "auth_consulted", "subjects_consulted", "consult_notes",
     "ai_research", "ai_full_dpia", "ropa_id",
+    "description", "owner", "due_date", "mitigations", "details",
 ]
 _DPIA_JSON = ["data_categories", "special_cats", "risks"]
+
+
+def _date_or_none(data, field):
+    """Store an empty date as NULL and reject values other than YYYY-MM-DD."""
+    if field not in data:
+        return
+    raw = data[field]
+    if raw is not None and not isinstance(raw, str):
+        raise ValueError(f"The {field.replace('_', ' ')} must be a date written YYYY-MM-DD.")
+    value = (raw or "").strip()
+    if value:
+        try:
+            if len(value) != 10:
+                raise ValueError(value)
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"The {field.replace('_', ' ')} must be a date written YYYY-MM-DD.") from None
+    data[field] = value or None
+
+
+def _sync_dpia_risk(data):
+    """Persist the chosen overall rating; a client's legacy risk_level is never authoritative."""
+    data.pop("risk_level", None)
+    for field in ("overall_risk", "residual_risk"):
+        if field in data:
+            value = str(data[field] or "").strip().lower()
+            if value and value not in ("low", "medium", "high"):
+                raise ValueError(f"Choose a valid {field.replace('_', ' ')}.")
+            data[field] = value or None
+    if "overall_risk" in data:
+        data["risk_level"] = data["overall_risk"]
 
 
 def create_dpia(data, business_unit_id=None):
@@ -317,6 +405,11 @@ def create_dpia(data, business_unit_id=None):
     data.setdefault("regulation", _primary_jurisdiction_key())
     for f in _DPIA_JSON:
         data.setdefault(f, "[]")
+    _date_or_none(data, "due_date")
+    _sync_dpia_risk(data)
+    data.setdefault("risk_level", None)
+    profile = get_profile("dpia", data["regulation"])
+    data.update(_record_values(profile, {k: data[k] for k in profile.detail_keys() if k in data}))
     data["business_unit_id"] = business_unit_id
     return _generic_create("sentinel_dpias", _DPIA_FIELDS + ["business_unit_id"], data, ref_prefix="DPIA",
                            json_fields=_DPIA_JSON)
@@ -324,6 +417,17 @@ def create_dpia(data, business_unit_id=None):
 
 @watched("sentinel", "dpia")
 def update_dpia(dpia_id, data):
+    _date_or_none(data, "due_date")
+    _sync_dpia_risk(data)
+    db = get_db()
+    try:
+        row = db.execute("SELECT regulation, details FROM sentinel_dpias WHERE id=%s", (dpia_id,)).fetchone()
+    finally:
+        db.close()
+    profile = get_profile("dpia", data.get("regulation") or (row["regulation"] if row else None))
+    existing = _parse_json(row["details"], {}) if row else {}
+    data.update(_record_values(profile, {k: data[k] for k in profile.detail_keys() if k in data},
+                               existing if isinstance(existing, dict) else {}))
     _generic_update("sentinel_dpias", set(_DPIA_FIELDS), data, dpia_id, json_fields=_DPIA_JSON)
 
 def get_dpia(dpia_id):
@@ -779,17 +883,30 @@ def list_consent(search=None, status=None, limit=500, bu_scope=None):
 # ═════════════════════════════════════════════════════════════════════════════
 
 _CTRL_FIELDS = [
-    "org_name", "registration_number", "country", "address", "sector",
+    "org_name", "registration_number", "country", "address", "sector", "role",
     "controller_name", "controller_email", "controller_phone",
     "dpo_name", "dpo_email", "dpo_phone",
     "regulator_name", "regulator_ref", "regulation", "is_primary", "notes",
+    "contact_name", "contact_email", "agreement_date", "agreement_ref", "responsibilities",
+    "representative", "representative_contact", "record_owner", "last_full_review",
 ]
 
+CONTROLLER_ROLES = ("controller", "joint_controller", "processor", "dpo", "regulator")
+
+
+def _check_controller(data):
+    if data.get("role") not in (None, "", *CONTROLLER_ROLES):
+        raise ValueError("Choose a role from the list.")
+
 def create_controller(data):
+    _check_controller(data)
     data.setdefault("org_name", "Unnamed Organisation")
+    if not data.get("role"):
+        data["role"] = "controller" if str(data.get("is_primary") or "0").lower() in ("1", "true", "yes") else "joint_controller"
     return _generic_create("sentinel_controllers", _CTRL_FIELDS, data)
 
 def update_controller(cid, data):
+    _check_controller(data)
     _generic_update("sentinel_controllers", set(_CTRL_FIELDS), data, cid)
 
 def get_controller(cid):
@@ -1012,6 +1129,40 @@ def list_dataflows(limit=500, bu_scope=None):
 # Settings (uses shared settings table)
 # ═════════════════════════════════════════════════════════════════════════════
 
+_PRIVACY_SETTING_LIMITS = {
+    "org_name": 200,
+    "dpo_name": 200,
+    "dpo_email": 254,
+    "primary_regulation": 200,
+    "sentinel_dpo_email": 254,
+}
+
+
+def update_privacy_settings(values):
+    """Update only Privacy-owned keys in the shared settings table."""
+    if not isinstance(values, dict) or not values:
+        raise ValueError("Provide Privacy settings to update")
+    for key, value in values.items():
+        if key not in _PRIVACY_SETTING_LIMITS:
+            raise ValueError("Unknown Privacy setting")
+        if not isinstance(value, str) or len(value) > _PRIVACY_SETTING_LIMITS[key]:
+            raise ValueError("Invalid Privacy setting value")
+    db = get_db()
+    try:
+        for key, value in values.items():
+            db.execute(
+                "INSERT INTO settings(key,value) VALUES(%s,%s) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value),
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def get_setting(key, default=None):
     db = get_db()
     try:
@@ -1022,21 +1173,16 @@ def get_setting(key, default=None):
 
 
 def set_setting(key, value):
-    db = get_db()
-    try:
-        db.execute(
-            "INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (key, value),
-        )
-        db.commit()
-    finally:
-        db.close()
+    update_privacy_settings({key: value})
 
 
 def get_all_settings():
     db = get_db()
     try:
-        rows = db.execute("SELECT key, value FROM settings").fetchall()
+        rows = db.execute(
+            "SELECT key, value FROM settings WHERE key IN (%s,%s,%s,%s,%s)",
+            tuple(_PRIVACY_SETTING_LIMITS),
+        ).fetchall()
     finally:
         db.close()
     return {r["key"]: r["value"] for r in rows}
@@ -1330,61 +1476,45 @@ def get_jurisdiction_stats(bu_scope=None) -> list[dict]:
     ]
 
 
+# What each part of the compliance score is worth. A part with nothing to measure takes no share of the overall.
+SCORE_WEIGHTS = {"ropa_completeness": 25, "dpia_coverage": 25, "breach_response": 20, "dsr_closure": 15, "vendor_compliance": 15}
+
+
 def get_compliance_score(bu_scope=None):
-    """The score of what `bu_scope` (bu_scope_ids) can open; None, a super administrator, scores everything."""
+    """The score of what `bu_scope` (bu_scope_ids) can open; None, a super administrator, scores everything.
+
+    A part with nothing to measure (no breach recorded, no data subject request, no vendor) has no score: `score` is None and
+    the part takes no share of the overall, which is worked out over the weights of the parts that were measured. Such a part
+    used to score 100, so a module with nothing recorded read as a B. The overall is None, and the grade "N/A", when nothing
+    could be measured. Percentages are rounded half up, as the pages and the reports round them."""
     db = get_db()
     try:
         count = _unit_counter(db, bu_scope)
-        scores = {}
-        ropa_total = count("sentinel_ropa")
+        # data_categories is a JSON list: an entry saved with the list emptied holds '[]', which names no category.
         ropa_complete = count(
             "sentinel_ropa",
             "purpose IS NOT NULL AND legal_basis IS NOT NULL "
-            "AND data_categories IS NOT NULL AND purpose!='' AND legal_basis!='' AND data_categories!=''",
+            "AND data_categories IS NOT NULL AND purpose!='' AND legal_basis!='' AND data_categories NOT IN ('', '[]')",
         )
-        scores["ropa_completeness"] = {
-            "score": round(ropa_complete / ropa_total * 100) if ropa_total else 0,
-            "label": "RoPA Completeness", "total": ropa_total, "done": ropa_complete,
-        }
-
-        hr_ropa = count("sentinel_ropa", "risk_level IN ('high','critical') OR dpia_required=1")
-        hr_with_dpia = count(
-            "sentinel_ropa", "(risk_level IN ('high','critical') OR dpia_required=1) AND dpia_id IS NOT NULL"
-        )
-        scores["dpia_coverage"] = {
-            "score": round(hr_with_dpia / hr_ropa * 100) if hr_ropa else 100,
-            "label": "DPIA Coverage", "total": hr_ropa, "done": hr_with_dpia,
-        }
-
-        breach_total = count("sentinel_breaches")
-        breach_resolved = count("sentinel_breaches", "status IN ('resolved','closed','contained')")
-        scores["breach_response"] = {
-            "score": round(breach_resolved / breach_total * 100) if breach_total else 100,
-            "label": "Breach Resolution", "total": breach_total, "done": breach_resolved,
-        }
-
-        dsr_total = count("sentinel_dsr")
-        dsr_closed = count("sentinel_dsr", "status IN ('closed','completed')")
-        scores["dsr_closure"] = {
-            "score": round(dsr_closed / dsr_total * 100) if dsr_total else 100,
-            "label": "DSR Closure", "total": dsr_total, "done": dsr_closed,
-        }
-
-        vendor_total = count("sentinel_vendors")
-        vendor_dpa = count("sentinel_vendors", "dpa_status IN ('Active','Signed','Executed','Compliant')")
-        scores["vendor_compliance"] = {
-            "score": round(vendor_dpa / vendor_total * 100) if vendor_total else 100,
-            "label": "Vendor DPA", "total": vendor_total, "done": vendor_dpa,
+        high_risk = "(risk_level IN ('high','critical') OR dpia_required=1)"
+        measures = {
+            "ropa_completeness": ("RoPA Completeness", count("sentinel_ropa"), ropa_complete),
+            "dpia_coverage": ("DPIA Coverage", count("sentinel_ropa", high_risk),
+                              count("sentinel_ropa", f"{high_risk} AND dpia_id IS NOT NULL")),
+            "breach_response": ("Breach Resolution", count("sentinel_breaches"),
+                                count("sentinel_breaches", "status IN ('resolved','closed','contained')")),
+            "dsr_closure": ("DSR Closure", count("sentinel_dsr"), count("sentinel_dsr", "status IN ('closed','completed')")),
+            "vendor_compliance": ("Vendor DPA", count("sentinel_vendors"),
+                                  count("sentinel_vendors", "dpa_status IN ('Active','Signed','Executed','Compliant')")),
         }
     finally:
         db.close()
 
-    weights = {
-        "ropa_completeness": 25, "dpia_coverage": 25,
-        "breach_response": 20, "dsr_closure": 15, "vendor_compliance": 15,
-    }
-    weighted = sum(scores.get(k, {}).get("score", 0) * w for k, w in weights.items())
-    total_w = sum(weights.values())
-    overall = round(weighted / total_w) if total_w else 0
-    grade = "A" if overall >= 90 else "B" if overall >= 75 else "C" if overall >= 60 else "D" if overall >= 40 else "F"
+    scores = {key: {"score": pct(done, total), "label": label, "total": total, "done": done, "weight": SCORE_WEIGHTS[key]}
+              for key, (label, total, done) in measures.items()}
+    measured = [s for s in scores.values() if s["score"] is not None]
+    weight = sum(s["weight"] for s in measured)
+    overall = pct(sum(s["score"] * s["weight"] for s in measured), weight * 100) if weight else None
+    grade = ("N/A" if overall is None else "A" if overall >= 90 else "B" if overall >= 75 else "C" if overall >= 60
+             else "D" if overall >= 40 else "F")
     return {"overall": overall, "breakdown": scores, "grade": grade}

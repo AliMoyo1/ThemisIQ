@@ -7,6 +7,7 @@ unavailable (could not be read). The legacy field names are kept, now scoped, so
 narrative see only what the person may open.
 """
 from core import metric_registry as registry, metric_state as ms
+from core.report_kit.identity import pct
 from database import get_db
 from modules.launcher.scoped_metrics import scoped_count, table_scope
 
@@ -23,7 +24,7 @@ def _guard(key, build):
 
 
 def _percent(done, total):
-    return round(done / total * 100)
+    return pct(done, total)      # half up, as the reports round (round() takes 62.5 to 62)
 
 
 def metrics(db, user) -> dict:

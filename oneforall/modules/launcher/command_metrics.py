@@ -7,6 +7,7 @@ lost one is `partial` and names what is missing. A module the viewer may not ope
 its count nor its existence is sent.
 """
 from core import metric_registry as registry, metric_state as ms
+from core.report_kit.identity import pct
 from database import sql_current_date, sql_date_offset, sql_date_ts
 from modules.launcher.scoped_metrics import scoped_count, table_scope
 
@@ -61,7 +62,7 @@ def _sum(key, parts):
 
 
 def _percent(done, total):
-    return round(done / total * 100) if total else None
+    return pct(done, total)      # half up, as the reports round (round() takes 62.5 to 62)
 
 
 def _controls(db, user):

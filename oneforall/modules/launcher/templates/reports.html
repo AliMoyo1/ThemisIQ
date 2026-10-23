@@ -1,5 +1,5 @@
 {% extends "platform_base.html" %}
-{% block title %}Reports — ThemisIQ{% endblock %}
+{% block title %}Reports | ThemisIQ{% endblock %}
 {% block content %}
 
 <div class="topbar">
@@ -23,7 +23,8 @@
     <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:12px;">Quick Generate</div>
     {% for title, items in report_groups %}
     <div style="margin-bottom:10px;">
-      <div style="font-size:11px; color:var(--muted); margin-bottom:6px;">{{ title }}</div>
+      <div style="font-size:11px; color:var(--muted); margin-bottom:6px;">{{ title }}
+        <span style="margin-left:6px;">{% if title == 'Board reports' %}Short, summary first and decision oriented: headline measures, the movement over saved runs, the top items and what needs a decision.{% else %}Operational: the working detail, with supporting charts and tables.{% endif %}</span></div>
       <div style="display:flex; flex-wrap:wrap; gap:8px;">
         {% for key, label in items %}
         {% if key == 'executive_summary' %}
@@ -47,7 +48,8 @@
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div style="font-size:16px;font-weight:700;color:var(--text)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Executive Board Summary <span style="font-size:11px;font-weight:600;color:var(--muted);margin-left:8px">Draft: not reviewed</span></div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" onclick="window.print()" style="font-size:12px">Print</button>
+        <button type="button" class="btn btn-secondary" id="execPdf" onclick="documentOf(window.execRunId,'pdf')" style="font-size:12px" disabled>Download PDF</button>
+        <button type="button" class="btn btn-secondary" id="execPrint" onclick="printRun(window.execRunId)" style="font-size:12px" disabled>Print view</button>
         <button class="btn btn-secondary" onclick="document.getElementById('execSummaryPanel').style.display='none'" style="font-size:12px">Close</button>
       </div>
     </div>
@@ -106,8 +108,10 @@
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" class="btn btn-secondary" id="viewerRerun" onclick="rerunCurrent()">Run again</button>
+        <button type="button" class="btn btn-primary" id="viewerPdf" onclick="documentCurrent('pdf')">Download PDF</button>
+        <button type="button" class="btn btn-secondary" id="viewerXlsx" onclick="documentCurrent('xlsx')">Download Excel</button>
+        <button type="button" class="btn btn-secondary" id="viewerPrint" onclick="printCurrent()">Print view</button>
         <button type="button" class="btn btn-secondary" id="viewerExport" onclick="exportCurrent()">Download CSV</button>
-        <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
         <button type="button" class="btn btn-secondary" onclick="document.getElementById('reportViewer').style.display='none'">Close</button>
       </div>
     </div>
@@ -140,29 +144,18 @@
           <label for="rptDesc" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Description</label>
           <textarea id="rptDesc" rows="2" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px; resize:vertical;"></textarea>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-          <div>
-            <label for="rptType" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Report Type</label>
-            <select id="rptType" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
-              {% for title, items in report_groups %}
-              <optgroup label="{{ title }}">
-                {% for key, label in items %}
-                <option value="{{ key }}">{{ label }}</option>
-                {% endfor %}
-              </optgroup>
+        <div style="margin-bottom:12px;">
+          <label for="rptType" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Report Type</label>
+          <select id="rptType" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            {% for title, items in report_groups %}
+            <optgroup label="{{ title }}">
+              {% for key, label in items %}
+              <option value="{{ key }}">{{ label }}</option>
               {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label for="rptSchedule" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Schedule</label>
-            <select id="rptSchedule" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
-              <option value="">Manual Only</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-            </select>
-          </div>
+            </optgroup>
+            {% endfor %}
+          </select>
+          <div style="font-size:11px; color:var(--muted); margin-top:4px;">Reports run when you ask for them. Scheduled runs are not available yet, so there is no schedule to set.</div>
         </div>
         <div style="margin-bottom:14px;">
           <label for="rptModules" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Modules (comma-separated)</label>
@@ -176,7 +169,13 @@
 
 <script>
 const typeLabels = {{ report_types | tojson }};
+const typeTiers = {{ report_tiers | tojson }};
 var currentRun = null;
+
+function tierChip(type) {
+  const board = typeTiers[type] === 'board';
+  return `<span style="padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${board ? 'var(--text)' : 'var(--surface3)'};color:${board ? 'var(--surface)' : 'var(--muted)'};">${board ? 'Board' : 'Operational'}</span>`;
+}
 
 function esc(s) { const d=document.createElement('div'); d.textContent=(s===null||s===undefined)?'':String(s); return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -206,8 +205,8 @@ async function loadDefinitions() {
   tbody.innerHTML = defs.map(d => `
     <tr style="border-bottom:1px solid var(--border-soft);">
       <td style="padding:10px 14px;"><div style="font-weight:500;font-size:13px;">${esc(d.name)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(d.description||'')}</div></td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(typeLabels[d.report_type]||d.report_type)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(d.schedule||'Manual')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(typeLabels[d.report_type]||d.report_type)} ${tierChip(d.report_type)}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${d.schedule ? 'Not automated yet' : 'Run on request'}</td>
       <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${d.is_active?'var(--good-soft)':'var(--surface3)'};color:${d.is_active?'var(--good)':'var(--muted)'};">${d.is_active?'Active':'Disabled'}</span></td>
       <td style="padding:10px 14px;text-align:center;"><button class="btn btn-primary" style="font-size:11px;padding:3px 10px;" onclick="runReport(${Number(d.id)})">Run Now</button></td>
     </tr>
@@ -242,7 +241,7 @@ async function loadRuns() {
     return `
     <tr style="border-bottom:1px solid var(--border-soft);">
       <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(r.report_name||'Ad-hoc')}${r.previous_run_id ? `<div style="font-size:11px;color:var(--muted);font-weight:400;">Run again after #${Number(r.previous_run_id)}</div>` : ''}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(typeLabels[r.report_type]||r.report_type||'n/a')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(typeLabels[r.report_type]||r.report_type||'n/a')} ${tierChip(r.report_type)}</td>
       <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${timeAgo(r.completed_at||r.started_at)}</td>
       <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${ok?'var(--good-soft)':'var(--warn-soft)'};color:${ok?'var(--good)':'var(--warn)'};">${esc(r.status)}</span>${kind ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">${kind}</div>` : ''}</td>
       <td style="padding:10px 14px;text-align:center;">${ok ? `<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="viewRun(${Number(r.id)})">View</button>` : ''}</td>
@@ -256,10 +255,10 @@ async function loadStats() {
   if (!dResp.ok || !rResp.ok) { el.innerHTML = ''; return; }
   const defs = await dResp.json();
   const runs = await rResp.json();
-  const scheduled = defs.filter(d => d.schedule && d.is_active).length;
+  const boardRuns = runs.filter(r => typeTiers[r.report_type] === 'board').length;
   el.innerHTML = `
     <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Definitions</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${defs.length}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Scheduled</div><div style="font-size:22px;font-weight:700;color:var(--info);margin-top:2px;">${scheduled}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Board runs</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${boardRuns}</div></div>
     <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Total Runs</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${runs.length}</div></div>
   `;
 }
@@ -272,7 +271,6 @@ async function createReport(e) {
     name: document.getElementById('rptName').value,
     description: document.getElementById('rptDesc').value,
     report_type: document.getElementById('rptType').value,
-    schedule: document.getElementById('rptSchedule').value,
     modules: document.getElementById('rptModules').value,
   };
   const resp = await fetch('/api/reports/definitions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
@@ -326,6 +324,20 @@ async function rerunCurrent() {
 
 function exportCurrent() {
   if (currentRun && currentRun.frozen) window.location.href = `/api/reports/runs/${currentRun.run_id}/export`;
+}
+
+/* The document of a frozen run: a PDF or workbook with a cover, charts and a footer, or the print view. */
+function documentOf(runId, format) {
+  if (runId) window.location.href = `/api/reports/runs/${Number(runId)}/document?format=${format}`;
+}
+function printRun(runId) {
+  if (runId) window.open(`/reports/runs/${Number(runId)}/print`, '_blank', 'noopener');
+}
+function documentCurrent(format) {
+  if (currentRun && currentRun.frozen) documentOf(currentRun.run_id, format);
+}
+function printCurrent() {
+  if (currentRun && currentRun.frozen) printRun(currentRun.run_id);
 }
 
 /* ── Rendering a frozen run ──────────────────────────────────────────── */
@@ -557,9 +569,9 @@ function viewRunData(data) {
   document.getElementById('viewerTitle').textContent = data.report_name || typeLabels[data.report_type] || 'Report';
   const snap = data.snapshot || null;
   const when_ = snap ? (snap.run || {}).generated_at : (data.completed_at || data.started_at || '');
-  document.getElementById('viewerMeta').textContent = `${typeLabels[data.report_type] || data.report_type || ''} • Run #${data.run_id} • ${data.frozen ? 'Saved as generated' : 'Legacy run'} • ${when_ || ''}`;
+  document.getElementById('viewerMeta').innerHTML = `${esc(typeLabels[data.report_type] || data.report_type || '')} ${tierChip(data.report_type)} &bull; Run #${Number(data.run_id)} &bull; ${data.frozen ? 'Saved as generated' : 'Legacy run'} &bull; ${esc(when_ || '')}`;
   document.getElementById('viewerRerun').style.display = '';
-  document.getElementById('viewerExport').style.display = data.frozen ? '' : 'none';
+  ['viewerExport', 'viewerPdf', 'viewerXlsx', 'viewerPrint'].forEach(id => { document.getElementById(id).style.display = data.frozen ? '' : 'none'; });
 
   const banner = document.getElementById('viewerBanner');
   banner.innerHTML = data.legacy
@@ -576,7 +588,7 @@ function viewRunData(data) {
   const narrative = snap && snap.narrative;
   document.getElementById('viewerNarrative').innerHTML = narrative && narrative.text
     ? `<section aria-label="Draft narrative" style="margin-top:16px;border-left:3px solid var(--accent);padding-left:12px;">
-         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Draft narrative, not reviewed${narrative.model ? ' • written by ' + esc(narrative.model) : ''}. ${esc(narrative.basis || '')}</div>
+         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Draft narrative, not reviewed${narrative.model ? ' &bull; written by ' + esc(narrative.model) : ''}. ${esc(narrative.basis || '')} ${esc(data.narrative_check || '')}</div>
          ${String(narrative.text).split(/\n\n+/).map(p => `<p style="margin:0 0 10px;font-size:13px;line-height:1.6;">${esc(p)}</p>`).join('')}</section>`
     : '';
 
@@ -594,6 +606,9 @@ async function generateExecSummary() {
   showNotice('');
   const panel = document.getElementById('execSummaryPanel');
   panel.style.display = 'block';
+  window.execRunId = null;
+  document.getElementById('execPdf').disabled = true;
+  document.getElementById('execPrint').disabled = true;
   document.getElementById('execSummaryNarrative').innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent)"><div class="spinner" style="margin:0 auto 8px;width:20px;height:20px"></div>Generating the executive figures and a draft narrative...</div>';
   document.getElementById('execSummaryStats').innerHTML = '';
   document.getElementById('execSummaryMeta').textContent = '';
@@ -627,8 +642,12 @@ async function generateExecSummary() {
     } else {
       narrative.textContent = data.narrative_note || 'No narrative was written. The figures above are complete.';
     }
+    window.execRunId = data.run_id;
+    document.getElementById('execPdf').disabled = false;
+    document.getElementById('execPrint').disabled = false;
     document.getElementById('execSummaryMeta').innerHTML = esc('Generated ' + (data.generated_at || '') + ' UTC. ') +
-      (data.complete ? '' : esc('Some figures could not be read and are shown as a dash. ')) +
+      (data.complete ? '' : esc('Some figures could not be read and are shown as n/a. ')) +
+      (data.narrative_check ? esc(data.narrative_check + ' ') : '') +
       '<a href="/reports?run=' + Number(data.run_id) + '" onclick="viewRun(' + Number(data.run_id) + ');return false;">Open the saved run</a>';
     loadRuns(); loadStats();
   } catch (e) {

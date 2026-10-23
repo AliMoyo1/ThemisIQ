@@ -51,7 +51,7 @@
   <a href="#" class="nav-item" onclick="filterCategory('policy')">Policies</a>
   <a href="#" class="nav-item" onclick="filterCategory('certificate')">Certificates</a>
   <a href="#" class="nav-item" onclick="filterCategory('screenshot')">Screenshots</a>
-  <a href="#" class="nav-item" onclick="filterCategory('report')">Reports</a>
+  <a href="#" class="nav-item" onclick="evChooseFolder('reports',true);return false">Reports</a>
   <a href="#" class="nav-item" onclick="filterCategory('general')">General</a>
 </div>
 {% endblock %}
@@ -125,6 +125,46 @@
 .ev-insights-body{padding:0 16px 16px}
 .ev-defs summary{cursor:pointer;font-size:12px;color:var(--accent)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ev-folders{margin:18px 0 22px}
+.ev-folders-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 12px}
+.ev-folders-heading h2{margin:0;font:600 19px/1.2 Georgia,serif;color:var(--text)}
+.ev-folders-heading p{margin:0;color:var(--muted);font-size:12px}
+.ev-folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(182px,1fr));gap:14px}
+.ev-folder-card{--folder-glow:rgba(135,151,164,.3);position:relative;isolation:isolate;min-height:155px;padding:0;border:0;border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.42),rgba(180,195,205,.14));box-shadow:0 16px 28px rgba(24,40,47,.10),inset 0 1px rgba(255,255,255,.72);cursor:pointer;text-align:left;color:var(--text);font:inherit;overflow:hidden;transition:transform .26s ease,box-shadow .26s ease}
+.ev-folder-card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 78% 8%,var(--folder-glow),transparent 56%);pointer-events:none}
+.ev-folder-card[data-folder="incidents"]{--folder-glow:rgba(202,135,117,.30)}
+.ev-folder-card[data-folder="privacy"]{--folder-glow:rgba(129,156,182,.30)}
+.ev-folder-card[data-folder="ai"]{--folder-glow:rgba(166,165,177,.34)}
+.ev-folder-card[data-folder="reports"]{--folder-glow:rgba(176,164,130,.34)}
+.ev-folder-card[data-folder="generated"]{--folder-glow:rgba(126,169,162,.31)}
+.ev-folder-back{position:absolute;inset:28px 13px 18px;border-radius:11px;background:linear-gradient(130deg,rgba(223,231,233,.96),rgba(173,189,194,.65));border:1px solid rgba(255,255,255,.78);box-shadow:inset 0 1px 5px rgba(255,255,255,.65)}
+.ev-folder-back::before{content:"";position:absolute;width:48%;height:15px;left:0;top:-12px;border-radius:9px 12px 0 0;background:rgba(210,222,226,.9);border:1px solid rgba(255,255,255,.8);border-bottom:0}
+.ev-folder-paper{position:absolute;left:30px;right:30px;top:37px;height:70px;border-radius:6px 6px 2px 2px;background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(232,239,240,.86));box-shadow:0 4px 12px rgba(23,43,52,.12);transform:rotate(-5deg);transition:transform .28s ease}
+.ev-folder-paper::after{content:"";position:absolute;left:16px;right:16px;top:20px;height:20px;border-top:2px solid rgba(66,91,101,.16);border-bottom:2px solid rgba(66,91,101,.12)}
+.ev-folder-front{position:absolute;left:13px;right:13px;bottom:14px;height:83px;border-radius:9px 9px 11px 11px;background:linear-gradient(125deg,rgba(255,255,255,.60),rgba(208,221,225,.44) 60%,rgba(255,255,255,.38));border:1px solid rgba(255,255,255,.78);backdrop-filter:blur(13px);-webkit-backdrop-filter:blur(13px);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 9px 18px rgba(36,52,58,.13);transition:transform .28s ease;transform-origin:bottom}
+.ev-folder-label{position:absolute;left:29px;right:26px;bottom:32px;z-index:2;display:flex;align-items:end;justify-content:space-between;gap:7px}
+.ev-folder-name{font-weight:700;font-size:13px;line-height:1.2}
+.ev-folder-count{white-space:nowrap;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ev-folder-card:hover,.ev-folder-card:focus-visible{transform:translateY(-3px);box-shadow:0 20px 34px rgba(24,40,47,.17),inset 0 1px rgba(255,255,255,.8)}
+.ev-folder-card:hover .ev-folder-front,.ev-folder-card:focus-visible .ev-folder-front{transform:perspective(260px) rotateX(-13deg)}
+.ev-folder-card:hover .ev-folder-paper,.ev-folder-card:focus-visible .ev-folder-paper{transform:translateY(-8px) rotate(-3deg)}
+.ev-folder-card:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.ev-folder-card[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent),0 18px 30px rgba(24,40,47,.13)}
+.ev-record-folders{margin:8px 0 20px;padding:16px;border-radius:18px;background:rgba(255,255,255,.50);box-shadow:inset 0 1px rgba(255,255,255,.9),0 12px 26px rgba(34,48,51,.07)}
+.ev-record-folders[hidden]{display:none}
+.ev-record-folder-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:9px;margin:12px 0}
+.ev-record-folder{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid rgba(255,255,255,.82);border-radius:11px;background:rgba(231,239,239,.61);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.ev-record-folder:hover,.ev-record-folder:focus-visible{background:rgba(255,255,255,.94);box-shadow:0 7px 16px rgba(23,43,52,.1)}
+.ev-record-folder span:nth-child(2){min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-theme="dark"] .ev-folder-card{background:linear-gradient(145deg,rgba(60,77,83,.62),rgba(32,43,49,.65));box-shadow:0 16px 28px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.16)}
+[data-theme="dark"] .ev-folder-back{background:linear-gradient(135deg,rgba(101,119,125,.92),rgba(53,68,75,.92));border-color:rgba(255,255,255,.20)}
+[data-theme="dark"] .ev-folder-back::before{background:rgba(90,109,115,.91);border-color:rgba(255,255,255,.18)}
+[data-theme="dark"] .ev-folder-paper{background:linear-gradient(135deg,rgba(221,229,229,.88),rgba(156,175,179,.85))}
+[data-theme="dark"] .ev-folder-front{background:linear-gradient(125deg,rgba(95,112,120,.76),rgba(57,73,79,.73));border-color:rgba(255,255,255,.28)}
+[data-theme="dark"] .ev-record-folders{background:rgba(39,52,58,.69)}
+[data-theme="dark"] .ev-record-folder{background:rgba(65,81,88,.70);border-color:rgba(255,255,255,.15)}
+[data-theme="dark"] .ev-record-folder:hover,[data-theme="dark"] .ev-record-folder:focus-visible{background:rgba(85,102,109,.88)}
+@media (prefers-reduced-motion:reduce){.ev-folder-card,.ev-folder-front,.ev-folder-paper{transition:none!important;transform:none!important}}
 </style>
 
 <div class="topbar">
@@ -170,6 +210,18 @@
   <label for="searchInput" class="sr-only">Search the Vault by name, tag, description or indexed file text</label>
   <input type="search" id="searchInput" class="ev-search" placeholder="Search names, tags and file text" onkeyup="debounceSearch()" autocomplete="off">
 
+  <section class="ev-folders" aria-labelledby="evFolderHeading">
+    <div class="ev-folders-heading"><h2 id="evFolderHeading">Browse the Vault</h2><p>One file, several connected views</p></div>
+    <div id="evFolderGrid" class="ev-folder-grid" role="group" aria-label="Document folders"></div>
+  </section>
+  <section id="evRecordFolders" class="ev-record-folders" aria-label="Records in folder" hidden>
+    <div class="ev-folders-heading"><h2 id="evRecordFolderTitle">Records</h2><button type="button" class="btn btn-secondary" onclick="evCloseRecordFolders()">Close</button></div>
+    <label class="sr-only" for="evRecordFolderSearch">Find an audit, incident or record</label>
+    <input type="search" id="evRecordFolderSearch" class="ev-search" placeholder="Find a record in this folder" oninput="evSearchRecordFolders()">
+    <div id="evRecordFolderList" class="ev-record-folder-list"></div>
+    <div id="evRecordFolderPager" style="display:flex;align-items:center;gap:10px"></div>
+  </section>
+
   <!-- Work views. Each count is the length of the list it opens. -->
   <div id="evWork" class="ev-work" role="group" aria-label="Work views">
     <button type="button" class="ev-work-tab is-current" id="wt-all" data-view="all" aria-pressed="true" onclick="switchView('all',document.getElementById('nav-all'))">All <span class="ev-work-count" id="wc-all"></span></button>
@@ -178,6 +230,7 @@
     <button type="button" class="ev-work-tab" id="wt-review_due" data-view="review_due" aria-pressed="false" onclick="switchView('review_due',null)">Review due <span class="ev-work-count" id="wc-review_due"></span></button>
     <a class="ev-work-tab" id="wt-requests" href="/evidence-campaigns/">Requests <span class="ev-work-count" id="wc-requests"></span></a>
     <button type="button" class="ev-work-tab" id="wt-recent" data-view="recent" aria-pressed="false" onclick="switchView('recent',null)">Recently updated <span class="ev-work-count" id="wc-recent"></span></button>
+    <button type="button" class="ev-work-tab" id="wt-generated_history" data-view="generated_history" aria-pressed="false" onclick="switchView('generated_history',null)">Previous generated copies</button>
   </div>
   <div id="evChips" class="ev-filter-chips" aria-live="polite"></div>
 
@@ -276,7 +329,15 @@
           <select id="uploadCategory" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
             <option value="general">General</option><option value="policy">Policy</option>
             <option value="certificate">Certificate</option><option value="screenshot">Screenshot</option>
-            <option value="report">Report</option><option value="procedure">Procedure</option>
+            <optgroup label="Reports">
+              <option value="report">Other report</option>
+              <option value="audit_completion">Audit completion</option>
+              <option value="control_assessment">Control assessment</option>
+              <option value="risk_assessment">Risk assessment</option>
+              <option value="incident_record">Incident report</option>
+              <option value="breach_record">Breach report</option>
+            </optgroup>
+            <option value="procedure">Procedure</option>
             <option value="training">Training Record</option>
           </select>
         </div>
@@ -445,6 +506,7 @@
 
 <script>
 var currentView='all', currentModule='', currentCategory='', currentStatus='', searchTimeout=null, entitySearchTimeout=null;
+var evFolder='',evFolderGroup='',evFolderPage=1,evFolderSearchTimer=null;
 var evPage=1, evPages=1;
 var evSavedViews=[], evUserId={{ user.id }};
 var evViewMode = localStorage.getItem('ev-view-mode') || 'table';
@@ -455,7 +517,7 @@ var evCanBulkArchive = {{ 'true' if can_bulk_archive else 'false' }};
 var evSelectionMode = false, evSelectedIds = new Set(), evVisibleIds = [];
 var evLoadSeq = 0;
 var iconMap={policy:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',certificate:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-medal></use></svg>',screenshot:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-image></use></svg>',report:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',
-  procedure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-pen></use></svg>',training:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-graduation-cap></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>',policy_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',
+  generated_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-scroll-text></use></svg>',procedure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-pen></use></svg>',training:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-graduation-cap></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>',policy_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',
   control_assessment:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',audit_finding:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>',audit_completion:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>',
   non_conformance:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-x></use></svg>',risk_assessment:'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>',incident_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg>',breach_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock-open></use></svg>',
   dpia_record:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg>',dsr_overdue:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg>',plan_approval:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>'};
@@ -594,6 +656,7 @@ async function loadStats(){
   } else {
     rs.style.display='none';
   }
+  evLoadFolderCards();
 }
 
 function timeAgo(ts){
@@ -729,9 +792,10 @@ function evClaimsHtml(item){
 }
 function evActiveChips(){
   var chips=[];
-  var labels={needs_filing:'Needs filing',unlinked:'Needs filing',for_review:'Waiting for review',review_due:'Review due',recent:'Recently updated',expiring:'Expiring soon',archived:'Archived',superseded:'Replaced versions'};
+  var labels={needs_filing:'Needs filing',unlinked:'Needs filing',for_review:'Waiting for review',review_due:'Review due',recent:'Recently updated',expiring:'Expiring soon',archived:'Archived',superseded:'Replaced versions',generated_history:'Previous generated copies'};
   if(currentView&&currentView!=='all')chips.push([labels[currentView]||currentView,function(){switchView('all',document.getElementById('nav-all'));}]);
   if(currentModule)chips.push(['Module: '+currentModule.toUpperCase(),function(){currentModule='';evPage=1;loadEvidence();}]);
+  if(evFolder)chips.push(['Folder: '+evFolder.replace(/:/g,' / '),function(){evChooseFolder('');}]);
   if(currentCategory)chips.push(['Type: '+currentCategory,function(){currentCategory='';evPage=1;loadEvidence();}]);
   if(evOwnerOnly)chips.push(['Mine',function(){evOwnerOnly=false;evPage=1;loadEvidence();}]);
   if(currentState)chips.push(['State: '+currentState.replace(/_/g,' '),function(){currentState='';evPage=1;loadEvidence();}]);
@@ -751,7 +815,7 @@ function evActiveChips(){
   if(chips.length>1){
     var all=document.createElement('button');
     all.type='button';all.className='btn btn-secondary';all.style.fontSize='12px';all.textContent='Clear filters';
-    all.addEventListener('click',function(){currentModule='';currentCategory='';evOwnerOnly=false;currentState='';currentWords='';document.getElementById('searchInput').value='';switchView('all',document.getElementById('nav-all'));});
+    all.addEventListener('click',function(){currentModule='';currentCategory='';evOwnerOnly=false;currentState='';currentWords='';evFolder='';evCloseRecordFolders();document.getElementById('searchInput').value='';switchView('all',document.getElementById('nav-all'));});
     box.appendChild(all);
   }
 }
@@ -766,6 +830,7 @@ async function loadEvidence(){
   if(currentCategory)params.set('category',currentCategory);
   if(currentStatus)params.set('status',currentStatus);
   if(currentModule)params.set('module',currentModule);
+  if(evFolder)params.set('folder',evFolder);
   if(currentView&&currentView!=='all')params.set('view',currentView);
   if(evOwnerOnly)params.set('owner','me');
   if(currentState)params.set('state',currentState);
@@ -799,6 +864,7 @@ async function loadEvidence(){
     else if(currentView==='review_due'){et.textContent='No review is due';es.textContent='No item has a review date in the next 30 days.';}
     else if(currentView==='recent'){et.textContent='Nothing changed recently';es.textContent='Items updated in the last 14 days appear here.';}
     else if(currentView==='archived'){et.textContent='Archive is empty';es.textContent='No archived evidence items.';}
+    else if(currentView==='generated_history'){et.textContent='No previous generated copies';es.textContent='When a generated record changes, its previous two versions appear here.';}
     else if(q||currentModule||currentCategory||evOwnerOnly||currentState||currentWords){et.textContent='No evidence matches these filters';es.textContent='Clear a filter above to widen the list.';}
     else{et.textContent='No evidence items found';es.textContent='Upload files or drag & drop here to start';}
     return;
@@ -945,6 +1011,9 @@ function evApplySavedView(rawId){
   currentCategory=filters.category||'';
   currentModule=filters.module||'';
   currentStatus=filters.status||'';
+  evFolder=filters.folder||'';
+  evCloseRecordFolders();
+  evMarkFolder();
   currentView=filters.view||'all';
   evPage=1;
   document.getElementById('searchInput').value=filters.q||'';
@@ -964,6 +1033,7 @@ async function evSaveCurrentView(){
   var filters={};
   if(currentCategory)filters.category=currentCategory;
   if(currentModule)filters.module=currentModule;
+  if(evFolder)filters.folder=evFolder;
   if(currentStatus)filters.status=currentStatus;
   if(currentView!=='all')filters.view=currentView;
   var query=document.getElementById('searchInput').value;
@@ -1803,8 +1873,85 @@ document.addEventListener('click',function(event){
 });
 
 /* ── View/Filter Switching ── */
+function evMarkFolder(){
+  document.querySelectorAll('#evFolderGrid [data-folder]').forEach(function(card){
+    card.setAttribute('aria-pressed',evFolder===card.dataset.folder?'true':'false');
+  });
+}
+function evCloseRecordFolders(){document.getElementById('evRecordFolders').hidden=true;evFolderGroup='';}
+function evChooseFolder(key,openRecords){
+  evFolder=key;evPage=1;currentModule='';currentCategory='';currentView='all';
+  currentStatus='';currentState='';currentWords='';evOwnerOnly=false;
+  document.getElementById('searchInput').value='';
+  document.querySelectorAll('#evWork [data-view]').forEach(function(tab){
+    var selected=tab.dataset.view==='all';
+    tab.classList.toggle('is-current',selected);
+    tab.setAttribute('aria-pressed',selected?'true':'false');
+  });
+  evMarkFolder();
+  if(openRecords){
+    evFolderGroup=key;evFolderPage=1;
+    document.getElementById('evRecordFolderSearch').value='';
+    document.getElementById('evRecordFolderTitle').textContent='Browse '+key;
+    document.getElementById('evRecordFolders').hidden=false;
+    evLoadRecordFolders();
+  }else if(!key){evCloseRecordFolders();}
+  loadEvidence();
+}
+async function evLoadFolderCards(){
+  var host=document.getElementById('evFolderGrid');
+  try{
+    var response=await fetch('/evidence/api/folders');
+    if(!response.ok)throw new Error('Folder list unavailable');
+    var data=await response.json();
+    host.replaceChildren();
+    (data.folders||[]).forEach(function(folder){
+      var button=document.createElement('button');
+      button.type='button';button.className='ev-folder-card';button.dataset.folder=folder.key;
+      button.setAttribute('aria-label',folder.title+', '+folder.count+' documents');
+      button.setAttribute('aria-pressed',evFolder===folder.key?'true':'false');
+      ['back','paper','front'].forEach(function(layer){
+        var piece=document.createElement('span');piece.className='ev-folder-'+layer;piece.setAttribute('aria-hidden','true');button.appendChild(piece);
+      });
+      var label=document.createElement('span');label.className='ev-folder-label';
+      var name=document.createElement('span');name.className='ev-folder-name';name.textContent=folder.title;
+      var count=document.createElement('span');count.className='ev-folder-count';count.textContent=folder.count+' files';
+      label.append(name,count);button.appendChild(label);
+      button.addEventListener('click',function(){evChooseFolder(folder.key,folder.has_records);});
+      host.appendChild(button);
+    });
+  }catch(_){host.textContent='Folders are unavailable. The evidence list remains available below.';}
+}
+function evSearchRecordFolders(){
+  clearTimeout(evFolderSearchTimer);evFolderSearchTimer=setTimeout(function(){evFolderPage=1;evLoadRecordFolders();},250);
+}
+async function evLoadRecordFolders(){
+  var group=evFolderGroup;if(!group)return;
+  var list=document.getElementById('evRecordFolderList'),pager=document.getElementById('evRecordFolderPager');
+  var params=new URLSearchParams({page:String(evFolderPage),q:document.getElementById('evRecordFolderSearch').value});
+  try{
+    var response=await fetch('/evidence/api/folders/'+encodeURIComponent(group)+'/records?'+params);
+    if(!response.ok)throw new Error('Record folders unavailable');
+    var data=await response.json();if(group!==evFolderGroup)return;
+    list.replaceChildren();pager.replaceChildren();
+    if(!data.items.length)list.textContent='No records with visible documents match this search.';
+    data.items.forEach(function(item){
+      var button=document.createElement('button');button.type='button';button.className='ev-record-folder';
+      var icon=document.createElement('span');icon.textContent='▣';icon.setAttribute('aria-hidden','true');
+      var title=document.createElement('span');title.textContent=item.title;
+      var count=document.createElement('small');count.textContent=item.count+' files';
+      button.append(icon,title,count);button.addEventListener('click',function(){evChooseFolder(item.key,false);});list.appendChild(button);
+    });
+    var label=document.createElement('span');label.textContent='Page '+data.page+' of '+data.pages+' · '+data.total+' records';pager.appendChild(label);
+    [['Previous',data.page-1,data.page<=1],['Next',data.page+1,data.page>=data.pages]].forEach(function(spec){
+      var button=document.createElement('button');button.type='button';button.className='btn btn-secondary';button.textContent=spec[0];button.disabled=spec[2];
+      button.addEventListener('click',function(){evFolderPage=spec[1];evLoadRecordFolders();});pager.appendChild(button);
+    });
+  }catch(_){list.textContent='Record folders could not be loaded.';pager.replaceChildren();}
+}
 function switchView(v,el){
   currentView=v;evPage=1;
+  evFolder='';evCloseRecordFolders();evMarkFolder();
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   if(el)el.classList.add('active');
   var key=(v==='unlinked')?'needs_filing':v;
@@ -1815,8 +1962,8 @@ function switchView(v,el){
   });
   loadEvidence();
 }
-function filterModule(m,el){currentModule=m;evPage=1;loadEvidence();}
-function filterCategory(c){currentCategory=c;evPage=1;loadEvidence();}
+function filterModule(m,el){currentModule=m;evFolder='';evCloseRecordFolders();evMarkFolder();evPage=1;loadEvidence();}
+function filterCategory(c){currentCategory=c;evFolder='';evCloseRecordFolders();evMarkFolder();evPage=1;loadEvidence();}
 function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(function(){evPage=1;loadEvidence();},300);}
 
 /* ── Upload ── */

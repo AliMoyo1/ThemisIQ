@@ -65,9 +65,12 @@ async def api_export_findings(request: Request):
         log_audit(user, "readiness", "Exported readiness findings")
     finally:
         db.close()
+    from core.report_kit import identity
+    from core.report_kit.identity import download_headers
+    from core.timeutils import utcnow
     return PlainTextResponse(
-        csv_text, media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=readiness_findings.csv"},
+        csv_text, media_type="text/csv; charset=utf-8",
+        headers=download_headers(identity.safe_filename("ThemisIQ_data_readiness_findings", "csv", when=utcnow())),
     )
 
 

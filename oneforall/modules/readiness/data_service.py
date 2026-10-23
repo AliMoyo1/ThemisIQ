@@ -255,8 +255,9 @@ def export_findings_csv(db, org_id: int, **filters) -> str:
     writer = csv.writer(buf)
     writer.writerow(["rule_code", "severity", "module", "entity_type", "entity_id",
                       "message", "status", "detected_at", "last_seen_at"])
+    from core.report_kit.identity import csv_row
     for f in findings:
-        writer.writerow([f["rule_code"], f["severity"], f["module"], f["entity_type"],
-                          f["entity_id"], f["message"], f["status"], f["detected_at"],
-                          f["last_seen_at"]])
+        writer.writerow(csv_row([f["rule_code"], f["severity"], f["module"], f["entity_type"],
+                                 f["entity_id"], f["message"], f["status"], f["detected_at"],
+                                 f["last_seen_at"]]))
     return buf.getvalue()

@@ -602,7 +602,8 @@
       <div class="section-sub">Programme metrics, coverage reports, and audit data</div>
     </div>
     <div class="header-actions">
-      <button class="btn-bcm-gen" id="boardReportBtn" onclick="bcmBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Board Report</button>
+      <button class="btn-bcm-gen" onclick="window.open('/bcm/api/board-report/document','_blank')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Board Report PDF</button>
+      <button class="btn-bcm-gen" id="boardReportBtn" onclick="bcmBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> AI Narrative</button>
     </div>
   </div>
   <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:16px"></div>
@@ -1575,7 +1576,8 @@
           ?'<button class="deactivate-btn" onclick="bcmDeactivatePlan('+p.id+')" title="Stand down this plan">Stand Down</button>'
           :'<button class="activate-btn" onclick="bcmActivatePlan('+p.id+')" title="Activate this plan">Activate</button>';
         var reviewBtn='<button class="btn-bcm-ai" onclick="bcmAiReviewPlan('+p.id+',this)" title="AI review this plan"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
-        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
+        var pdfBtn='<a class="btn btn-sm btn-secondary" href="/bcm/api/plans/'+p.id+'/document" title="Download this plan as a PDF" aria-label="Download PDF of '+escAttr(p.title||'this plan')+'" style="padding:4px 8px;font-size:11px">PDF</a>';
+        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+pdfBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load plans');}
   };
@@ -2646,7 +2648,7 @@
       fields:[
         {name:'title',label:'Plan Title',type:'text',required:true},
         {name:'department',label:'Department',type:'text'},
-        {name:'owner',label:'Plan Owner',type:'text'},
+        {name:'owner',label:'Process or unit owner (name or team)',type:'text'},
         {name:'description',label:'Description',type:'textarea'},
         {name:'plan_type',label:'Plan Type',type:'select',options:['Business Continuity','Disaster Recovery','Crisis Management','Communications','IT Recovery']},
         {name:'status',label:'Status',type:'select',options:['draft','review','approved','archived']},
@@ -3806,7 +3808,7 @@
       var res=await apiFetch('/bcm/api/reports/board',{method:'POST'});
       btn.disabled=false;btn.textContent=origText;
       trace.destroy();traceMount.style.display='none';
-      bcmOpenDocViewer('BCM Board Report: '+new Date().toLocaleDateString('en-GB'),res.narrative||res.content||'No narrative generated.');
+      bcmOpenDocViewer('BCM Board Report: '+new Date().toLocaleDateString('en-GB'),(res.narrative||res.content||'No narrative generated.')+(res.narrative_check?'\n\n'+res.narrative_check:''));
     }catch(e){
       btn.disabled=false;btn.textContent=origText;
       trace.destroy();traceMount.style.display='none';

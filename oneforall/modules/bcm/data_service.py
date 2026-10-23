@@ -466,8 +466,9 @@ def list_plans(limit=200, bu_scope=None):
     try:
         if bu_scope is not None:
             ph = ",".join(["%s"] * len(bu_scope))
+            scope = f"(business_unit_id IN ({ph}) OR business_unit_id IS NULL)" if bu_scope else "business_unit_id IS NULL"
             return _dicts(db.execute(
-                f"SELECT * FROM bcm_plans WHERE (business_unit_id IN ({ph}) OR business_unit_id IS NULL) "
+                f"SELECT * FROM bcm_plans WHERE {scope} "
                 "ORDER BY updated_at DESC LIMIT %s",
                 list(bu_scope) + [limit]).fetchall())
         return _dicts(db.execute(
@@ -476,10 +477,14 @@ def list_plans(limit=200, bu_scope=None):
         db.close()
 
 
-def get_plan(plan_id):
+def get_plan(plan_id, bu_scope=None):
+    """Return a plan only when it is visible in the caller's business-unit scope."""
     db = get_db()
     try:
-        return _dict(db.execute("SELECT * FROM bcm_plans WHERE id=%s", (plan_id,)).fetchone())
+        row = _dict(db.execute("SELECT * FROM bcm_plans WHERE id=%s", (plan_id,)).fetchone())
+        if row is None or bu_scope is None:
+            return row
+        return row if row.get("business_unit_id") is None or row["business_unit_id"] in bu_scope else None
     finally:
         db.close()
 
@@ -490,14 +495,14 @@ def create_plan(data):
         cur = insert_returning_id(db,
             """INSERT INTO bcm_plans
                (title, plan_type, department, scope, owner, version, status,
-                content, description, review_frequency, last_reviewed, next_review)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                content, description, review_frequency, last_reviewed, next_review, business_unit_id)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("title"), data.get("plan_type"), data.get("department"),
              data.get("scope"), data.get("owner"),
              data.get("version", "1.0"), data.get("status", "draft"),
              data.get("content") or data.get("description"),
              data.get("description"), data.get("review_frequency"),
-             data.get("last_reviewed"), data.get("next_review")))
+             data.get("last_reviewed"), data.get("next_review"), data.get("business_unit_id")))
         db.commit()
         return cur
     finally:
@@ -1717,7 +1722,7 @@ def get_impact_chain(node_id, depth=5):
 # BIA ↔ PLAN COVERAGE
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_bia_plan_links(bia_id=None, plan_id=None):
+def list_bia_plan_links(bia_id=None, plan_id=None, bu_scope=None):
     db = get_db()
     try:
         if bia_id:
@@ -1726,10 +1731,15 @@ def list_bia_plan_links(bia_id=None, plan_id=None):
                    JOIN bcm_plans p ON p.id=l.plan_id WHERE l.bia_id=%s""",
                 (bia_id,)).fetchall())
         if plan_id:
+            scope, params = "", [plan_id]
+            if bu_scope is not None:
+                marks = ",".join(["%s"] * len(bu_scope))
+                scope = f" AND (b.business_unit_id IN ({marks}) OR b.business_unit_id IS NULL)" if marks else " AND b.business_unit_id IS NULL"
+                params += list(bu_scope)
             return _dicts(db.execute(
-                """SELECT l.*, b.process_name FROM bcm_bia_plan_links l
-                   JOIN bcm_bia_records b ON b.id=l.bia_id WHERE l.plan_id=%s""",
-                (plan_id,)).fetchall())
+                """SELECT l.*, b.process_name, b.rto_hours, b.criticality FROM bcm_bia_plan_links l
+                   JOIN bcm_bia_records b ON b.id=l.bia_id WHERE l.plan_id=%s""" + scope,
+                params).fetchall())
         return _dicts(db.execute("SELECT * FROM bcm_bia_plan_links").fetchall())
     finally:
         db.close()
@@ -2127,9 +2137,15 @@ def calculate_bia_metrics(bia_id):
 # PLAN ACTIVATION (BCM-17)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_active_plans():
+def list_active_plans(bu_scope=None):
     db = get_db()
     try:
+        if bu_scope is not None:
+            marks = ",".join(["%s"] * len(bu_scope))
+            scope = f"business_unit_id IN ({marks}) OR " if marks else ""
+            return _dicts(db.execute(
+                f"SELECT * FROM bcm_plans WHERE is_active_plan=1 AND ({scope}business_unit_id IS NULL) "
+                "ORDER BY activated_at DESC", list(bu_scope)).fetchall())
         return _dicts(db.execute(
             "SELECT * FROM bcm_plans WHERE is_active_plan=1 ORDER BY activated_at DESC"
         ).fetchall())

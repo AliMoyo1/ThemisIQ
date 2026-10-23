@@ -27,6 +27,7 @@ from database import insert_returning_id
 from modules.ai_governance import service
 from modules.ai_governance.service import APP, ServiceError
 from modules.governance.entity_scope import describe_record, entity_scope_sql, record_unit
+from modules.sentinel.record_profiles import get_profile
 
 KIND = ("sentinel", "aiia")
 _ROPA, _DPIA = ("sentinel", "ropa"), ("sentinel", "dpia")
@@ -270,6 +271,12 @@ def _full(db, user, row) -> dict:
                                "ropa_id", "dpia_id", "business_unit_id", "created_by", "version")}
     for flag in _BOOLS:
         out[flag] = bool(row[flag])
+    expanded = get_profile("aiia").expand(dict(row))
+    for key in get_profile("aiia").detail_keys():
+        out[key] = expanded.get(key)
+    made, needed = get_profile("aiia").completeness({**dict(row), **expanded})
+    out["readiness"] = {"made": made, "needed": needed,
+                        "gaps": [gap.label for gap in get_profile("aiia").gaps({**dict(row), **expanded})]}
     out["data_categories"] = _json_list(row["data_categories"])
     out["created_at"], out["updated_at"] = service._text(row["created_at"]), service._text(row["updated_at"])
     unit = db.execute("SELECT name FROM business_units WHERE id = %s", (row["business_unit_id"],)).fetchone() \
@@ -396,6 +403,10 @@ def _completed_event(db, user, assessment_id, application_id, status, version):
 def create_assessment(db, user, raw) -> dict:
     service._require(user, "ai_assessment.manage")
     fields, impacts = _clean(db, raw, creating=True)
+    _, details, errors = get_profile("aiia").prepare(
+        {key: raw[key] for key in get_profile("aiia").detail_keys() if key in raw})
+    if errors:
+        raise ServiceError(422, "Some answers need fixing.", errors=errors)
     _check_references(db, user, fields)
     unit = fields.get("business_unit_id")
     if unit is None and fields.get("application_id") is not None:
@@ -411,6 +422,7 @@ def create_assessment(db, user, raw) -> dict:
     now = _now()
     values = {f: fields.get(f) for f in _FIELDS}
     values["data_categories"] = json.dumps(fields.get("data_categories") or [])
+    values["details"] = json.dumps(details or {})
     for flag in _BOOLS:
         values[flag] = fields.get(flag, 0)
     values.update(ref_number=_new_ref(db), created_by=user["id"], created_at=now, updated_at=now, version=1,
@@ -445,6 +457,16 @@ def update_assessment(db, user, assessment_id: int, raw, expected_version) -> di
     existing_names = [r["dimension_name"] for r in db.execute(
         "SELECT dimension_name FROM sentinel_aiia_impacts WHERE aiia_id = %s", (assessment_id,)).fetchall()]
     fields, impacts = _clean(db, raw, creating=False, existing_impacts=existing_names)
+    try:
+        old_details = json.loads(row["details"] or "{}")
+    except (TypeError, ValueError):
+        old_details = {}
+    if not isinstance(old_details, dict):
+        old_details = {}
+    _, details, errors = get_profile("aiia").prepare(
+        {key: raw[key] for key in get_profile("aiia").detail_keys() if key in raw}, old_details)
+    if errors:
+        raise ServiceError(422, "Some answers need fixing.", errors=errors)
     if fields.get("title", row["title"]) is None:
         raise ServiceError(422, "Some answers need fixing.", errors={"title": "Give the assessment a title."})
     for field in ("application_id", "ropa_id", "dpia_id"):  # a link already there stays even if the writer can no longer open it
@@ -464,6 +486,8 @@ def update_assessment(db, user, assessment_id: int, raw, expected_version) -> di
         return bool(row[field]) if field in _BOOLS else row[field]
 
     changed = {f: v for f, v in fields.items() if (bool(v) if f in _BOOLS else v) != stored(f)}
+    if details is not None and details != old_details:
+        changed["details"] = json.dumps(details)
     impacts_changed = False
     if impacts is not None:
         current = {r["dimension_name"]: (bool(r["applicable"]), r["description"], r["likelihood"], r["impact"]) for r in db.execute(

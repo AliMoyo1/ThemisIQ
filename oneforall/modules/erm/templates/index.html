@@ -640,7 +640,10 @@
       <div class="section-title">Reports &amp; Analytics</div>
       <div class="section-sub">AI-generated board narratives and risk analytics</div>
     </div>
-    <button class="btn-erm-ai" id="ermBoardRptBtn" onclick="ermBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Generate Board Report</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="window.open('/erm/api/board-report/document','_blank')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Board Report PDF</button>
+      <button class="btn-erm-ai" id="ermBoardRptBtn" onclick="ermBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Generate AI Narrative</button>
+    </div>
   </div>
   <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:20px"></div>
   <!-- Stats strip -->
@@ -1261,8 +1264,7 @@ window.ermExportCSV=function(){
   var cat=(document.getElementById('regCatFilter')||{}).value||'';
   var rows=regCache.filter(function(r){if(regStatusFilter&&r.status!==regStatusFilter)return false;if(cat&&r.category!==cat)return false;if(q){var t=(r.title||'').toLowerCase()+(r.description||'').toLowerCase();if(!t.includes(q.toLowerCase()))return false;}return true;});
   var hdr=['ID','Title','Category','Sub-category','Likelihood','Impact','Score','Level','Status','Treatment','Owner','Source','Board Visible','Review Date'];
-  var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"','"'+(r.category||'').replace(/"/g,'""')+'"','"'+(r.sub_category||'').replace(/"/g,'""')+'"',r.likelihood||'',r.impact||'',score,bandLabel(scoreToBand(r.likelihood,r.impact)),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
-  var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='erm-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
+  TiqCsv.download('erm-register',hdr,rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,r.title||'',r.category||'',r.sub_category||'',r.likelihood||'',r.impact||'',score,bandLabel(scoreToBand(r.likelihood,r.impact)),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''];}));
   typeof showToast==='function'&&showToast('Exported '+rows.length+' rows');
 };
 var _importPreviewData=null;
@@ -3039,8 +3041,7 @@ window.ermExportResponses=async function(id){
     var responses=await apiFetch('/erm/api/assessments/'+id+'/responses');
     var rows=Array.isArray(responses)?responses:[];
     var hdr=['Question','Response','Score','Respondent','Submitted'];
-    var lines=[hdr.join(',')].concat(rows.map(function(r){return['"'+(r.question||'').replace(/"/g,'""')+'"','"'+(r.response||'').replace(/"/g,'""')+'"',r.score||'','"'+(r.respondent_name||'').replace(/"/g,'""')+'"',r.submitted_at||''].join(',');}));
-    var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='assessment-responses.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
+    TiqCsv.download('erm-assessment-responses',hdr,rows.map(function(r){return[r.question||'',r.response||'',r.score||'',r.respondent_name||'',r.submitted_at||''];}));
   }catch(e){typeof showToast==='function'&&showToast('Export failed','error');}
 };
 
@@ -3170,7 +3171,7 @@ window.ermBoardReport=async function(btn){
     btn.disabled=false;btn.textContent=orig;
     trace.destroy();mount.style.display='none';
     var out=document.getElementById('boardRptOutput');var txt=document.getElementById('boardRptText');
-    if(out&&txt){txt.textContent=res.narrative||'No narrative generated.';out.style.display='';}
+    if(out&&txt){txt.textContent=(res.narrative||'No narrative generated.')+(res.narrative_check?'\n\n'+res.narrative_check:'');out.style.display='';}
     typeof showToast==='function'&&showToast('Board report generated ✓');
   }catch(e){
     btn.disabled=false;btn.textContent=orig;

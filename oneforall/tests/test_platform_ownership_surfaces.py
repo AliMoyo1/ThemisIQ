@@ -210,18 +210,21 @@ SLA_REPORT = {"dpo_a": (3, 2, 1, 1), "owner_a": (3, 2, 1, 1), "employee_a": (3, 
 @pytest.mark.parametrize("name", list(SLA_REPORT))
 def test_the_sla_report_counts_the_visible_clocks(seeded, name):
     total, active, breached, resolved = SLA_REPORT[name]
+    by_status = {state: count for state, count in (("active", active), ("resolved", resolved)) if count}
     assert _report(seeded, name, "sla_performance") == {
-        "total_tracked": total, "active": active, "breached": breached, "resolved": resolved}
+        "total_tracked": total, "active": active, "breached": breached, "resolved": resolved,
+        "by_status": by_status}
 
 
-# critical risks, high risks, active breaches in the executive brief
-# An employee may not open the risk register, so those two figures are blank, not zero.
-BRIEF = {"dpo_a": (1, 1, 1), "owner_a": (1, 1, 1), "dpo_a1": (0, 1, 1), "dpo_b": (1, 0, 1), "owner_b": (1, 0, 1),
+# critical risks, high risks, active breaches in the executive brief.
+# The brief includes both visible risk registers, as the Risk Register widget does.
+# An employee may not open either risk source, so those two figures are blank, not zero.
+BRIEF = {"dpo_a": (2, 1, 1), "owner_a": (2, 1, 1), "dpo_a1": (0, 1, 1), "dpo_b": (1, 0, 1), "owner_b": (1, 0, 1),
          "dpo_no_unit": (0, 0, 0), "employee_a": (None, None, 1)}
 
 
 @pytest.mark.parametrize("name", list(BRIEF))
-def test_the_executive_brief_includes_the_visible_platform_risks_and_clocks(seeded, name):
+def test_the_executive_brief_includes_the_visible_risks_and_clocks(seeded, name):
     critical, high, breaches = BRIEF[name]
     brief = _report(seeded, name, "executive_brief")
     assert (brief["risks_critical"], brief["risks_high"], brief["sla_breaches"]) == (critical, high, breaches)
