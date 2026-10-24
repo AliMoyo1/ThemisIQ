@@ -149,6 +149,7 @@ def list_features(db, user):
     for key, (label, categories) in FEATURES.items():
         row = notes.get(key)
         record = dict(row) if row else {}
+        deployment = record.get("deployment") or "in_service"
         items.append({
             "key": key, "label": label, "categories": list(categories),
             "category_labels": [CATEGORIES.get(category, category) for category in categories],
@@ -156,7 +157,7 @@ def list_features(db, user):
             "owner": record.get("owner") or "", "provider_note": record.get("provider_note") or "",
             "known_limitations": record.get("known_limitations") or "",
             "incident_path": record.get("incident_path") or "",
-            "deployment": record.get("deployment") or "in_service",
+            "deployment": deployment,
             "review_due": str(record["review_due"])[:10] if record.get("review_due") else None,
             "last_reviewed_at": _stamp(record.get("last_reviewed_at")),
             "last_reviewed_by": record.get("last_reviewed_by"),

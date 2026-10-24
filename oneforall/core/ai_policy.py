@@ -85,7 +85,6 @@ FEATURES = {
     "grid.generate_incident_checklist":    ("Draft an incident checklist", ("business",)),
     "launcher.api_predictive_risk":        ("Predictive risk advisory", ("business",)),
     "launcher.api_tasks_ai_prioritize":    ("Prioritize tasks", ("business",)),
-    "launcher.api_trainer_ask":            ("Platform help assistant", ("public",)),
     "launcher.api_executive_summary":      ("Executive summary", ("business",)),
     "orm.analyze_event":                   ("Analyse an operational event", ("business",)),
     "orm.generate_trend_narrative":        ("Operational trend narrative", ("business",)),
@@ -103,6 +102,8 @@ FEATURES = {
     "sentinel.ai_gap_analysis":            ("Cross-regulation gap analysis", ("business", "personal")),
     "governance.explain_ai_use":           ("Explain the status of an AI use", ("business",)),
 }
+
+RETIRED_FEATURES = frozenset({"launcher.api_trainer_ask"})  # Existing policies may still name this former provider call.
 
 _SETTING = "ai.policy.org{}"
 _MAX_SOURCES = 20
@@ -148,7 +149,9 @@ def _clean_policy(raw: dict) -> dict:
     if not isinstance(named_categories, list) or any(c not in CATEGORIES for c in named_categories):
         raise ValueError("Stored AI category restriction is invalid")
     blocked_features = raw.get("blocked_features", [])
-    if not isinstance(blocked_features, list) or any(f not in FEATURES for f in blocked_features):
+    if not isinstance(blocked_features, list) or any(
+        f not in FEATURES and f not in RETIRED_FEATURES for f in blocked_features
+    ):
         raise ValueError("Stored AI feature restriction is invalid")
     def positive_budget(name):
         value = raw.get(name)
@@ -181,7 +184,7 @@ def parse_submitted_policy(body) -> dict:
         raise ValueError("Confirm the reviewed policy before enabling AI.")
     policy = {"enabled": body["enabled"], "approval_confirmed": body.get("approval_confirmed") is True}
     for key, known, noun in (("providers", PROVIDERS, "provider"), ("categories", CATEGORIES, "data category"),
-                             ("blocked_features", FEATURES, "feature")):
+                             ("blocked_features", FEATURES.keys() | RETIRED_FEATURES, "feature")):
         values = body.get(key, [] if key != "categories" else list(CATEGORIES))
         if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
             raise ValueError(f"{key} must be a list of names.")

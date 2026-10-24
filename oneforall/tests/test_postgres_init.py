@@ -4521,3 +4521,58 @@ def test_scenario_studio_runs_on_real_postgres(pg, monkeypatch):
         assert [i["entity_id"] for i in items] == [sid] and items[0]["due_date"] == "2027-01-31"
     finally:
         db.close()
+
+
+# ── Sentinel DPIA form fields (ported from the DPIA form fork) ──
+
+
+
+def test_the_dpia_form_fields_and_the_due_date_column_run_on_real_postgres(pg):
+    """The four things the DPIA form sends (description, owner, due date, mitigations) are stored and read back on
+    PostgreSQL. due_date is a nullable text column in the public schema and in a tenant schema; a DPIA saved before the
+    column existed comes through the upgrade untouched with no due date, and starting again changes nothing."""
+    import modules.sentinel.data_service as sentinel_ds
+
+    pg.init_db()
+    _make_org(pg, "dpiaform")
+    schemas = ("public", "tenant_dpiaform")
+
+    def due_date_column(schema):
+        return _raw_rows(
+            "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
+            "WHERE table_schema = %s AND table_name = 'sentinel_dpias' AND column_name = 'due_date'", (schema,))
+
+    for schema in schemas:
+        assert due_date_column(schema) == [("text", "YES", None)], schema
+
+    typed = {"description": "Scoring of customers for credit limits", "owner": "Privacy office, T. Moyo",
+             "due_date": "2026-11-30", "mitigations": "Scores are pseudonymised and access is reviewed every quarter"}
+    changed = {"description": "Scoring for credit and card limits", "owner": "Data protection officer",
+               "due_date": "2027-02-01", "mitigations": "A person reviews every refusal"}
+    read = lambda row: {field: row[field] for field in typed}  # noqa: E731
+
+    dpia_id = sentinel_ds.create_dpia({"title": "Credit scoring", **typed})
+    assert read(sentinel_ds.get_dpia(dpia_id)) == typed
+    sentinel_ds.update_dpia(dpia_id, dict(changed))
+    assert read(sentinel_ds.get_dpia(dpia_id)) == changed
+    assert read(next(row for row in sentinel_ds.list_dpias() if row["id"] == dpia_id)) == changed
+    sentinel_ds.update_dpia(dpia_id, {"due_date": ""})
+    assert sentinel_ds.get_dpia(dpia_id)["due_date"] is None
+    assert _raw_rows("SELECT due_date FROM public.sentinel_dpias WHERE id = %s", (dpia_id,)) == [(None,)]
+
+    # the database as it was before the column: an old DPIA in each schema
+    old = {}
+    for schema in schemas:
+        _pg_one(f"ALTER TABLE {schema}.sentinel_dpias DROP COLUMN due_date")
+        assert due_date_column(schema) == [], schema
+        old[schema] = _pg_one(
+            f"INSERT INTO {schema}.sentinel_dpias (ref_number, title, status, owner, mitigations) "
+            "VALUES (%s, 'Old DPIA', 'in_progress', 'Legal', 'Existing measures') RETURNING id", (f"DPIA-OLD-{schema}",))
+    for _ in range(2):  # the second start finds nothing to do
+        pg.init_db()
+        for schema, row_id in old.items():
+            assert due_date_column(schema) == [("text", "YES", None)], schema
+            assert _raw_rows(
+                f"SELECT due_date, title, status, owner, mitigations FROM {schema}.sentinel_dpias WHERE id = %s",
+                (row_id,)) == [(None, "Old DPIA", "in_progress", "Legal", "Existing measures")], schema
+    assert _raw_rows("SELECT count(*) FROM tenant_dpiaform.sentinel_dpias") == [(1,)]

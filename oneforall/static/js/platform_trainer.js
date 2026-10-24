@@ -6,6 +6,7 @@ var tooltipMode = false;
 
 function toggleTrainer() {
   trainerOpen = !trainerOpen;
+  if (trainerOpen && window.ThemisRefreshSuggestions) window.ThemisRefreshSuggestions();
   document.getElementById('trainerPanel').classList.toggle('open', trainerOpen);
   document.querySelector('.trainer-icon').setAttribute('aria-expanded', String(trainerOpen));
 }
@@ -39,13 +40,14 @@ function sendTrainerMsg() {
   fetch('/api/trainer/ask', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ question: msg, page: window.location.pathname })
+    body: JSON.stringify({ question: msg, page: themisPageCandidate() })
   })
   .then(function(r){ return r.json(); })
   .then(function(data) {
     var typing = document.getElementById('trainerTyping');
     if (typing) typing.remove();
-    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.', data.source === 'ai');
+    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.',
+      data.source, data.go, data.actions, data.sources, data.draft);
   })
   .catch(function() {
     var typing = document.getElementById('trainerTyping');
@@ -54,16 +56,147 @@ function sendTrainerMsg() {
   });
 }
 
-function appendMsg(type, content, isAI) {
+function safeTrainerPath(path) {
+  if (typeof path !== 'string' || path.charAt(0) !== '/' || path.charAt(1) === '/' || path.indexOf('\\') !== -1) return null;
+  try {
+    var url = new URL(path, window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : null;
+  } catch (_err) { return null; }
+}
+
+function themisPageCandidate() {
+  var selected = window.ThemisSelectedRecord;
+  var here = window.location.pathname;
+  var active = selected && selected.page && (
+    (selected.page.indexOf('/grid/') === 0 && here.indexOf('/grid') === 0 && document.getElementById('ctrlDetailPanel')) ||
+    (selected.page.indexOf('/bcm/') === 0 && here.indexOf('/bcm') === 0 && document.querySelector('#bcmConsoleRoot .bcm-console-overlay')) ||
+    (selected.page.indexOf('/sentinel/') === 0 && here.indexOf('/sentinel') === 0 &&
+      (document.getElementById('snDpiaDrawerWrap') || document.querySelector('#snModalRoot .modal-overlay'))) ||
+    (selected.page.indexOf('/erm/') === 0 && here.indexOf('/erm') === 0 && document.querySelector('#ermRiskDrawer .erm-drawer-overlay')) ||
+    (selected.page.indexOf('/evidence/') === 0 && here.indexOf('/evidence') === 0 &&
+      document.getElementById('evDetailPanel') && document.getElementById('evDetailPanel').classList.contains('open'))
+  );
+  return active ? selected.page : here + window.location.search;
+}
+
+function appendMsg(type, content, sourceType, go, actions, sources, draft) {
   var msgs = document.getElementById('trainerMessages');
   var div = document.createElement('div');
   div.className = 'trainer-msg ' + type;
   var safe = escTrainer(content);
   safe = safe.replace(/\n- /g, '<br>&bull; ').replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
-  var badge = (type === 'bot' && isAI) ? '<span class="ai-badge">AI</span>' : '';
+  var origin = sourceType === 'draft' ? 'Draft for review' :
+    sourceType === 'records' ? 'Current records' :
+    sourceType === 'guide' || sourceType === 'kb' ? 'Platform guide' :
+    sourceType === 'unavailable' ? 'Not verified' : '';
+  var badge = type === 'bot' && origin ? '<span class="trainer-origin">' + origin + '</span>' : '';
   div.innerHTML = '<div class="trainer-msg-content">' + safe + badge + '</div>';
+  if (type === 'bot' && sourceType === 'draft' && typeof draft === 'string' && draft.length) {
+    var preview = document.createElement('textarea');
+    preview.className = 'trainer-draft';
+    preview.readOnly = true;
+    preview.setAttribute('aria-label', 'Draft to review and edit before use');
+    preview.value = draft;
+    div.firstChild.appendChild(preview);
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'trainer-action';
+    copy.textContent = 'Copy draft';
+    copy.addEventListener('click', function() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(preview.value).then(function() { copy.textContent = 'Copied'; });
+      } else {
+        preview.select();
+      }
+    });
+    div.firstChild.appendChild(copy);
+  }
+  if (type === 'bot' && go && go.path && window.ThemisTours) {
+    var here = window.location.pathname === go.path;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'trainer-go';
+    btn.textContent = here ? (go.show ? 'Show me' : 'You are on this page') : 'Take me there';
+    btn.disabled = here && !go.show;
+    btn.setAttribute('aria-label', (here ? 'Show me: ' : 'Take me there: ') + go.title);
+    btn.addEventListener('click', function () { window.ThemisTours.point(go); });
+    div.firstChild.appendChild(btn);
+  }
+  if (type === 'bot' && Array.isArray(actions) && actions.length) {
+    var links = document.createElement('div');
+    links.className = 'trainer-actions';
+    actions.slice(0, 3).forEach(function(action) {
+      var path = action && safeTrainerPath(action.path);
+      if (!path || typeof action.label !== 'string') return;
+      var link = document.createElement('a');
+      link.href = path;
+      link.className = 'trainer-action';
+      link.textContent = action.label;
+      links.appendChild(link);
+    });
+    if (links.childNodes.length) div.firstChild.appendChild(links);
+  }
+  if (type === 'bot' && Array.isArray(sources) && sources.length) {
+    var list = document.createElement('div');
+    list.className = 'trainer-sources';
+    var heading = document.createElement('span');
+    heading.textContent = 'From these records';
+    list.appendChild(heading);
+    sources.slice(0, 3).forEach(function(source) {
+      var path = source && safeTrainerPath(source.path);
+      if (!path || typeof source.label !== 'string') return;
+      var link = document.createElement('a');
+      link.href = path;
+      link.textContent = source.label;
+      list.appendChild(link);
+      var detail = [];
+      if (source.version !== null && source.version !== undefined && String(source.version)) {
+        detail.push('version ' + String(source.version).slice(0, 24));
+      }
+      if (source.updated_at) detail.push('updated ' + String(source.updated_at).slice(0, 19));
+      if (detail.length) {
+        var meta = document.createElement('small');
+        meta.textContent = detail.join(' · ');
+        list.appendChild(meta);
+      }
+    });
+    if (list.childNodes.length > 1) div.firstChild.appendChild(list);
+  }
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+// A selected case can be explained without making the person discover a magic phrase.
+var themisCaseSuggestions = document.getElementById('trainerCaseSuggestions');
+if (themisCaseSuggestions) {
+  function renderThemisCaseSuggestions() {
+    var casePath = themisPageCandidate();
+    var suggestions = /^\/ai-governance\/systems\/[1-9][0-9]{0,8}\/?$/.test(casePath)
+    ? ['What remains?', 'Explain the decision']
+    : /^\/ai-governance\/requests\/[1-9][0-9]{0,8}\/?$/.test(casePath)
+      ? ['What is outstanding?', 'Draft follow-up questions', 'Draft external reply']
+      : /^\/(grid|bcm|sentinel|erm|evidence)\//.test(casePath) && (/\/audits\/\d+/.test(casePath) || casePath.indexOf('?open=') !== -1)
+        ? ['What is the status?', 'Draft follow-up questions', 'Draft assessment note'] : [];
+    themisCaseSuggestions.textContent = '';
+    suggestions.forEach(function(question) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = question;
+    button.addEventListener('click', function() {
+      document.getElementById('trainerInput').value = question;
+      sendTrainerMsg();
+    });
+      themisCaseSuggestions.appendChild(button);
+    });
+    themisCaseSuggestions.hidden = suggestions.length === 0;
+  }
+  window.ThemisSelectRecord = function(page) {
+    window.ThemisSelectedRecord = {page: page};
+    renderThemisCaseSuggestions();
+  };
+  window.ThemisRefreshSuggestions = renderThemisCaseSuggestions;
+  renderThemisCaseSuggestions();
+  window.addEventListener('popstate', renderThemisCaseSuggestions);
 }
 
 // ── Tooltip positioning ──
@@ -171,13 +304,14 @@ function injectTrainerTips() {
 
   // ── 1. Platform-wide: icon sidebar ──
   _tipSel('.icon-sidebar-logo', 'Home', 'Click to return to the Command Centre dashboard.');
-  _tipSel('.icon-nav-item[title="Command Centre"]', 'Command Centre', 'Cross-module dashboard showing overall compliance percentage, open risks, breaches, and overdue tasks across all six modules.');
+  _tipSel('.icon-nav-item[title="Command Centre"]', 'Command Centre', 'Cross-module dashboard showing overall compliance percentage, open risks, breaches, and overdue tasks across your modules.');
   _tipSel('.icon-nav-item[title="Governance"]', 'ARIA: Governance', 'Manage compliance frameworks (ISO 27001, SOC 2, NIST), map controls, create policies, and track governance risks.');
   _tipSel('.icon-nav-item[title="Audit"]', 'GRID: Audit', 'Plan and execute internal/external audits, track findings and non-conformances, manage evidence collection.');
   _tipSel('.icon-nav-item[title="Resilience"]', 'BCM: Business Continuity', 'Business Impact Analysis, recovery plans, exercises, and incident response. Ensures your organisation can recover from disruptions.');
   _tipSel('.icon-nav-item[title="Privacy"]', 'Sentinel: Data Protection', 'GDPR compliance: Records of Processing (RoPA), Data Protection Impact Assessments (DPIA), breach management, and subject access requests.');
   _tipSel('.icon-nav-item[title="Enterprise Risk"]', 'ERM: Enterprise Risk', 'Organisation-wide risk register with risk appetite thresholds, Key Risk Indicators (KRIs), and structured risk assessments.');
   _tipSel('.icon-nav-item[title="Operations Risk"]', 'ORM: Operational Risk', 'Track operational loss events with Basel II categories, monitor Key Risk Indicators, and run Risk Control Self-Assessments (RCSA).');
+  _tipSel('.icon-nav-item[title="AI Governance"]', 'AI Governance', 'Register AI uses, assess their impact, decide on them independently and keep monitoring them. For governance, risk, privacy and compliance specialists.');
   _tipSel('.icon-nav-item[title="Admin"]', 'Administration', 'Manage users, roles, framework activation, audit logs, API keys, webhooks, and email settings.');
   _tipSel('.icon-nav-item[title="Super Admin"]', 'Super Admin', 'Multi-tenant management: create organisations, manage subscriptions, and configure global platform settings.');
 
@@ -209,7 +343,7 @@ function injectTrainerTips() {
     _tipByLabel('Unique Controls', 'Unique Controls', 'Controls that are framework-specific and not shared. High counts may indicate opportunities for control mapping.');
     _tipByLabel('Active Frameworks', 'Frameworks', 'Number of compliance frameworks currently active in ARIA (e.g. ISO 27001, SOC 2, GDPR, NIST CSF).');
     _tipByLabel('Testing Effort Saved', 'Efficiency Gain', 'Percentage of testing effort saved through integrated control mapping. Shared controls only need testing once.');
-    _tipSel('.nav-item[href="/"]', 'Overview', 'Main dashboard with compliance metrics aggregated from all six modules.');
+    _tipSel('.nav-item[href="/"]', 'Overview', 'Main dashboard with compliance metrics aggregated from your modules.');
     _tipSel('.nav-item[href="/"]', 'Command Centre', 'Arrange your cards around actions, alerts, risks, and module activity.');
     _tipSel('.nav-item[href*="projects"]', 'Compliance Projects', 'Track certification projects (ISO 27001, SOC 2) with milestones, evidence collection, and team assignments.');
     _tipSel('.nav-item[href*="evidence"]', 'Evidence Repository', 'Central vault for all compliance evidence. Upload documents, tag them, and link to controls and audit findings.');

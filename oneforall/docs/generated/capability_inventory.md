@@ -979,6 +979,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/api/notifications/read-all` | authenticated | - | - | - |  |
 | DELETE | `/api/notifications/{nid}` | authenticated | - | - | - |  |
 | POST | `/api/notifications/{nid}/read` | authenticated | - | - | - |  |
+| GET | `/api/onboarding` | authenticated | - | - | - |  |
 | GET | `/api/platform/users` | authenticated | - | - | - |  |
 | GET | `/api/reminders` | authenticated | - | - | - |  |
 | POST | `/api/reminders` | authenticated | - | - | - |  |
