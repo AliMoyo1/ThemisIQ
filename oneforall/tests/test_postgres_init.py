@@ -2523,6 +2523,40 @@ def test_an_enqueued_event_commits_with_the_source_change_and_only_one_sweeper_c
         events._handlers.get(event_type, []).clear()
 
 
+def test_expired_sessions_are_purged_and_the_lease_holds_on_real_postgres(pg, monkeypatch):
+    """sessions.expires_at is TEXT here too, so PostgreSQL's own text collation decides which isoformat strings are
+    earlier than now (same-day rows and fractional seconds included). The purge runs on the bypass connection and
+    takes its lease from public.scheduler_locks."""
+    from datetime import datetime
+
+    from core import auth, session_sweeper
+
+    pg.init_db()
+    monkeypatch.setattr(auth, "utcnow", lambda: datetime(2026, 10, 21, 12, 0, 0))
+    expired = ["2026-01-01T00:00:00.123456", "2026-10-20T23:59:59", "2026-10-21T08:00:00", "2026-10-21T11:59:59.999999"]
+    live = ["2026-10-21T12:00:00.500000", "2026-10-21T12:00:01", "2026-10-21T18:00:00", "2026-10-22T09:00:00"]
+    conn = pg.get_db_bypass_rls()
+    try:
+        uid = pg.insert_returning_id(
+            conn,
+            "INSERT INTO users (username, email, full_name, password_hash) "
+            "VALUES ('purge_pg', 'purge_pg@example.test', 'P', 'x')",
+            (),
+        )
+        for expires_at in expired + live:
+            conn.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, %s)",
+                         (f"tok-{expires_at}", uid, expires_at))
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert session_sweeper.run_once() == len(expired)
+    assert sorted(row[0] for row in _raw_rows("SELECT expires_at FROM public.sessions")) == sorted(live)
+    assert session_sweeper.run_once() == 0, "the lease taken by the first run is still held"
+    assert _raw_rows("SELECT count(*) FROM public.scheduler_locks WHERE lock_name = %s",
+                     (session_sweeper._LOCK_NAME,)) == [(1,)]
+
+
 # ── Relationship service (AI governance G1a) ─────────────────────────────────
 
 def test_typed_ai_edges_candidates_and_scope_run_inside_a_tenant_on_real_postgres(pg):

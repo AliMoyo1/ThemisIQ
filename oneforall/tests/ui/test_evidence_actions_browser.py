@@ -74,7 +74,7 @@ def test_inspector_rule_stays_data_when_clicked(live_app, page, login_as):
         ),
     )
     page.goto(f"{live_app}/evidence")
-    page.locator("#evInsights summary").click()
+    page.locator("#evInsights > summary").click()
     page.evaluate("window.__xssRan = false")
     page.evaluate("loadChecks()")
     button = page.locator("#evChecks [data-ev-action='check-filter']")
