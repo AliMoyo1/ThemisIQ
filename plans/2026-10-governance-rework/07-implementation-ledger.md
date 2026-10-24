@@ -9,7 +9,7 @@ fast-forwarded to `origin/master` (`f770d33`). The earlier AI Governance history
 working tree), *verified locally* (focused checks named below passed on SQLite, and on a disposable PostgreSQL where stated),
 *pilot live*, *generally released*. Nothing in this file is *pilot live* or *generally released*. Plans 01 to 03 were merged
 as pull request 10; plans 04 to 06 and follow-ups 11 to 13 are committed and pushed on the branch
-`claude/plan-04-platform-truth`. Nothing here is merged to `master` or deployed: that is the owner's step.
+`claude/plan-04-platform-truth` and merged to `master` as pull request 11 (`790ce1c`, 2026-10-20). Deploying it is the owner's step.
 
 ## Working rules for whoever continues
 
@@ -1122,6 +1122,29 @@ whole browser suite in one session, a walkthrough on pilot data, and any send th
 Not run: the whole browser suite in one session (about 3.8 hours), the PostgreSQL lane again after the one corrected case
 (that case was run on its own), a walkthrough on pilot data, and any send through a real mailbox.
 
+## Stage verification (master after pull request 11, 2026-10-20)
+
+Run on `790ce1c` (the merge of pull request 11) in a separate worktree, so that local edits in the main checkout were not
+part of the run.
+
+| Lane | Result |
+| --- | --- |
+| Full backend, SQLite (`pytest --ignore=tests/ui`) | 2668 passed, 75 skipped (the real-PostgreSQL tests), 0 failed, 45 minutes |
+| Real PostgreSQL 18 (`tests/test_postgres_init.py`, throwaway container, removed afterwards) | 75 of 75 passed, 8 minutes |
+| Browser, 49 files (shell, accessibility, zoom, viewports, BCM, ERM, task board, My Work, Command Centre, email and profile pages, reports and search, CSRF, isolation, the Vault library, module homes, connected evidence, and the 11 AI Governance files) | 327 passed, 1 skipped, **46 failed**, 42 minutes. No network or suspension errors |
+| Capability inventory | `--check` passes |
+
+**The 46 browser failures.**
+
+- **45 are in the AI Governance browser files.** They still sign in as the `employee` persona to register an AI use. Pull
+  request 11 moved registration behind `ai_use.intake_create`, which employees do not hold, and narrowed `ai_use.view`; the
+  backend tests were aligned to that change, the browser tests were not. The register page answers 403 and the tests time
+  out waiting for its form. This is a test fixture gap if the narrowing is intended, which the owner has not yet confirmed.
+- **1 is a real accessibility finding on `/grid/`.** The new module home cards link in `#059669` on `#e9ebe5`, 3.13 to 1
+  against 4.5 to 1 (four links, 16 pixel text).
+
+Until both are dealt with, the browser lane on `master` is not green.
+
 ## Handoff (read this first)
 
 1. Slices 1A, 1B, 1C (plan 01), 2A, 2B, 2C (plan 02) and 3A to 3D (plan 03) are built and verified as above. They were
@@ -1156,7 +1179,7 @@ Not run: the whole browser suite in one session (about 3.8 hours), the PostgreSQ
 6. A specialist walkthrough on pilot data (Ali Moyo and Vivian Tsongorera) has not happened: nothing here has been seen by the
    people it is for. A mail pilot with a real mailbox has not happened either.
 7. Nothing was deployed by this work. The branch was pushed on 2026-10-15 at the owner's request. What is left for the owner:
-   open and merge the pull request on GitHub (this session's auto mode refuses to merge) and deploy to the VPS.
+   deploy to the VPS. The branch was merged to `master` as pull request 11 (`790ce1c`, 2026-10-20); the lanes on that head are in the stage table below.
 8. The browser lane depends on order and data. Two findings only appear after earlier tests have created records (the
    notification list and the badge text contrast, both fixed), and a machine that sleeps during a
    run produces a block of network errors that pass when run again. Run the files that failed on their own before reading
