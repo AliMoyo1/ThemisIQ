@@ -2971,6 +2971,7 @@
     try{
       var inc=await apiFetch('/bcm/api/incidents/'+id);
       _bcmConsoleInc=inc;
+      if(window.ThemisSelectRecord)window.ThemisSelectRecord('/bcm/?open=incident:'+id);
       _bcmConsoleTab='actions';
       bcmRenderConsole(inc);
     }catch(e){

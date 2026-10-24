@@ -2241,6 +2241,8 @@
 
   window.snOpenDpiaDrawer=function(id){
     var r=(id!==null&&id!==undefined)?dpiaCache.find(function(x){return x.id===id;}):null;
+    window.ThemisSelectedRecord={page:r?'/sentinel/?open=dpia:'+r.id:null};
+    if(window.ThemisSelectRecord)window.ThemisSelectRecord(window.ThemisSelectedRecord.page);
     var isEdit=!!(r&&r.id);
     var f=function(field,def){return r?(r[field]!==undefined&&r[field]!==null?r[field]:''):(def||'');};
     var reg=f('regulation',snPrimaryJurisdiction||'GDPR');
@@ -3045,6 +3047,8 @@
   window.snOpenModal=function(type,existing){
     var def=modalDefs[type];
     if(!def) return;
+    window.ThemisSelectedRecord={page:type==='breach'&&existing&&existing.id?'/sentinel/?open=breach:'+existing.id:null};
+    if(window.ThemisSelectRecord)window.ThemisSelectRecord(window.ThemisSelectedRecord.page);
     var isEdit=!!(existing&&existing.id);
     var html='<div class="modal-overlay" onclick="if(event.target===this)snCloseModal()">'+
       '<div class="modal-box">'+
