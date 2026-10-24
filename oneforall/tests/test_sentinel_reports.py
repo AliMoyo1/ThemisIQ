@@ -310,14 +310,15 @@ def test_the_register_shows_what_is_typed_and_the_workbook_never_evaluates_it(ht
     assert cells and all(c.data_type == "s" for c in cells)
 
 
-def test_a_register_longer_than_the_document_limit_says_so_in_the_document_only(http):
+def test_a_register_longer_than_the_default_document_limit_shows_every_record(http):
     world = http.world
     for n in range(exp.ROWS_IN_DOCUMENT + 10):
         world.db.execute("INSERT INTO sentinel_ropa (ref_number, processing_name) VALUES (%s, %s)", (f"LONG-{n}", f"Long {n}"))
     world.db.commit()
     total = len(http("get", "/sentinel/api/ropa", name="super").json())
     text = " ".join(_pages(http("get", "/sentinel/api/reports/ropa", name="super").content)).replace("\n", " ")
-    assert f"Showing the first {exp.ROWS_IN_DOCUMENT} of {total} rows. The Excel download holds every row." in text
+    assert all(f"LONG-{n}" in text for n in range(exp.ROWS_IN_DOCUMENT + 10)), "the PDF holds every detailed record"
+    assert "Showing the first" not in text
     sheet = openpyxl.load_workbook(io.BytesIO(http("get", "/sentinel/api/reports/ropa?format=xlsx", name="super").content))["Controller register"]
     assert sheet.max_row == total + 1, "the workbook holds every row"
     assert not any("Excel download" in str(c.value) for row in sheet.iter_rows() for c in row if c.value)

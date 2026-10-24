@@ -212,13 +212,13 @@ def ropa_report(user) -> Report:
     report.add(Heading("Controller register"), Table(
         f"Controller activities: {identity.fmt_int(len(controller_rows))}", ROPA_COLUMNS, [_ropa_table_row(r) for r in controller_rows],
         empty_text="No processing activity is recorded in the records open to you.",
-        sheet_name="Controller register", sheet_columns=ROPA_SHEET_COLUMNS, max_rows=ROWS_IN_DOCUMENT, more_in_excel=True))
+        sheet_name="Controller register", sheet_columns=ROPA_SHEET_COLUMNS))
     report.add(Heading("Processor register"), Table(
         f"Processor activities: {identity.fmt_int(len(processor_rows))}", PROCESSOR_COLUMNS,
         [{**_ropa_table_row(r), "acts_for": r.get("acts_for"), "categories": r.get("processing_categories")}
          for r in processor_rows],
         empty_text="No processor activity is recorded in your scope.",
-        sheet_name="Processor register", sheet_columns=ROPA_SHEET_COLUMNS, max_rows=ROWS_IN_DOCUMENT, more_in_excel=True))
+        sheet_name="Processor register", sheet_columns=ROPA_SHEET_COLUMNS))
     report.add(Table("Record readiness and missing answers",
                      [Col("Ref", "ref", weight=2), Col("Role", "role"), Col("Answered", "readiness"),
                       Col("Open fields", "gaps", weight=4)],
@@ -226,8 +226,7 @@ def ropa_report(user) -> Report:
                        "readiness": _ropa_table_row(r)["readiness"],
                        "gaps": "; ".join(gap.label for gap in get_profile("ropa", r.get("regulation")).gaps(r)) or "None"}
                       for r in rows],
-                     empty_text="No processing activity is recorded in your scope.", sheet_name="Readiness",
-                     max_rows=ROWS_IN_DOCUMENT, more_in_excel=True))
+                     empty_text="No processing activity is recorded in your scope.", sheet_name="Readiness"))
     for r in rows:
         profile = get_profile("ropa", r.get("regulation"))
         gaps = profile.gaps(r)
