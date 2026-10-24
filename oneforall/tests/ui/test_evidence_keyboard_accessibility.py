@@ -74,7 +74,7 @@ def test_detail_tabs_have_tab_semantics_and_toggle_aria_selected(login_as, live_
     ) if r.request.method == "GET" else r.continue_())
     page.evaluate("openDetail(1)")
     page.wait_for_selector("#evDetailPanel.open")
-    tablist = page.locator('[role="tablist"]')
+    tablist = page.locator('#evDetailPanel [role="tablist"]')
     assert tablist.count() == 1
     details_tab = page.locator("#tab-details")
     history_tab = page.locator("#tab-history")

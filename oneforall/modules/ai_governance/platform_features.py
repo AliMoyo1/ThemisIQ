@@ -150,8 +150,6 @@ def list_features(db, user):
         row = notes.get(key)
         record = dict(row) if row else {}
         deployment = record.get("deployment") or "in_service"
-        if key == "launcher.api_trainer_ask" and deployment == "in_service":
-            deployment = "paused"  # Themis now serves local guide and scoped-record answers.
         items.append({
             "key": key, "label": label, "categories": list(categories),
             "category_labels": [CATEGORIES.get(category, category) for category in categories],
@@ -184,8 +182,6 @@ def save_notes(db, user, feature_key, raw, expected_version):
     deployment = raw.get("deployment")
     if deployment not in DEPLOYMENTS:
         raise ServiceError(422, "Choose a valid deployment state.")
-    if feature_key == "launcher.api_trainer_ask" and deployment == "in_service":
-        raise ServiceError(422, "The platform help provider feature is paused while Themis answers locally.")
     due = _date(raw.get("review_due"))
     now = utcnow().strftime("%Y-%m-%d %H:%M:%S")
     params = (values["owner"], values["provider_note"], values["known_limitations"],
