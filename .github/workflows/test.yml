@@ -248,6 +248,7 @@ jobs:
             tests/ui/test_action_registry_http_contracts.py \
             tests/ui/test_csrf_protection.py \
             tests/ui/test_org_isolation.py \
+            tests/ui/test_sentinel_living_law_ui.py \
             tests/ui/test_evidence_actions_browser.py::test_ai_link_suggestion_stays_data_when_clicked \
             tests/ui/test_evidence_actions_browser.py::test_inspector_rule_stays_data_when_clicked \
             -q

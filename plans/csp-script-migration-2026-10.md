@@ -27,3 +27,7 @@ The current static search still finds roughly 1,500 inline event attributes acro
 ## Shared guide correction, 2026-10-22
 
 The enforced AI Governance script policy exposed an overlooked common include: `_platform_trainer.html` still contained an executable inline block and six inline event handlers. The guide logic now loads from `static/js/platform_trainer.js`, and its controls use event listeners. This preserves the strict AI Governance policy and the guide's open, close, and tooltip interactions. Accessibility tests load their locally vendored axe script through a test-only same-origin route, so the tests do not need an inline-script exception. Focused AI Governance assessment, guide, and security-header tests passed locally; the full browser run remains a separate release gate.
+
+## Reports page slice, 2026-10-24
+
+The Reports page's executable script is now `static/js/reports.js`. Jinja-rendered report labels and tiers are escaped into a data element, and both static and generated report buttons use delegated listeners instead of inline handlers. `/reports` is added to the strict script-policy path list. A static inventory still finds 1,543 inline-handler lines elsewhere in module templates. This slice does not remove the application-wide `unsafe-inline` exception for those routes. The Reports page needs a representative browser exercise before release; no browser or full-suite result is claimed here.

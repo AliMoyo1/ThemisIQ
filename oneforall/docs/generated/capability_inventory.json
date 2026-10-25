@@ -1,5 +1,5 @@
 {
-  "route_count": 1143,
+  "route_count": 1154,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -20315,6 +20315,34 @@
       "notes": ""
     },
     {
+      "path": "/api/reports/retention-policy",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_retention_policy_get",
+      "maturity": "implemented",
+      "notes": "Tenant-scoped setting for new saved runs only. The handler requires platform.report.retention.manage. Seven years is a product default, not a universal legal period."
+    },
+    {
+      "path": "/api/reports/retention-policy",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_retention_policy_save",
+      "maturity": "implemented",
+      "notes": "A tenant report-retention manager must record a reason; changes apply to new runs only and do not rewrite existing dates or holds."
+    },
+    {
       "path": "/api/reports/runs",
       "methods": [
         "GET"
@@ -23311,6 +23339,32 @@
       "notes": ""
     },
     {
+      "path": "/sentinel/api/ask-law",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_ask_law",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/sentinel/api/audit",
       "methods": [
         "GET"
@@ -24478,6 +24532,188 @@
         "sentinel"
       ],
       "name": "api_update_jurisdiction_config",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_law_monitor",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/cadence",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.draft"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.draft": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_law_monitor_cadence",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/captures/{capture_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_law_monitor_capture",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/captures/{capture_id}/hold",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.approve"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.approve": [
+          "dpo"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_law_monitor_hold",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/captures/{capture_id}/impact",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_law_monitor_impact",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/captures/{capture_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.approve"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.approve": [
+          "dpo"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_law_monitor_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/check",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.draft"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.draft": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_law_monitor_check",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/retention",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.approve"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.approve": [
+          "dpo"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_law_monitor_retention",
       "maturity": "",
       "notes": ""
     },

@@ -47,13 +47,15 @@ def _gen_ref(prefix="REF"):
 
 def _primary_jurisdiction_key() -> str:
     """Return the primary active jurisdiction key, falling back to 'GDPR'."""
+    from modules.sentinel.jurisdictions import JURISDICTION_RULES
     db = get_db()
     try:
         row = db.execute(
             "SELECT jurisdiction_key FROM sentinel_jurisdiction_config "
             "WHERE is_active=1 AND is_primary=1 LIMIT 1"
         ).fetchone()
-        return row["jurisdiction_key"] if row else "GDPR"
+        key = row["jurisdiction_key"] if row else None
+        return key if key and JURISDICTION_RULES.get(key, {}).get("legal_status") != "proposal_not_enacted" else "GDPR"
     finally:
         db.close()
 
@@ -661,7 +663,8 @@ def create_dsr(data):
             from modules.sentinel.jurisdictions import get_dsr_deadline_days
             days = get_dsr_deadline_days(data.get("regulation", "GDPR"))
             rec = to_dt(data["received_date"][:10])
-            data["deadline_date"] = (rec + timedelta(days=days)).strftime("%Y-%m-%d")
+            if days is not None and rec is not None:
+                data["deadline_date"] = (rec + timedelta(days=days)).strftime("%Y-%m-%d")
         except Exception:
             pass
     return _generic_create("sentinel_dsr", _DSR_FIELDS, data, ref_prefix="DSR")
@@ -681,7 +684,8 @@ def update_dsr(dsr_id, data, bu_scope=None):
             regulation = data.get("regulation") or (existing.get("regulation") if existing else None) or "GDPR"
             days = get_dsr_deadline_days(regulation)
             rec = to_dt(data["received_date"][:10])
-            data["deadline_date"] = (rec + timedelta(days=days)).strftime("%Y-%m-%d")
+            if days is not None and rec is not None:
+                data["deadline_date"] = (rec + timedelta(days=days)).strftime("%Y-%m-%d")
         except Exception:
             pass
     _generic_update("sentinel_dsr", set(_DSR_FIELDS), data, dsr_id)

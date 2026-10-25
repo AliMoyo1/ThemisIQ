@@ -255,6 +255,10 @@ DECLARATIONS = {
     # ── Sentinel (privacy) ──────────────────────────────────────────────────
     "sentinel.ai_research": _d("Research a privacy question", _ASKED, "Case records and personal data",
                                "sentinel.ai.assess", "Shown", "person", "unavailable"),
+    "sentinel.ai_law_answer": _d("Draft an answer from approved official-source passages",
+                                  "The person's question and at most three approved public source excerpts",
+                                  "Case records and full source files", "sentinel.ai.assess and organization AI policy",
+                                  "A labelled draft with exact source passages for specialist review", "person", "unavailable"),
     "sentinel.ai_generate_full_dpia": _d("Draft the sections of a DPIA from its fields",
                                          "That DPIA's description and processing fields", "Other assessments",
                                          "sentinel.ai.assess", "Saved in the DPIA's own AI field, beside the assessor's "

@@ -66,6 +66,9 @@ REPORT_GROUPS = [
 REPORT_TIERS = {key: documents.tier_of(key) for key in REPORT_TYPES}
 
 QUICK_DESCRIPTION = "Quick report"
+RETENTION_POLICY_KEY = "reports.retention_days"
+# Product starting point, not a statement of a legal retention obligation.
+DEFAULT_RETENTION_DAYS = 2555  # seven 365-day years
 _AUTO = object()  # "find the earlier run yourself"
 _NO_ACCESS = ("Your access has changed since this report was generated, so its saved output is hidden. "
               "Generate the report again to see what you may open now.")
@@ -144,6 +147,12 @@ def _store(db, user, definition_id, env, previous_id, request) -> int:
         "INSERT INTO report_runs (definition_id, status, triggered_by, completed_at, result_json, snapshot_hash, "
         "previous_run_id) VALUES (%s,%s,%s,%s,%s,%s,%s)",
         (definition_id, "completed", run_scope_key(user), env["run"]["generated_at"], text, digest, previous_id))
+    generated = date.fromisoformat(env["run"]["generated_at"][:10])
+    delete_after = (generated + timedelta(days=_retention_days(db))).isoformat()
+    db.execute(
+        "INSERT INTO report_run_retention (run_id,delete_after,set_by) VALUES (%s,%s,%s)",
+        (run_id, delete_after, user["id"]),
+    )
     db.commit()
     log_audit(user, "platform", "report_run", entity_type="report_run", entity_id=run_id,
               details=f"{env['run']['report_type']} v{env['run']['definition_version']} sha256={digest[:16]}",
@@ -230,6 +239,19 @@ def _retention(db, run_id):
     row = db.execute("SELECT delete_after,hold_reason,purged_at FROM report_run_retention WHERE run_id=%s",
                      (run_id,)).fetchone()
     return dict(row) if row else {"delete_after": None, "hold_reason": None, "purged_at": None}
+
+
+def _retention_days(db):
+    row = db.execute("SELECT value FROM settings WHERE key=%s", (RETENTION_POLICY_KEY,)).fetchone()
+    if row is None:
+        return DEFAULT_RETENTION_DAYS
+    try:
+        days = int(row["value"])
+    except (ValueError, TypeError):
+        raise ValueError("The tenant report retention policy is invalid") from None
+    if not 30 <= days <= 3650:
+        raise ValueError("The tenant report retention policy is outside its allowed range")
+    return days
 
 
 def _signoffs(db, run_id):
@@ -371,6 +393,46 @@ def _quick_definition(db, user, report_type, parameters=None, name=None) -> dict
 
 # ── Pages and definitions ───────────────────────────────────────────────────
 
+@router.get("/api/reports/retention-policy")
+@require_auth
+async def api_report_retention_policy_get(request: Request):
+    """The tenant's starting period for new saved runs; existing runs keep their dates."""
+    user = request.state.user
+    if not has_capability(user, "platform.report.retention.manage"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    db = get_db()
+    try:
+        days = _retention_days(db)
+        configured = db.execute("SELECT 1 FROM settings WHERE key=%s", (RETENTION_POLICY_KEY,)).fetchone() is not None
+    finally:
+        db.close()
+    return _JSONResp({"days": days, "default": not configured,
+                      "applies_to": "new_runs_only", "legal_status": "tenant policy, not a legal determination"})
+
+
+@router.post("/api/reports/retention-policy")
+@require_auth
+async def api_report_retention_policy_save(request: Request):
+    user = request.state.user
+    if not has_capability(user, "platform.report.retention.manage"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    data = await _json_body(request)
+    days = data.get("days")
+    reason = str(data.get("reason") or "").strip()
+    if type(days) is not int or not 30 <= days <= 3650 or not 10 <= len(reason) <= 500:
+        return _JSONResp({"error": "Choose 30 to 3650 days and record a reason of 10 to 500 characters"},
+                         status_code=400)
+    db = get_db()
+    try:
+        db.execute("INSERT INTO settings (key,value) VALUES (%s,%s) "
+                   "ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP",
+                   (RETENTION_POLICY_KEY, str(days)))
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "report_retention_policy", details=f"days={days}; reason={reason}", ip=_ip(request))
+    return _JSONResp({"days": days, "applies_to": "new_runs_only"})
+
 @router.get("/reports", response_class=HTMLResponse)
 @require_auth
 async def reports_page(request: Request):
@@ -379,6 +441,7 @@ async def reports_page(request: Request):
     ctx["report_types"] = REPORT_TYPES
     ctx["report_tiers"] = REPORT_TIERS
     ctx["report_groups"] = [(title, [(k, REPORT_TYPES[k]) for k in keys]) for title, keys in REPORT_GROUPS]
+    ctx["can_manage_report_retention"] = has_capability(request.state.user, "platform.report.retention.manage")
     return shell_templates.TemplateResponse(request, "reports.html", ctx)
 
 
@@ -635,7 +698,7 @@ async def api_report_run_get(request: Request, run_id: int):
     shown["can_share"] = shown.get("frozen") and not shown["shared"]
     shown["can_signoff"] = (shown.get("frozen") and shown["shared"] and
                             has_capability(user, "platform.report.signoff"))
-    shown["can_manage_retention"] = has_capability(user, "platform.manage_users")
+    shown["can_manage_retention"] = has_capability(user, "platform.report.retention.manage")
     return _JSONResp(shown)
 
 
@@ -751,7 +814,7 @@ async def api_report_signoff(request: Request, run_id: int):
 async def api_report_retention(request: Request, run_id: int):
     """A tenant administrator explicitly sets a per-run deletion date or a documented hold."""
     user = request.state.user
-    if not has_capability(user, "platform.manage_users"):
+    if not has_capability(user, "platform.report.retention.manage"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     raw = str(data.get("delete_after") or "").strip()

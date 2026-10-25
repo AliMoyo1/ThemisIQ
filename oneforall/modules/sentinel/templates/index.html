@@ -1030,6 +1030,26 @@
     <div id="snRuleCards">Open Jurisdiction Manager to load rule cards.</div>
     <div id="snRuleCardForm"></div>
   </div>
+  <div class="card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
+    <div class="panel-title">Official-source watch</div>
+    <p style="color:var(--muted);font-size:13px">Checks capture changes from pinned authority sites. A changed page is a review item, not an amended law or an approved deadline.</p>
+    <div id="snLawSchedule"></div>
+    <div id="snLawSources" aria-live="polite">Open Jurisdiction Manager to load sources.</div>
+    <div id="snLawReview"></div>
+  </div>
+  <div class="card animate-fade-up" id="snAskLaw" style="margin-top:20px">
+    <div class="panel-title">Ask Sentinel · active jurisdictions</div>
+    <p style="color:var(--muted);font-size:13px">Searches DPO-approved authority captures and shows exact passages. No AI tokens are used.</p>
+    <form id="snAskLawForm" style="display:flex;gap:8px;flex-wrap:wrap">
+      <label class="sr-only" for="snAskLawJurisdiction">Jurisdiction</label>
+      <select id="snAskLawJurisdiction" class="form-input"><option value="">All active jurisdictions</option></select>
+      <label class="sr-only" for="snAskLawQuestion">Question</label>
+      <input id="snAskLawQuestion" class="form-input" type="search" maxlength="500" required placeholder="Ask about a requirement in an active jurisdiction" style="flex:1;min-width:250px">
+      <button type="submit" class="btn btn-primary">Find cited answer</button>
+      {% if can_ai_law %}<label style="display:flex;align-items:center;gap:6px"><input id="snAskLawAiDraft" type="checkbox"> Request an AI draft if organization policy permits</label>{% endif %}
+    </form>
+    <div id="snAskLawAnswer" aria-live="polite" style="margin-top:14px"></div>
+  </div>
 </div>
 
 </div><!-- /snSpaRoot -->
@@ -2228,7 +2248,12 @@
     var info=document.getElementById('ddJurisHint');if(!info)return;
     var j=window._jurisRules[reg];
     if(!j){info.classList.remove('visible');return;}
-    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Indicative breach target: <strong>'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</strong> &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days||30)+' days</strong>'+
+    if(j.legal_status==='proposal_not_enacted'){
+      info.textContent='Historical proposal, not enacted. Reclassify this DPIA under an applicable law before relying on its legal basis or dates.';
+      info.classList.add('visible');
+      return;
+    }
+    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Indicative breach target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong> &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+
       ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
     info.classList.add('visible');
   };
@@ -2246,7 +2271,8 @@
     var isEdit=!!(r&&r.id);
     var f=function(field,def){return r?(r[field]!==undefined&&r[field]!==null?r[field]:''):(def||'');};
     var reg=f('regulation',snPrimaryJurisdiction||'GDPR');
-    var regs=['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR','Zimbabwe CDPA','UAE PDPL','Saudi PDPL','Qatar DPL','Bahrain PDPL','Canada PIPEDA','Canada Bill C-11','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','New Zealand Privacy Act','Japan APPI','South Korea PIPA'];
+    var regs=['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR','Zimbabwe CDPA','UAE PDPL','Saudi PDPL','Qatar DPL','Bahrain PDPL','Canada PIPEDA','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','New Zealand Privacy Act','Japan APPI','South Korea PIPA'];
+    if(isEdit&&reg==='Canada Bill C-11')regs.push(reg); // Preserve historical records for reclassification.
     var fs='width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box';
     var fsta=fs+';resize:vertical';
     var lbl=function(t){return '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">'+t+'</label>';};
@@ -3070,6 +3096,7 @@
         html+='<select id="snf_'+f.name+'" name="'+f.name+'"'+(f.required?' required':'')+onchangeAttr+'>';
         html+='<option value="">Select...</option>';
         (f.options||[]).forEach(function(o){
+          if(!isEdit&&o==='Canada Bill C-11')return;
           var sel=(String(val).toLowerCase()===String(o).toLowerCase()||val===o)?' selected':'';
           html+='<option value="'+esc(o)+'"'+sel+'>'+esc(o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</option>';
         });
@@ -3889,6 +3916,7 @@
   }
 
   window.snLoadJurisdictions=async function(){
+    if(window.snLivingLawRefresh) window.snLivingLawRefresh();
     var container=document.getElementById('snActiveJurisdictions');
     var statsBody=document.getElementById('snJurisStatsBody');
     container.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
@@ -3910,11 +3938,12 @@
       } else {
         container.innerHTML='<div class="juris-grid">'+_activeJurisdictions.map(function(j){
           var isPrimary=j.is_primary;
-          var breachPill=j.breach_asap
+          var historical=j.legal_status==='proposal_not_enacted';
+          var breachPill=historical?'<span class="juris-pill warn">No legal rule</span>':j.breach_asap
             ? '<span class="juris-pill warn">ASAP review target</span>'
-            : '<span class="juris-pill info">'+esc((j.breach_hours||72)+'h breach review target')+'</span>';
-          var dsrPill='<span class="juris-pill info">'+esc(j.dsr_days||30)+'d DSR review target</span>';
-          var sourcePill='<span class="juris-pill warn">'+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
+            : '<span class="juris-pill info">'+esc(j.breach_hours?j.breach_hours+'h breach review target':'No numeric breach target')+'</span>';
+          var dsrPill=historical?'':'<span class="juris-pill info">'+esc(j.dsr_days?j.dsr_days+'d DSR review target':'No numeric DSR target')+'</span>';
+          var sourcePill='<span class="juris-pill warn">'+(historical?'Historical proposal, not enacted':j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
           return '<div class="juris-card sn-edit-jurisdiction'+(isPrimary?' primary':'')+'" data-jurisdiction-key="'+esc(j.jurisdiction_key||j.key)+'">'+
             '<div class="juris-flag">'+snFlag(j.flag)+'</div>'+
             '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span style="font-size:10px;background:var(--accent);color:white;padding:1px 6px;border-radius:100px;margin-left:4px">Primary</span>':'')+'</div>'+
@@ -3951,6 +3980,7 @@
     // Group by region
     var regions={};
     _allJurisdictions.forEach(function(j){
+      if(j.legal_status==='proposal_not_enacted')return;
       var r=j.region||'Other';
       regions[r]=regions[r]||[];
       regions[r].push(j);
@@ -4038,10 +4068,13 @@
 
         '<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px">'+
           '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Authority</div><div style="font-weight:700">'+esc(j.authority_short||'DPA')+'</div></div>'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Breach review target</div><div style="font-weight:700">'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</div></div>'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">DSR Review Target</div><div style="font-weight:700">'+(j.dsr_days||30)+' days</div></div>'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Breach review target</div><div style="font-weight:700">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</div></div>'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">DSR Review Target</div><div style="font-weight:700">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':(j.dsr_days?j.dsr_days+' days':'Not set'))+'</div></div>'+
         '</div>'+
-        '<p style="font-size:11px;color:var(--muted)">'+(j.breach_source_status==='unverified'?'Legal notification period unverified.':'Source researched; legal rule still needs approval.')+' The displayed numbers are internal review targets.</p>'+
+        '<p style="font-size:11px;color:var(--muted)">'+(j.legal_status==='proposal_not_enacted'?'Historical proposal that was not enacted. Reclassify this record under an applicable law.':
+          (j.breach_source_status==='unverified'?'Legal notification period unverified.':'Source researched; legal rule still needs approval.')+' The displayed numbers are internal review targets.')+'</p>'+
+        (j.breach_source_url&&/^https:\/\//.test(j.breach_source_url)?'<p><a href="'+esc(j.breach_source_url)+'" target="_blank" rel="noopener noreferrer">'+esc(j.breach_source_title||'Breach source')+'</a></p>':'')+
+        (j.dsr_source_url&&/^https:\/\//.test(j.dsr_source_url)?'<p><a href="'+esc(j.dsr_source_url)+'" target="_blank" rel="noopener noreferrer">'+esc(j.dsr_source_title||'Rights-request source')+'</a></p>':'')+
 
         '<div class="form-row">'+
           '<div class="form-group"><label>Registration Number</label><input id="jurisRegNo" value="'+esc(configs.registration_number||'')+'"></div>'+
@@ -4099,10 +4132,15 @@
     if(!info) return;
     var j=window._jurisRules[reg];
     if(!j){info.classList.remove('visible');return;}
+    if(j.legal_status==='proposal_not_enacted'){
+      info.textContent='Historical proposal, not enacted. Reclassify this record under an applicable law; no legal deadline is calculated.';
+      info.classList.add('visible');
+      return;
+    }
     info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong>'+
       ' &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong>'+
-      ' &nbsp;|&nbsp; Breach review target: <strong>'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</strong>'+
-      ' &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days||30)+' days</strong>'+
+      ' &nbsp;|&nbsp; Breach review target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong>'+
+      ' &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+
       ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
     info.classList.add('visible');
   };
@@ -4157,4 +4195,5 @@
 })();
 </script>
 <script src="/static/js/sentinel_obligations.js"></script>
+<script src="/static/js/sentinel_living_law.js"></script>
 {% endblock %}

@@ -425,9 +425,10 @@ async def security_headers_middleware(request: Request, call_next):
     if not settings.DEBUG:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-    # AI Governance pages now load executable code from static files only.
+    # AI Governance and Reports pages load executable code from static files only.
     # Other modules still have inline handlers and need their own migration.
-    strict_scripts = (request.url.path == "/ai-governance" or
+    strict_scripts = (request.url.path == "/reports" or
+                      request.url.path == "/ai-governance" or
                       request.url.path.startswith("/ai-governance/")) and (
         "text/html" in response.headers.get("Content-Type", "")
     )

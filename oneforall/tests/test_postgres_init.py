@@ -284,6 +284,30 @@ def test_fresh_init_builds_the_workflow_schema_on_real_postgres(pg):
     _assert_required_policy_fks(pg)
 
 
+def test_law_monitor_tables_are_created_in_public_and_tenant_on_real_postgres(pg):
+    """The source watch must survive PostgreSQL DDL conversion and tenant setup."""
+    pg.init_db()
+    pg.provision_tenant_schema("lawmonitor")
+    tables = (
+        "sentinel_law_monitor_config",
+        "sentinel_law_source_state",
+        "sentinel_law_captures",
+    )
+    for schema in ("public", "tenant_lawmonitor"):
+        for table in tables:
+            assert _raw_rows("SELECT to_regclass(%s) IS NOT NULL", (f"{schema}.{table}",))[0][0]
+    with pg.tenant_context(7, "lawmonitor", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            db.execute("INSERT INTO sentinel_law_monitor_config (org_id,cadence,retention_days) "
+                       "VALUES (7,'monthly',365)")
+            db.commit()
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM tenant_lawmonitor.sentinel_law_monitor_config")[0][0] == 1
+    assert _raw_rows("SELECT count(*) FROM public.sentinel_law_monitor_config")[0][0] == 0
+
+
 def test_plan36_exercise_calendar_and_metrics_schema_on_real_postgres(pg):
     """Fresh PostgreSQL must create the new BCM and shared projections in FK order."""
     pg.init_db()

@@ -191,10 +191,15 @@ def resolve(regulation: str | None) -> dict:
     basis = _RECORD_BASIS.get(key) or (
         f"No statutory record of processing provision has been verified for {name}. This register applies the Article 30 GDPR layout as good "
         f"practice; a privacy specialist confirms what {short} expects.")
+    proposed = (rule or {}).get("legal_status") == "proposal_not_enacted"
+    if proposed:
+        basis = "This historical proposal was not enacted. Reclassify this record under an applicable law."
     return {
         "key": key, "name": name, "terms": {**terms, "regulator": short}, "territory": terms["territory"], "anchors": anchors,
-        "status": "researched_unapproved" if verified else "unverified", "record_basis": basis,
-        "dpia_basis": _DPIA_BASIS.get(key) or "No statutory impact assessment provision has been verified for this regulation; the DPIA layout is applied as good practice.",
+        "status": "proposal_not_enacted" if proposed else ("researched_unapproved" if verified else "unverified"),
+        "record_basis": basis,
+        "dpia_basis": ("This historical proposal was not enacted. Reclassify this record under an applicable law." if proposed else
+                       _DPIA_BASIS.get(key) or "No statutory impact assessment provision has been verified for this regulation; the DPIA layout is applied as good practice."),
         "authority": authority, "authority_short": short, "lists": _lists_for(key), "hidden": frozenset(), "required_add": frozenset(),
         "required_drop": frozenset(), "notes": SPECIALIST_NOTE,
     }
@@ -218,6 +223,8 @@ def regulations() -> list:
     """The regulations a record can be filed under, for the form's choice: key, name, status."""
     out = []
     for key in JURISDICTION_RULES:
+        if JURISDICTION_RULES[key].get("legal_status") == "proposal_not_enacted":
+            continue
         regime = resolve(key)
         out.append({"key": key, "name": regime["name"], "status": regime["status"], "territory": regime["territory"]})
     return out

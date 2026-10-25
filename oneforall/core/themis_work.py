@@ -22,6 +22,9 @@ _ONBOARD = re.compile(r"\b(?:onboard|onboarding|introduce|deploy|adopt|register|
 _USE = re.compile(r"\b(?:model|tool|system|use|chatbot|copilot|application)\b", re.I)
 _CASE = re.compile(r"\b(?:status|state|why|next|block\w*|outstand\w*|miss\w*|ready|"
                    r"decision|approv\w*|assess\w*|evidence|review|explain|submit|progress)\b", re.I)
+_RELATED = re.compile(r"\b(?:relat\w*|linked|connected|relationship|evidence|proof|document|changes?|changed|signal)\b", re.I)
+_PROOF = re.compile(r"\b(?:evidence|proof|document|file)\b", re.I)
+_CHANGES = re.compile(r"\b(?:changes?|changed|signal)\b", re.I)
 _DRAFT = re.compile(r"^(?:draft|prepare|write)\b", re.I)
 _FOLLOW_UP = re.compile(r"\b(?:follow[ -]?up|questions?|clarification)\b", re.I)
 _ASSESSMENT = re.compile(r"\b(?:assessment|review)\s+(?:note|summary)\b|\bnote\b", re.I)
@@ -77,8 +80,8 @@ def _action(label, path):
     return {"label": label, "path": path}
 
 
-def _source(label, path, updated_at=None, version=None):
-    return {"label": label, "path": path, "updated_at": updated_at, "version": version}
+def _source(label, path, updated_at=None, version=None, **reference):
+    return {"label": label, "path": path, "updated_at": updated_at, "version": version, **reference}
 
 
 def _brief(value, limit=180):
@@ -284,6 +287,111 @@ def _other_answer(db, user, selected):
                                 row["version"] if "version" in row.keys() else None)]}
 
 
+def _related_answer(db, user, key, record_id, question):
+    """Answer from one hop of live, visible connections; never infer unseen neighbours."""
+    from modules.governance import change_signals, entity360, relationships
+    from modules.governance.entity_scope import describe_record
+
+    if key == ("governance", "application") and not has_capability(user, "ai_use.view"):
+        return _unavailable()
+    shown = describe_record(db, key, record_id, user)
+    if shown is None:
+        return _unavailable()
+    root = _source(_brief(shown["title"], 100), shown["url"], record_id=record_id)
+    sources = [root]
+    connected = f"/governance/connected/{key[0]}/{key[1]}/{record_id}"
+    actions = [_action("Open connected records", connected)]
+
+    if _PROOF.search(question):
+        proof = entity360.proof_of(db, user, key[0], key[1], record_id)
+        if proof is None:
+            return _unavailable()
+        if proof["state"] == "unavailable":
+            answer = "I can't verify this record's Vault proof right now. Open the source record and try again. [1]"
+        elif not proof["items"]:
+            answer = "I can't verify a Vault file linked to this record in your current scope. [1]"
+        else:
+            lines = []
+            for item in proof["items"][:2]:
+                sources.append(_source(_brief(item["title"], 100), item["url"],
+                                       version=item.get("version"), record_id=item["id"]))
+                lines.append(f"{_brief(item['title'], 100)}: {item['state']} [{len(sources)}]")
+            answer = "Linked Vault artifact metadata I can verify for this record [1]: " + "; ".join(lines) + "."
+            if len(proof["items"]) > 2:
+                answer += " Open connected records for the remaining visible files."
+            if len(proof["items"]) >= 50:
+                answer += " The connected view is bounded; this is not a complete-file count."
+    elif _CHANGES.search(question):
+        signals = change_signals.for_entity(db, user, key, record_id, limit=10)
+        if not has_capability(user, "ai_use.view"):
+            signals = [s for s in signals if not any(
+                (s.get(end) or {}).get("module") == "governance"
+                and (s.get(end) or {}).get("entity_type") == "application"
+                for end in ("source", "target"))]
+        if not signals:
+            answer = "I can't verify a recorded change signal for this record in your current scope. [1]"
+        else:
+            lines = []
+            for signal in signals[:2]:
+                origin = signal["source"]
+                root_changed = (origin["module"], origin["entity_type"], origin["entity_id"]) == (
+                    key[0], key[1], record_id)
+                other = signal["target"] if root_changed else origin
+                sources.append(_source(_brief(other["title"], 100), other["url"],
+                                       updated_at=signal.get("changed_at"), record_id=other["entity_id"],
+                                       signal_id=signal["signal_id"]))
+                direction = "on this record, affecting" if root_changed else "in"
+                lines.append(f"{_brief(signal['kind_label'], 80)} {direction} {_brief(other['title'], 100)} "
+                             f"({signal['status']}) [{len(sources)}]")
+            answer = "Recorded change signals for this record [1]: " + "; ".join(lines) + "."
+            if len(signals) > 2:
+                answer += " Open connected records for the remaining visible signals."
+            if len(signals) >= 10:
+                answer += " This is a bounded view, not a complete history."
+    else:
+        links = relationships.list_links(db, user, key, record_id, limit=10)
+        if not has_capability(user, "ai_use.view"):
+            links = [link for link in links if (link["module"], link["entity_type"]) !=
+                     ("governance", "application")]
+        if not links:
+            answer = "I can't verify a confirmed related record I can open in your current scope. [1]"
+        else:
+            lines = []
+            for link in links[:2]:
+                sources.append(_source(_brief(link["title"], 100), link["url"],
+                                       record_id=link["entity_id"], relationship_id=link["link_id"]))
+                lines.append(f"{_brief(link['title'], 100)} ({_brief(link['label'], 70)}) [{len(sources)}]")
+            answer = "Confirmed connections of this record [1]: " + "; ".join(lines) + "."
+            if len(links) > 2:
+                answer += " Open connected records for the remaining visible links."
+            if len(links) >= 10:
+                answer += " This is a bounded view, not a complete relationship count."
+    return {"answer": answer, "source": "records", "actions": actions, "sources": sources}
+
+
+def _request_related_answer(db, user, request_id, question):
+    """A request is not a graph root until a specialist has linked an AI use."""
+    from modules.ai_governance import service
+
+    if not (has_capability(user, "ai_use.submit") or has_capability(user, "ai_use.review")):
+        return _unavailable()
+    try:
+        intake = service.get_intake(db, user, request_id)
+    except service.ServiceError as exc:
+        if exc.status in (403, 404):
+            return _unavailable()
+        raise
+    application_id = intake.get("application_id")
+    if application_id and has_capability(user, "ai_use.view"):
+        return _related_answer(db, user, ("governance", "application"), application_id, question)
+    path = f"/ai-governance/requests/{request_id}"
+    return {"answer": "I can't verify connected AI-system records from this request in your current scope. "
+                      "Open the request to check its review state. [1]",
+            "source": "records", "actions": [_action("Open this request", path)],
+            "sources": [_source("AI use request", path, intake.get("updated_at"), intake.get("version"),
+                                record_id=request_id)]}
+
+
 def _draft_result(question, result, selected):
     """Deterministic private preview. The browser may copy it; no record or mail is written."""
     if result.get("source") != "records" or not result.get("sources"):
@@ -347,7 +455,8 @@ def maybe_answer(question, page, user, areas, db_factory):
     system, intake = _SYSTEM.fullmatch(path), _REQUEST.fullmatch(path)
     other = _selected_other(page)
     drafting = bool(_DRAFT.search(question))
-    if not ((system or intake or other) and (_CASE.search(question) or drafting)):
+    related = bool(_RELATED.search(question))
+    if not ((system or intake or other) and (_CASE.search(question) or related or drafting)):
         if _AI.search(question) and _ONBOARD.search(question) and _USE.search(question):
             return _onboard(user, areas)
         return None
@@ -356,7 +465,13 @@ def maybe_answer(question, page, user, areas, db_factory):
     db = None
     try:
         db = db_factory()
-        if system:
+        if related and system:
+            result = _related_answer(db, user, ("governance", "application"), int(system.group(1)), question)
+        elif related and intake:
+            result = _request_related_answer(db, user, int(intake.group(1)), question)
+        elif related and other:
+            result = _related_answer(db, user, other[0], other[1], question)
+        elif system:
             result = _system_answer(db, user, int(system.group(1)))
         elif intake:
             result = _request_answer(db, user, int(intake.group(1)))

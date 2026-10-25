@@ -5,6 +5,7 @@ FastAPI router ported from the original Flask-based Data Protection Sentinel.
 Sentinel is an SPA: one HTML template serves the UI, everything else is JSON API.
 All routes are prefixed with /sentinel and guarded by capability-based RBAC.
 """
+import asyncio
 import csv
 import io
 import json
@@ -12,6 +13,7 @@ import logging
 import os
 import re
 import zipfile
+import httpx
 from datetime import datetime
 from core.timeutils import utcnow, to_dt
 
@@ -101,6 +103,8 @@ def _check_references(request: Request, data: dict, current: "dict | None" = Non
     are read as numbers, and an empty value clears the link. `current` is the record being updated: only an
     administrator may take it out of its unit, which would show it to every unit."""
     scope = bu_scope_ids(request.state.user)
+    if current is None and data.get("regulation") == "Canada Bill C-11":
+        raise HTTPException(400, "Bill C-11 was not enacted. Choose an applicable regulation.")
     if scope is not None and "business_unit_id" in data:
         unit = data["business_unit_id"]
         if unit in (None, ""):
@@ -181,6 +185,7 @@ async def sentinel_index(request: Request):
         "special_categories": SPECIAL_CATEGORIES,
         "can_draft_jurisdiction": has_capability(user, "sentinel.jurisdiction.draft"),
         "can_approve_jurisdiction": has_capability(user, "sentinel.jurisdiction.approve"),
+        "can_ai_law": has_capability(user, "sentinel.ai.assess"),
         "can_manage_breach_obligations": has_capability(user, "sentinel.breach.manage"),
         **shell_ctx(request, active_module="sentinel", active_section="dashboard"),
     })
@@ -1541,6 +1546,160 @@ async def api_lia_delete(request: Request, lia_id: int):
 # Jurisdiction Management
 # ═════════════════════════════════════════════════════════════════════════════
 
+def _law_org(request: Request) -> int:
+    org_id = request.state.user.get("org_id")
+    if type(org_id) is not int or org_id < 1:
+        raise HTTPException(403, "Select an organization before using law monitoring")
+    return org_id
+
+
+@router.get("/api/law-monitor")
+@require_capability("module.sentinel.access")
+async def api_law_monitor(request: Request):
+    from modules.sentinel import living_law
+    org_id = _law_org(request)
+    return JSONResponse({"cadence": living_law.get_cadence(org_id),
+                         "retention_days": living_law.get_retention_days(org_id),
+                         "sources": living_law.list_sources(org_id),
+                         "uncovered": [row["jurisdiction_key"] for row in ds.get_active_jurisdictions()
+                                       if row["jurisdiction_key"] not in {s[0] for s in living_law.SOURCES.values()}],
+                         "cost_note": "Source checks and extractive answers use no AI tokens."})
+
+
+@router.put("/api/law-monitor/cadence")
+@require_capability("sentinel.jurisdiction.draft")
+@require_module("sentinel")
+async def api_law_monitor_cadence(request: Request):
+    from modules.sentinel import living_law
+    body = await _json_body(request)
+    try:
+        living_law.set_cadence(_law_org(request), body.get("cadence"), request.state.user["id"])
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "sentinel", "law_monitor_cadence_updated", details=str(body.get("cadence")))
+    return JSONResponse({"ok": True})
+
+
+@router.put("/api/law-monitor/retention")
+@require_capability("sentinel.jurisdiction.approve")
+@require_module("sentinel")
+async def api_law_monitor_retention(request: Request):
+    from modules.sentinel import living_law
+    body = await _json_body(request)
+    try:
+        living_law.set_retention_days(_law_org(request), body.get("days"), request.state.user["id"])
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "sentinel", "law_capture_retention_updated",
+              details=f"review_after_days={body['days']}")
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/law-monitor/check")
+@require_capability("sentinel.jurisdiction.draft")
+@require_module("sentinel")
+async def api_law_monitor_check(request: Request):
+    from modules.sentinel import living_law
+    body = await _json_body(request)
+    key = body.get("source_key")
+    if type(key) is not str or key not in living_law.SOURCES:
+        raise HTTPException(422, "Choose a monitored official source")
+    org_id = _law_org(request)
+    if living_law.checked_within_hour(org_id, key):
+        raise HTTPException(429, "This source was checked within the last hour")
+    try:
+        result = await asyncio.to_thread(living_law.check_source, org_id, key)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "sentinel", "law_source_checked", details=f"source={key}; result={result['result']}")
+    return JSONResponse(result)
+
+
+@router.get("/api/law-monitor/captures/{capture_id}")
+@require_capability("module.sentinel.access")
+async def api_law_monitor_capture(request: Request, capture_id: int):
+    from modules.sentinel import living_law
+    try:
+        return JSONResponse(living_law.capture_detail(_law_org(request), capture_id),
+                            headers={"Cache-Control": "private, no-store"})
+    except LookupError:
+        raise HTTPException(404, "Capture not found") from None
+
+
+@router.get("/api/law-monitor/captures/{capture_id}/impact")
+@require_capability("module.sentinel.access")
+async def api_law_monitor_impact(request: Request, capture_id: int):
+    from modules.sentinel import living_law
+    try:
+        result = living_law.impact_summary(_law_org(request), capture_id,
+                                           bu_scope_ids(request.state.user))
+    except LookupError:
+        raise HTTPException(404, "Capture not found") from None
+    return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
+
+
+@router.post("/api/law-monitor/captures/{capture_id}/review")
+@require_capability("sentinel.jurisdiction.approve")
+@require_module("sentinel")
+async def api_law_monitor_review(request: Request, capture_id: int):
+    from modules.sentinel import living_law
+    body = await _json_body(request)
+    try:
+        living_law.review_capture(_law_org(request), capture_id, request.state.user["id"],
+                                  body.get("decision"), str(body.get("note") or ""))
+    except LookupError:
+        raise HTTPException(404, "Pending capture not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "sentinel", "law_source_reviewed", entity_type="law_capture",
+              entity_id=capture_id, details=str(body.get("decision")))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/law-monitor/captures/{capture_id}/hold")
+@require_capability("sentinel.jurisdiction.approve")
+@require_module("sentinel")
+async def api_law_monitor_hold(request: Request, capture_id: int):
+    from modules.sentinel import living_law
+    body = await _json_body(request)
+    try:
+        living_law.set_hold(_law_org(request), capture_id, request.state.user["id"],
+                            body.get("enabled"), body.get("reason"))
+    except LookupError:
+        raise HTTPException(404, "Capture not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "sentinel", "law_capture_hold_changed", entity_type="law_capture",
+              entity_id=capture_id, details=f"enabled={body['enabled']}")
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/ask-law")
+@require_capability("module.sentinel.access")
+async def api_ask_law(request: Request):
+    from modules.sentinel import living_law
+    body = await _json_body(request)
+    question = str(body.get("question") or "")
+    try:
+        result = living_law.ask(_law_org(request), question, body.get("jurisdiction"))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    if body.get("ai_draft") is True and result["citations"]:
+        if not has_capability(request.state.user, "sentinel.ai.assess"):
+            raise HTTPException(403, "AI drafting requires privacy specialist access")
+        uid = str(request.state.user["id"])
+        if not check_ai_rate_limit(uid):
+            result["draft_status"] = "AI rate limit reached; showing cited passages instead."
+        else:
+            record_ai_call(uid)
+            try:
+                result = await asyncio.to_thread(living_law.draft_answer, question, result)
+            except (RuntimeError, ValueError, httpx.HTTPError) as exc:
+                log.warning("Sentinel law draft unavailable: %s", type(exc).__name__)
+                result["draft_status"] = "AI draft unavailable or not approved by policy; showing cited passages instead."
+    return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
+
+
 @router.get("/api/jurisdiction-cards")
 @require_capability("module.sentinel.access")
 async def api_jurisdiction_cards(request: Request):
@@ -1649,7 +1808,8 @@ async def api_set_active_jurisdictions(request: Request):
     primary = body.get("primary")
 
     from modules.sentinel.jurisdictions import JURISDICTION_RULES
-    valid_keys = [k for k in keys if k in JURISDICTION_RULES]
+    valid_keys = [k for k in keys if k in JURISDICTION_RULES
+                  and JURISDICTION_RULES[k].get("legal_status") != "proposal_not_enacted"]
 
     existing = {j["jurisdiction_key"] for j in ds.get_all_jurisdiction_configs()}
     for key in existing:
@@ -1704,6 +1864,14 @@ async def api_jurisdiction_stats(request: Request):
     return JSONResponse({"items": ds.get_jurisdiction_stats(bu_scope=bu_scope_ids(request.state.user))})
 
 
+def _require_enacted_regulations(*keys):
+    """Do not ask the provider to draft legal advice under a historical proposal."""
+    from modules.sentinel.jurisdictions import JURISDICTION_RULES
+
+    if any(JURISDICTION_RULES.get(key, {}).get("legal_status") == "proposal_not_enacted" for key in keys):
+        raise HTTPException(422, "Bill C-11 was not enacted. Reclassify the record under an applicable law first.")
+
+
 @router.post("/api/ai/research")
 @require_capability("sentinel.ai.assess")
 async def api_ai_research(request: Request):
@@ -1716,6 +1884,7 @@ async def api_ai_research(request: Request):
     regulation = body.get("regulation", "GDPR")
     context = body.get("context", "")
     custom_instructions = body.get("custom_instructions", "")
+    _require_enacted_regulations(regulation)
     if not activity:
         raise HTTPException(400, "activity_type is required")
     from modules.sentinel.ai_service import ai_research
@@ -1734,6 +1903,7 @@ async def api_ai_generate(request: Request, dpia_id: int):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
     dpia = _scoped_or_404(request, "dpia", dpia_id)
+    _require_enacted_regulations(dpia.get("regulation"))
     body = await _json_body(request)
     custom_instructions = body.get("custom_instructions", "")
     from modules.sentinel.ai_service import ai_generate_full_dpia
@@ -1756,6 +1926,7 @@ async def api_ai_risks(request: Request):
     activity = body.get("activity_type", "")
     regulation = body.get("regulation", "GDPR")
     categories = body.get("data_categories", [])
+    _require_enacted_regulations(regulation)
     if not activity:
         raise HTTPException(400, "activity_type is required")
     from modules.sentinel.ai_service import ai_suggest_risks
@@ -1774,6 +1945,7 @@ async def api_ai_score_ropa(request: Request, ropa_id: int):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
     entry = _scoped_or_404(request, "ropa", ropa_id)
+    _require_enacted_regulations(entry.get("regulation"))
     from modules.sentinel.ai_service import ai_score_ropa
     result, err = await ai_score_ropa(entry)
     if err:
@@ -1801,6 +1973,7 @@ async def api_ai_suggest_legal_basis(request: Request):
     regulation = body.get("regulation", "GDPR")
     activity_name = body.get("activity_name", "")
     special_categories = body.get("special_categories", "")
+    _require_enacted_regulations(regulation)
     if not purpose:
         raise HTTPException(400, "purpose is required")
     from modules.sentinel.ai_service import ai_suggest_legal_basis
@@ -1819,6 +1992,7 @@ async def api_ai_breach_impact(request: Request, breach_id: int):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
     breach = _scoped_or_404(request, "breach", breach_id)
+    _require_enacted_regulations(breach.get("regulation"))
     from modules.sentinel.ai_service import ai_assess_breach
     text, err = await ai_assess_breach(breach)
     if err:
@@ -1836,6 +2010,7 @@ async def api_ai_dsr_draft(request: Request, dsr_id: int):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
     dsr = _scoped_or_404(request, "dsr", dsr_id)
+    _require_enacted_regulations(dsr.get("regulation"))
     from modules.sentinel.ai_service import ai_draft_dsr_response
     text, err = await ai_draft_dsr_response(dsr)
     if err:
@@ -1854,6 +2029,7 @@ async def api_ai_privacy_notice(request: Request):
     record_ai_call(uid)
     body = await _json_body(request)
     settings = ds.get_all_settings()
+    _require_enacted_regulations(body.get("regulation", "GDPR"))
     body.setdefault("org_name", settings.get("org_name", ""))
     body.setdefault("dpo_name", settings.get("dpo_name", ""))
     body.setdefault("dpo_email", settings.get("dpo_email", ""))
@@ -1875,6 +2051,7 @@ async def api_ai_vendor_check(request: Request, vendor_id: int):
     vendor = ds.get_vendor(vendor_id)
     if not vendor:
         raise HTTPException(404, "Vendor not found")
+    _require_enacted_regulations(vendor.get("regulation"))
     from modules.sentinel.ai_service import ai_vendor_check
     text, err = await ai_vendor_check(vendor)
     if err:
@@ -1895,6 +2072,7 @@ async def api_ai_chat(request: Request):
     message = body.get("message", "")
     regulation = body.get("regulation")
     history = body.get("history", [])
+    _require_enacted_regulations(regulation)
     if not message:
         raise HTTPException(400, "message is required")
     from modules.sentinel.ai_service import ai_chat
@@ -1915,6 +2093,7 @@ async def api_ai_gap_analysis(request: Request):
     body = await _json_body(request)
     reg_from = body.get("regulation_from", "GDPR")
     reg_to = body.get("regulation_to", "South Africa POPIA")
+    _require_enacted_regulations(reg_from, reg_to)
     activities = body.get("activities", "")
     from modules.sentinel.ai_service import ai_gap_analysis
     text, err = await ai_gap_analysis(reg_from, reg_to, activities)
@@ -1936,6 +2115,7 @@ async def api_ai_generate_policy(request: Request):
     policy_type = body.get("policy_type", "Data Protection Policy")
     topic = body.get("topic", "")
     regulation = body.get("regulation", "GDPR")
+    _require_enacted_regulations(regulation)
 
     topic_clause = f" with a focus on {topic}" if topic else ""
     user_msg = (
