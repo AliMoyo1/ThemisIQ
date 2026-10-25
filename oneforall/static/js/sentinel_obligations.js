@@ -13,6 +13,12 @@
     return window.ApiClient.request(url, {method: method || 'GET', body: body, actionId: url});
   }
   function errorText(error) { return (error && error.message) || 'The request could not be completed.'; }
+  function officialUrl(value) {
+    try {
+      var url = new URL(String(value));
+      return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
+    } catch (_) { return ''; }
+  }
   var cards = [];
   var currentBreach = null;
 
@@ -23,24 +29,30 @@
     try {
       cards = (await request('/sentinel/api/jurisdiction-cards')).items || [];
       if (!cards.length) {
-        root.innerHTML = '<p>No rule cards yet. Draft the legal interpretation and have a DPO approve it before relying on a countdown.</p>';
+        root.innerHTML = '<p class="sn-empty-state">No rule cards yet. Draft the legal interpretation and have a DPO approve it before relying on a countdown.</p>';
         return;
       }
       root.innerHTML = cards.map(function (card) {
         var approved = card.state === 'approved';
-        return '<div class="card" style="margin:10px 0;padding:14px">' +
-          '<div style="display:flex;justify-content:space-between;gap:12px"><strong>' + esc(card.jurisdiction_key) +
-          ' · ' + esc(card.notice_type) + ' · version ' + esc(card.version) + '</strong><span>' +
-          (approved ? 'Approved by DPO' : 'Draft, no operational clock') + '</span></div>' +
-          '<p>' + esc(card.rule_summary) + '</p><small>Trigger: ' + esc(card.trigger_definition) +
-          ' · ' + esc(card.timezone) + ' · ' +
+        var sourceUrl = officialUrl(card.source_url);
+        var status = approved ? 'Approved by DPO' : card.state === 'rejected' ? 'Rejected' : 'Draft, no operational clock';
+        return '<article class="sn-rule-card">' +
+          '<div class="sn-entry-heading"><div><span class="sn-entry-eyebrow">' + esc(card.jurisdiction_key) +
+          '</span><h3 class="sn-entry-title">' + esc(card.notice_type) + ' · version ' + esc(card.version) +
+          '</h3></div><span class="sn-status-pill ' + (approved ? 'approved' : card.state === 'rejected' ? 'rejected' : 'pending') +
+          '">' + status + '</span></div>' +
+          '<p class="sn-entry-summary">' + esc(card.rule_summary) + '</p>' +
+          '<div class="sn-entry-meta"><span>Trigger: ' + esc(card.trigger_definition) + '</span><span>Time zone: ' +
+          esc(card.timezone) + '</span><span>' +
           (card.asap ? 'As soon as practicable' : esc(card.deadline_hours) + ' hours') +
-          ' · effective ' + esc(card.effective_from) + (card.effective_to ? ' to ' + esc(card.effective_to) : '') +
-          '</small><div><a href="' + esc(card.source_url) + '" target="_blank" rel="noopener noreferrer">' +
-          esc(card.source_title) + '</a>' +
+          '</span><span>Effective ' + esc(card.effective_from) +
+          (card.effective_to ? ' to ' + esc(card.effective_to) : '') + '</span></div>' +
+          '<div class="sn-entry-actions">' +
+          (sourceUrl ? '<a href="' + esc(sourceUrl) + '" target="_blank" rel="noopener noreferrer">' +
+            esc(card.source_title || 'Open authority source') + ' ↗</a>' : '') +
           (!approved && document.getElementById('snRuleCardPanel').dataset.canApprove === 'true'
             ? ' <button type="button" class="btn btn-sm btn-secondary" data-approve-card="' +
-            esc(card.id) + '">Approve as DPO</button>' : '') + '</div></div>';
+            esc(card.id) + '">Approve as DPO</button>' : '') + '</div></article>';
       }).join('');
     } catch (error) {
       root.textContent = 'Rule cards are unavailable. Try again later.';

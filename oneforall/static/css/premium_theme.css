@@ -144,6 +144,8 @@ body[data-module] .mfa-card,body[data-module] .pw-card{
   backdrop-filter:blur(var(--glass-blur)) saturate(115%);
   -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(115%);
 }
+/* Give text-bearing surfaces breathing room without changing navigation density. */
+body[data-module] :is(.card,.panel-card,.dash-widget,.ai-panel){line-height:1.5}
 /* Status colors illuminate KPI surfaces without colored edge strips. */
 body[data-module] .stat-card:not(.stat-card-hero){
   border-top-color:var(--glass-border);
@@ -180,7 +182,7 @@ html[data-theme="dark"] body[data-module="erm"] .lib-card button[onclick^="ermRe
 body[data-module] :is(button,a,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--accent-ink);outline-offset:3px}
 @media (prefers-reduced-motion:reduce){
   body[data-module] .stat-card,body[data-module] .card,body[data-module] .panel-card,
-  body[data-module] .dash-widget,body[data-module] .icon-sidebar{animation:none;transition:none;transform:none}
+  body[data-module] .dash-widget,body[data-module] .icon-sidebar{animation:none;transition:none}
   body[data-module] .stat-card:hover,body[data-module] .card:hover,
   body[data-module] .panel-card:hover,body[data-module] .dash-widget:hover{transform:none}
   /* Theme changes must not leave low-contrast intermediate text on screen. */
