@@ -49,7 +49,8 @@ def test_every_anchor_and_list_a_field_names_exists():
 
 def test_every_regulation_the_platform_knows_resolves_to_a_profile_with_the_same_fields():
     base = [f.key for f in get_profile("ropa", "GDPR").fields()]
-    assert len(regulations()) == 21
+    assert {item["key"] for item in regulations()} == set(regimes.JURISDICTION_RULES) - {"Canada Bill C-11"}
+    assert get_profile("ropa", "Canada Bill C-11").regime["status"] == "proposal_not_enacted"
     for item in regulations():
         profile = get_profile("ropa", item["key"])
         assert [f.key for f in profile.fields()] == base, item["key"]
@@ -258,7 +259,8 @@ def test_the_profile_route_gives_a_person_with_module_access_the_definition_unde
     assert answer.status_code == 200
     body = answer.json()
     assert body["regulation"] == "South Africa POPIA" and body["regime"]["terms"]["controller"] == "responsible party"
-    assert body["regime"]["status"] == "researched_unapproved" and len(body["regulations"]) == 21
+    assert body["regime"]["status"] == "researched_unapproved"
+    assert {item["key"] for item in body["regulations"]} == set(regimes.JURISDICTION_RULES) - {"Canada Bill C-11"}
     keys = [f["key"] for s in body["sections"] for f in s["fields"]]
     assert {"purpose", "owner", "data_owner", "recipients", "retention_period", "security_measures"} <= set(keys)
     assert all(f["label"] for s in body["sections"] for f in s["fields"])
