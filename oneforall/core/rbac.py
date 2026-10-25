@@ -127,6 +127,7 @@ CAPABILITIES: dict[str, set[str]] = {
     "platform.manage_users":      {SUPER_ADMIN},
     "platform.workflow.author":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "platform.report.signoff":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "platform.report.retention.manage": {SUPER_ADMIN, ORG_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "platform.manage_org_users":  {SUPER_ADMIN, ORG_ADMIN},
     "platform.manage_settings":   {SUPER_ADMIN},
     "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR, GRC_OFFICER},

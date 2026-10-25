@@ -209,6 +209,10 @@ def _breach_deadline_check_in(org_id: int) -> None:
         bid = b["id"]
         ref = templates.reference_or(b["ref_number"], f"BRE-{bid}")
         regulation = b["regulation"] or "GDPR"
+        # Old Bill C-11 rows remain readable for reclassification, but a
+        # proposal that never became law must not drive deadline alerts.
+        if regulation == "Canada Bill C-11":
+            continue
 
         try:
             from modules.sentinel.jurisdictions import (
@@ -471,8 +475,17 @@ def start_scheduler() -> None:
         misfire_grace_time=3600,
     )
 
+    # A short hourly dispatcher checks each organization's selected 24-hour,
+    # weekly or 30-day cadence. Fetching public sources uses zero AI tokens.
+    from modules.sentinel.living_law import scheduled_check
+    _scheduler.add_job(
+        scheduled_check, CronTrigger(minute=17, timezone=TZ),
+        id="sentinel_law_source_monitor", replace_existing=True,
+        misfire_grace_time=1800, max_instances=1,
+    )
+
     _scheduler.start()
-    log.info("Sentinel scheduler started (breach/DSR/retention jobs)")
+    log.info("Sentinel scheduler started (breach/DSR/retention/law-source jobs)")
 
 
 def stop_scheduler() -> None:

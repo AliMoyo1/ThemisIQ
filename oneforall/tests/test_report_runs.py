@@ -78,6 +78,24 @@ def test_a_saved_run_shows_the_figures_it_was_generated_with(world):
     assert again["hash"] == run["hash"]
 
 
+def test_tenant_retention_policy_only_changes_new_report_runs(world):
+    manager = world.users["super"]
+    reader = world.users["dpo_a"]
+    assert _call(reports.api_report_retention_policy_get(_request(manager)))[1]["days"] == 2555
+    first = _quick(manager, "privacy_overview")[1]["run_id"]
+    before = world.db.execute("SELECT delete_after FROM report_run_retention WHERE run_id=%s", (first,)).fetchone()[0]
+    assert _call(reports.api_report_retention_policy_save(_request(reader, payload={
+        "days": 365, "reason": "Unauthorised change attempt"})))[0] == 403
+    assert _call(reports.api_report_retention_policy_save(_request(manager, payload={
+        "days": 365, "reason": "Approved tenant retention schedule"})))[0] == 200
+    second = _quick(manager, "privacy_overview")[1]["run_id"]
+    after = world.db.execute("SELECT delete_after FROM report_run_retention WHERE run_id=%s", (second,)).fetchone()[0]
+    assert before == world.db.execute(
+        "SELECT delete_after FROM report_run_retention WHERE run_id=%s", (first,)).fetchone()[0]
+    from datetime import date
+    assert (date.fromisoformat(before) - date.fromisoformat(after)).days == 2555 - 365
+
+
 def test_running_it_again_is_a_new_run_linked_to_the_first_with_what_changed(world):
     dpo = world.users["dpo_a"]
     _, first = _quick(dpo, "privacy_overview")

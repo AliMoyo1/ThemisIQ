@@ -54,7 +54,6 @@ REGULATIONS = [
     ("Qatar DPL",             "Qatar Personal Data Privacy Protection Law No. 13 of 2016"),
     ("Bahrain PDPL",          "Bahrain Personal Data Protection Law 2018"),
     ("Canada PIPEDA",         "Canada PIPEDA — Personal Information Protection and Electronic Documents Act"),
-    ("Canada Bill C-11",      "Canada — Consumer Privacy Protection Act (Bill C-11)"),
     ("USA CCPA/CPRA",         "USA CCPA/CPRA — California Consumer Privacy Act & Privacy Rights Act"),
     ("Brazil LGPD",           "Brazil LGPD — Lei Geral de Proteção de Dados Pessoais (2018)"),
     ("India DPDP",            "India Digital Personal Data Protection Act 2023"),

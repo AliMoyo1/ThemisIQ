@@ -171,6 +171,24 @@ def test_the_other_end_and_the_record_itself_are_left_out_for_someone_who_cannot
     assert relationships.list_links(graph.db, dpo_a, ("nowhere", "thing"), 1) == []
 
 
+def test_themis_cites_only_related_records_the_viewer_can_open(graph):
+    from core import themis_work
+
+    admin, viewer = graph.users["super"], graph.users["dpo_a"]
+    app = _ref(graph, APP, "A")
+    visible = _ref(graph, AIIA, "A")
+    hidden = _ref(graph, AIIA, "B")
+    assert _link(graph, admin, visible, app, "assesses")[1] is None
+    assert _link(graph, admin, hidden, app, "assesses")[1] is None
+    result = themis_work._related_answer(graph.db, viewer, APP, app[2], "What is connected?")
+    assert result["source"] == "records"
+    assert "needle aiia A" in result["answer"]
+    assert "needle aiia B" not in str(result)
+    assert [source["record_id"] for source in result["sources"][1:]] == [visible[2]]
+    assert themis_work._related_answer(graph.db, graph.users["dpo_b"], APP, app[2],
+                                       "What is connected?")["source"] == "unavailable"
+
+
 def test_typed_verbs_join_only_the_kinds_they_were_made_for(graph):
     admin = graph.users["super"]
     app, asset, process = _ref(graph, APP, "org"), _ref(graph, ASSET, "org"), _ref(graph, PROCESS, "org")

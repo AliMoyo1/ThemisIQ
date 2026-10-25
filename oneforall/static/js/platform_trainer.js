@@ -142,18 +142,21 @@ function appendMsg(type, content, sourceType, go, actions, sources, draft) {
     var heading = document.createElement('span');
     heading.textContent = 'From these records';
     list.appendChild(heading);
-    sources.slice(0, 3).forEach(function(source) {
+    sources.slice(0, 3).forEach(function(source, index) {
       var path = source && safeTrainerPath(source.path);
       if (!path || typeof source.label !== 'string') return;
       var link = document.createElement('a');
       link.href = path;
-      link.textContent = source.label;
+      link.textContent = '[' + (index + 1) + '] ' + source.label;
       list.appendChild(link);
       var detail = [];
       if (source.version !== null && source.version !== undefined && String(source.version)) {
         detail.push('version ' + String(source.version).slice(0, 24));
       }
       if (source.updated_at) detail.push('updated ' + String(source.updated_at).slice(0, 19));
+      if (Number.isSafeInteger(source.record_id) && source.record_id > 0) detail.push('record #' + source.record_id);
+      if (Number.isSafeInteger(source.relationship_id) && source.relationship_id > 0) detail.push('link #' + source.relationship_id);
+      if (Number.isSafeInteger(source.signal_id) && source.signal_id > 0) detail.push('signal #' + source.signal_id);
       if (detail.length) {
         var meta = document.createElement('small');
         meta.textContent = detail.join(' · ');

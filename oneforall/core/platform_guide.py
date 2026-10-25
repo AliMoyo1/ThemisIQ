@@ -62,7 +62,8 @@ ENTRIES = [
        "Open Reports from the Command Centre menu and press New Report, choose what it covers, then Run Now. "
        "Each run is kept as a frozen snapshot that can be signed off independently and shared by an expiring link.",
        keywords="report reports reporting run snapshot board executive summary export share",
-       nav="Reports", labels=["New Report", "Run Now"], sources=[_PLATFORM, _T + "reports.html"],
+       nav="Reports", labels=["New Report", "Run Now"],
+       sources=[_PLATFORM, _T + "reports.html", "static/js/reports.js"],
        show="New Report"),
     _e("platform.workflows", None, "/workflows", "Set up a workflow",
        "Open Workflows from the Command Centre menu. Press New Workflow to build one, or install a ready-made one "

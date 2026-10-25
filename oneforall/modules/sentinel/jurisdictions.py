@@ -355,14 +355,41 @@ JURISDICTION_RULES: dict[str, dict] = {
 # Research identifies a source and a draft interpretation, not an approved rule.
 # Other legacy entries have no validated source in this review and their numeric
 # values are only internal triage targets.
-_BREACH_RESEARCHED = {"GDPR", "UK GDPR", "Zimbabwe CDPA", "South Africa POPIA", "Kenya DPA"}
+_BREACH_RESEARCHED = {"GDPR", "UK GDPR", "Zimbabwe CDPA", "South Africa POPIA", "Kenya DPA", "Canada PIPEDA"}
 _DSR_RESEARCHED = {"GDPR", "UK GDPR", "Kenya DPA", "USA CCPA/CPRA"}
+_BREACH_SOURCES = {
+    "GDPR": ("GDPR Article 33", "https://eur-lex.europa.eu/eli/reg/2016/679/oj"),
+    "UK GDPR": ("ICO personal data breaches guidance", "https://ico.org.uk/for-organisations/report-a-breach/personal-data-breach/personal-data-breaches-a-guide/"),
+    "Zimbabwe CDPA": ("Cyber and Data Protection Act section 19 (gazette reproduction)", "https://cyrilla.org/api/files/17222583289941iwm2aigj4w.pdf"),
+    "South Africa POPIA": ("Information Regulator section 22 fact sheet", "https://inforegulator.org.za/2025/08/19/fact-sheet-handling-of-security-compromises/"),
+    "Kenya DPA": ("ODPC section 43 breach reporting", "https://www.odpc.go.ke/report-a-data-breach/"),
+    "Canada PIPEDA": ("OPC mandatory breach reporting guidance", "https://www.priv.gc.ca/en/privacy-topics/privacy-for-businesses/privacy-breaches-at-your-business/gd_pb_201810/"),
+}
+_DSR_SOURCES = {
+    "GDPR": ("GDPR Article 12", "https://eur-lex.europa.eu/eli/reg/2016/679/oj"),
+    "UK GDPR": ("ICO rights request time limits", "https://ico.org.uk/for-the-public/time-limits-for-responding-to-data-protection-rights-requests/"),
+    "Kenya DPA": ("Kenya Data Protection (General) Regulations 2021", "https://www.odpc.go.ke/wp-content/uploads/2024/03/THE-DATA-PROTECTION-GENERAL-REGULATIONS-2021-1.pdf"),
+    "USA CCPA/CPRA": ("California Attorney General CCPA guidance", "https://oag.ca.gov/privacy/ccpa"),
+}
 for _key, _rule in JURISDICTION_RULES.items():
     _rule["breach_source_status"] = "researched_unapproved" if _key in _BREACH_RESEARCHED else "unverified"
     _rule["dsr_source_status"] = "researched_unapproved" if _key in _DSR_RESEARCHED else "unverified"
+    if _key in _BREACH_SOURCES:
+        _rule["breach_source_title"], _rule["breach_source_url"] = _BREACH_SOURCES[_key]
+    if _key in _DSR_SOURCES:
+        _rule["dsr_source_title"], _rule["dsr_source_url"] = _DSR_SOURCES[_key]
     if _rule["breach_source_status"] == "unverified":
         _rule["breach_note"] = ("No validated legal notification period is recorded for this jurisdiction. "
                                 "The legacy countdown is an internal review target only.")
+
+# Canada's 2020 Bill C-11 died on the Order Paper. Keep its key to explain old
+# records, but never treat the proposal's legacy numbers as an enacted rule.
+JURISDICTION_RULES["Canada Bill C-11"]["legal_status"] = "proposal_not_enacted"
+JURISDICTION_RULES["Canada Bill C-11"]["breach_note"] = (
+    "Historical proposal, not an enacted privacy law. Reclassify this record under the applicable law.")
+JURISDICTION_RULES["Canada Bill C-11"]["source_url"] = "https://www.parl.ca/LegisInfo/en/bill/43-2/c-11"
+JURISDICTION_RULES["Canada Bill C-11"]["breach_source_title"] = "Parliament of Canada bill history"
+JURISDICTION_RULES["Canada Bill C-11"]["breach_source_url"] = "https://www.parl.ca/LegisInfo/en/bill/43-2/c-11"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -375,7 +402,7 @@ def get_jurisdiction(key: str) -> dict | None:
 
 
 def list_jurisdictions() -> list[dict]:
-    """All known jurisdictions as a flat list with their key included."""
+    """Known keys, including withdrawn proposals needed to explain stored records."""
     return [{"key": k, **v} for k, v in JURISDICTION_RULES.items()]
 
 
@@ -407,14 +434,21 @@ def breach_clock(regulation, discovery_date) -> dict:
     if rule is None:
         return {"state": "no_rule", "hours": None, "basis": None,
                 "label": f"No rule is configured for {regulation or 'this regulation'}, so no deadline is calculated."}
+    if rule.get("legal_status") == "proposal_not_enacted":
+        return {"state": "no_rule", "hours": None, "basis": None,
+                "label": "This entry describes a historical proposal, not an enacted law. Select the applicable regulation."}
     if rule.get("breach_source_status") == "unverified":
         hours = get_breach_deadline_hours(regulation)
         return {"state": "unverified", "hours": hours, "basis": "Legacy internal review target",
                 "label": f"No legal notification period has been verified for {regulation}. "
-                         f"The {hours}-hour countdown is an internal review target only."}
+                         + (f"The {hours}-hour countdown is an internal review target only." if hours else
+                            "No numeric review clock is available; a specialist must assess the case.")}
     if rule.get("breach_asap"):
-        return {"state": "asap", "hours": None, "basis": f"{regulation}: as soon as practicable",
-                "label": f"{regulation} sets no fixed hours (as soon as practicable). Any countdown is an internal target, not a legal deadline."}
+        wording = {"South Africa POPIA": "as soon as reasonably possible",
+                   "Canada PIPEDA": "as soon as feasible"}.get(regulation, "as soon as practicable")
+        return {"state": "asap", "hours": None, "basis": f"{regulation}: {wording}",
+                "label": f"{regulation} has no fixed-hour notification period in the researched source ({wording}). "
+                         "A specialist must confirm the trigger and obligation."}
     hours = rule.get("breach_hours")
     if not hours:
         return {"state": "no_rule", "hours": None, "basis": None,
@@ -424,9 +458,11 @@ def breach_clock(regulation, discovery_date) -> dict:
                      "A privacy specialist confirms the legal trigger and obligation."}
 
 
-def get_dsr_deadline_days(regulation: str) -> int:
+def get_dsr_deadline_days(regulation: str) -> int | None:
     """Legacy internal DSR review target. Request-specific legal periods need approval."""
     j = JURISDICTION_RULES.get(regulation, {})
+    if j.get("legal_status") == "proposal_not_enacted":
+        return None
     return j.get("dsr_days") or 30
 
 
@@ -458,6 +494,8 @@ def jurisdictions_by_region() -> dict[str, list[dict]]:
     """All jurisdictions grouped by region."""
     groups: dict[str, list] = {}
     for key, rules in JURISDICTION_RULES.items():
+        if rules.get("legal_status") == "proposal_not_enacted":
+            continue
         region = rules.get("region", "Other")
         groups.setdefault(region, []).append({"key": key, **rules})
     return groups

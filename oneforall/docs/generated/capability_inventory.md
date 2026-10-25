@@ -1009,6 +1009,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/api/reports/definitions/{rid}` | authenticated | - | - | - |  |
 | POST | `/api/reports/executive-summary` | authenticated | - | - | - |  |
 | POST | `/api/reports/quick-run` | authenticated | - | - | - |  |
+| GET | `/api/reports/retention-policy` | authenticated | - | - | - | implemented: Tenant-scoped setting for new saved runs only. The handler requires platform.report.retention.manage. Seven years is a product default, not a universal legal period. |
+| POST | `/api/reports/retention-policy` | authenticated | - | - | - | implemented: A tenant report-retention manager must record a reason; changes apply to new runs only and do not rewrite existing dates or holds. |
 | GET | `/api/reports/runs` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs/{run_id}` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs/{run_id}/document` | authenticated | - | - | - |  |
@@ -1204,6 +1206,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/sentinel/api/ai/score-ropa/{ropa_id}` | capability | sentinel.ai.assess | sentinel.ai.assess: dpo, privacy_analyst, super_admin | - |  |
 | POST | `/sentinel/api/ai/suggest-legal-basis` | capability | sentinel.ai.assess | sentinel.ai.assess: dpo, privacy_analyst, super_admin | - |  |
 | POST | `/sentinel/api/ai/vendor-check/{vendor_id}` | capability | sentinel.ai.assess | sentinel.ai.assess: dpo, privacy_analyst, super_admin | - |  |
+| POST | `/sentinel/api/ask-law` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/audit` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/audit-export` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel | gated: Each part of the evidence pack needs the capability of its own list (breach, request, impact assessment, vendor); a part the caller may not open is left out and named in the README. |
 | GET | `/sentinel/api/audit/export` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
@@ -1255,6 +1258,14 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/sentinel/api/jurisdictions/{key}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/jurisdictions/{key}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | PUT | `/sentinel/api/jurisdictions/{key}/config` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| GET | `/sentinel/api/law-monitor` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| PUT | `/sentinel/api/law-monitor/cadence` | capability | sentinel.jurisdiction.draft | sentinel.jurisdiction.draft: dpo, privacy_analyst, super_admin | - |  |
+| GET | `/sentinel/api/law-monitor/captures/{capture_id}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| POST | `/sentinel/api/law-monitor/captures/{capture_id}/hold` | capability | sentinel.jurisdiction.approve | sentinel.jurisdiction.approve: dpo | - |  |
+| GET | `/sentinel/api/law-monitor/captures/{capture_id}/impact` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| POST | `/sentinel/api/law-monitor/captures/{capture_id}/review` | capability | sentinel.jurisdiction.approve | sentinel.jurisdiction.approve: dpo | - |  |
+| POST | `/sentinel/api/law-monitor/check` | capability | sentinel.jurisdiction.draft | sentinel.jurisdiction.draft: dpo, privacy_analyst, super_admin | - |  |
+| PUT | `/sentinel/api/law-monitor/retention` | capability | sentinel.jurisdiction.approve | sentinel.jurisdiction.approve: dpo | - |  |
 | GET | `/sentinel/api/legal-bases/{regulation}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/lia` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | POST | `/sentinel/api/lia` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |

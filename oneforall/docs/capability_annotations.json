@@ -1,5 +1,13 @@
 {
   "routes": {
+    "GET /api/reports/retention-policy": {
+      "maturity": "implemented",
+      "notes": "Tenant-scoped setting for new saved runs only. The handler requires platform.report.retention.manage. Seven years is a product default, not a universal legal period."
+    },
+    "POST /api/reports/retention-policy": {
+      "maturity": "implemented",
+      "notes": "A tenant report-retention manager must record a reason; changes apply to new runs only and do not rewrite existing dates or holds."
+    },
     "GET /sentinel/api/record-profile/{record}": {
       "maturity": "gated",
       "notes": "RoPA and DPIA field definitions require Privacy module access. Jurisdiction references are researched but not approved legal wording; users must review them before filing."

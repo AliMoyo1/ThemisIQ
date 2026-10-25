@@ -4926,6 +4926,49 @@ CREATE TABLE IF NOT EXISTS sentinel_jurisdiction_config (
     activated_at        TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sentinel_juris ON sentinel_jurisdiction_config(is_active);
+
+-- Source monitoring is organization scoped even on SQLite. A captured page is
+-- evidence for human review, never an automatically approved legal rule.
+CREATE TABLE IF NOT EXISTS sentinel_law_monitor_config (
+    org_id INTEGER PRIMARY KEY,
+    cadence TEXT NOT NULL DEFAULT 'weekly' CHECK (cadence IN ('24h','weekly','monthly')),
+    retention_days INTEGER NOT NULL DEFAULT 2555 CHECK (retention_days BETWEEN 30 AND 3650),
+    updated_by INTEGER,
+    updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS sentinel_law_source_state (
+    org_id INTEGER NOT NULL,
+    source_key TEXT NOT NULL,
+    jurisdiction_key TEXT NOT NULL,
+    last_checked_at TEXT,
+    last_result TEXT,
+    last_error TEXT,
+    last_text_hash TEXT,
+    PRIMARY KEY (org_id, source_key)
+);
+CREATE TABLE IF NOT EXISTS sentinel_law_captures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    source_key TEXT NOT NULL,
+    jurisdiction_key TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    raw_sha256 TEXT NOT NULL,
+    text_sha256 TEXT NOT NULL,
+    captured_html_gzip_b64 TEXT NOT NULL,
+    extracted_text TEXT NOT NULL,
+    previous_capture_id INTEGER,
+    change_excerpt TEXT,
+    review_state TEXT NOT NULL DEFAULT 'pending' CHECK (review_state IN ('pending','approved','rejected')),
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_note TEXT,
+    legal_hold INTEGER NOT NULL DEFAULT 0 CHECK (legal_hold IN (0,1)),
+    hold_reason TEXT,
+    hold_set_by INTEGER,
+    hold_set_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sentinel_law_captures_org ON sentinel_law_captures(org_id, jurisdiction_key, review_state);
 """
 
 # ── ERM + ORM Tables ──────────────────────────────────────────────────────────

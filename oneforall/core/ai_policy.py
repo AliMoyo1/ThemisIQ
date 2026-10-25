@@ -90,6 +90,7 @@ FEATURES = {
     "orm.generate_trend_narrative":        ("Operational trend narrative", ("business",)),
     "orm.chat":                            ("Operational risk assistant", ("business",)),
     "sentinel.ai_research":                ("Privacy research", ("business", "personal")),
+    "sentinel.ai_law_answer":              ("Draft an answer from approved legal sources", ("public", "personal")),
     "sentinel.ai_generate_full_dpia":      ("Draft a DPIA", ("business", "personal")),
     "sentinel.ai_suggest_risks":           ("Suggest privacy risks", ("business", "personal")),
     "sentinel.ai_score_ropa":              ("Score a processing record", ("business", "personal")),
