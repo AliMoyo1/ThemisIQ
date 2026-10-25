@@ -119,6 +119,11 @@
 
   /* Section header reflows */
   .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .section-header .section-title { font-size: clamp(28px, 8vw, 36px); line-height: 1.13; }
+
+  /* Readable controls and reliable touch targets; avoid iOS input zoom. */
+  .btn, .filter-chip, .topbar-icon-btn, .mobile-nav-toggle { min-height: 44px; }
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
 
   /* User dropdown takes more room and disables backdrop blur for perf */
   .user-dropdown { min-width: 220px; right: 4px; }
@@ -126,10 +131,8 @@
 
 /* ── Small mobile ─────────────────────────────────────────────────────── */
 @media (max-width: 440px) {
-  body { font-size: 13px; }
-  .main-content { padding: 12px 10px; }
-  h1 { font-size: 18px !important; }
-  h2 { font-size: 15px !important; }
+  body { font-size: 14px; }
+  .main-content { padding: 16px 12px; }
   .modal, .modal-box { border-radius: 0 !important; max-height: 100vh; }
 }
 

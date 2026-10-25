@@ -80,6 +80,127 @@
 .juris-info-banner{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(79,142,247,.06);border:1px solid rgba(79,142,247,.2);border-radius:var(--radius);font-size:12px;margin-top:8px;display:none}
 .juris-info-banner.visible{display:flex}
 
+/* Jurisdiction Manager: padded glass sections and readable nested cards. */
+body[data-module] .sn-section-card{padding:clamp(20px,2vw,28px)}
+body[data-module] .sn-section-card .panel-title{margin:0 0 18px;line-height:1.22}
+body[data-module] .sn-section-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:14px}
+body[data-module] .sn-section-heading .panel-title{margin:0}
+.sn-section-note{max-width:86ch;margin:0 0 20px;color:var(--text-mid);font-size:14px;line-height:1.6}
+.sn-coverage-scroll{overflow-x:auto;border-radius:16px;background:var(--surface2)}
+.sn-coverage-scroll .data-table{min-width:640px}
+.sn-coverage-scroll .data-table :is(th,td){padding:15px 18px;line-height:1.45}
+.sn-card-stack{display:grid;gap:14px;min-width:0}
+.sn-empty-state{margin:0;padding:20px 22px;border-radius:16px;background:var(--surface2);color:var(--text-mid);line-height:1.6}
+#snActiveJurisdictions .juris-grid{margin-bottom:0;gap:18px}
+#snActiveJurisdictions .juris-card{padding:21px 22px;line-height:1.5}
+#snActiveJurisdictions .juris-card.primary{border:1px solid var(--glass-border);background:radial-gradient(circle at 100% 0%,rgba(var(--accent-rgb),.08),transparent 65%),var(--surface);box-shadow:var(--shadow-sm)}
+#snActiveJurisdictions .juris-name{font-size:16px;line-height:1.3;margin:5px 0 6px}
+#snActiveJurisdictions .juris-region{font-size:12px;line-height:1.4;margin-bottom:15px}
+#snActiveJurisdictions .juris-pills{gap:7px;margin-bottom:15px}
+#snActiveJurisdictions .juris-pill{font-size:11px;line-height:1.35;padding:5px 9px}
+#snActiveJurisdictions .juris-authority{font-size:12px;line-height:1.5;padding-top:12px}
+.sn-rule-card,.sn-source-card{min-width:0;padding:20px 22px;border-radius:18px;background:var(--surface);box-shadow:var(--shadow-sm);transition:box-shadow .2s ease,transform .2s ease}
+.sn-rule-card:hover,.sn-source-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.sn-entry-heading,.sn-source-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px 22px}
+.sn-entry-title,.sn-source-title{margin:0;color:var(--text);font-size:16px;font-weight:700;line-height:1.38;overflow-wrap:anywhere}
+.sn-entry-summary{margin:14px 0;color:var(--text-mid);font-size:14px;line-height:1.6}
+.sn-entry-meta,.sn-source-meta{display:flex;flex-wrap:wrap;gap:7px 18px;color:var(--text-mid);font-size:13px;line-height:1.55}
+.sn-source-meta{align-items:center;margin-top:16px}
+.sn-entry-actions,.sn-source-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:18px}
+.sn-entry-actions a,.sn-source-link{color:var(--accent-ink);font-size:13px;font-weight:700;text-decoration:none}
+.sn-entry-actions a:hover,.sn-source-link:hover{text-decoration:underline}
+.sn-entry-eyebrow{display:block;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.sn-entry-kind{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+.sn-status-pill{display:inline-flex;align-items:center;min-height:27px;padding:4px 10px;border-radius:999px;background:var(--surface2);color:var(--text-mid);font-size:12px;font-weight:700;line-height:1.3;white-space:nowrap}
+.sn-status-pill.approved{background:var(--green-bg);color:var(--green-status)}
+.sn-status-pill.pending{background:var(--amber-bg);color:var(--badge-amber)}
+.sn-status-pill.rejected,.sn-source-error{background:var(--red-bg);color:var(--badge-red)}
+.sn-source-error{margin:14px 0 0;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.sn-source-history{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:16px;color:var(--muted);font-size:12px}
+.sn-law-schedule{padding:18px 20px;margin-bottom:18px;border-radius:16px;background:var(--surface2)}
+.sn-schedule-toolbar,.sn-retention-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px}
+.sn-schedule-toolbar label{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:13px;font-weight:700;color:var(--text-mid)}
+.sn-schedule-toolbar select{width:auto;min-width:170px}
+.sn-schedule-notes{display:grid;gap:5px;margin-top:13px;color:var(--text-mid);font-size:13px;line-height:1.55}
+.sn-schedule-notes p{margin:0}
+.sn-retention-controls{margin-top:15px}
+.sn-retention-controls input{width:110px;max-width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)}
+.sn-ask-form{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.sn-ask-form .form-input{min-height:42px}
+.sn-ask-form input[type=search]{flex:1;min-width:min(100%,250px)}
+.sn-watch-settings{margin-bottom:22px;border-radius:16px;background:var(--surface2)}
+.sn-watch-settings>summary{display:flex;align-items:center;gap:12px;padding:15px 18px;cursor:pointer;font-size:14px;font-weight:700;color:var(--text)}
+.sn-watch-settings>summary span{font-size:12px;font-weight:400;color:var(--muted)}
+.sn-watch-settings[open]>summary{border-bottom:1px solid var(--border)}
+.sn-watch-settings .sn-law-schedule{margin:0;background:transparent}
+.sn-watch-workspace{display:grid;grid-template-columns:minmax(280px,35%) minmax(0,1fr);gap:18px;align-items:start}
+.sn-watch-list,.sn-watch-inspector{min-width:0;border-radius:18px;background:var(--surface2);padding:18px}
+.sn-watch-list-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.sn-watch-list-heading h3,.sn-inspector-heading h3{margin:0;color:var(--text);font-size:18px;line-height:1.3}
+.sn-watch-list-heading span{color:var(--muted);font-size:12px}
+.sn-watch-filters{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px}
+.sn-watch-filters :is(input,select){width:100%;min-width:0;min-height:42px}
+.sn-watch-source-list{display:grid;gap:10px;max-height:min(70vh,780px);overflow-y:auto;padding:2px}
+.sn-watch-source{min-width:0;border-radius:14px;background:var(--surface);border:1px solid var(--glass-border);transition:background .18s,box-shadow .18s}
+.sn-watch-source.selected{background:var(--glass-bg);box-shadow:var(--shadow-md)}
+.sn-source-select{display:block;width:100%;padding:15px 15px 8px;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer}
+.sn-source-select .sn-entry-eyebrow{margin-bottom:5px}
+.sn-source-select strong{display:block;color:var(--text);font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.sn-source-select small{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.4}
+.sn-source-row-bottom{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 15px 14px}
+.sn-source-row-bottom .btn{min-height:36px}
+.sn-watch-inspector{position:sticky;top:12px;max-height:min(80vh,900px);overflow-y:auto;scrollbar-gutter:stable;background:var(--glass-bg);box-shadow:var(--shadow-sm)}
+.sn-inspector-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+#snInspectorClose{display:none}
+.sn-inspector-source{margin:18px 0 10px;color:var(--text-mid);font-size:13px;line-height:1.5}
+.sn-inspector-state{margin:15px 0;padding:14px 16px;border-radius:14px;background:var(--surface2);line-height:1.5}
+.sn-inspector-state strong{display:block;color:var(--text);font-size:15px}
+.sn-inspector-state p{margin:5px 0 0;color:var(--text-mid);font-size:13px}
+.sn-inspector-state.failed{background:var(--red-bg)}
+.sn-inspector-state.pending{background:var(--amber-bg)}
+.sn-inspector-meta{display:flex;flex-wrap:wrap;gap:7px 18px;margin:12px 0;color:var(--text-mid);font-size:13px;line-height:1.5}
+.sn-inspector-actions{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0}
+.sn-inspector-detail{display:grid;gap:15px;margin-top:19px;padding-top:18px;border-top:1px solid var(--border)}
+.sn-inspector-detail h4{margin:0 0 7px;color:var(--text);font-size:14px}
+.sn-inspector-detail p{margin:5px 0;color:var(--text-mid);font-size:13px;line-height:1.55}
+.sn-inspector-detail pre{max-height:250px;overflow:auto;margin:8px 0 0;padding:13px;border-radius:12px;background:var(--surface2);white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.55}
+.sn-inspector-detail details{min-width:0}
+.sn-inspector-detail summary{cursor:pointer;font-size:13px;font-weight:700}
+.sn-inspector-hash{overflow-wrap:anywhere;font-family:var(--mono);font-size:11px}
+.sn-inspector-review{display:grid;gap:9px}
+.sn-inspector-review textarea,.sn-inspector-review input{width:100%;min-height:42px;padding:9px 11px;border:1px solid var(--border2);border-radius:10px;background:var(--surface);color:var(--text)}
+.sn-inspector-review textarea{min-height:86px}
+.sn-watch-backdrop[hidden]{display:none}
+@media(max-width:900px){
+  .sn-watch-workspace{grid-template-columns:minmax(0,1fr)}
+  .sn-watch-source-list{max-height:none;overflow:visible}
+  .sn-watch-inspector{display:none;position:fixed;z-index:1501;top:var(--topbar-h,60px);right:0;bottom:0;left:0;width:min(100%,760px);max-height:none;margin:auto;padding:20px;overflow-y:auto;border-radius:20px 20px 0 0;box-sizing:border-box;background:var(--surface);box-shadow:0 22px 60px rgba(0,0,0,.28)}
+  .sn-watch-inspector.open{display:block}
+  .sn-watch-backdrop:not([hidden]){display:block;position:fixed;z-index:1500;inset:var(--topbar-h,60px) 0 0;background:rgba(15,23,42,.42)}
+  #snInspectorClose{display:inline-flex;min-height:40px}
+}
+@media(max-width:600px){
+  .sn-watch-filters{grid-template-columns:1fr}
+  .sn-watch-settings>summary{align-items:flex-start;flex-direction:column;gap:3px}
+  .sn-watch-list,.sn-watch-inspector{padding:16px}
+  .sn-source-row-bottom .btn,.sn-source-select{min-height:44px}
+}
+@media(max-width:680px){
+  body[data-module] .sn-section-card{padding:19px}
+  .sn-source-header,.sn-entry-heading{flex-direction:column;align-items:flex-start}
+  .sn-coverage-scroll{background:transparent;overflow:visible}
+  .sn-coverage-scroll .data-table{min-width:0}
+  .sn-coverage-scroll thead{display:none}
+  .sn-coverage-scroll tbody{display:grid;gap:12px}
+  .sn-coverage-scroll tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 14px;padding:16px;border-radius:16px;background:var(--surface2)}
+  .sn-coverage-scroll tbody td{display:flex;justify-content:space-between;gap:8px;padding:0;border:0;font-size:13px}
+  .sn-coverage-scroll tbody td::before{content:attr(data-label);color:var(--muted);font-size:12px}
+  .sn-coverage-scroll tbody td:first-child{grid-column:1/-1;justify-content:flex-start;align-items:center;margin-bottom:4px;font-weight:700;font-size:14px}
+  .sn-coverage-scroll tbody td:first-child::before{content:none}
+  .sn-coverage-scroll tbody td[colspan]{grid-column:1/-1;display:block;text-align:center}
+  .sn-coverage-scroll tbody td[colspan]::before{content:none}
+}
+
 /* ── Data Flow Diagram ── */
 #snFlowDiagram{width:100%;overflow:auto;background:var(--surface2);border-radius:var(--radius-lg);min-height:300px}
 #snFlowDiagram svg text{font-family:inherit;font-size:12px;fill:var(--text)}
@@ -1000,17 +1121,17 @@
   </div>
 
   <!-- Active Jurisdictions Grid -->
-  <div class="card animate-fade-up anim-1" style="margin-bottom:20px">
-    <div class="panel-title" style="margin-bottom:16px">Active Jurisdictions</div>
+  <div class="card sn-section-card animate-fade-up anim-1" style="margin-bottom:20px">
+    <h2 class="panel-title">Active Jurisdictions</h2>
     <div id="snActiveJurisdictions">
       <div style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
     </div>
   </div>
 
   <!-- Record Coverage by Jurisdiction -->
-  <div class="card animate-fade-up anim-2">
-    <div class="panel-title" style="margin-bottom:16px">Record Coverage by Jurisdiction</div>
-    <div style="overflow-x:auto">
+  <div class="card sn-section-card animate-fade-up anim-2">
+    <h2 class="panel-title">Record Coverage by Jurisdiction</h2>
+    <div class="sn-coverage-scroll">
       <table class="data-table">
         <thead>
           <tr><th>Jurisdiction</th><th>RoPA Records</th><th>DPIAs</th><th>Breaches</th><th>DSRs</th><th>Total</th></tr>
@@ -1021,26 +1142,54 @@
       </table>
     </div>
   </div>
-  <div class="card" id="snRuleCardPanel" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
-    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <span>Versioned notification rule cards</span>
+  <div class="card sn-section-card" id="snRuleCardPanel" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
+    <div class="sn-section-heading">
+      <h2 class="panel-title">Versioned notification rule cards</h2>
       {% if can_draft_jurisdiction %}<button type="button" class="btn btn-secondary" id="snCreateRuleCard">Draft a rule card</button>{% endif %}
     </div>
-    <p style="color:var(--muted);font-size:13px">An approved source, trigger definition, effective period and DPO interpretation are required before a breach obligation shows a countdown.</p>
-    <div id="snRuleCards">Open Jurisdiction Manager to load rule cards.</div>
+    <p class="sn-section-note">An approved source, trigger definition, effective period and DPO interpretation are required before a breach obligation shows a countdown.</p>
+    <div id="snRuleCards" class="sn-card-stack">Open Jurisdiction Manager to load rule cards.</div>
     <div id="snRuleCardForm"></div>
   </div>
-  <div class="card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
-    <div class="panel-title">Official-source watch</div>
-    <p style="color:var(--muted);font-size:13px">Checks capture changes from pinned authority sites. A changed page is a review item, not an amended law or an approved deadline.</p>
-    <div id="snLawSchedule"></div>
-    <div id="snLawSources" aria-live="polite">Open Jurisdiction Manager to load sources.</div>
-    <div id="snLawReview"></div>
+  <div class="card sn-section-card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
+    <h2 class="panel-title">Official-source watch</h2>
+    <p class="sn-section-note">Checks capture changes from pinned authority sites. A changed page is a review item, not an amended law or an approved deadline.</p>
+    <details class="sn-watch-settings">
+      <summary>Watch settings <span>Check schedule and capture review period</span></summary>
+      <div id="snLawSchedule" class="sn-law-schedule"></div>
+    </details>
+    <div class="sn-watch-workspace">
+      <section class="sn-watch-list" aria-label="Official sources">
+        <div class="sn-watch-list-heading"><h3>Sources to watch</h3><span id="snSourceCount"></span></div>
+        <div class="sn-watch-filters">
+          <label class="sr-only" for="snSourceSearch">Search official sources</label>
+          <input id="snSourceSearch" class="form-input" type="search" placeholder="Search source or jurisdiction">
+          <label class="sr-only" for="snSourceFilter">Filter source status</label>
+          <select id="snSourceFilter" class="form-input">
+            <option value="all">All statuses</option>
+            <option value="review">Needs review</option>
+            <option value="failed">Failed checks</option>
+            <option value="unchecked">Not checked</option>
+            <option value="current">Checked sources</option>
+          </select>
+        </div>
+        <div id="snLawSources" class="sn-watch-source-list" aria-live="polite">Open Jurisdiction Manager to load sources.</div>
+      </section>
+      <div class="sn-watch-backdrop" id="snWatchBackdrop" hidden></div>
+      <section id="snWatchInspector" class="sn-watch-inspector" aria-labelledby="snInspectorTitle">
+        <div class="sn-inspector-heading">
+          <div><span class="sn-entry-eyebrow">Selected source</span><h3 id="snInspectorTitle">Source result</h3></div>
+          <button type="button" id="snInspectorClose" class="btn btn-secondary" aria-label="Close source result">Close</button>
+        </div>
+        <div id="snWatchAnnouncement" class="sr-only" role="status" aria-live="polite"></div>
+        <div id="snLawReview"></div>
+      </section>
+    </div>
   </div>
-  <div class="card animate-fade-up" id="snAskLaw" style="margin-top:20px">
-    <div class="panel-title">Ask Sentinel · active jurisdictions</div>
-    <p style="color:var(--muted);font-size:13px">Searches DPO-approved authority captures and shows exact passages. No AI tokens are used.</p>
-    <form id="snAskLawForm" style="display:flex;gap:8px;flex-wrap:wrap">
+  <div class="card sn-section-card animate-fade-up" id="snAskLaw" style="margin-top:20px">
+    <h2 class="panel-title">Ask Sentinel · active jurisdictions</h2>
+    <p class="sn-section-note">Searches DPO-approved authority captures and shows exact passages. No AI tokens are used.</p>
+    <form id="snAskLawForm" class="sn-ask-form">
       <label class="sr-only" for="snAskLawJurisdiction">Jurisdiction</label>
       <select id="snAskLawJurisdiction" class="form-input"><option value="">All active jurisdictions</option></select>
       <label class="sr-only" for="snAskLawQuestion">Question</label>
@@ -3966,8 +4115,8 @@
         statsBody.innerHTML=items.map(function(s){
           var j=window._jurisRules[s.regulation]||{};
           return '<tr><td><span style="font-size:16px">'+snFlag(j.flag)+'</span> '+esc(s.regulation)+'</td>'+
-            '<td>'+s.ropa+'</td><td>'+s.dpias+'</td><td>'+s.breaches+'</td><td>'+s.dsrs+'</td>'+
-            '<td><strong>'+s.total+'</strong></td></tr>';
+            '<td data-label="RoPA">'+s.ropa+'</td><td data-label="DPIAs">'+s.dpias+'</td><td data-label="Breaches">'+s.breaches+'</td><td data-label="DSRs">'+s.dsrs+'</td>'+
+            '<td data-label="Total"><strong>'+s.total+'</strong></td></tr>';
         }).join('');
       }
     }catch(e){statsBody.innerHTML='<tr><td colspan="6" style="color:var(--red);padding:12px">Failed to load stats</td></tr>';}
@@ -4194,6 +4343,6 @@
   attempt();
 })();
 </script>
-<script src="/static/js/sentinel_obligations.js"></script>
-<script src="/static/js/sentinel_living_law.js"></script>
+<script src="/static/js/sentinel_obligations.js?v=2"></script>
+<script src="/static/js/sentinel_living_law.js?v=3"></script>
 {% endblock %}
