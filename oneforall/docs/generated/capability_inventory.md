@@ -216,6 +216,27 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/aria/risks/update/{risk_id}` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 | GET | `/aria/templates` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 
+## `modules.aria.routes_policy_intake`
+
+| Method | Path | Gate | Capability | Roles | License | Maturity / notes |
+|---|---|---|---|---|---|---|
+| GET | `/aria/api/policy-import-controls` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}/candidate/{draft_id}` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports/{import_id}/compose` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports/{import_id}/manual-link` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}/outline` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports/{import_id}/pdf-cover` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}/pdf-cover/{rendition_id}` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports/{import_id}/pdf-cover/{rendition_id}/decide` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}/pdf-pages` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports/{import_id}/register` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}/source` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/policy-imports/{import_id}/verify-external` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/api/policy-imports/{import_id}/version-candidates` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| GET | `/aria/policy-imports` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+
 ## `modules.aria.routes_policy_workflow`
 
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
