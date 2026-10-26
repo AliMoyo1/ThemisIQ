@@ -80,6 +80,25 @@ def test_import_requires_review_and_independent_external_attestation(test_db, mo
     assert test_db.execute("SELECT COUNT(*) FROM aria_document_approvals").fetchone()[0] == 0
 
 
+def test_external_attestation_rejects_stale_current_version(test_db, monkeypatch, tmp_path):
+    _setup(test_db, monkeypatch, tmp_path)
+    author = _actor(test_db, 101)
+    staged = intake.stage_import(test_db, author, _docx(), "policy.docx")
+    registered = intake.register_import(test_db, author, staged["id"], {}, [])
+    test_db.execute("UPDATE aria_documents SET current_policy_version_id=NULL WHERE id=%s",
+                    (registered["document_id"],))
+    test_db.commit()
+
+    with pytest.raises(intake.IntakeError, match="current policy changed") as stale:
+        intake.verify_external(test_db, _actor(test_db, 102), staged["id"],
+                               approver="Board", approved_at="2026-10-01", proof="Signed page 1")
+    assert stale.value.status == 409
+    assert test_db.execute("SELECT external_status FROM aria_policy_imports WHERE id=%s",
+                           (staged["id"],)).fetchone()[0] == "unverified"
+    assert test_db.execute("SELECT status FROM aria_documents WHERE id=%s",
+                           (registered["document_id"],)).fetchone()[0] == "Draft"
+
+
 def test_import_hides_foreign_org_and_unit_and_rejects_scope_widening(test_db, monkeypatch, tmp_path):
     _setup(test_db, monkeypatch, tmp_path)
     author = _actor(test_db, 101)

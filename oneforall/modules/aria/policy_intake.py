@@ -481,6 +481,8 @@ def verify_external(db, actor: dict, import_id: str, *, approver: str, approved_
         raise IntakeError(409, "The imported policy version is missing.")
     if version["base_version_id"] is not None and doc["current_policy_version_id"] != version["base_version_id"]:
         raise IntakeError(409, "The current policy changed during review. Reassess this replacement.")
+    if version["base_version_id"] is None and doc["current_policy_version_id"] != row["policy_version_id"]:
+        raise IntakeError(409, "The current policy changed during review. Reassess this import.")
     if version["base_version_id"] is not None and db.execute(
             "SELECT 1 FROM aria_policy_versions WHERE document_id=%s AND state IN ('draft','pending') LIMIT 1",
             (row["document_id"],)).fetchone():
@@ -523,9 +525,13 @@ def verify_external(db, actor: dict, import_id: str, *, approver: str, approved_
         if getattr(changed, "rowcount", 1) != 1:
             raise IntakeError(409, "The current policy changed during review. Reassess this replacement.")
     else:
-        db.execute("UPDATE aria_documents SET status='Approved',comments='[Externally approved; verified in ThemisIQ]',"
-                   "reviewed_by=%s,reviewed_at=%s,updated_at=%s WHERE id=%s",
-                   (actor["id"], now, now, row["document_id"]))
+        changed = db.execute("UPDATE aria_documents SET status='Approved',"
+                   "comments='[Externally approved; verified in ThemisIQ]',"
+                   "reviewed_by=%s,reviewed_at=%s,updated_at=%s "
+                   "WHERE id=%s AND current_policy_version_id=%s",
+                   (actor["id"], now, now, row["document_id"], row["policy_version_id"]))
+        if getattr(changed, "rowcount", 1) != 1:
+            raise IntakeError(409, "The current policy changed during review. Reassess this import.")
     db.execute("UPDATE evidence_items SET status='current',"
                "description='Imported original; external approval verified',updated_at=%s "
                "WHERE id=%s AND org_id=%s", (now, row["evidence_id"], row["org_id"]))
