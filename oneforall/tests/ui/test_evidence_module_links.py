@@ -6,6 +6,13 @@ import database
 
 
 def test_evidence_links_open_real_module_targets_and_are_item_scoped(login_as, live_app, synthetic_tenant):
+    page = login_as("compliance_manager")
+    baseline_response = page.request.get(f"{live_app}/evidence/api/coverage")
+    assert baseline_response.status == 200
+    baseline_document_coverage = next(
+        item for item in baseline_response.json()["aria"]["entities"] if item["type"] == "document"
+    )
+    baseline_with_evidence = baseline_document_coverage["with_evidence"]
     db = database.get_db()
     try:
         uid = synthetic_tenant["users"]["compliance_manager"]["user_id"]
@@ -42,7 +49,6 @@ def test_evidence_links_open_real_module_targets_and_are_item_scoped(login_as, l
     finally:
         db.close()
 
-    page = login_as("compliance_manager")
     specs = json.dumps([
         {"module": "bcm", "entity_type": "incident", "entity_id": incident_id},
         {"module": "aria", "entity_type": "document", "entity_id": document_id},
@@ -65,7 +71,7 @@ def test_evidence_links_open_real_module_targets_and_are_item_scoped(login_as, l
         item for item in coverage_response.json()["aria"]["entities"] if item["type"] == "document"
     )
     assert document_coverage["total"] == expected_doc_total
-    assert document_coverage["with_evidence"] == 1
+    assert document_coverage["with_evidence"] == baseline_with_evidence + 1
     for module, entity_type, term in (
         ("aria", "risk", "Handoff risk"),
         ("bcm", "plan", "Handoff continuity plan"),
