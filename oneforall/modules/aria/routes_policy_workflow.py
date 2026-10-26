@@ -105,6 +105,7 @@ async def api_save_policy_draft(request: Request, draft_id: str):
             doc_type=payload.get("doc_type"),
             effective_date=payload.get("effective_date"),
             review_date=payload.get("review_date"),
+            diagrams=payload.get("diagrams"),
             expected_lock_version=payload["expected_lock_version"],
         )
     except svc.PolicyWorkflowError as exc:
@@ -173,10 +174,10 @@ async def api_build_policy_draft(request: Request, draft_id: str):
     payload = await _json_body(request)
     template_id = payload.get("template_id")
     expected_lock_version = payload.get("expected_lock_version")
-    if template_id is None or expected_lock_version is None:
+    if expected_lock_version is None:
         return JSONResponse(
             {"ok": False, "error": {"code": "INVALID_INPUT",
-             "message": "template_id and expected_lock_version are required.", "retryable": False}},
+             "message": "expected_lock_version is required.", "retryable": False}},
             status_code=422,
         )
     try:

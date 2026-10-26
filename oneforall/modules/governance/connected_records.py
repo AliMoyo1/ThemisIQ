@@ -159,10 +159,18 @@ def section(db, user, key, record_id, *, evidence=(), direct=(), cited_by=(), sk
         return []
     origin = app_origin()
     files, unreadable = _documents(db, user, view, key, record_id, evidence)
+    policy_view = view.get("policy_references")
+    policies = []
+    if isinstance(policy_view, dict) and policy_view.get("state") == "ok":
+        for item in policy_view.get("items", []):
+            policies.append({"title": item["title"], "version": item["version"],
+                             "version_id": item["version_id"], "anchor": item.get("anchor") or "Document",
+                             "approval": "External approval verified" if item["approval"] == "external_verified" else "ThemisIQ approved",
+                             "path": item["url"]})
     own = view["entity"]
     rows = [{"title": own["title"], "path": own["url"], "where": where(key), "how": "The live record this document was made from"},
             *_records(db, user, view, key, record_id, direct, cited_by, skip)]
-    for row in files + rows:
+    for row in files + rows + policies:
         row["url"] = _address(origin, row["path"])
     links = ("Links open the file or the record in ThemisIQ and work for people who have access to it." if origin else
              "No application address (APP_URL) is configured, so these are listed without links.")
@@ -177,6 +185,14 @@ def section(db, user, key, record_id, *, evidence=(), direct=(), cited_by=(), sk
                    "record." + (" The files of some record could not be read just now, which is not the same as none." if unreadable else ""),
               empty_text=("The documents in the Evidence Vault could not be read just now, which is not the same as none." if unreadable else
                           "No document in the Evidence Vault is linked to this record, or none that you may open.")),
+        Table("Current policy references",
+              [Col("Policy", "title", weight=2.2, link="url"), Col("Version", "version", weight=.8),
+               Col("Exact version ID", "version_id", weight=1), Col("Source clause", "anchor", weight=1.2),
+               Col("Approval provenance", "approval", weight=1.5)],
+              policies, max_rows=ROWS_IN_DOCUMENT, more_in_excel=True, sheet_name="Policy References",
+              note="Only an authorized, current, approved policy version with a confirmed relationship is listed. "
+                   "A policy reference is context, not proof that a control operates effectively.",
+              empty_text="No current, confirmed policy reference is visible for this record."),
         Table("Records connected to this one",
               [Col("Record", "title", weight=2.6, link="url"), Col("Where it lives", "where", weight=1.9), Col("Connection", "how", weight=2.3)],
               rows, max_rows=ROWS_IN_DOCUMENT, more_in_excel=True, sheet_name="Connected",

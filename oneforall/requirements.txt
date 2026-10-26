@@ -17,6 +17,7 @@ python-docx==1.1.0
 openpyxl==3.1.2
 pypdf==6.21.2
 reportlab==4.1.0
+Pillow==12.3.0
 aiofiles==23.2.1
 apscheduler==3.11.2
 psycopg2-binary==2.9.13

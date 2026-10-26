@@ -14,6 +14,7 @@ the plan's transaction-algorithm rules (section 9).
 from __future__ import annotations
 
 import json
+import hashlib
 import uuid
 from datetime import timedelta
 
@@ -296,6 +297,7 @@ def save_draft_body(
     db, actor: dict, draft_id: str, *,
     body: str | None = None, title: str | None = None, doc_type: str | None = None,
     effective_date: str | None = None, review_date: str | None = None,
+    diagrams: list | None = None,
     expected_lock_version: int,
 ) -> dict:
     draft = get_draft(db, actor, draft_id)
@@ -305,9 +307,9 @@ def save_draft_body(
         raise PolicyWorkflowError(
             "INVALID_INPUT", f"Cannot edit a draft in state '{draft['state']}'.", 422,
         )
-    if draft["content_kind"] != "markdown" and body is not None:
+    if draft["content_kind"] != "markdown":
         raise PolicyWorkflowError(
-            "INVALID_INPUT", "This is a file-based draft; body cannot be edited directly.", 409,
+            "INVALID_INPUT", "This file-based candidate must be edited through a new reviewed composition.", 409,
         )
     if body is not None and len(body) > MAX_BODY_CHARS:
         raise ContentTooLargeError(f"Content exceeds the {MAX_BODY_CHARS}-character limit.")
@@ -323,6 +325,24 @@ def save_draft_body(
         metadata["effective_date"] = effective_date
     if review_date is not None:
         metadata["review_date"] = review_date
+    if diagrams is not None:
+        from modules.aria.policy_composition import _diagram_image, MAX_DIAGRAMS
+        from modules.aria.policy_intake import IntakeError
+        if not isinstance(diagrams, list) or len(diagrams) > MAX_DIAGRAMS:
+            raise InvalidInputError("Add at most four structured diagrams.")
+        clean_diagrams = []
+        try:
+            for spec in diagrams:
+                png, clean = _diagram_image(spec)
+                clean_diagrams.append({**clean, "image_sha256": hashlib.sha256(png).hexdigest()})
+        except IntakeError as exc:
+            raise InvalidInputError(exc.message) from exc
+        metadata["diagrams"] = clean_diagrams
+
+    diagram_manifest = ({"kind": "structured_policy_diagrams_v1", "diagrams": metadata["diagrams"]}
+                        if metadata.get("diagrams") else None)
+    serialized_manifest = json.dumps(diagram_manifest, sort_keys=True) if diagram_manifest else None
+    manifest_hash = hashlib.sha256(serialized_manifest.encode()).hexdigest() if serialized_manifest else None
 
     author_ids = set(json.loads(draft.get("author_user_ids_json") or "[]"))
     author_ids.add(actor["id"])
@@ -338,10 +358,11 @@ def save_draft_body(
         "build_id=NULL, build_input_sha256=NULL, template_sha256=NULL, "
         "source_path=NULL, branded_path=NULL, preview_path=NULL, "
         "template_snapshot_path=NULL, source_sha256=NULL, branded_sha256=NULL, "
-        "preview_sha256=NULL, renderer_manifest_json=NULL, renderer_manifest_sha256=NULL "
+        "preview_sha256=NULL, renderer_manifest_json=%s, renderer_manifest_sha256=%s "
         "WHERE id=%s AND lock_version=%s",
         (body, json.dumps(metadata), json.dumps(sorted(author_ids)),
-         actor["id"], now, _draft_expiry_timestamp(now_dt), draft_id, expected_lock_version),
+         actor["id"], now, _draft_expiry_timestamp(now_dt), serialized_manifest, manifest_hash,
+         draft_id, expected_lock_version),
     )
     if getattr(updated, "rowcount", 1) == 0:
         raise StaleDraftError()
@@ -463,14 +484,15 @@ def recover_draft(db, actor: dict, draft_id: str) -> dict:
     return get_draft(db, actor, new_id)
 
 
-def start_revision_draft(db, actor: dict, doc_id: str, copied_from_version_id: int | None = None) -> dict:
+def start_revision_draft(db, actor: dict, doc_id: str, copied_from_version_id: int | None = None,
+                         *, commit: bool = True) -> dict:
     """Begin a new draft revising an existing document. Relies on
     aria_policy_drafts' partial unique index (org_id, source_document_id)
     WHERE state IN ('editing','ready') -- PLAN-35 T01 -- to make the
     one-open-revision-per-document rule race-proof at the database level,
     not just checked-then-inserted in application code."""
     doc = db.execute(
-        "SELECT id, org_id, business_unit_id, version, body, doc_type, "
+        "SELECT id, org_id, business_unit_id, version, body, title, doc_type, "
         "current_policy_version_id, policy_workflow_managed, owner_user_id "
         "FROM aria_documents WHERE doc_id=%s", (doc_id,)
     ).fetchone()
@@ -494,7 +516,7 @@ def start_revision_draft(db, actor: dict, doc_id: str, copied_from_version_id: i
 
     version_major, version_minor = _next_preview_version(doc.get("version"))
     metadata = {
-        "title": doc.get("doc_type") or "Policy Document", "doc_type": doc.get("doc_type"),
+        "title": doc.get("title") or "Policy Document", "doc_type": doc.get("doc_type"),
         "org_name": "", "control_id": None, "control_ref": None,
         "primary_framework_id": None, "framework_label": "",
         "integrated_controls": [], "effective_date": None, "review_date": None,
@@ -522,7 +544,8 @@ def start_revision_draft(db, actor: dict, doc_id: str, copied_from_version_id: i
             raise OpenRevisionExistsError() from exc
         raise
 
-    db.commit()
+    if commit:
+        db.commit()
     return get_draft(db, actor, draft_id)
 
 
@@ -536,7 +559,7 @@ def _draft_can_edit_document(actor: dict, document: dict) -> bool:
     return owner_id is not None and int(owner_id) == int(actor["id"])
 
 
-BUILDER_FORMAT_VERSION = 1  # bump whenever build_policy_docx's output shape changes
+BUILDER_FORMAT_VERSION = 2  # uploaded DOCX candidates use their exact composed bytes
 
 
 def _load_scoped_template(db, actor: dict, template_id: int) -> dict:
@@ -568,6 +591,9 @@ def _input_fingerprint(draft: dict, template_sha256: str) -> str:
         draft.get("body") or "",
         draft.get("metadata_json") or "",
         draft.get("reserved_doc_id") or "",
+        draft.get("content_kind") or "markdown",
+        draft.get("uploaded_source_sha256") or "",
+        draft.get("renderer_manifest_sha256") or "",
         str(draft.get("version_major")), str(draft.get("version_minor")),
         str(draft.get("org_id")), str(draft.get("business_unit_id")),
         template_sha256,
@@ -596,22 +622,35 @@ def build_draft(db, actor: dict, draft_id: str, template_id: int, expected_lock_
         raise ForbiddenError()
     if draft["state"] not in ("editing", "ready"):
         raise PolicyWorkflowError("INVALID_INPUT", f"Cannot build a draft in state '{draft['state']}'.", 422)
-    if not (draft.get("body") or "").strip():
+    uploaded = draft.get("content_kind") == "uploaded_docx"
+    if not uploaded and not (draft.get("body") or "").strip():
         raise PolicyWorkflowError("INVALID_INPUT", "Cannot build an empty draft.", 422)
     if draft["lock_version"] != expected_lock_version:
         raise StaleDraftError()
 
-    template = _load_scoped_template(db, actor, template_id)
-    # Templates are stored relative to ARIA_TEMPLATE_DIR (routes.py's
-    # existing convention for aria_doc_templates.file_path), a different
-    # root than the policy_workflow tree policy_storage manages, so this
-    # resolves directly against that root rather than through
-    # policy_storage's workflow-only path helper.
-    from modules.aria.routes import ARIA_TEMPLATE_DIR
-    template_abs_path = ARIA_TEMPLATE_DIR / template["file_path"]
-    if not template_abs_path.exists():
-        raise InvalidTemplateError("Template file is missing on disk.")
-    template_sha256 = storage.sha256_file(template_abs_path)
+    template = None
+    template_abs_path = None
+    if uploaded:
+        if template_id is not None:
+            raise PolicyWorkflowError("INVALID_INPUT", "Composed DOCX already has its presentation; omit template_id.", 422)
+        try:
+            uploaded_path = storage.resolve_stored_path(draft.get("uploaded_source_path") or "")
+        except storage.PathContainmentError:
+            raise PolicyWorkflowError("INVALID_INPUT", "Composed source path is invalid.", 422) from None
+        if not uploaded_path.is_relative_to((storage._org_root(draft["org_id"]) / "compositions").resolve()):
+            raise PolicyWorkflowError("INVALID_INPUT", "Composed source belongs to another folder or organization.", 422)
+        if (not uploaded_path.is_file() or not draft.get("uploaded_source_sha256")
+                or storage.sha256_file(uploaded_path) != draft["uploaded_source_sha256"]):
+            raise PolicyWorkflowError("INVALID_INPUT", "Composed source changed or is missing.", 409)
+        template_sha256 = "no-template"
+    else:
+        template = _load_scoped_template(db, actor, template_id)
+        # Templates use their existing, separate storage root.
+        from modules.aria.routes import ARIA_TEMPLATE_DIR
+        template_abs_path = ARIA_TEMPLATE_DIR / template["file_path"]
+        if not template_abs_path.exists():
+            raise InvalidTemplateError("Template file is missing on disk.")
+        template_sha256 = storage.sha256_file(template_abs_path)
 
     fingerprint = _input_fingerprint(draft, template_sha256)
     if draft["state"] == "ready" and draft.get("build_input_sha256") == fingerprint:
@@ -635,25 +674,60 @@ def build_draft(db, actor: dict, draft_id: str, template_id: int, expected_lock_
     version_str = f"{draft['version_major']}.{draft['version_minor']}"
     metadata = json.loads(draft.get("metadata_json") or "{}")
 
-    try:
-        source_doc = build_policy_docx(draft["body"], include_preamble=False)
-    except Exception as exc:
-        raise PolicyWorkflowError("INVALID_INPUT", f"Could not build source document: {exc}", 422)
     source_path = staging / "source.docx"
-    source_doc.save(str(source_path))
+    if uploaded:
+        import shutil
+        shutil.copyfile(uploaded_path, source_path)
+    else:
+        try:
+            source_doc = build_policy_docx(draft["body"], include_preamble=False)
+        except Exception as exc:
+            raise PolicyWorkflowError("INVALID_INPUT", f"Could not build source document: {exc}", 422) from exc
+        source_doc.save(str(source_path))
     storage.validate_docx(source_path)
 
     branded_path = staging / "branded.docx"
-    try:
-        apply_template(
-            source_path=str(source_path), template_path=str(template_abs_path),
-            output_path=str(branded_path), logo_path=template.get("logo_path"),
-            doc_title=metadata.get("title", ""), doc_id=reserved_doc_id or "",
-            version=version_str, framework=metadata.get("framework_label", ""),
-            author_name=actor.get("full_name", ""), generated_body=True,
-        )
-    except Exception as exc:
-        raise PolicyWorkflowError("INVALID_INPUT", f"Branding failed: {exc}", 422)
+    if uploaded:
+        import shutil
+        shutil.copyfile(source_path, branded_path)
+    else:
+        try:
+            apply_template(
+                source_path=str(source_path), template_path=str(template_abs_path),
+                output_path=str(branded_path), logo_path=template.get("logo_path"),
+                doc_title=metadata.get("title", ""), doc_id=reserved_doc_id or "",
+                version=version_str, framework=metadata.get("framework_label", ""),
+                author_name=actor.get("full_name", ""), generated_body=True,
+            )
+        except Exception as exc:
+            raise PolicyWorkflowError("INVALID_INPUT", f"Branding failed: {exc}", 422) from exc
+        if metadata.get("diagrams"):
+            # The legacy template merger copies OOXML paragraphs without
+            # copying their image relationships. Add diagrams to both output
+            # packages after that merge, so the PDF and committed DOCX carry
+            # the exact images the reviewer sees.
+            import io
+            from docx import Document
+            from docx.shared import Inches, Pt
+            from modules.aria.policy_composition import _diagram_image
+
+            rendered = []
+            for spec in metadata["diagrams"]:
+                png, clean = _diagram_image(spec)
+                if hashlib.sha256(png).hexdigest() != spec.get("image_sha256"):
+                    raise PolicyWorkflowError("INVALID_INPUT", "A diagram renderer changed; review and save the diagram again.", 409)
+                rendered.append((png, clean))
+            for document_path in (source_path, branded_path):
+                document = Document(document_path)
+                for png, clean in rendered:
+                    paragraph = document.add_paragraph()
+                    image = paragraph.add_run().add_picture(io.BytesIO(png), width=Inches(6.2))
+                    image._inline.docPr.set("descr", clean["alt_text"])
+                    caption = document.add_paragraph(clean["caption"])
+                    for run in caption.runs:
+                        run.font.size = Pt(9)
+                document.save(document_path)
+            storage.validate_docx(source_path)
     storage.validate_docx(branded_path)
 
     job_id = preview.submit_conversion_job(branded_path.read_bytes())

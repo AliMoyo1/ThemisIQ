@@ -135,6 +135,32 @@ def test_build_succeeds_and_records_all_artifacts(test_db, actor, draft, templat
     assert result["lock_version"] == draft["lock_version"] + 1
 
 
+def test_new_policy_structured_diagram_survives_branding_and_approval_manifest(
+        test_db, actor, draft, template, mock_conversion):
+    diagram = {"kind": "data_flow", "caption": "Approved data path",
+               "alt_text": "A sends reviewed data to B",
+               "nodes": [{"id": "A", "label": "Source"}, {"id": "B", "label": "Reviewer"}],
+               "edges": [{"from": "A", "to": "B"}]}
+    saved = svc.save_draft_body(test_db, actor, draft["id"], diagrams=[diagram],
+                                expected_lock_version=draft["lock_version"])
+    built = svc.build_draft(test_db, actor, draft["id"], template, saved["lock_version"])
+    source = DocxDocument(storage.resolve_stored_path(built["source_path"]))
+    branded = DocxDocument(storage.resolve_stored_path(built["branded_path"]))
+    assert len(source.inline_shapes) == len(branded.inline_shapes) == 1
+    assert "Approved data path" in [p.text for p in branded.paragraphs]
+    assert built["renderer_manifest_sha256"]
+    confirmed = svc.confirm_draft(test_db, actor, draft["id"], built["build_id"], built["lock_version"])
+    stored = test_db.execute("SELECT renderer_manifest_json FROM aria_policy_versions WHERE id=%s",
+                             (confirmed["version_id"],)).fetchone()[0]
+    assert json.loads(stored)["diagrams"][0]["alt_text"] == diagram["alt_text"]
+
+
+def test_invalid_diagram_cannot_be_saved(test_db, actor, draft):
+    with pytest.raises(svc.InvalidInputError):
+        svc.save_draft_body(test_db, actor, draft["id"], diagrams=[{"kind": "data_flow", "nodes": []}],
+                            expected_lock_version=draft["lock_version"])
+
+
 def test_idempotent_retry_does_not_reconvert(test_db, actor, draft, template, mock_conversion):
     first = svc.build_draft(test_db, actor, draft["id"], template, draft["lock_version"])
     assert mock_conversion["calls"] == 1

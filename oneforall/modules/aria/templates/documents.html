@@ -15,6 +15,7 @@
   </div>
   <div class="page-actions">
     {% if user.role != 'viewer' %}
+    {% if policy_intake_enabled %}<a class="btn btn-primary" href="/aria/policy-imports">Import existing policies</a>{% endif %}
     <button class="btn btn-primary" onclick="openAddModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Document
@@ -212,6 +213,9 @@
       <div class="modal-title">Add Document</div>
       <button onclick="closeModal('addModal')" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
     </div>
+    {% if policy_intake_enabled %}<div style="padding:14px 16px;border-radius:12px;background:var(--surface2);margin-bottom:16px;line-height:1.5">
+      <strong>Already have an approved policy?</strong> <a href="/aria/policy-imports">Use guided import</a> to extract details, review control links, preserve the original and record external approval. Use this form for a manual register entry.
+    </div>{% endif %}
 
     <!-- Upload zone -->
     <div id="dropZone"
@@ -231,7 +235,7 @@
         <div style="font-weight:600;color:var(--text);font-size:14px;margin-bottom:4px">
           Drop your policy document here, or click to browse
         </div>
-        <div style="font-size:12px;color:var(--muted)">.docx, .pdf, .doc, .odt supported</div>
+        <div style="font-size:12px;color:var(--muted)">DOCX and PDF can be extracted. DOC and ODT need reviewed conversion or manual entry.</div>
       </div>
 
       <div id="dzSelected" style="display:none;pointer-events:none;align-items:center;justify-content:center;gap:10px">
@@ -257,7 +261,7 @@
         Extract Metadata
       </button>
       <span id="analyseStatus" style="font-size:12px;color:var(--muted)">
-        Select a file to auto-fill details from the document
+        Select a DOCX or PDF to suggest details from the document
       </span>
     </div>
 
@@ -271,12 +275,12 @@
         <input type="text" id="add-title" placeholder="e.g. Information Security Policy">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label class="form-label">Frameworks *</label>
+        <label class="form-label">Frameworks (optional until reviewed)</label>
         <div id="add-fw-checks" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">
           {% for fw in frameworks %}
           <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" class="add-fw-cb" value="{{ fw.name }}" data-fw-id="{{ fw.id }}"
-                   onchange="onAddFwChange()"{% if loop.first %} checked{% endif %}>
+                   onchange="onAddFwChange()">
             {{ fw.name }}
           </label>
           {% endfor %}
@@ -779,9 +783,12 @@ function dzSetFile(file) {
   document.getElementById('dzSelected').style.display = 'flex';
   document.getElementById('dzFileName').textContent = file.name;
   var btn = document.getElementById('analyseBtn');
-  btn.disabled = false;
-  btn.style.opacity = '1';
-  document.getElementById('analyseStatus').textContent = 'Click "Extract Metadata" to auto-fill the form';
+  var extractable = /\.(docx|pdf)$/i.test(file.name);
+  btn.disabled = !extractable;
+  btn.style.opacity = extractable ? '1' : '.45';
+  document.getElementById('analyseStatus').textContent = extractable
+    ? 'Click "Extract Metadata" for source-grounded suggestions; review every field.'
+    : 'DOC and ODT are manual entries here. Convert to DOCX for guided extraction and review.';
 }
 function dzClearFile(e) {
   e.stopPropagation();
@@ -859,7 +866,7 @@ function openAddModal() {
   document.getElementById('add-review-cycle').value = '365';
   document.getElementById('add-review-hint').textContent = '';
   var cbs = document.querySelectorAll('.add-fw-cb');
-  cbs.forEach(function(cb, i) { cb.checked = (i === 0); });
+  cbs.forEach(function(cb) { cb.checked = false; });
   onAddFwChange();
   dzClearFile({ stopPropagation: function(){} });
   document.getElementById('analyseStatus').textContent = 'Select a file to auto-fill details from the document';
@@ -1090,11 +1097,10 @@ async function submitAdd() {
   btn.textContent = _addFile ? 'Uploading...' : 'Saving...';
 
   var fwNames = getCheckedFwNames();
-  if (!fwNames.length) { showToast('Select at least one framework', 'error'); btn.disabled = false; btn.textContent = 'Save Document'; return; }
 
   var form = new FormData();
   if (_addFile) form.append('file', _addFile);
-  form.append('framework',      fwNames.join(', '));
+  form.append('framework',      fwNames.join(', ') || 'Unmapped');
   form.append('control_ref',    document.getElementById('add-control-ref').value);
   form.append('title',          title);
   form.append('doc_type',       document.getElementById('add-doc-type').value);

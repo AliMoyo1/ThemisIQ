@@ -202,6 +202,9 @@
 .aria-approval-comment{width:100%;min-height:70px;padding:8px 10px;font-size:12px;
   border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
   color:var(--text);resize:vertical}
+.aria-diagram-row{background:var(--surface2);border-radius:14px;padding:14px;margin:10px 0;display:grid;gap:10px}
+.aria-diagram-row label{display:grid;gap:5px;font-size:12px;color:var(--text-mid)}
+.aria-diagram-row input,.aria-diagram-row select,.aria-diagram-row textarea{width:100%;min-height:40px;padding:8px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text)}
 </style>
 {% endblock %}
 
@@ -480,6 +483,23 @@
         {# PLAN-35 T10: template selection, build/PDF preview, confirm and
            submit-for-approval. Hidden until a draft is active. #}
         <div id="workflowPanel" class="aria-workflow-panel" style="display:none">
+
+          <details id="workflowDiagrams">
+            <summary>Diagrams for this policy</summary>
+            <p class="aria-workflow-hint">Add reviewed nodes and connections. Diagrams appear in the built DOCX and PDF after the policy text. They are included in the approval record.</p>
+            <div id="workflowDiagramRows"></div>
+            <button type="button" class="btn btn-secondary" id="workflowAddDiagram">Add diagram</button>
+          </details>
+          <template id="workflowDiagramTemplate">
+            <div class="aria-diagram-row">
+              <label>Diagram type<select class="aria-diagram-kind"><option value="process_flow">Process flow</option><option value="system_block">System block</option><option value="data_flow">Data flow</option></select></label>
+              <label>Caption<input class="aria-diagram-caption" maxlength="180"></label>
+              <label>Accessible description<input class="aria-diagram-alt" maxlength="300"></label>
+              <label>Nodes, one per line: ID: label<textarea class="aria-diagram-nodes" rows="3"></textarea></label>
+              <label>Connections, one per line: FROM&gt;TO<textarea class="aria-diagram-edges" rows="2"></textarea></label>
+              <button type="button" class="btn btn-ghost aria-diagram-remove">Remove diagram</button>
+            </div>
+          </template>
 
           <div id="workflowBuildRow" class="aria-workflow-row">
             <div class="form-group" style="flex:1;min-width:200px;margin:0">
