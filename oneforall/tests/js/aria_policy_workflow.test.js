@@ -64,6 +64,7 @@ function loadWorkflow(fetchImpl) {
   const document = {
     readyState: 'loading',
     getElementById: (id) => elements.get(id) || null,
+    querySelectorAll: () => [],
     createElement: (tag) => makeElement(tag),
     addEventListener() {},
   };

@@ -5,9 +5,11 @@ Full routes: dashboard, frameworks, controls, documents, risks,
 cross-mapping, export, AI generator, Ask ARIA, audit log.
 """
 import io
+import asyncio
 import json
 import logging
 import re as _re
+import tempfile
 from datetime import datetime, timedelta
 from core.timeutils import utcnow
 from typing import Optional
@@ -198,61 +200,53 @@ def _can_approve_policy(user, doc):
 def _sync_aria_to_vault(db, aria_doc_id, title, framework, control_ref,
                         doc_type, version, stored_name, orig_filename,
                         file_size, user_id):
-    """Copy an ARIA document file into the Evidence Vault on upload.
-
-    If a vault entry already exists for this aria_doc_id, update it
-    (new version) instead of creating a duplicate.
-    """
-    import hashlib as _hl, shutil as _sh, uuid as _uuid
+    """Keep every historical file: each changed upload is a new Vault version."""
+    import hashlib as _hl, shutil as _sh, uuid as _uuid, mimetypes as _mt
     from database import insert_returning_id as _ins
 
     aria_dir = ARIA_UPLOAD_DIR
     ev_dir = Path(os.environ.get("EVIDENCE_DIR", "data/evidence"))
-    ev_dir.mkdir(parents=True, exist_ok=True)
+    ev_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     src = (aria_dir / stored_name).resolve()
-    if not src.exists():
-        return
+    if not src.is_relative_to(aria_dir.resolve()) or not src.is_file():
+        raise FileNotFoundError("ARIA source file is unavailable or outside its storage root.")
+    doc_scope = db.execute("SELECT org_id,business_unit_id FROM aria_documents WHERE id=%s", (aria_doc_id,)).fetchone()
+    if not doc_scope:
+        raise ValueError("ARIA document does not exist.")
+    h = _hl.sha256(src.read_bytes()).hexdigest()
+    existing = db.execute(
+        "SELECT e.id,e.version,e.file_hash FROM evidence_items e "
+        "JOIN evidence_links l ON l.evidence_id=e.id "
+        "WHERE l.module='aria' AND l.entity_type='document' AND l.entity_id=%s "
+        "AND e.status='current' AND COALESCE(e.org_id,-1)=COALESCE(%s,-1) "
+        "ORDER BY e.id DESC LIMIT 1", (aria_doc_id, doc_scope["org_id"])).fetchone()
+    if existing and existing["file_hash"] == h:
+        return existing["id"]
     ext = src.suffix or ".docx"
     ev_name = f"{_uuid.uuid4().hex}{ext}"
-    _sh.copy2(str(src), str(ev_dir / ev_name))
-
-    h = _hl.sha256()
-    with open(ev_dir / ev_name, "rb") as f:
-        while True:
-            chunk = f.read(65536)
-            if not chunk:
-                break
-            h.update(chunk)
-    ev_hash = h.hexdigest()
-    ev_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    target = ev_dir / ev_name
+    with src.open("rb") as source_file, os.fdopen(
+            os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as target_file:
+        _sh.copyfileobj(source_file, target_file)
+    ev_mime = _mt.guess_type(orig_filename or ev_name)[0] or "application/octet-stream"
 
     tag = f"aria_doc_id={aria_doc_id}"
-    existing = db.execute(
-        "SELECT id FROM evidence_items WHERE tags LIKE %s AND status != 'archived'",
-        (f"%{tag}%",),
-    ).fetchone()
-
-    if existing:
-        db.execute(
-            "UPDATE evidence_items SET title=%s, file_path=%s, file_name=%s, "
-            "file_size=%s, file_hash=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
-            (title, ev_name, orig_filename, file_size, ev_hash, existing["id"]),
-        )
-    else:
+    try:
         vault_id = _ins(db,
             "INSERT INTO evidence_items "
             "(title, description, file_path, file_name, file_size, "
-            " file_hash, mime_type, category, tags, status, uploaded_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " file_hash, mime_type, category, tags, status, uploaded_by,org_id,business_unit_id,parent_id,version) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 title,
                 f"ARIA {doc_type} (framework: {framework}, control: {control_ref}, "
                 f"version: {version}).",
-                ev_name, orig_filename, file_size, ev_hash, ev_mime,
+                ev_name, orig_filename, file_size, h, ev_mime,
                 "policy",
                 f"aria,policy,{framework},{control_ref},{tag}",
-                "current", user_id,
+                "current", user_id, doc_scope["org_id"], doc_scope["business_unit_id"],
+                existing["id"] if existing else None, (existing["version"] or 1) + 1 if existing else 1,
             ),
         )
         db.execute(
@@ -261,6 +255,13 @@ def _sync_aria_to_vault(db, aria_doc_id, title, framework, control_ref,
             "VALUES (%s,%s,%s,%s,%s)",
             (vault_id, "aria", "document", aria_doc_id, user_id),
         )
+        if existing:
+            db.execute("UPDATE evidence_items SET status='superseded',updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+                       (existing["id"],))
+        return vault_id
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
 
 
 # -- Dashboard ----------------------------------------------------------------
@@ -980,8 +981,10 @@ async def documents_page(request: Request,
     finally:
         db.close()
 
+    from modules.aria.policy_access import policy_authoring_enabled_for
     return _aria_render(request, "documents.html", {
         "user": user, "module": "aria", "docs": docs,
+        "policy_intake_enabled": policy_authoring_enabled_for(user.get("org_id")),
         # PostgreSQL may return date objects. Normalize them before Jinja's
         # built-in tojson escapes this data for the script context.
         "docs_for_js": json.loads(json.dumps(docs, default=str)),
@@ -1082,14 +1085,38 @@ async def add_document(request: Request,
 @require_module("aria")
 async def parse_document_upload(request: Request, file: UploadFile = File(...)):
     """Extract metadata from an uploaded file without saving anything."""
-    content = await file.read()
-    if len(content) > ARIA_MAX_FILE:
-        return JSONResponse({"error": "File too large (max 50 MB)"}, 413)
+    from modules.aria import policy_intake as intake
+    if not has_capability(request.state.user, "aria.policy.create"):
+        return JSONResponse({"error": "Policy author permission required"}, 403)
+    content = await file.read(intake.MAX_FILE + 1)
+    if len(content) > intake.MAX_FILE:
+        return JSONResponse({"error": "File too large (max 25 MB)"}, 413)
     ext = Path(file.filename or "").suffix.lower()
     if ext not in _ALLOWED_DOC_EXT:
         return JSONResponse({"error": f"File type '{ext}' not allowed"}, 400)
-    meta = _extract_document_metadata(content, ext, file.filename or "untitled")
+    if ext not in (".docx", ".pdf"):
+        return JSONResponse({"error": "Automatic extraction supports DOCX and PDF. Convert this file to DOCX for guided review."}, 422)
+    try:
+        meta = await asyncio.to_thread(_extract_legacy_upload_sync, content, ext, file.filename or "untitled")
+    except intake.IntakeError as exc:
+        return JSONResponse({"error": exc.message}, exc.status)
     return JSONResponse({"ok": True, **meta})
+
+
+def _extract_legacy_upload_sync(content: bytes, ext: str, filename: str) -> dict:
+    from modules.aria import policy_intake as intake
+    ARIA_UPLOAD_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="policy-parse-", dir=ARIA_UPLOAD_DIR) as folder:
+        source = Path(folder) / f"source{ext}"
+        source.write_bytes(content)
+        parsed = intake._extract_isolated(source, ext, filename)
+    result = {"title": "", "version": "", "review_date": "", "effective_date": "",
+              "owner": "", "approver": "", "doc_type": "Policy", "provenance": {},
+              "text_status": parsed["text_status"]}
+    for field, suggestion in parsed["metadata"].items():
+        result[field] = suggestion["value"]
+        result["provenance"][field] = suggestion["anchor"]
+    return result
 
 
 @router.post("/documents/upload-new")
@@ -1180,21 +1207,17 @@ async def upload_new_document(
             stored_name, orig_filename, file_size,
             user.get("org_id"), user.get("business_unit_id"), user["id"], now, now,
         ))
-        db.commit()
-
         if review_date:
             _schedule_review_reminder(db, new_id, doc_id, title, review_date, user)
-            db.commit()
-
-        log_audit(user, "aria", f"Added document {doc_id}: {title}",
-                  "document", new_id, doc_id)
 
         if stored_name:
             _sync_aria_to_vault(
                 db, new_id, title, framework, control_ref, doc_type,
                 version, stored_name, orig_filename, file_size, user["id"],
             )
-            db.commit()
+        db.commit()
+        log_audit(user, "aria", f"Added document {doc_id}: {title}",
+                  "document", new_id, doc_id)
 
         # No ARIA_POLICY_PUBLISHED emit here: status is always Draft now
         # (see above), so this path never creates an already-approved
@@ -1499,43 +1522,6 @@ def _scan_text_for_metadata(text: str) -> dict:
     return result
 
 
-def _extract_document_metadata(content: bytes, ext: str, filename: str) -> dict:
-    """Extract metadata from a document file without saving it."""
-    stem = Path(filename).stem.replace("_", " ").replace("-", " ")
-    result: dict = {
-        "title": stem, "version": "", "review_date": "",
-        "effective_date": "", "owner": "", "approver": "", "doc_type": "Policy",
-    }
-    if ext == ".docx":
-        try:
-            from docx import Document
-            doc = Document(io.BytesIO(content))
-            props = doc.core_properties
-            if props.title:
-                result["title"] = props.title
-            if props.version:
-                result["version"] = props.version
-            if props.last_modified_by:
-                result["owner"] = result["owner"] or props.last_modified_by
-            full_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-            result.update(_scan_text_for_metadata(full_text))
-        except Exception as exc:
-            log.debug("DOCX metadata extract failed: %s", exc)
-    elif ext == ".pdf":
-        try:
-            raw = content.decode("latin-1", errors="ignore")
-            for pdf_key, field in [("/Title", "title"), ("/Author", "owner")]:
-                m = _re.search(_re.escape(pdf_key) + r"\s*\(([^)]{1,200})\)", raw)
-                if m and m.group(1).strip():
-                    result[field] = result[field] or m.group(1).strip()
-            text_chunks = _re.findall(r"\(([^)]{4,200})\)", raw)
-            combined = " ".join(text_chunks[:300])
-            result.update({k: v for k, v in _scan_text_for_metadata(combined).items() if v})
-        except Exception as exc:
-            log.debug("PDF metadata extract failed: %s", exc)
-    return result
-
-
 def _schedule_review_reminder(db, doc_int_id: int, doc_id: str, title: str,
                                review_date_str: str, user: dict) -> None:
     """Insert 30-day and 7-day ahead email reminders for a document review date."""
@@ -1674,10 +1660,6 @@ async def upload_document_revision(request: Request, doc_id: str,
             (str(stored_name), file.filename, len(content),
              new_version, doc_id),
         )
-        db.commit()
-        log_audit(user, "aria", f"Uploaded revision for {doc_id}: {file.filename}",
-                  "document", doc["id"], doc_id)
-
         _sync_aria_to_vault(
             db, doc["id"], doc.get("title", doc_id),
             doc.get("framework", ""), doc.get("control_ref", ""),
@@ -1685,6 +1667,8 @@ async def upload_document_revision(request: Request, doc_id: str,
             str(stored_name), file.filename, len(content), user["id"],
         )
         db.commit()
+        log_audit(user, "aria", f"Uploaded revision for {doc_id}: {file.filename}",
+                  "document", doc["id"], doc_id)
 
         # Auto-attach to GRID
         if doc.get("control_ref", "").strip():

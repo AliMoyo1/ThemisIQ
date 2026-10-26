@@ -27,6 +27,7 @@ def test_fresh_db_has_all_new_tables(test_db):
     for expected in (
         "aria_policy_drafts", "aria_policy_versions", "aria_document_approvals",
         "aria_document_number_sequence", "aria_policy_publication_jobs",
+        "aria_policy_imports", "aria_policy_clause_links", "aria_policy_renditions",
     ):
         assert expected in tables, f"missing table {expected}"
 
@@ -48,6 +49,13 @@ def test_fresh_db_has_all_new_columns(test_db):
     ):
         # Must not raise -- column exists.
         test_db.execute(f"SELECT {column} FROM {table} LIMIT 0")
+
+
+def test_policy_imports_allow_reviewed_annual_versions_of_one_document(test_db):
+    indexes = {row[1]: row[2] for row in test_db.execute(
+        "PRAGMA index_list('aria_policy_imports')").fetchall()}
+    assert indexes["idx_aria_policy_imports_document"] == 0
+    assert "uq_aria_policy_imports_document" not in indexes
 
 
 def test_schema_readiness_check_passes_on_fresh_db(test_db):

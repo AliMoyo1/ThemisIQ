@@ -1,5 +1,5 @@
 {
-  "route_count": 1154,
+  "route_count": 1170,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -5282,6 +5282,518 @@
         "aria"
       ],
       "name": "templates_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-import-controls",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "import_control_search",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "stage",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "get_detail",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/candidate/{draft_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "candidate_file",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/compose",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "compose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/manual-link",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "manual_link",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/outline",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "source_outline",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/pdf-cover",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "pdf_cover",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/pdf-cover/{rendition_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "pdf_cover_file",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/pdf-cover/{rendition_id}/decide",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "pdf_cover_decide",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/pdf-pages",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "pdf_pages",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/register",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "register",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/source",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "source",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/verify-external",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "verify_external",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/version-candidates",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "version_candidates",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/policy-imports",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "import_workspace",
       "maturity": "",
       "notes": ""
     },

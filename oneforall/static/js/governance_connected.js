@@ -136,6 +136,19 @@
         });
         return ul;
       }));
+      if (data.policy_references) body.appendChild(card('Current policy references', data.policy_references.state,
+        data.policy_references.note, function () {
+          var ul = el('ul', { class: 'gc-list' });
+          data.policy_references.items.forEach(function (item) {
+            ul.appendChild(el('li', {}, [el('div', { class: 'gc-row' }, [
+              el('strong', {}, [link(item.url, item.title)]),
+              el('span', { class: 'gc-muted', text: 'Version ' + item.version + (item.anchor ? ' · ' + item.anchor : '') }),
+              item.presentation_url ? link(item.presentation_url, 'Reviewed presentation copy') : null,
+              chip(item.approval === 'external_verified' ? 'External approval verified' : 'Approved', 'good'),
+              el('span', { class: 'gc-muted', text: item.meaning })])]));
+          });
+          return ul;
+        }));
     }
 
     function fact(label, value) { return el('div', { class: 'gc-fact' }, [el('dt', { text: label }), el('dd', { text: value })]); }

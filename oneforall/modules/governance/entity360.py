@@ -151,7 +151,15 @@ def get_connected(db, user: dict, module, entity_type, record_id) -> "dict | Non
         "connections": connections if isinstance(connections, list) else [],
         "unavailable": [connections] if isinstance(connections, dict) else [],
         "proof": _guarded("Proof held in the Evidence Vault", lambda: _proof(db, user, key, record_id)),
+        "policy_references": _guarded("Current policy references", lambda: _policy_references(db, user, key, record_id)),
         "changes": _guarded("Changes to look at", lambda: _signals(db, user, key, record_id)),
         "note": ("Read just now through your own access. A connected record you cannot open is not shown or counted. A "
                  "connection nobody has confirmed is marked as proposed, and one somebody declined is marked as disputed."),
     }
+
+
+def _policy_references(db, user, key, record_id):
+    from modules.aria.policy_references import resolve_policy_references
+    items = resolve_policy_references(db, user, (*key, record_id))
+    return {"state": "ok" if items else "empty", "items": items,
+            "note": None if items else "No current, reviewed policy version is referenced by this record."}

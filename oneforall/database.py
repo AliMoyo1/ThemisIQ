@@ -3537,6 +3537,75 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_versions_doc_version ON aria_policy_ve
 CREATE INDEX IF NOT EXISTS idx_aria_versions_doc_created ON aria_policy_versions(org_id, document_id, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_versions_open_candidate ON aria_policy_versions(document_id) WHERE state IN ('draft','pending');
 
+-- Existing-policy intake keeps the submitted bytes and review decisions separate
+-- from a policy's internal approval history. A suggestion is never coverage.
+CREATE TABLE IF NOT EXISTS aria_policy_imports (
+    id                    TEXT PRIMARY KEY,
+    org_id                INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id      INTEGER REFERENCES business_units(id),
+    uploaded_by           INTEGER NOT NULL REFERENCES users(id),
+    file_name             TEXT NOT NULL,
+    stored_path           TEXT NOT NULL,
+    file_hash             TEXT NOT NULL,
+    file_size             INTEGER NOT NULL,
+    mime_type             TEXT NOT NULL,
+    state                 TEXT NOT NULL DEFAULT 'needs_review' CHECK(state IN ('needs_review','registered','failed')),
+    extracted_json        TEXT NOT NULL DEFAULT '{}',
+    reviewed_json         TEXT,
+    document_id           INTEGER REFERENCES aria_documents(id),
+    policy_version_id     INTEGER REFERENCES aria_policy_versions(id),
+    evidence_id           INTEGER REFERENCES evidence_items(id),
+    external_status       TEXT NOT NULL DEFAULT 'unverified' CHECK(external_status IN ('unverified','verified')),
+    external_approver     TEXT,
+    external_approved_at  TEXT,
+    external_proof        TEXT,
+    external_source_sha256 TEXT,
+    external_verified_by  INTEGER REFERENCES users(id),
+    external_verified_at  TEXT,
+    created_at            TEXT DEFAULT (datetime('now')),
+    updated_at            TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_aria_policy_imports_scope ON aria_policy_imports(org_id, business_unit_id, state, created_at);
+CREATE INDEX IF NOT EXISTS idx_aria_policy_imports_hash ON aria_policy_imports(org_id, file_hash);
+DROP INDEX IF EXISTS uq_aria_policy_imports_document;
+CREATE INDEX IF NOT EXISTS idx_aria_policy_imports_document ON aria_policy_imports(document_id) WHERE document_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS aria_policy_clause_links (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    import_id        TEXT NOT NULL REFERENCES aria_policy_imports(id) ON DELETE CASCADE,
+    org_id           INTEGER NOT NULL REFERENCES organizations(id),
+    control_id       INTEGER NOT NULL REFERENCES controls(id),
+    anchor           TEXT NOT NULL,
+    excerpt          TEXT NOT NULL,
+    relationship     TEXT NOT NULL DEFAULT 'related' CHECK(relationship IN ('addresses','partially_addresses','related')),
+    match_method     TEXT NOT NULL DEFAULT 'exact_reference' CHECK(match_method IN ('exact_reference','keyword_overlap','manual')),
+    confidence       REAL NOT NULL DEFAULT 1.0,
+    state            TEXT NOT NULL DEFAULT 'candidate' CHECK(state IN ('candidate','confirmed','rejected')),
+    decided_by       INTEGER REFERENCES users(id),
+    decided_at       TEXT,
+    created_at       TEXT DEFAULT (datetime('now')),
+    UNIQUE(import_id, control_id, anchor)
+);
+CREATE INDEX IF NOT EXISTS idx_aria_policy_clause_control ON aria_policy_clause_links(control_id, state);
+CREATE TABLE IF NOT EXISTS aria_policy_renditions (
+    id                    TEXT PRIMARY KEY,
+    org_id                INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id      INTEGER REFERENCES business_units(id),
+    import_id             TEXT NOT NULL REFERENCES aria_policy_imports(id),
+    source_version_id     INTEGER NOT NULL REFERENCES aria_policy_versions(id),
+    output_path           TEXT NOT NULL,
+    output_sha256         TEXT NOT NULL,
+    retained_pages_sha256 TEXT NOT NULL,
+    first_body_page       INTEGER NOT NULL,
+    state                 TEXT NOT NULL DEFAULT 'pending_review' CHECK(state IN ('pending_review','approved','rejected')),
+    prepared_by           INTEGER NOT NULL REFERENCES users(id),
+    reviewed_by           INTEGER REFERENCES users(id),
+    reviewed_at           TEXT,
+    review_note           TEXT,
+    evidence_id           INTEGER REFERENCES evidence_items(id),
+    created_at            TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_aria_policy_renditions_import ON aria_policy_renditions(org_id,import_id,created_at);
+
 -- Named, per-round approval. A pending row is the live decision surface;
 -- approved/rejected/withdrawn rows are permanent history, never reset.
 CREATE TABLE IF NOT EXISTS aria_document_approvals (

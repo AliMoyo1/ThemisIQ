@@ -129,7 +129,60 @@
   // Draft editor (ai_generator.html)
   // ═══════════════════════════════════════════════════════════════════════
 
-  var editorState = { draft: null, dirty: false, savedBodySnapshot: '' };
+  var editorState = { draft: null, dirty: false, savedBodySnapshot: '', savedDiagramSnapshot: '[]' };
+
+  function rawDiagramRows() {
+    return Array.from(document.querySelectorAll('#workflowDiagramRows .aria-diagram-row')).map(row => ({
+      kind: row.querySelector('.aria-diagram-kind').value,
+      caption: row.querySelector('.aria-diagram-caption').value,
+      alt_text: row.querySelector('.aria-diagram-alt').value,
+      nodes_text: row.querySelector('.aria-diagram-nodes').value,
+      edges_text: row.querySelector('.aria-diagram-edges').value,
+    }));
+  }
+
+  function parsedDiagrams() {
+    return rawDiagramRows().map(row => {
+      var nodes = row.nodes_text.split(/\r?\n/).filter(Boolean).map(line => {
+        var separator = line.indexOf(':');
+        if (separator < 1) throw new Error('Use ID: label for every diagram node.');
+        return { id: line.slice(0, separator).trim(), label: line.slice(separator + 1).trim() };
+      });
+      var edges = row.edges_text.split(/\r?\n/).filter(Boolean).map(line => {
+        var parts = line.split('>');
+        if (parts.length !== 2) throw new Error('Use FROM>TO for every diagram connection.');
+        return { from: parts[0].trim(), to: parts[1].trim() };
+      });
+      return { kind: row.kind, caption: row.caption, alt_text: row.alt_text, nodes: nodes, edges: edges };
+    });
+  }
+
+  function addDiagramRow(spec) {
+    var list = $('workflowDiagramRows'), template = $('workflowDiagramTemplate');
+    if (!list || !template || list.children.length >= 4) return;
+    var row = template.content.firstElementChild.cloneNode(true);
+    if (spec) {
+      row.querySelector('.aria-diagram-kind').value = spec.kind || 'process_flow';
+      row.querySelector('.aria-diagram-caption').value = spec.caption || '';
+      row.querySelector('.aria-diagram-alt').value = spec.alt_text || '';
+      row.querySelector('.aria-diagram-nodes').value = (spec.nodes || []).map(n => n.id + ': ' + n.label).join('\n');
+      row.querySelector('.aria-diagram-edges').value = (spec.edges || []).map(e => e.from + '>' + e.to).join('\n');
+    }
+    row.addEventListener('input', onEditorInput);
+    row.addEventListener('change', onEditorInput);
+    row.querySelector('.aria-diagram-remove').addEventListener('click', function () { row.remove(); onEditorInput(); });
+    list.appendChild(row);
+  }
+
+  function renderDraftDiagrams(draft) {
+    var list = $('workflowDiagramRows');
+    if (!list) return;
+    list.replaceChildren();
+    var metadata = {};
+    try { metadata = JSON.parse(draft.metadata_json || '{}'); } catch (_) { metadata = {}; }
+    (metadata.diagrams || []).forEach(addDiagramRow);
+    editorState.savedDiagramSnapshot = JSON.stringify(rawDiagramRows());
+  }
   var unsavedWarningInstalled = false;
   var DEFAULT_CONFIRM_HINT =
     'Confirming creates the library document (or a candidate revision) and takes you to it, ' +
@@ -174,7 +227,8 @@
   function onEditorInput() {
     var el = $('draftEditor');
     if (!el) return;
-    editorState.dirty = (el.value !== editorState.savedBodySnapshot);
+    editorState.dirty = (el.value !== editorState.savedBodySnapshot ||
+      JSON.stringify(rawDiagramRows()) !== editorState.savedDiagramSnapshot);
     setUnsavedIndicator(editorState.dirty);
     // Section 11 point 4: any edit invalidates the last build. Remove the
     // stale preview as well as disabling confirm; leaving it visible made a
@@ -303,6 +357,7 @@
 
     var editEl = $('draftEditor');
     if (editEl) editEl.value = draft.body || '';
+    renderDraftDiagrams(draft);
     switchEditorView('edit');
     setUnsavedIndicator(false);
     renderDraftStatus(draft);
@@ -333,9 +388,11 @@
     var draft = editorState.draft;
     var editEl = $('draftEditor');
     if (!draft || !editEl) return;
+    var diagrams;
+    try { diagrams = parsedDiagrams(); } catch (e) { toast(e.message, 'error'); return; }
     var btn = $('draftSaveBtn');
     if (btn) btn.disabled = true;
-    var res = await api.saveDraft(draft.id, { body: editEl.value, expected_lock_version: draft.lock_version });
+    var res = await api.saveDraft(draft.id, { body: editEl.value, diagrams: diagrams, expected_lock_version: draft.lock_version });
     if (btn) btn.disabled = false;
     if (!res.ok) {
       // Never discard local edits on error -- the textarea keeps whatever
@@ -345,6 +402,7 @@
     }
     editorState.draft = res.data.draft;
     editorState.savedBodySnapshot = editEl.value;
+    editorState.savedDiagramSnapshot = JSON.stringify(rawDiagramRows());
     editorState.dirty = false;
     setUnsavedIndicator(false);
     // save_draft deliberately clears build_id and every generated artifact,
@@ -766,8 +824,14 @@
   };
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', syncMarkdownPreviewAvailability);
+    document.addEventListener('DOMContentLoaded', function () {
+      syncMarkdownPreviewAvailability();
+      var add = $('workflowAddDiagram');
+      if (add) add.addEventListener('click', function () { addDiagramRow(); onEditorInput(); });
+    });
   } else {
     syncMarkdownPreviewAvailability();
+    var add = $('workflowAddDiagram');
+    if (add) add.addEventListener('click', function () { addDiagramRow(); onEditorInput(); });
   }
 })();

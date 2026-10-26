@@ -284,6 +284,63 @@ def test_fresh_init_builds_the_workflow_schema_on_real_postgres(pg):
     _assert_required_policy_fks(pg)
 
 
+def test_policy_import_document_index_upgrades_in_public_and_tenant_on_real_postgres(pg):
+    """Annual imports must not retain the old one-import-per-document index."""
+    pg.init_db()
+    pg.provision_tenant_schema("policyindex")
+    conn = _raw_conn()
+    try:
+        with conn.cursor() as cur:
+            for schema in ("public", "tenant_policyindex"):
+                cur.execute(sql.SQL("DROP INDEX IF EXISTS {}.idx_aria_policy_imports_document").format(
+                    sql.Identifier(schema)))
+                cur.execute(sql.SQL("CREATE UNIQUE INDEX uq_aria_policy_imports_document ON {}.aria_policy_imports(document_id) WHERE document_id IS NOT NULL").format(
+                    sql.Identifier(schema)))
+    finally:
+        conn.close()
+
+    pg.init_db()
+    pg.init_db()  # migration remains idempotent
+
+    conn = _raw_conn()
+    try:
+        with conn.cursor() as cur:
+            for schema in ("public", "tenant_policyindex"):
+                cur.execute(
+                    "SELECT indexname, indexdef FROM pg_indexes "
+                    "WHERE schemaname=%s AND tablename='aria_policy_imports'",
+                    (schema,),
+                )
+                indexes = dict(cur.fetchall())
+                assert "uq_aria_policy_imports_document" not in indexes
+                assert "CREATE INDEX idx_aria_policy_imports_document" in indexes["idx_aria_policy_imports_document"]
+    finally:
+        conn.close()
+
+
+def test_reviewed_policy_import_registers_on_real_postgres(pg, monkeypatch, tmp_path):
+    """The policy intake write path must work beyond SQLite's SQL dialect."""
+    from tests.test_aria_policy_intake import _actor, _docx, _setup
+    from modules.aria import policy_intake
+
+    pg.init_db()
+    db = pg.get_db_bypass_rls()
+    try:
+        _setup(db, monkeypatch, tmp_path)
+        author = _actor(db, 101)
+        staged = policy_intake.stage_import(db, author, _docx(), "policy.docx")
+        detail = policy_intake.detail(db, author, staged["id"])
+        registered = policy_intake.register_import(db, author, staged["id"],
+                                                   {}, [detail["links"][0]["id"]])
+        assert registered["created"] is True
+        assert db.execute("SELECT count(*) FROM aria_policy_versions WHERE document_id=%s",
+                          (registered["document_id"],)).fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM evidence_items WHERE id=%s",
+                          (registered["evidence_id"],)).fetchone()[0] == 1
+    finally:
+        db.close()
+
+
 def test_law_monitor_tables_are_created_in_public_and_tenant_on_real_postgres(pg):
     """The source watch must survive PostgreSQL DDL conversion and tenant setup."""
     pg.init_db()

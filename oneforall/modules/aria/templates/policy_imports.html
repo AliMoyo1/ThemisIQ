@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}ARIA: Import existing policies{% endblock %}
+{% block breadcrumb %}<a href="/aria/documents">ARIA documents</a><span class="breadcrumb-sep">&#8250;</span><span class="breadcrumb-current">Import existing policies</span>{% endblock %}
+{% block head %}
+<style>
+.intake-top{padding:28px 32px;margin-bottom:18px;background:linear-gradient(130deg,var(--surface),var(--surface2));border-radius:24px;box-shadow:0 14px 30px rgba(20,31,26,.08)}
+.intake-top h1{font-family:Georgia,serif;font-size:clamp(28px,3vw,42px);line-height:1.1;margin:0 0 10px;color:var(--text)}
+.intake-top p{max-width:730px;color:var(--muted);line-height:1.55;margin:0}
+.intake-grid{display:grid;grid-template-columns:minmax(270px,360px) minmax(0,1fr);gap:18px;align-items:start}
+.intake-card{background:var(--surface);border-radius:22px;padding:22px;box-shadow:0 10px 28px rgba(20,31,26,.07)}
+.intake-card h2{font-family:Georgia,serif;font-size:22px;margin:0 0 10px;color:var(--text)}
+.intake-card p{color:var(--muted);line-height:1.5}
+.intake-list{display:grid;gap:8px;max-height:65vh;overflow:auto}
+.intake-item{border:0;border-radius:14px;padding:13px 15px;background:var(--surface2);width:100%;text-align:left;cursor:pointer;color:var(--text)}
+.intake-item[aria-current="true"]{outline:2px solid var(--accent)}
+.intake-item span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.intake-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.intake-fields label{display:grid;gap:5px;color:var(--text-mid);font-size:12px;font-weight:700}
+.intake-fields input,.intake-fields select,.intake-fields textarea,.intake-upload input{width:100%;min-height:42px;border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--surface);color:var(--text)}
+.intake-fields label.wide{grid-column:1/-1}
+.intake-source{background:var(--surface2);padding:14px;border-radius:14px;max-height:320px;overflow:auto;white-space:pre-wrap;color:var(--text);line-height:1.6}
+.intake-suggestion{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:12px;background:var(--surface2);margin:7px 0}
+.intake-suggestion small{color:var(--muted);display:block;line-height:1.5}
+.intake-status{min-height:24px;color:var(--text-mid);font-size:13px;margin-top:12px}
+.intake-composition{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+.intake-blocks{max-height:240px;overflow:auto;display:grid;gap:6px;margin:8px 0 16px}
+.intake-blocks label{display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.4}
+.intake-blocks input{margin-top:2px}
+.intake-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.intake-comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:12px 0}
+.intake-comparison>div{background:var(--surface2);border-radius:12px;padding:12px;min-width:0}
+.intake-comparison iframe{width:100%;height:440px;border:0;border-radius:10px;background:#fff}
+@media(max-width:850px){.intake-grid{grid-template-columns:1fr}.intake-fields{grid-template-columns:1fr}.intake-top{padding:22px}.intake-card{padding:18px}}
+@media(max-width:650px){.intake-comparison{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="intake-top"><h1>Bring existing policies into ThemisIQ</h1><p>Upload policies you already use. Review what the document actually says, confirm relevant controls, then register the original. A suggested match never counts as control effectiveness or approval.</p></div>
+<div class="intake-grid">
+ <section class="intake-card">
+  <h2>Import queue</h2>
+  <p>DOCX and PDF, up to 25 MB each. Select several files to stage them one at a time.</p>
+  {% if has_capability(user, 'aria.policy.create') %}
+  <form id="intake-upload" class="intake-upload">
+   <label class="form-label" for="intake-files">Documents</label><input id="intake-files" type="file" accept=".docx,.pdf" multiple required>
+   <label class="form-label" for="intake-bu">Business unit ID</label><input id="intake-bu" type="number" min="1" value="{{ user.business_unit_id or '' }}" placeholder="Your business unit">
+   <label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input id="intake-orgwide" type="checkbox" style="width:auto;min-height:auto"> Organization-wide document</label>
+   <button type="submit" class="btn btn-primary">Stage for review</button>
+  </form>
+  {% endif %}
+  <div id="intake-upload-status" class="intake-status" role="status" aria-live="polite"></div>
+  <div id="intake-list" class="intake-list">
+   {% for item in imports %}
+   <button type="button" class="intake-item" data-import-id="{{ item.id }}"><strong>{{ item.suggested_title or item.file_name }}</strong><span>{{ item.file_name }} · {{ item.state|replace('_',' ') }} · {{ item.external_status|replace('_',' ') }}</span></button>
+   {% endfor %}
+  </div>
+ </section>
+ <section class="intake-card" id="intake-detail" aria-live="polite">
+  <h2>Review a document</h2><p>Select a file in the queue. The original remains intact; edits below change the register metadata only.</p>
+  <div id="intake-review" hidden>
+   <p><a id="intake-source-link" target="_blank" rel="noopener">Open original file</a> <span id="intake-text-state"></span></p>
+   <h3>Suggested details</h3>
+   <div class="intake-fields" id="intake-fields"></div>
+   <h3>Source extract</h3><div id="intake-source-text" class="intake-source"></div>
+   <h3>Possible framework and control links</h3><p>Exact references found in the source. Check only those you have verified against the cited text.</p>
+   <div id="intake-links"></div>
+   <div id="intake-manual-link"><h4>Add a reviewed match</h4><p>Search the active control catalogue, choose the source block, and check the proposed relationship. This remains a candidate until registration.</p><div class="intake-fields"><label class="wide">Search control reference or name<input id="intake-control-query" placeholder="e.g. A.5.1 or access control"></label><label class="wide">Control<select id="intake-control-results"></select></label><label>Source block or page<select id="intake-control-anchor"></select></label><label>Relationship<select id="intake-control-relation"><option value="related">Related</option><option value="partially_addresses">Partially addresses</option><option value="addresses">Addresses</option></select></label></div><div class="intake-actions"><button type="button" class="btn btn-ghost" id="intake-control-search">Find controls</button><button type="button" class="btn btn-ghost" id="intake-control-add">Add match for review</button></div></div>
+   <div id="intake-version-match"><h4>File as a new version</h4><p>If this is the annual update of an approved policy, find that policy and select it. The current approved version stays in force until a different approver verifies this replacement. Leave the choice blank for a new policy.</p><div class="intake-fields"><label class="wide">Find existing policy by title<input id="intake-version-query" placeholder="Search a policy in this business unit"></label><label class="wide">Reviewed existing policy<select id="intake-version-results"><option value="">Create a new policy</option></select></label></div><button type="button" class="btn btn-ghost" id="intake-version-search">Find policy</button></div>
+   <button type="button" class="btn btn-primary" id="intake-register">Register reviewed document</button>
+   <div id="intake-attestation" hidden>
+    <h3>Verify existing external approval</h3><p>A different authorized approver must inspect the source evidence. This records external provenance; it does not create a ThemisIQ approval decision.</p>
+    <div class="intake-fields"><label>External approver<input id="intake-approver"></label><label>Approval date<input id="intake-date" type="date"></label><label class="wide">Evidence location, signed page or Vault reference<textarea id="intake-proof" rows="2"></textarea></label></div>
+    <button type="button" class="btn btn-ghost" id="intake-verify">Verify external approval</button>
+   </div>
+   <div id="intake-composition" class="intake-composition" hidden>
+    <h3>Make a reviewed version</h3>
+    <p>The original stays in the Vault. Choose the exact first body block below. Any replacement becomes a new candidate for internal approval.</p>
+    <div class="intake-fields">
+     <label>Action<select id="intake-compose-mode"><option value="replace_cover">Replace cover and front matter</option><option value="replace_body">Keep cover, replace body</option><option value="replace_both">Replace cover and body</option></select></label>
+     <label>First body block<select id="intake-compose-boundary"></select></label>
+     <label class="wide" id="intake-cover-text-wrap">New cover letter or subtitle (optional)<textarea id="intake-cover-text" rows="3" maxlength="4000" placeholder="Optional text for the new cover. The existing body remains unchanged unless you choose to replace it."></textarea></label>
+     <label class="wide" id="intake-cover-logo-wrap">New cover logo (optional PNG or JPEG, up to 2 MB)<input id="intake-cover-logo" type="file" accept="image/png,image/jpeg"></label>
+     <label class="wide" id="intake-compose-body-wrap" hidden>New body text (use # for headings)<textarea id="intake-compose-body" rows="8" maxlength="100000"></textarea></label>
+    </div>
+    <p>Exclude individual blocks such as an old contents page or cover letter:</p>
+    <div id="intake-compose-blocks" class="intake-blocks"></div>
+    <label><input type="checkbox" id="intake-compose-clear-headers"> Clear old headers and footers (including old logos)</label>
+    <div id="intake-compose-diagram-wrap" hidden>
+     <h4>Optional editable diagram</h4><p>One node per line. Edges use node IDs, such as A&gt;B. Confirm each relationship before review.</p>
+     <div class="intake-fields"><label>Diagram type<select id="intake-diagram-kind"><option value="process_flow">Process flow</option><option value="system_block">System block</option><option value="data_flow">Data flow</option></select></label><label>Caption<input id="intake-diagram-caption" maxlength="180"></label><label class="wide">Description for accessibility<input id="intake-diagram-alt" maxlength="300"></label><label class="wide">Nodes, one per line: ID: label<textarea id="intake-diagram-nodes" rows="3"></textarea></label><label class="wide">Edges, one per line: FROM&gt;TO<textarea id="intake-diagram-edges" rows="2"></textarea></label></div>
+     <h4>Approved figure</h4><p>Add an existing diagram or image to the replacement body. Its source, meaning and permission to reuse it must be checked before approval.</p>
+     <div class="intake-fields"><label class="wide">Figure (PNG or JPEG, up to 2 MB)<input id="intake-figure" type="file" accept="image/png,image/jpeg"></label><label>Figure caption<input id="intake-figure-caption" maxlength="180"></label><label>Accessible description<input id="intake-figure-alt" maxlength="300"></label></div>
+    </div>
+    <div class="intake-actions"><button type="button" id="intake-compose-submit" class="btn btn-primary">Create review candidate</button><a id="intake-candidate-file" hidden>Download candidate DOCX</a></div>
+    <div id="intake-compose-review" hidden>
+     <div class="intake-actions"><button type="button" id="intake-build-preview" class="btn btn-ghost">Build PDF preview</button><a id="intake-preview-link" target="_blank" rel="noopener" hidden>Open PDF preview</a></div>
+     <div class="intake-comparison"><div><strong>Original extract</strong><p>For layout and diagrams, use the original download above.</p><div id="intake-original-compare" class="intake-source"></div></div><div><strong>Candidate preview</strong><p>Compare every retained clause, table and image before confirming.</p><iframe id="intake-preview-frame" title="Policy candidate preview" hidden></iframe></div></div>
+     <label><input type="checkbox" id="intake-compare-attest"> I compared the original and candidate, including the selected boundaries and images.</label>
+     <div class="intake-actions"><button type="button" id="intake-confirm-candidate" class="btn btn-primary" disabled>Confirm candidate version</button><a id="intake-workbench-link" hidden>Open approval workbench</a></div>
+    </div>
+   </div>
+   <div id="intake-pdf-cover" class="intake-composition" hidden>
+    <h3>Replace a PDF cover</h3>
+    <p>Choose the first page of the body to retain. ThemisIQ adds a new cover without editing those pages. A different approver must compare the PDF before it appears as a presentation copy in the Vault.</p>
+    <div class="intake-fields"><label>First page to retain<select id="intake-pdf-boundary"></select></label></div>
+    <div class="intake-actions"><button type="button" class="btn btn-primary" id="intake-pdf-create">Create PDF review copy</button><a id="intake-pdf-candidate" target="_blank" rel="noopener" hidden>Open review copy</a></div>
+    <div id="intake-pdf-review" hidden><div class="intake-comparison"><div><strong>Original</strong><iframe id="intake-pdf-original" title="Original policy PDF"></iframe></div><div><strong>New cover and retained pages</strong><iframe id="intake-pdf-output" title="PDF cover review copy"></iframe></div></div><label>Comparison note<textarea id="intake-pdf-note" rows="2" placeholder="Confirm cover boundary and retained pages, or explain why you rejected it"></textarea></label><div class="intake-actions"><button type="button" id="intake-pdf-approve" class="btn btn-primary">Approve presentation copy</button><button type="button" id="intake-pdf-reject" class="btn btn-ghost">Reject review copy</button></div></div>
+    <p>To replace PDF body content, supply a reviewed editable DOCX and use the policy candidate workflow. An automatic PDF-to-DOCX conversion would not preserve approval fidelity.</p>
+   </div>
+   <div id="intake-action-status" class="intake-status" role="status" aria-live="polite"></div>
+  </div>
+ </section>
+</div>
+{% endblock %}
+{% block extra_scripts %}{{ super() }}<script defer src="/static/js/aria_policy_intake.js?v=2"></script>{% endblock %}

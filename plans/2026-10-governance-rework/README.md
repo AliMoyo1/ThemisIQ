@@ -4,6 +4,8 @@
 
 **Historical build status, 2026-10-15:** plans 01 to 03 were merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 were then on `claude/plan-04-platform-truth`, awaiting a pull request. Pull request 11 has since merged that branch. Pull request 14 removed AI literacy application surfaces. Neither merge records a production deployment or a signed specialist pilot; see [10](10-completion-record.md) for the release gates.
 
+**Policy intake extension, 2026-10-26:** [18 Existing-policy intake and document composition](18-policy-intake-and-document-composition.md) now has an isolated, uncommitted implementation slice for reviewed import, original preservation, control suggestions, composition, diagrams and scoped references. Its implementation ledger lists the release gates and remaining design work; it is not a deployment record.
+
 ## Product decision
 
 ThemisIQ should answer four questions from any specialist record: **What is happening? Why does it matter? What is the next authorized action? What evidence supports the answer?** A person should be able to move between an AI use, process, vendor, privacy assessment, control, audit, risk, incident, and report without re-entering the same facts.
@@ -20,6 +22,7 @@ The owning module keeps the record and its lifecycle. Dashboards, My Work, relat
 | [04 Platform](04-platform-truth-navigation-and-reports.md) | Shared metrics, navigation, reports, AI, trust and unavailable states | [PLAN-37](../PLAN-37-connected-compliance-experience.md), [SBU plans](../PLAN-SBU-04-scope-legibility-and-filter.md) |
 | [05 Delivery](05-delivery-and-acceptance.md) | Sequence, decisions, migration, acceptance, rollout | [Portfolio roadmap](../ROADMAP-2026-10.md), [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) |
 | [06 Email](06-email-notifications-and-delivery.md) | Temporary Gmail sender, role-based touch points, shared templates, delivery outcomes, fallback, service-identity cutover | Existing `core/email.py`, module schedulers and platform notifications |
+| [18 Policy intake and composition](18-policy-intake-and-document-composition.md) | Existing-policy import, metadata and clause review, framework links, rebranding, diagrams, and connected references | [PLAN-35](../PLAN-35-aria-policy-authoring-flow.md), [Vault assurance](02-evidence-vault-and-assurance.md), [PLAN-37](../PLAN-37-connected-compliance-experience.md) |
 
 ## Implementation records
 

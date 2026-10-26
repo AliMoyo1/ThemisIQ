@@ -172,6 +172,7 @@ _BU_REFERENCES = tuple((table, "business_unit_id") for table in (
     "risk_register", "sla_instances", "workflow_instances",
     "aria_doc_templates", "aria_document_approvals", "aria_policy_drafts",
     "aria_policy_publication_jobs", "aria_policy_versions",
+    "aria_policy_imports", "aria_policy_renditions",
     "bcm_exercises", "calendar_events", "erm_board_packs", "erm_scenarios",
     "evidence_campaigns", "evidence_requests", "people_directory",
     "readiness_findings", "sentinel_dsr", "sentinel_consent", "ai_use_intake_requests", "ai_use_decisions", "ai_evaluation_runs", "ai_regulatory_impacts", "ai_review_packs", "ai_literacy_courses", "ai_literacy_completions", "ai_import_batches", "ai_external_responses",
