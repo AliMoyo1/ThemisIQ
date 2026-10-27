@@ -204,10 +204,10 @@ def _recipient(db, user_id):
     return user_for_scope(db, row) if row and row["is_active"] else None
 
 
-def _shareable(db, env, person):
+def _shareable(db, env, person, *, owner=False):
     """A share never widens the saved report's access, even when a grant remains in the table."""
     scope = env.get("scope") or {}
-    if (not person or person.get("is_super_admin") or not person.get("org_id") or
+    if (not person or (person.get("is_super_admin") and not owner) or not person.get("org_id") or
             person["org_id"] != scope.get("org_id") or
             not set(scope.get("modules") or ()).issubset(set(user_modules(person))) or
             not set(scope.get("capabilities") or ()).issubset(set(user_capabilities(person))) or
@@ -327,6 +327,13 @@ def _open(db, user, run_id, request, action):
         if retention["purged_at"] or (retention["delete_after"] and
                                       retention["delete_after"] <= _now() and not retention["hold_reason"]):
             return None, _JSONResp({"error": "This saved report has reached its retention date."}, status_code=410)
+        if (snap.actor_id(row["triggered_by"]) == user["id"] and
+                row["report_type"] in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"} and
+                row["snapshot_hash"] and snap.intact(row["result_json"], row["snapshot_hash"]) and
+                not _shareable(db, json_lib.loads(row["result_json"]), user, owner=True)):
+            log_audit(user, "platform", "report_run_denied", entity_type="report_run", entity_id=run_id,
+                      details=f"{action}: source_access_changed", ip=_ip(request))
+            return None, _JSONResp({"error": _NO_ACCESS, "reason": "access_changed"}, status_code=403)
         return dict(row), None
     if verdict == snap.NOT_FOUND and not user.get("is_super_admin"):
         grant = db.execute(
