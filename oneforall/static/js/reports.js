@@ -120,6 +120,10 @@ async function runReport(defId) {
   const resp = await fetch(`/api/reports/${defId}/run`, { method:'POST', headers:{'Content-Type':'application/json'} });
   const data = await readJson(resp);
   if (!resp.ok) { showNotice(data.error || 'The report could not be generated.'); return; }
+  if (data.status === 'pending') {
+    try { await window.themisWaitReportRun(data.run_id, stage => showNotice(`Generating register: ${stage.replaceAll('_', ' ')}…`)); }
+    catch (error) { showNotice(error.message); loadRuns(); return; }
+  }
   loadRuns(); loadStats();
   viewRun(data.run_id);
 }
@@ -131,6 +135,10 @@ async function quickRun(type) {
   });
   const data = await readJson(resp);
   if (!resp.ok) { showNotice(data.error || 'The report could not be generated.'); return; }
+  if (data.status === 'pending') {
+    try { await window.themisWaitReportRun(data.run_id, stage => showNotice(`Generating register: ${stage.replaceAll('_', ' ')}…`)); }
+    catch (error) { showNotice(error.message); loadRuns(); return; }
+  }
   loadRuns(); loadStats();
   viewRun(data.run_id);
 }
@@ -149,6 +157,10 @@ async function rerunCurrent() {
   const resp = await fetch(`/api/reports/runs/${currentRun.run_id}/rerun`, { method:'POST', headers:{'Content-Type':'application/json'} });
   const data = await readJson(resp);
   if (!resp.ok) { showNotice(data.error || 'The report could not be generated again.'); return; }
+  if (data.status === 'pending') {
+    try { await window.themisWaitReportRun(data.run_id, stage => showNotice(`Generating register: ${stage.replaceAll('_', ' ')}…`)); }
+    catch (error) { showNotice(error.message); loadRuns(); return; }
+  }
   loadRuns(); loadStats();
   viewRun(data.run_id);
 }

@@ -20,6 +20,7 @@ def test_framework_register_has_every_control_above_ui_page_size(test_db, monkey
     assert len(built.result["sections"]["controls"]) == 505
     assert built.inputs["controls"]["truncated"] is False
     assert len(built.inputs["controls"]["ids"]) == 505
+    assert not any(source["module"] == "grid" for source in built.sources)
     env = {"run": {"report_type": "framework_auditor_register", "definition_name": "QA register",
                     "generated_by": {"id": 1, "name": "Admin"}},
            "result": built.result, "sources": built.sources, "inputs": built.inputs,
@@ -84,3 +85,72 @@ def test_framework_register_excludes_unadopted_and_foreign_documents(test_db):
                     "VALUES ('LOCAL-1','Scoped framework','Owned document title','1.0',1)")
     built = report_builders.build(test_db, ADMIN, "framework_auditor_register", {"framework_id": fid})
     assert [row["title"] for row in built.result["sections"]["documents"]] == ["Owned document title"]
+
+
+def test_framework_register_with_grid_audit_keeps_its_findings_separate(test_db):
+    test_db.execute("INSERT INTO organizations (id,name,slug) VALUES (1,'QA','qa')")
+    framework_id = test_db.execute("INSERT INTO frameworks (name) VALUES ('Audit QA')").lastrowid
+    test_db.execute("INSERT INTO controls (framework_id,ref,name) VALUES (%s,'A.1','ARIA control')",
+                    (framework_id,))
+    grid_framework_id = test_db.execute("INSERT INTO grid_frameworks (name) VALUES ('Audit QA')").lastrowid
+    audit_id = test_db.execute("INSERT INTO grid_audits (name,framework_id) VALUES ('October audit',%s)",
+                               (grid_framework_id,)).lastrowid
+    grid_control_id = test_db.execute(
+        "INSERT INTO grid_controls (audit_id,control_id,name,status) VALUES (%s,'A.1','GRID test','Complete')",
+        (audit_id,)).lastrowid
+    finding_id = test_db.execute(
+        "INSERT INTO grid_non_conformances (audit_id,control_id,title,status) "
+        "VALUES (%s,%s,'Open audit finding','open')", (audit_id, grid_control_id)).lastrowid
+    evidence_id = test_db.execute("INSERT INTO evidence_items (title,org_id,status) "
+                                  "VALUES ('Audit proof',1,'current')").lastrowid
+    test_db.execute("INSERT INTO evidence_links (evidence_id,module,entity_type,entity_id) "
+                    "VALUES (%s,'grid','nc',%s)", (evidence_id, finding_id))
+    test_db.commit()
+    built = report_builders.build(test_db, ADMIN, "framework_auditor_register",
+                                  {"framework_id": framework_id, "audit_id": audit_id})
+    sections = built.result["sections"]
+    assert built.result["audit"]["id"] == audit_id
+    assert [r["title"] for r in sections["audit_findings"]] == ["Open audit finding"]
+    assert [r["title"] for r in sections["audit_evidence"]] == ["Audit proof"]
+    assert sections["controls"][0]["accepted_proof"] == 0
+    assert built.inputs["grid_audits"]["ids"] == [audit_id]
+    assert built.inputs["grid_non_conformances"]["ids"] == [finding_id]
+    env = {"run": {"report_type": "framework_auditor_register", "definition_name": "Audit register",
+                    "generated_by": {"id": 1, "name": "Admin"}}, "result": built.result,
+           "sources": built.sources, "inputs": built.inputs,
+           "scope": {"org_name": "QA", "label": "Whole organization"}}
+    report = report_documents.build_document(env)
+    assert len(next(t for t in report.tables() if t.title == "Selected audit findings").shown()) == 1
+
+
+def test_framework_register_audit_context_masks_foreign_unit_and_mismatch(test_db):
+    fid = test_db.execute("INSERT INTO frameworks (name) VALUES ('Framework A')").lastrowid
+    other = test_db.execute("INSERT INTO frameworks (name) VALUES ('Framework B')").lastrowid
+    unit_a = test_db.execute("INSERT INTO business_units (name,is_active) VALUES ('A',1)").lastrowid
+    unit_b = test_db.execute("INSERT INTO business_units (name,is_active) VALUES ('B',1)").lastrowid
+    grid_fid = test_db.execute("INSERT INTO grid_frameworks (name) VALUES ('Framework A')").lastrowid
+    audit_id = test_db.execute("INSERT INTO grid_audits (name,framework_id,business_unit_id) "
+                               "VALUES ('Other unit audit',%s,%s)", (grid_fid, unit_b)).lastrowid
+    test_db.commit()
+    viewer = {"id": 14, "org_id": 1, "roles": ["compliance_manager"],
+              "business_unit_id": unit_a, "licensed_modules": ["aria", "grid"]}
+    with pytest.raises(report_builders.RecordNotAvailable):
+        report_builders.build(test_db, viewer, "framework_auditor_register",
+                              {"framework_id": fid, "audit_id": audit_id})
+    with pytest.raises(report_builders.RecordNotAvailable):
+        report_builders.build(test_db, ADMIN, "framework_auditor_register",
+                              {"framework_id": other, "audit_id": audit_id})
+
+
+def test_integrated_audit_uses_aria_framework_ids_not_grid_ids(test_db):
+    fid = test_db.execute("INSERT INTO frameworks (name) VALUES ('Integrated A')").lastrowid
+    other = test_db.execute("INSERT INTO frameworks (name) VALUES ('Integrated B')").lastrowid
+    audit_id = test_db.execute(
+        "INSERT INTO grid_audits (name,is_integrated,framework_ids) VALUES ('IMS',1,%s)",
+        (f"[{fid}]",)).lastrowid
+    test_db.commit()
+    assert report_builders.build(test_db, ADMIN, "framework_auditor_register",
+                                 {"framework_id": fid, "audit_id": audit_id}).result["audit"]["id"] == audit_id
+    with pytest.raises(report_builders.RecordNotAvailable):
+        report_builders.build(test_db, ADMIN, "framework_auditor_register",
+                              {"framework_id": other, "audit_id": audit_id})

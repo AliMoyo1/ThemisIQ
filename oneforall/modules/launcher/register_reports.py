@@ -9,7 +9,7 @@ import json
 
 from core.rbac import has_capability
 from core.timeutils import utcnow
-from modules.evidence.scope import evidence_scope_sql
+from modules.evidence.scope import current_library_sql, evidence_scope_sql
 from modules.governance.entity_scope import entity_scope_sql
 
 
@@ -56,13 +56,41 @@ def _claims_rows(rows, reference_key):
     return details
 
 
-def framework(db, user, framework_id: int):
+def framework(db, user, framework_id: int, *, audit_id: int | None = None):
     _require(user, "module.aria.access")
     if type(framework_id) is not int or framework_id < 1:
         raise RegisterNotAvailable("Register not found")
     fw = db.execute("SELECT id,name,is_active,updated_at FROM frameworks WHERE id=%s", (framework_id,)).fetchone()
     if not fw:
         raise RegisterNotAvailable("Register not found")
+    audit = None
+    if audit_id is not None:
+        _require(user, "module.grid.access")
+        if type(audit_id) is not int or audit_id < 1:
+            raise RegisterNotAvailable("Register not found")
+        audit_scope, audit_params = entity_scope_sql(("grid", "audit"), user, "a")
+        row = db.execute(
+            "SELECT a.id,a.name,a.framework_id,a.framework_ids,a.is_integrated,a.status,"
+            "a.business_unit_id,a.created_at,gf.name AS framework_name "
+            "FROM grid_audits a LEFT JOIN grid_frameworks gf ON gf.id=a.framework_id "
+            f"WHERE a.id=%s AND {audit_scope}", [audit_id, *audit_params]).fetchone()
+        if not row:
+            raise RegisterNotAvailable("Register not found")
+        audit = dict(row)
+        if audit["is_integrated"]:
+            try:
+                linked_ids = json.loads(audit["framework_ids"] or "[]")
+            except (TypeError, ValueError):
+                linked_ids = []
+            if not isinstance(linked_ids, list) or framework_id not in linked_ids:
+                raise RegisterNotAvailable("Register not found")
+        else:
+            # GRID and ARIA IDs are different namespaces. Legacy GRID audits
+            # have only a framework name, so require a unique exact name.
+            matches = db.execute("SELECT COUNT(*) FROM frameworks WHERE name=%s",
+                                 (audit["framework_name"],)).fetchone()[0]
+            if matches != 1 or audit["framework_name"] != fw["name"]:
+                raise RegisterNotAvailable("Register not found")
     ctrl_scope, ctrl_params = entity_scope_sql(("aria", "control"), user, "c")
     controls = [dict(r) for r in db.execute(
         "SELECT c.id,c.ref,c.name,c.category,c.status,c.owner,c.priority,c.review_date,c.version,c.last_updated "
@@ -128,18 +156,70 @@ def framework(db, user, framework_id: int):
                                "hash": "not_recorded"} for r in documents] +
                              [{"kind": "vault_artifact", "id": r["evidence_id"], "revision": r["version"],
                                "hash": r["file_hash"] or "not_recorded"} for r in proof_rows])}
+    audit_controls, audit_findings, audit_proof = [], [], []
+    if audit is not None:
+        grid_control_scope, grid_control_params = entity_scope_sql(("grid", "control"), user, "c")
+        audit_controls = [dict(r) for r in db.execute(
+            "SELECT c.id,c.control_id,c.name,c.status,c.risk_level,c.due_date "
+            f"FROM grid_controls c WHERE c.audit_id=%s AND {grid_control_scope} "
+            "ORDER BY c.control_id,c.id", [audit_id, *grid_control_params]).fetchall()]
+        finding_scope, finding_params = entity_scope_sql(("grid", "nc"), user, "n")
+        audit_findings = [dict(r) for r in db.execute(
+            "SELECT n.id,n.control_id,n.title,n.severity,n.status,n.due_date,n.closed_at "
+            f"FROM grid_non_conformances n WHERE n.audit_id=%s AND {finding_scope} "
+            "ORDER BY n.id", [audit_id, *finding_params]).fetchall()]
+        control_ids = {r["id"] for r in audit_controls}
+        finding_ids = {r["id"] for r in audit_findings}
+        audit_proof = [dict(r) for r in db.execute(
+            "SELECT l.id AS link_id,l.entity_type,l.entity_id,l.review_status,l.reviewed_at,"
+            "e.id AS evidence_id,e.title,e.version,e.file_hash,e.status "
+            "FROM evidence_links l JOIN evidence_items e ON e.id=l.evidence_id "
+            "WHERE l.module='grid' AND l.deleted_at IS NULL AND "
+            "((l.entity_type='audit' AND l.entity_id=%s) OR "
+            "(l.entity_type='control' AND l.entity_id IN (SELECT id FROM grid_controls WHERE audit_id=%s)) OR "
+            "(l.entity_type='nc' AND l.entity_id IN (SELECT id FROM grid_non_conformances WHERE audit_id=%s))) "
+            f"AND {current_library_sql()} AND {evidence_scope} ORDER BY e.id,l.id",
+            [audit_id, audit_id, audit_id, *evidence_params]).fetchall()]
+        audit_proof = [r for r in audit_proof if
+                       (r["entity_type"] == "audit" and r["entity_id"] == audit_id) or
+                       (r["entity_type"] == "control" and r["entity_id"] in control_ids) or
+                       (r["entity_type"] == "nc" and r["entity_id"] in finding_ids)]
+        evidence_ids.update(r["evidence_id"] for r in audit_proof)
+        sections.update(audit_controls=audit_controls, audit_findings=audit_findings,
+                        audit_evidence=audit_proof)
+        sections["manifest"].extend(
+            [{"kind": "grid_audit", "id": audit_id, "revision": audit["created_at"],
+              "hash": "not_recorded"}] +
+            [{"kind": "grid_control", "id": r["id"], "revision": "not_recorded",
+              "hash": "not_recorded"} for r in audit_controls] +
+            [{"kind": "grid_finding", "id": r["id"], "revision": "not_recorded",
+              "hash": "not_recorded"} for r in audit_findings] +
+            [{"kind": "vault_artifact", "id": r["evidence_id"], "revision": r["version"],
+              "hash": r["file_hash"] or "not_recorded"} for r in audit_proof])
     sources, inputs = [], {}
-    for table, ids, label, module in (
+    source_specs = [
         ("frameworks", [framework_id], "Selected framework", "aria"),
         ("controls", [r["id"] for r in controls], "Controls", "aria"),
         ("aria_documents", [r["id"] for r in documents], "Controlled documents", "aria"),
-        ("evidence_items", sorted(evidence_ids), "Linked Vault artifacts", "evidence")):
+    ]
+    if audit is not None:
+        source_specs.extend([
+            ("grid_audits", [audit_id], "Selected GRID audit", "grid"),
+            ("grid_controls", [r["id"] for r in audit_controls], "Audit controls", "grid"),
+            ("grid_non_conformances", [r["id"] for r in audit_findings], "Audit findings", "grid"),
+        ])
+    source_specs.append(("evidence_items", sorted(evidence_ids), "Linked Vault artifacts", "evidence"))
+    for table, ids, label, module in source_specs:
         src, inp = _source(table, ids, label, module)
         sources.append(src); inputs[table] = inp
     built = _pack("framework_auditor_register", sections, sources, inputs,
         limitations=["A policy mapping is design coverage. Only a current, independently accepted Vault link counts as operating proof.",
                      "Unadopted legacy documents without an organization owner are excluded until their ownership is reviewed."])
     built.result["framework"] = {"id": framework_id, "name": fw["name"], "updated_at": fw["updated_at"]}
+    if audit is not None:
+        built.result["audit"] = {"id": audit_id, "name": audit["name"], "status": audit["status"]}
+        built.limitations.append("GRID audit status, findings and Vault links are separate from ARIA control acceptance. "
+                                 "GRID control references are displayed as recorded, without inferring a control mapping.")
     return built
 
 
