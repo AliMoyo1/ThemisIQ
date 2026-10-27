@@ -389,6 +389,42 @@ def test_authority_and_register_import_schema_in_public_and_tenant_on_real_postg
             assert columns <= found, (schema, table, columns - found)
 
 
+def test_register_queue_claim_stays_in_its_tenant_on_real_postgres(pg):
+    """The scheduled worker must claim a tenant's pending run in that schema only."""
+    from modules.launcher import report_job_sweeper
+
+    pg.init_db()
+    pg.provision_tenant_schema("register_queue_a")
+    pg.provision_tenant_schema("register_queue_b")
+
+    with pg.tenant_context(7, "register_queue_b", is_super_admin=False):
+        assert report_job_sweeper._claim() is None
+
+    with pg.tenant_context(7, "register_queue_a", is_super_admin=False):
+        db = pg.get_db_background()
+        try:
+            definition_id = db.execute(
+                "INSERT INTO report_definitions (name,report_type) "
+                "VALUES ('Queue test','ai_systems_register') RETURNING id"
+            ).fetchone()["id"]
+            run_id = db.execute(
+                "INSERT INTO report_runs (definition_id,status,progress_stage) "
+                "VALUES (%s,'pending','queued') RETURNING id", (definition_id,)
+            ).fetchone()["id"]
+            db.commit()
+        finally:
+            db.close()
+        assert report_job_sweeper._claim() == run_id
+        assert report_job_sweeper._claim() is None
+
+    with pg.tenant_context(7, "register_queue_b", is_super_admin=False):
+        assert report_job_sweeper._claim() is None
+
+    assert _raw_rows("SELECT status,progress_stage FROM tenant_register_queue_a.report_runs "
+                     "WHERE id=%s", (run_id,))[0] == ("running", "reading")
+    assert _raw_rows("SELECT count(*) FROM tenant_register_queue_b.report_runs")[0][0] == 0
+
+
 def test_plan36_exercise_calendar_and_metrics_schema_on_real_postgres(pg):
     """Fresh PostgreSQL must create the new BCM and shared projections in FK order."""
     pg.init_db()
