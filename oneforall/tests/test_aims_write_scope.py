@@ -102,6 +102,20 @@ def _exists(db, table, row_id):
     return db.execute(f"SELECT 1 FROM {table} WHERE id = %s", (row_id,)).fetchone() is not None
 
 
+def test_risk_system_links_follow_both_risk_and_application_scope(web):
+    db, unit = web.world.db, web.world.unit
+    app_a = _insert(db, "applications", name="AI system A", business_unit_id=unit["A"])
+    app_b = _insert(db, "applications", name="AI system B", business_unit_id=unit["B"])
+    risk_a = web.rows["A"].risk
+    risk_b = web.rows["B"].risk
+    assert web("put", f"/orm/api/aims/risks/{risk_a}/systems/{app_b}", name="owner_a").status_code == 404
+    assert web("put", f"/orm/api/aims/risks/{risk_b}/systems/{app_a}", name="owner_a").status_code == 404
+    assert web("put", f"/orm/api/aims/risks/{risk_a}/systems/{app_a}", name="owner_a").status_code == 200
+    assert web("put", f"/orm/api/aims/risks/{risk_a}/systems/{app_a}", name="owner_a").status_code == 200
+    assert [r["name"] for r in web("get", f"/orm/api/aims/risks/{risk_a}/systems", name="owner_a").json()] == ["AI system A"]
+    assert web("delete", f"/orm/api/aims/risks/{risk_a}/systems/{app_a}", name="owner_a").status_code == 200
+
+
 # ── Another unit's assessment cannot be changed, and nothing changes when it is tried ──
 
 @pytest.mark.parametrize("persona", CONFINED)

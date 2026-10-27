@@ -27,6 +27,12 @@ LIST_CAP = 200
 # table -> (what the viewer calls it, the module whose access governs it)
 SOURCES = {
     "controls": ("Controls", "aria"),
+    "aria_documents": ("Controlled documents", "aria"),
+    "evidence_items": ("Vault artifacts", "evidence"),
+    "applications": ("Applications", "ai_governance"),
+    "ai_use_profiles": ("AI use profiles", "ai_governance"),
+    "aims_assessments": ("AIMS assessments", "orm"),
+    "aims_risks": ("AIMS risks", "orm"),
     "frameworks": ("Frameworks", "aria"),
     "risk_register": ("Platform risk register", "platform"),
     "erm_enterprise_risks": ("Enterprise risks", "erm"),
@@ -558,6 +564,17 @@ def valid_subject(parameters) -> "dict | None":
 def build(db, user, report_type, parameters=None) -> Built:
     """Read one report. Raises ValueError for an unknown type and RecordNotAvailable for a case whose record the person
     cannot open."""
+    if report_type in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+        from modules.launcher import register_reports
+        try:
+            if report_type == "framework_auditor_register":
+                framework_id = (parameters or {}).get("framework_id")
+                return register_reports.framework(db, user, framework_id)
+            if report_type == "ai_systems_register":
+                return register_reports.ai_systems(db, user)
+            return register_reports.ai_risks(db, user)
+        except register_reports.RegisterNotAvailable:
+            raise RecordNotAvailable() from None
     r = Reader(db, user)
     if report_type in BUILDERS:
         result = BUILDERS[report_type](r)

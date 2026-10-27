@@ -712,7 +712,9 @@ def _bit(value):
 def _profile(row) -> "dict | None":
     if row is None:
         return None
-    out = {k: row[k] for k in ("id", "application_id", "version", "review_cadence_months")}
+    out = {k: row[k] for k in ("id", "application_id", "version", "review_cadence_months",
+                               "external_ref", "import_review_state", "import_claimed_status", "import_batch_id")}
+    out["source_claims"] = _json_object(row["source_claims_json"]) or {}
     out["material_changed_at"] = _text(row["material_changed_at"])
     for field in _PROFILE_FIELDS:
         value = row[field]
@@ -749,6 +751,28 @@ def get_profile(db, user, application_id: int) -> "dict | None":
         else:
             profile["sponsor_user_id"] = None
     return profile
+
+
+def review_imported_profile(db, user, application_id, expected_version, decision, reason):
+    """Verify imported source facts without adopting a tier or approving a use."""
+    _require(user, "ai_use.review")
+    if not describe_record(db, APP, application_id, user):
+        raise ServiceError(404, "Application not found.")
+    if type(expected_version) is not int or decision not in {"reviewed", "disputed"}:
+        raise ServiceError(422, "Choose a source review decision and current profile version.")
+    reason = _reason(reason, "why the imported facts were reviewed", minimum=10)
+    row = db.execute("SELECT import_review_state FROM ai_use_profiles WHERE application_id=%s",
+                     (application_id,)).fetchone()
+    if not row or row["import_review_state"] not in {"pending", "disputed"}:
+        raise ServiceError(409, "This profile is not waiting for imported-source review.")
+    done = db.execute("UPDATE ai_use_profiles SET import_review_state=%s,version=version+1,updated_by=%s,"
+                      "updated_at=%s WHERE application_id=%s AND version=%s",
+                      (decision, user["id"], _now(), application_id, expected_version)).rowcount
+    if done != 1:
+        raise ServiceError(409, "The profile changed. Reload it before reviewing.")
+    return {"profile": get_profile(db, user, application_id), "events": [],
+            "audit": [("ai_import_source_reviewed", "application", application_id,
+                       f"Source facts {decision}: {reason}")]}
 
 
 def update_profile(db, user, application_id: int, raw_answers, expected_version) -> dict:

@@ -19,11 +19,12 @@ import tempfile
 from datetime import timedelta
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 
 from core.timeutils import utcnow, to_dt
+from core.source_fetch import MAX_BYTES, fetch_source
+from core.source_registry import SOURCES as AUTHORITY_SOURCES, SENTINEL_KEYS
 from database import get_db, get_db_background, insert_returning_id, try_acquire_scheduler_lock
 from modules.sentinel import data_service as ds
 
@@ -32,36 +33,12 @@ log = logging.getLogger("sentinel.living_law")
 # Curated authority pages, checked against the authority sites on 2026-10-24.
 # Research attachments are leads, never ingestible legal authority. Add a source
 # only after verifying its ownership and applicability. No user-supplied URLs.
-SOURCES = {
-    "eu_gdpr": ("GDPR", "European Commission · EU data-protection legal framework", "https://commission.europa.eu/law/law-topic/data-protection/legal-framework-eu-data-protection_en"),
-    "eu_gdpr_obligations": ("GDPR", "European Commission · GDPR obligations", "https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations/obligations_en"),
-    "uk_ico_breach": ("UK GDPR", "ICO · personal data breaches", "https://ico.org.uk/for-organisations/report-a-breach/personal-data-breach/personal-data-breaches-a-guide/"),
-    "uk_duaa_commencement": ("UK GDPR", "UK Government · Data Use and Access Act commencement updates", "https://www.gov.uk/government/collections/data-use-and-access-act-2025"),
-    "za_ir_compromise": ("South Africa POPIA", "Information Regulator · security compromises", "https://inforegulator.org.za/2025/08/19/fact-sheet-handling-of-security-compromises/"),
-    "za_ir_fact_sheet_pdf": ("South Africa POPIA", "Information Regulator · security compromise fact sheet PDF", "https://inforegulator.org.za/wp-content/uploads/2025/08/Fact-Sheet-on-security-compromises-2.pdf"),
-    "ke_odpc_breach": ("Kenya DPA", "ODPC · report a data breach", "https://www.odpc.go.ke/report-a-data-breach/"),
-    "ca_opc_breach": ("Canada PIPEDA", "OPC · breach reporting", "https://www.priv.gc.ca/en/privacy-topics/privacy-for-businesses/privacy-breaches-at-your-business/gd_pb_201810/"),
-    "us_ca_ccpa": ("USA CCPA/CPRA", "California Attorney General · CCPA", "https://oag.ca.gov/privacy/ccpa"),
-    "au_oaic_ndb": ("Australia Privacy Act", "OAIC · Notifiable Data Breaches scheme", "https://www.oaic.gov.au/privacy/notifiable-data-breaches/about-the-notifiable-data-breaches-scheme"),
-    "br_anpd_incidents": ("Brazil LGPD", "ANPD · comunicação de incidente de segurança", "https://www.gov.br/anpd/pt-br/canais_atendimento/agente-de-tratamento/comunicado-de-incidente-de-seguranca-cis"),
-}
-SOURCE_TYPES = {
-    "eu_gdpr": "government legal-framework overview",
-    "eu_gdpr_obligations": "government obligations guidance",
-    "uk_ico_breach": "regulator guidance",
-    "uk_duaa_commencement": "government commencement publication",
-    "za_ir_compromise": "regulator guidance",
-    "za_ir_fact_sheet_pdf": "regulator guidance · PDF",
-    "ke_odpc_breach": "regulator reporting page",
-    "ca_opc_breach": "regulator guidance",
-    "us_ca_ccpa": "state attorney-general guidance",
-    "au_oaic_ndb": "regulator guidance",
-    "br_anpd_incidents": "regulator guidance · Portuguese",
-}
+SOURCES = {key: (AUTHORITY_SOURCES[key].jurisdiction, AUTHORITY_SOURCES[key].title,
+                 AUTHORITY_SOURCES[key].url) for key in SENTINEL_KEYS}
+SOURCE_TYPES = {key: AUTHORITY_SOURCES[key].source_type for key in SENTINEL_KEYS}
 CADENCES = {"24h": timedelta(days=1), "weekly": timedelta(days=7), "monthly": timedelta(days=30)}
-MAX_BYTES = 5_000_000
 MAX_TEXT = 800_000
-PDF_SOURCES = frozenset({"za_ir_fact_sheet_pdf"})
+PDF_SOURCES = frozenset(key for key, item in AUTHORITY_SOURCES.items() if item.content_type == "pdf")
 
 
 class _VisibleText(HTMLParser):
@@ -71,13 +48,13 @@ class _VisibleText(HTMLParser):
         self.skip = 0
 
     def handle_starttag(self, tag, attrs):
-        if tag in {"script", "style", "noscript", "svg"}:
+        if tag in {"script", "style", "noscript", "svg", "nav", "footer", "aside"}:
             self.skip += 1
         elif not self.skip and tag in {"p", "div", "li", "h1", "h2", "h3", "h4", "br", "tr"}:
             self.parts.append("\n")
 
     def handle_endtag(self, tag):
-        if tag in {"script", "style", "noscript", "svg"} and self.skip:
+        if tag in {"script", "style", "noscript", "svg", "nav", "footer", "aside"} and self.skip:
             self.skip -= 1
         elif not self.skip and tag in {"p", "div", "li", "h1", "h2", "h3", "h4", "tr"}:
             self.parts.append("\n")
@@ -127,30 +104,12 @@ def _extract_pdf(raw: bytes) -> str:
 
 
 def _fetch(url: str) -> bytes:
-    # Exact URL allowlist and no redirects prevent this service becoming an SSRF
-    # proxy, including after an authority moves its page.
+    # Keep the module-level allowlist so a source removed from Sentinel cannot
+    # be fetched merely because another consumer still knows about it.
     if url not in {item[2] for item in SOURCES.values()}:
         raise ValueError("Source is not pinned in the authority catalogue")
-    if urlsplit(url).scheme != "https":
-        raise ValueError("Authority source must use HTTPS")
-    with httpx.Client(timeout=15, trust_env=False, follow_redirects=False,
-                      headers={"User-Agent": "ThemisIQ-LawMonitor/1.0"}) as client:
-        with client.stream("GET", url) as response:
-            if response.status_code != 200:
-                raise ValueError(f"Authority returned HTTP {response.status_code}; review source URL")
-            content_type = response.headers.get("content-type", "").lower()
-            expected_pdf = url in {SOURCES[key][2] for key in PDF_SOURCES}
-            if expected_pdf and "application/pdf" not in content_type:
-                raise ValueError("Authority did not return a PDF")
-            if not expected_pdf and "text/html" not in content_type:
-                raise ValueError("Authority did not return an HTML page")
-            chunks, size = [], 0
-            for chunk in response.iter_bytes():
-                size += len(chunk)
-                if size > MAX_BYTES:
-                    raise ValueError("Authority page exceeds capture limit")
-                chunks.append(chunk)
-    return b"".join(chunks)
+    from core.source_registry import by_url
+    return fetch_source(by_url(url)).raw
 
 
 def _active() -> set[str]:
@@ -259,11 +218,12 @@ def check_source(org_id: int, source_key: str, *, prepared: tuple[bytes, str] | 
             excerpt = "\n".join(diff)[:6000] if previous else "First captured baseline; requires specialist review."
             capture_id = insert_returning_id(db, "INSERT INTO sentinel_law_captures "
                 "(org_id,source_key,jurisdiction_key,source_url,captured_at,raw_sha256,text_sha256,"
-                "captured_html_gzip_b64,extracted_text,previous_capture_id,change_excerpt) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "captured_html_gzip_b64,extracted_text,previous_capture_id,change_excerpt,parser_version) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (org_id, source_key, jurisdiction, url, checked, raw_hash, text_hash,
                  base64.b64encode(gzip.compress(raw)).decode("ascii"), content,
-                 previous["id"] if previous else None, excerpt))
+                 previous["id"] if previous else None, excerpt,
+                 AUTHORITY_SOURCES[source_key].parser_version))
             result = "change_pending_review" if previous else "baseline_pending_review"
             # Notify only this organization's DPOs, without copying legal text
             # into the global notifications table or sending external email.
@@ -358,7 +318,8 @@ def capture_detail(org_id: int, capture_id: int) -> dict:
     db = get_db()
     try:
         row = db.execute("SELECT id,source_key,jurisdiction_key,source_url,captured_at,raw_sha256,"
-                         "text_sha256,captured_html_gzip_b64,extracted_text,change_excerpt,review_state,reviewed_by,"
+                         "text_sha256,captured_html_gzip_b64,extracted_text,previous_capture_id,"
+                         "change_excerpt,parser_version,review_state,reviewed_by,"
                          "reviewed_at,review_note,legal_hold,hold_reason,hold_set_by,hold_set_at "
                          "FROM sentinel_law_captures WHERE id=%s AND org_id=%s",
                          (capture_id, org_id)).fetchone()
@@ -386,6 +347,7 @@ def capture_detail(org_id: int, capture_id: int) -> dict:
         except (OSError, ValueError, EOFError, binascii.Error):
             result["hash_verified"] = False
         result["source_type"] = SOURCE_TYPES.get(result["source_key"], "unknown source")
+        result["framework_candidates"] = list(AUTHORITY_SOURCES[result["source_key"]].frameworks)
         result["proof"] = "Captured over HTTPS from the pinned authority URL; SHA-256 verifies stored bytes. Human review still determines legal effect."
         return result
     finally:

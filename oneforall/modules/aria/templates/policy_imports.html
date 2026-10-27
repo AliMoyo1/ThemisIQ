@@ -36,6 +36,35 @@
 {% endblock %}
 {% block content %}
 <div class="intake-top"><h1>Bring existing policies into ThemisIQ</h1><p>Upload policies you already use. Review what the document actually says, confirm relevant controls, then register the original. A suggested match never counts as control effectiveness or approval.</p></div>
+{% if has_capability(user, 'aria.policy.create') %}
+<section class="intake-card" style="margin-bottom:18px" aria-labelledby="register-title">
+ <h2 id="register-title">Reconcile a document control register</h2>
+ <p>Upload an XLSX register to identify exact document-code and version matches. Workbook approval and control references remain unverified claims. Upload actual policies above before they can become controlled files.</p>
+ <form id="doc-register-form" class="intake-fields">
+  <label class="wide">Document register XLSX<input id="doc-register-file" type="file" accept=".xlsx" required></label>
+  <label>Business unit ID<input id="doc-register-bu" type="number" min="1" value="{{ user.business_unit_id or '' }}"></label>
+  <label style="display:flex;align-items:center;gap:8px">Organization-wide register<input id="doc-register-orgwide" type="checkbox" style="width:auto;min-height:auto"></label>
+  <div class="wide"><button class="btn btn-primary" type="submit">Preview register</button></div>
+ </form>
+ <div id="doc-register-status" class="intake-status" role="status" aria-live="polite"></div>
+ <div id="doc-register-preview" hidden>
+  <p id="doc-register-summary"></p><div id="doc-register-warnings"></div>
+  <div class="intake-list" id="doc-register-rows"></div>
+  <label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input id="doc-register-ack" type="checkbox" style="width:auto;min-height:auto"> I reviewed all discrepancies and understand these are unverified workbook claims.</label>
+  <button class="btn btn-ghost" id="doc-register-confirm" type="button">File reconciliation queue</button>
+ </div>
+ {% if register_claims %}<h3>Recent register claims</h3><p>Matches below identify a possible source version; they do not verify external approval or the claimed control reference. <a href="/aria/documents">Open controlled documents</a>.</p>
+ <div class="intake-list" style="max-height:300px">
+ {% for claim in register_claims %}<div class="intake-item" data-register-claim="{{ claim.id }}" data-claim-version="{{ claim.version }}">
+  <strong>{{ claim.document_code }} · v{{ claim.document_version }}</strong><span>{{ claim.title }} · {{ claim.state|replace('_',' ') }}</span>
+  {% if claim.state == 'pending_review' and has_capability(user, 'aria.policy.approve') and claim.created_by != user.id %}
+  <button type="button" class="btn btn-ghost" data-register-decision="exact_match" {% if not claim.matched_document_id %}disabled{% endif %}>Confirm exact file match</button>
+  <button type="button" class="btn btn-ghost" data-register-decision="needs_source_file">Needs source file</button>
+  {% endif %}
+ </div>{% endfor %}
+ </div>{% endif %}
+</section>
+{% endif %}
 <div class="intake-grid">
  <section class="intake-card">
   <h2>Import queue</h2>
@@ -112,4 +141,4 @@
  </section>
 </div>
 {% endblock %}
-{% block extra_scripts %}{{ super() }}<script defer src="/static/js/aria_policy_intake.js?v=2"></script>{% endblock %}
+{% block extra_scripts %}{{ super() }}<script defer src="/static/js/aria_policy_intake.js?v=2"></script><script defer src="/static/js/aria_document_register.js?v=1"></script>{% endblock %}

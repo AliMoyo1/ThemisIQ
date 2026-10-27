@@ -195,11 +195,12 @@ DECLARATIONS = {
                                     "Facts already computed by rules about that AI use, each with an id",
                                     "Anything not in those facts", "ai_use.view", "An explanation citing fact ids, shown",
                                     "person", "rules"),
-    "governance.run_drift_check": _d("Summarize a regulatory update against the controls it may touch",
-                                     "The update's title and summary and the references of controls that match",
-                                     "Control content beyond the reference", "governance.entities.manage, and the "
-                                     "evidence expiry job", "A summary and a status on the regulatory update record",
-                                     "applied", "rules"),
+    "governance.run_drift_check": _d("Select an exact changed passage for specialist review",
+                                     "A bounded changed excerpt from one hash-verified public authority capture",
+                                     "Tenant records and unapproved rule-card interpretations",
+                                     "A specialist explicitly requests a source draft",
+                                     "An unapproved quote with capture and hash citation, shown",
+                                     "person", "unavailable"),
     # ── GRID ────────────────────────────────────────────────────────────────
     "grid.batch_risk_score": _d("Rate audit items by risk",
                                 "Audit item names and descriptions of one checklist, with the framework name",

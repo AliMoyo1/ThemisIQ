@@ -55,6 +55,13 @@
     <div class="section-sub">{{ fw_list|length }} active framework{{ 's' if fw_list|length != 1 else '' }} with control tracking</div>
   </div>
 </div>
+<section id="framework-register-preview" class="ims-panel" hidden aria-live="polite">
+  <div class="ims-panel-title" id="framework-register-title">Auditor register preview</div>
+  <p id="framework-register-summary" class="ims-panel-sub"></p>
+  <div id="framework-register-gaps"></div>
+  <button id="framework-register-generate" type="button" class="btn btn-primary">Generate frozen register</button>
+  <a href="/aria/policy-imports" class="btn btn-ghost">Reconcile existing documents</a>
+</section>
 
 {% if ims_summary and ims_summary.framework_count >= 2 %}
 <div class="ims-panel animate-fade-up anim-1">
@@ -165,6 +172,10 @@
 
     <!-- Quick action links -->
     <div class="fw-actions">
+      <button type="button" class="fw-action" data-framework-register="{{ fw.id }}" aria-label="Preview auditor register for {{ fw.name }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
+        Auditor register
+      </button>
       <a href="/aria/framework/{{ fw.id }}" class="fw-action" onclick="event.stopPropagation()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         Controls
@@ -193,3 +204,4 @@
   {% endif %}
 </div>
 {% endblock %}
+{% block extra_scripts %}<script src="/static/js/aria_auditor_register.js?v=1" defer></script>{% endblock %}

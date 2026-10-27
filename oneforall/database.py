@@ -5038,6 +5038,26 @@ CREATE TABLE IF NOT EXISTS sentinel_law_captures (
     hold_set_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sentinel_law_captures_org ON sentinel_law_captures(org_id, jurisdiction_key, review_state);
+CREATE TABLE IF NOT EXISTS regulatory_source_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    capture_id INTEGER NOT NULL REFERENCES sentinel_law_captures(id),
+    source_key TEXT NOT NULL,
+    source_text_sha256 TEXT NOT NULL,
+    framework_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT,
+    affected_refs TEXT,
+    review_state TEXT NOT NULL DEFAULT 'pending' CHECK (review_state IN ('pending','approved','rejected')),
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_note TEXT,
+    update_id INTEGER,
+    UNIQUE (org_id, capture_id, framework_name)
+);
+CREATE INDEX IF NOT EXISTS idx_reg_source_candidates_org ON regulatory_source_candidates(org_id, review_state);
 """
 
 # ── ERM + ORM Tables ──────────────────────────────────────────────────────────
@@ -6044,6 +6064,14 @@ CREATE TABLE IF NOT EXISTS aims_risks (
     updated_at          TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_aims_risks_assessment ON aims_risks(assessment_id);
+CREATE TABLE IF NOT EXISTS aims_risk_applications (
+    risk_id INTEGER NOT NULL REFERENCES aims_risks(id) ON DELETE CASCADE,
+    application_id INTEGER NOT NULL REFERENCES applications(id),
+    linked_by INTEGER NOT NULL REFERENCES users(id),
+    linked_at TEXT NOT NULL,
+    PRIMARY KEY (risk_id, application_id)
+);
+CREATE INDEX IF NOT EXISTS idx_aims_risk_applications_app ON aims_risk_applications(application_id);
 CREATE TABLE IF NOT EXISTS aims_risk_controls (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     risk_id             INTEGER NOT NULL REFERENCES aims_risks(id) ON DELETE CASCADE,
@@ -6062,6 +6090,60 @@ CREATE TABLE IF NOT EXISTS aims_risk_controls (
     created_at          TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_aims_rc_risk ON aims_risk_controls(risk_id);
+
+-- Reviewed register workbook previews. A file's cells are never executed or
+-- promoted into a live use, score or approval by the preview step.
+CREATE TABLE IF NOT EXISTS register_import_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER,
+    kind TEXT NOT NULL CHECK (kind IN ('ai_systems', 'ai_risks')),
+    assessment_id INTEGER,
+    file_name TEXT NOT NULL,
+    file_sha256 TEXT NOT NULL,
+    profile_version TEXT NOT NULL,
+    rows TEXT NOT NULL,
+    warnings TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'previewed',
+    version INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    confirmed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_register_import_org ON register_import_batches(org_id,kind,status);
+
+-- Workbook claims are review material, never controlled policies or accepted mappings.
+CREATE TABLE IF NOT EXISTS aria_document_register_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER,
+    file_name TEXT NOT NULL,
+    file_sha256 TEXT NOT NULL,
+    rows TEXT NOT NULL,
+    warnings TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'previewed',
+    version INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    confirmed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS aria_document_register_claims (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id INTEGER NOT NULL REFERENCES aria_document_register_batches(id),
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER,
+    document_code TEXT NOT NULL,
+    document_version TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source_json TEXT NOT NULL,
+    matched_document_id INTEGER REFERENCES aria_documents(id),
+    state TEXT NOT NULL DEFAULT 'pending_review',
+    version INTEGER NOT NULL DEFAULT 1,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    UNIQUE(batch_id,document_code,document_version)
+);
+CREATE INDEX IF NOT EXISTS idx_aria_register_claims_org ON aria_document_register_claims(org_id,state);
 
 -- ── AI governance (G3): which canonical control an AI control corresponds to ─
 -- Confirmed by a reviewer, never inferred. The proof held for the canonical control is then shown against the AI control.
@@ -6526,6 +6608,11 @@ _COLUMN_MIGRATIONS = [
         ("evidence_items",         "review_due_date", "TEXT"),
         ("evidence_items",         "period_start", "TEXT"),
         ("evidence_items",         "period_end", "TEXT"),
+        # Pinned-source parser identity is recorded per immutable capture.
+        # Existing captures remain readable, with NULL meaning the legacy parser.
+        ("sentinel_law_captures", "parser_version", "TEXT"),
+        ("regulatory_updates", "source_capture_id", "INTEGER"),
+        ("regulatory_updates", "source_text_sha256", "TEXT"),
         ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("people_directory",       "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # ── Governance Graph T1.2: canonical control linkage + user BU ────────
@@ -6645,6 +6732,13 @@ _COLUMN_MIGRATIONS = [
         ("notifications", "source_event_id", "INTEGER"),
         ("ai_use_profiles", "material_changed_at", "TEXT"),
         ("ai_use_profiles", "sponsor_user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+        ("ai_use_profiles", "external_ref", "TEXT"),
+        ("ai_use_profiles", "import_review_state", "TEXT"),
+        ("ai_use_profiles", "import_claimed_status", "TEXT"),
+        ("ai_use_profiles", "import_batch_id", "INTEGER"),
+        ("ai_use_profiles", "source_claims_json", "TEXT"),
+        ("aims_risks", "import_batch_id", "INTEGER"),
+        ("aims_risks", "source_claims_json", "TEXT"),
         # AI governance G3b: the AI impact assessment carries a version, so two people editing it cannot overwrite each other
         ("sentinel_aiia", "version", "INTEGER NOT NULL DEFAULT 1"),
         # "Uses AI or embedded AI?" on a vendor and on a business process: yes, no or unknown, with who said so and why
@@ -6840,6 +6934,7 @@ def _run_sqlite_alters(conn):
         # AI governance rework 1B: one request per response and revision, even when two imports race (duplicated in
         # _run_pg_alters below)
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_source ON ai_use_intake_requests(source_key, source_fingerprint) WHERE source_key IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_profile_external_ref ON ai_use_profiles(lower(external_ref)) WHERE external_ref IS NOT NULL",
         # PLAN-35 T11 review fix: also correctness constraints (a dedup_key
         # replay's idempotency for these two specific, previously
         # non-idempotent event side effects), duplicated in _run_pg_alters()
@@ -8307,6 +8402,7 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_event_user ON notifications(source_event_id, user_id) WHERE source_event_id IS NOT NULL",
         "CREATE INDEX IF NOT EXISTS idx_aiia_application ON sentinel_aiia(application_id)",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_source ON ai_use_intake_requests(source_key, source_fingerprint) WHERE source_key IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_profile_external_ref ON ai_use_profiles(lower(external_ref)) WHERE external_ref IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_reminder_key ON task_board(reminder_key) WHERE reminder_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",

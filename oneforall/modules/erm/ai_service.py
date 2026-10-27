@@ -12,6 +12,7 @@ from core.ai_client import (
     is_configured, must_answer, provider_name, safe_json_parse, wrap_user_input as _u,
 )
 from config import settings
+from core.source_registry import horizon_domains
 from modules.erm.data_service import create_emerging, emerging_title_exists, build_org_context
 
 log = logging.getLogger(__name__)
@@ -308,7 +309,7 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
         [{"role": "user", "content": prompt}],
         max_tokens=_emerging_scan_token_budget(),
         max_searches=getattr(settings, "ERM_SCAN_MAX_SEARCHES", 8),
-        allowed_domains=getattr(settings, "ERM_SCAN_ALLOWED_DOMAINS", None),
+        allowed_domains=list(horizon_domains(getattr(settings, "ERM_SCAN_ALLOWED_DOMAINS", None))),
         feature="erm.scan_emerging_risks_grounded",
     )
     items = safe_json_parse(result.get("text", ""), []) or []

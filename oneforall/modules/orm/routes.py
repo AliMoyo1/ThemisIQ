@@ -864,6 +864,70 @@ async def api_aims_risk_get(request: Request, risk_id: int):
     return JSONResponse(r)
 
 
+@router.get("/api/aims/risks/{risk_id}/systems")
+@require_capability("module.orm.access")
+async def api_aims_risk_systems(request: Request, risk_id: int):
+    """A risk can concern several AI uses without duplicating its treatment history."""
+    _aims_risk_in_scope_or_404(request, risk_id)
+    from database import get_db
+    from modules.governance.entity_scope import entity_scope_sql
+    db = get_db()
+    try:
+        scope, params = entity_scope_sql(("governance", "application"), request.state.user, "a")
+        rows = db.execute(
+            "SELECT a.id,a.name FROM aims_risk_applications ra JOIN applications a ON a.id=ra.application_id "
+            f"WHERE ra.risk_id=%s AND {scope} ORDER BY a.name,a.id", [risk_id, *params]).fetchall()
+        return JSONResponse([dict(row) for row in rows])
+    finally:
+        db.close()
+
+
+@router.put("/api/aims/risks/{risk_id}/systems/{application_id}")
+@require_capability("orm.event.manage")
+async def api_aims_risk_system_link(request: Request, risk_id: int, application_id: int):
+    _aims_risk_in_scope_or_404(request, risk_id)
+    from database import get_db
+    from core.timeutils import utcnow
+    from modules.governance.entity_scope import describe_record
+    db = get_db()
+    try:
+        if not describe_record(db, ("governance", "application"), application_id, request.state.user):
+            raise HTTPException(404)
+        db.execute("INSERT INTO aims_risk_applications (risk_id,application_id,linked_by,linked_at) "
+                   "VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                   (risk_id, application_id, _uid(request), utcnow().isoformat()))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    log_audit(request.state.user, "orm", "aims_risk_system_linked", entity_type="aims_risk", entity_id=risk_id)
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/aims/risks/{risk_id}/systems/{application_id}")
+@require_capability("orm.event.manage")
+async def api_aims_risk_system_unlink(request: Request, risk_id: int, application_id: int):
+    _aims_risk_in_scope_or_404(request, risk_id)
+    from database import get_db
+    from modules.governance.entity_scope import describe_record
+    db = get_db()
+    try:
+        if not describe_record(db, ("governance", "application"), application_id, request.state.user):
+            raise HTTPException(404)
+        db.execute("DELETE FROM aims_risk_applications WHERE risk_id=%s AND application_id=%s",
+                   (risk_id, application_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    log_audit(request.state.user, "orm", "aims_risk_system_unlinked", entity_type="aims_risk", entity_id=risk_id)
+    return JSONResponse({"ok": True})
+
+
 @router.put("/api/aims/risks/{risk_id}")
 @require_capability("orm.event.manage")
 async def api_aims_risk_update(request: Request, risk_id: int):

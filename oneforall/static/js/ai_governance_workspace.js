@@ -101,6 +101,9 @@
         panel.appendChild(el('section', { class: 'aig-panel', 'aria-labelledby': 'aigProfH' }, [
           el('h2', { id: 'aigProfH', class: 'aig-h3', text: 'AI profile' }),
           el('dl', { class: 'aig-facts' }, [
+            fact('External register reference', p.external_ref),
+            fact('Imported source review', p.import_review_state || 'Not imported'),
+            fact('Workbook claimed status', p.import_claimed_status),
             fact('Purpose', p.purpose), fact('What it does', words(L.capability_type, p.capability_type)), fact('Provided', words(L.deployment, p.deployment)),
             fact('Provider or model', p.provider_note), fact('Sponsor', p.sponsor_name), fact('Intended users', p.intended_users), fact('Kinds of data', words(L.data_categories, p.data_categories)),
             fact('Who is affected', words(L.affected_people, p.affected_people)), fact('How much it decides', words(L.autonomy, p.autonomy)),
@@ -109,7 +112,15 @@
             fact('Last reviewed', AIGov.date(p.last_reviewed_at)), fact('Next review', AIGov.date(p.next_review_at) || 'Not scheduled')]),
           can.review ? el('div', { class: 'aig-actions' }, [
             el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Edit profile', on: { click: function () { profileDialog(p); } } }),
-            el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Mark as reviewed today', on: { click: markReviewed } })]) : null]));
+            el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Mark as reviewed today', on: { click: markReviewed } }),
+            p.import_review_state === 'pending' || p.import_review_state === 'disputed'
+              ? el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Review imported facts',
+                  on: { click: function () { reasonDialog('Review imported source facts', 'What did you verify against the source?',
+                    'Record source review', 'import-review', { control: AIGov.select([
+                      { id: 'reviewed', name: 'Reviewed source facts' }, { id: 'disputed', name: 'Disputed source facts' }
+                    ], '', 'Choose an outcome'), label: 'Source review result',
+                    body: function (reason) { return { reason: reason, version: p.version,
+                      decision: document.getElementById('aigDlgExtra').value }; } }); } } }) : null]) : null]));
         var tier = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigTierH' }, [el('h2', { id: 'aigTierH', class: 'aig-h3', text: 'Tier' }),
           el('p', {}, [AIGov.tierChip(p.tier, p.adopted_tier !== null), ' ', el('span', { class: 'aig-muted', text:
             p.adopted_tier ? 'Adopted by a reviewer on ' + AIGov.date(p.adopted_at) + '. Provisional reading: ' + (L.tiers[p.provisional_tier] || 'Needs review') + '.'

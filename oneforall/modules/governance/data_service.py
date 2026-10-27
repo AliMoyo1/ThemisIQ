@@ -1296,27 +1296,8 @@ def run_drift_check(db, update_id: int | None = None) -> dict:
 
         tasks_done += new_tasks
 
-        if upd["ai_summary"] is None and ctrl_matches > 0:
-            try:
-                from core.ai_client import create_message, is_configured
-                if is_configured():
-                    prompt = (
-                        f"Regulatory update: '{title}' for framework '{fw_name}'. "
-                        f"Summary: {upd['summary'] or 'none provided'}. "
-                        f"Affected control refs: {affected_refs or 'none'}. "
-                        "Summarize what changed and what a control owner should check. "
-                        "Under 120 words."
-                    )
-                    ai_text = create_message(
-                        [{"role": "user", "content": prompt}], max_tokens=200,
-                        feature="governance.run_drift_check",
-                    )
-                    db.execute(
-                        "UPDATE regulatory_updates SET ai_summary=%s WHERE id=%s",
-                        (ai_text, uid),
-                    )
-            except Exception as ai_exc:
-                _drift_log.warning("AI summary failed for update %s: %s", uid, ai_exc)
+        # A manually entered title is not captured source text. The optional
+        # source interpreter requires a hash-verified capture and an exact quote.
 
         db.execute(
             "UPDATE regulatory_updates "

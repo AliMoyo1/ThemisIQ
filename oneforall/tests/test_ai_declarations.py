@@ -43,7 +43,7 @@ def test_each_declaration_is_complete_and_uses_the_closed_vocabulary():
 
 def test_only_these_features_write_without_a_review_step():
     """A change to this set is a decision about the data, not a refactor."""
-    assert decl.WRITES_WITHOUT_REVIEW == {"governance.run_drift_check"}
+    assert decl.WRITES_WITHOUT_REVIEW == set()
     assert decl.DECLARATIONS["core.auto_map_controls"].approval == "person"
     assert decl.DECLARATIONS["grid.batch_risk_score"].approval == "person"
 

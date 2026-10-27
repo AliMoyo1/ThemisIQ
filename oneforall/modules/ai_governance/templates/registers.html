@@ -1,0 +1,39 @@
+{% extends "base_shell.html" %}
+{% block title %}AI Registers | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">AI Registers</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}
+<style>
+.reg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
+.reg-card{background:var(--surface);border-radius:20px;padding:24px;box-shadow:var(--shadow-sm);min-width:0}
+.reg-card p{line-height:1.55;max-width:64ch}
+.reg-card label{display:block;font-weight:600;margin:14px 0 5px}
+.reg-card select,.reg-card input[type=file]{max-width:100%;width:100%;min-height:42px}
+.reg-card button{min-height:42px}
+.reg-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.reg-review{margin-top:20px;background:var(--surface);padding:20px;border-radius:20px}
+.reg-review-table{overflow-x:auto;max-height:440px;overflow-y:auto}
+.reg-review table{border-collapse:collapse;width:100%;min-width:620px}
+.reg-review th,.reg-review td{padding:10px;text-align:left;border-bottom:1px solid var(--border)}
+.reg-alert{padding:12px 16px;border-radius:12px;background:var(--surface3);margin:12px 0}
+@media(max-width:700px){.reg-card{padding:18px}.reg-grid{grid-template-columns:1fr}}
+</style>{% endblock %}
+{% block content %}
+<div class="aig-page" id="aiRegisters" data-can-review="{{ 'true' if can_review else 'false' }}" data-can-risk="{{ 'true' if can_risk_import else 'false' }}">
+  <div class="aig-head"><div><h1 class="aig-h1">AI registers</h1><p class="aig-lede">Generate a complete, dated review copy from records you can access. The source records stay in AI Governance and AIMS.</p></div></div>
+  <div class="reg-grid">
+    <section class="reg-card"><h2 class="aig-h2">AI systems register</h2><p>All visible AI uses, including pending reviews and missing facts. The report is frozen when generated.</p><div class="reg-actions"><button type="button" class="btn btn-secondary" data-register-preview="ai_systems_register">Preview coverage</button><button type="button" class="btn btn-primary" data-register-export="ai_systems_register">Generate register</button></div></section>
+    {% if can_risk_view %}<section class="reg-card"><h2 class="aig-h2">AI risk register</h2><p>All visible AIMS risks, treatments and linked AI systems. Each risk is counted once.</p><div class="reg-actions"><button type="button" class="btn btn-secondary" data-register-preview="ai_risk_register">Preview coverage</button><button type="button" class="btn btn-primary" data-register-export="ai_risk_register">Generate register</button><a class="btn btn-secondary" href="/orm/aims">Maintain AIMS risks</a></div></section>{% endif %}
+  </div>
+  {% if can_review %}
+  <div class="reg-grid" style="margin-top:18px">
+    <section class="reg-card"><h2 class="aig-h2">Import systems workbook</h2><p>Preview every row and discrepancy before creating records. Source claims remain unverified until reviewed in AI Governance.</p><form id="systemsRegisterImport"><input type="hidden" name="kind" value="ai_systems"><label for="systemsUnit">Business unit</label><select id="systemsUnit" name="business_unit_id"><option value="">My unit or organization-wide</option></select><label for="systemsFile">XLSX workbook</label><input id="systemsFile" type="file" name="file" accept=".xlsx" required><div class="reg-actions"><button type="submit" class="btn btn-secondary">Preview systems</button></div></form></section>
+    {% if can_risk_import %}<section class="reg-card"><h2 class="aig-h2">Import AIMS risks workbook</h2><p>Select an existing AIMS assessment. Imported risks start as drafts; score and treatment conflicts remain visible.</p><form id="risksRegisterImport"><input type="hidden" name="kind" value="ai_risks"><label for="riskAssessment">AIMS assessment</label><select id="riskAssessment" name="assessment_id" required><option value="">Choose an assessment</option></select><label for="riskUnit">Business unit</label><select id="riskUnit" name="business_unit_id"><option value="">My unit or organization-wide</option></select><label for="riskFile">XLSX workbook</label><input id="riskFile" type="file" name="file" accept=".xlsx" required><div class="reg-actions"><button type="submit" class="btn btn-secondary">Preview risks</button></div></form></section>{% endif %}
+  </div>
+  {% endif %}
+  <p class="aig-say" id="registerNotice" role="status" aria-live="polite"></p>
+  <section class="reg-review" id="registerCoverage" hidden aria-live="polite"><h2 class="aig-h2">Coverage preview</h2><div id="registerCoverageBody"></div></section>
+  <section class="reg-review" id="registerPreview" hidden><h2 class="aig-h2">Review import</h2><p id="registerSummary"></p><div id="registerWarnings" class="reg-alert"></div><div class="reg-review-table"><table><thead><tr><th>Include</th><th>Reference</th><th>Name or description</th><th>Result</th></tr></thead><tbody id="registerRows"></tbody></table></div><div class="reg-actions"><button type="button" class="btn btn-primary" id="registerConfirm">Confirm selected drafts and acknowledge warnings</button></div></section>
+</div>
+{% endblock %}
+{% block extra_scripts %}<script src="/static/js/ai_governance_registers.js?v=1" defer></script>{% endblock %}

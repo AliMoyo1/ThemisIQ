@@ -13,40 +13,50 @@ preference).
 """
 
 
-def test_login_page_ambient_animations_stop_under_reduced_motion(page, live_app):
-    """The visible bottom glow and hidden legacy beams have no animation
-    when the browser requests reduced motion."""
+def test_login_page_does_not_fetch_video_under_reduced_motion(page, live_app):
+    """Reduced motion gets the poster without fetching the looping video."""
     page.emulate_media(reduced_motion="reduce")
     page.goto(f"{live_app}/login")
-    page.wait_for_selector(".scene-bottom-glow")
-    for selector in [".scene-bottom-glow", ".scene-top-pulse", ".scene-spot",
-                     ".beam-top", ".corner-tl"]:
-        name = page.eval_on_selector(selector, "el => getComputedStyle(el).animationName")
-        assert name == "none", f"{selector} still animates: {name}"
+    page.wait_for_load_state("load")
+    assert page.locator("#loginBackground").get_attribute("src") is None
+    assert not page.locator("#bgMotionToggle").is_visible()
+    assert page.locator("#loginForm").is_visible()
 
 
-def test_login_page_animations_run_normally_without_the_preference(page, live_app):
-    """The visible bottom glow animates normally; legacy top beams stay hidden."""
+def test_login_page_video_starts_on_desktop_without_the_preference(page, live_app):
+    """The desktop media starts after the form, while the old effects are absent."""
+    from playwright.sync_api import expect
+
     page.emulate_media(reduced_motion="no-preference")
     page.goto(f"{live_app}/login")
-    page.wait_for_selector(".scene-bottom-glow")
-    name = page.eval_on_selector(".scene-bottom-glow", "el => getComputedStyle(el).animationName")
-    assert name == "bottomPulse"
-    assert not page.locator(".scene-top-pulse").is_visible()
+    expect(page.locator("#loginBackground")).to_have_attribute(
+        "src", "/static/media/login/network-1080p-v1.mp4"
+    )
+    assert page.locator("#loginForm").is_visible()
+    assert page.locator(".card-beams, .scene-spot").count() == 0
 
 
-def test_login_card_tilt_does_not_respond_to_mouse_under_reduced_motion(page, live_app):
-    """The 3D tilt/parallax are JS-driven (mousemove listeners), not pure
-    CSS, so they need their own check: moving the mouse over the card
-    must not change its transform when reduced motion is preferred."""
+def test_login_card_has_no_tilt(page, live_app):
+    """Mouse movement does not shift the sign-in form over the video."""
     page.emulate_media(reduced_motion="reduce")
     page.goto(f"{live_app}/login")
-    page.wait_for_selector("#cardTilt")
-    box = page.eval_on_selector("#cardTilt", "el => { const r = el.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; }")
+    page.wait_for_selector(".login-card")
+    box = page.eval_on_selector(".login-card", "el => { const r = el.getBoundingClientRect(); return {x: r.x, y: r.y, w: r.width, h: r.height}; }")
     page.mouse.move(box["x"] + 5, box["y"] + 5)
     page.mouse.move(box["x"] + box["w"] - 5, box["y"] + box["h"] - 5)
-    transform = page.eval_on_selector("#cardTilt", "el => el.style.transform")
-    assert transform in ("", "none"), transform
+    transform = page.eval_on_selector(".login-card", "el => getComputedStyle(el).transform")
+    assert transform == "none"
+
+
+def test_login_form_and_module_summary_fit_a_narrow_phone(page, live_app):
+    page.set_viewport_size({"width": 320, "height": 568})
+    page.goto(f"{live_app}/login")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert page.get_by_label("Username").is_visible()
+    assert page.get_by_label("Password", exact=True).is_visible()
+    assert page.locator("#submitBtn").is_visible()
+    assert page.locator(".login-modules li").count() == 7
+    assert page.locator("#loginBackground").get_attribute("src") is None
 
 
 def test_trainer_pulse_and_typing_dots_stop_under_reduced_motion(login_as, live_app):

@@ -20,6 +20,7 @@
   var answer = document.getElementById('snAskLawAnswer');
   var canManage = root.dataset.canManage === 'true';
   var canApprove = root.dataset.canApprove === 'true';
+  var canPropose = root.dataset.canPropose === 'true';
   var smallScreen = window.matchMedia('(max-width: 900px)');
   var sourceItems = [];
   var uncovered = [];
@@ -348,6 +349,13 @@
         var option = el('option', jurisdiction); option.value = jurisdiction; jurisdictionPicker.appendChild(option);
       });
       jurisdictionPicker.value = previousJurisdiction;
+      var deepLink = new URLSearchParams(window.location.search);
+      var linkedKey = deepLink.get('law_source');
+      var linkedCapture = Number(deepLink.get('law_capture'));
+      if (linkedKey && sourceItems.some(function (item) { return item.key === linkedKey; })) {
+        selectedKey = linkedKey;
+        selectedCaptureId = Number.isSafeInteger(linkedCapture) && linkedCapture > 0 ? linkedCapture : null;
+      }
       if (!currentSource()) { selectedKey = sourceItems[0] ? sourceItems[0].key : null; selectedCaptureId = null; }
       renderSources(); renderInspector();
       return true;
@@ -359,6 +367,7 @@
       var captureId = Number(id);
       if (!Number.isSafeInteger(captureId) || captureId <= 0) throw new Error('Invalid capture identifier.');
       var item = await req('/sentinel/api/law-monitor/captures/' + captureId);
+      if (item.source_key !== sourceKey) throw new Error('Capture does not belong to this source.');
       if (token !== detailRequest || selectedKey !== sourceKey) return;
       clear(target);
       var proof = el('section'); proof.appendChild(el('h4', 'Proof and integrity'));
@@ -377,6 +386,50 @@
       var snapshot = el('details'); snapshot.appendChild(el('summary', 'View complete captured text'));
       snapshot.appendChild(el('pre', item.captured_text || 'No captured text available.'));
       change.appendChild(snapshot); target.appendChild(change);
+      if (canPropose && item.hash_verified && item.is_latest &&
+          item.review_state === 'approved' && item.previous_capture_id && item.change_excerpt &&
+          (item.framework_candidates || []).length) {
+        var proposal = el('section');
+        proposal.appendChild(el('h4', 'Propose a regulatory review'));
+        proposal.appendChild(el('p', 'A second specialist decides whether this captured change affects the framework or controls.'));
+        var framework = el('select'); framework.setAttribute('aria-label', 'Affected framework');
+        item.framework_candidates.forEach(function (name) {
+          var option = el('option', name); option.value = name; framework.appendChild(option);
+        });
+        var title = el('input'); title.placeholder = 'Change title'; title.maxLength = 240;
+        title.setAttribute('aria-label', 'Change title');
+        var summary = el('textarea'); summary.placeholder = 'Specialist interpretation and uncertainty';
+        summary.maxLength = 3000; summary.setAttribute('aria-label', 'Specialist interpretation');
+        var refs = el('input'); refs.placeholder = 'Exact affected control references, if verified';
+        refs.maxLength = 1000; refs.setAttribute('aria-label', 'Affected control references');
+        var result = el('p'); result.setAttribute('role', 'status');
+        var submit = button('Send for independent review', async function () {
+          submit.disabled = true;
+          try {
+            var saved = await req('/governance/api/regulatory-source-candidates', 'POST', {
+              capture_id: captureId, framework_name: framework.value,
+              title: title.value, summary: summary.value, affected_refs: refs.value
+            });
+            result.textContent = 'Candidate #' + saved.id + ' is awaiting an independent decision in Governance.';
+          } catch (error) { failure(result, error); submit.disabled = false; }
+        });
+        proposal.append(framework, title, summary, refs, submit, result);
+        target.appendChild(proposal);
+      }
+      if (canManage && item.hash_verified && item.previous_capture_id && item.change_excerpt) {
+        var draftStatus = el('p'); draftStatus.setAttribute('role', 'status');
+        var draftButton = button('Suggest a source-bound passage', async function () {
+          draftButton.disabled = true;
+          try {
+            var draft = await req('/sentinel/api/law-monitor/captures/' + captureId + '/draft', 'POST', {});
+            draftStatus.textContent = draft.verified
+              ? 'Draft passage, verify before use: “' + draft.claim.quote + '” · Capture #' + draft.claim.capture_id
+              : draft.reason;
+          } catch (error) { failure(draftStatus, error); }
+          finally { draftButton.disabled = false; }
+        });
+        target.append(draftButton, draftStatus);
+      }
       var decision = el('section', null, 'sn-inspector-review');
       decision.appendChild(el('h4', 'Human review'));
       decision.appendChild(el('p', 'State: ' + item.review_state + (item.review_note ? ' · ' + item.review_note : '')));

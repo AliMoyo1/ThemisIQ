@@ -174,6 +174,24 @@ def test_losing_access_hides_the_saved_output_and_the_refusal_is_audited(world):
     assert run_scope_key(restored) == run_scope_key(dpo)
 
 
+def test_register_owner_cannot_reopen_source_moved_to_another_unit(world):
+    dpo = world.users["dpo_a"]
+    app_id = _insert(world.db, "applications", name="Visible AI system",
+                     business_unit_id=world.unit["A"])
+    _insert(world.db, "ai_use_profiles", application_id=app_id, purpose="Review")
+    world.db.commit()
+    status, created = _quick(dpo, "ai_systems_register")
+    assert status == 200
+    run_id = created["run_id"]
+    assert _open(dpo, run_id)[0] == 200
+    world.db.execute("UPDATE applications SET business_unit_id=%s WHERE id=%s",
+                     (world.unit["B"], app_id))
+    world.db.commit()
+    status, refused = _open(dpo, run_id)
+    assert status == 403 and refused["reason"] == "access_changed"
+    assert "result" not in refused and "snapshot" not in refused
+
+
 def test_a_run_that_was_changed_in_the_database_is_refused(world):
     dpo = world.users["dpo_a"]
     run_id = _quick(dpo, "privacy_overview")[1]["run_id"]

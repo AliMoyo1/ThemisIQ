@@ -20,7 +20,7 @@ from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
 from modules.ai_governance import (assessment_document, assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
-                                   import_rules, imports, monitoring, outstanding, oversight, overview, platform_features,
+                                   import_rules, imports, register_imports, monitoring, outstanding, oversight, overview, platform_features,
                                    precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
 
@@ -143,6 +143,15 @@ async def overview_page(request: Request):
 @require_capability("ai_use.view")
 async def inventory_page(request: Request):
     return _page(request, "inventory.html", "inventory")
+
+
+@router.get("/registers", response_class=HTMLResponse)
+@require_capability("ai_use.view")
+async def registers_page(request: Request):
+    from core.rbac import has_capability
+    return _page(request, "registers.html", "registers",
+                 can_risk_view=has_capability(request.state.user, "module.orm.access"),
+                 can_risk_import=has_capability(request.state.user, "orm.event.manage"))
 
 
 @router.get("/monitoring", response_class=HTMLResponse)
@@ -896,6 +905,35 @@ async def api_import_guide(request: Request):
     return _private(JSONResponse({"ok": True, **imports.guide()}))
 
 
+@router.post("/api/register-import/preview")
+@require_capability("ai_use.review")
+async def api_register_import_preview(request: Request, file: UploadFile = File(...),
+                                      kind: str = Form(""), business_unit_id: str = Form(""),
+                                      assessment_id: str = Form(""), mapping: str = Form("")):
+    data = await file.read(register_imports.MAX_BYTES + 1)
+    try:
+        unit = int(business_unit_id) if business_unit_id else None
+        assessment = int(assessment_id) if assessment_id else None
+        columns = json.loads(mapping) if mapping else None
+    except (ValueError, TypeError):
+        return _error(ServiceError(422, "Choose a valid unit, assessment and column mapping."))
+    return _private(_transact(request, lambda db, user: register_imports.preview(
+        db, user, kind=kind, data=data, filename=file.filename or "register.xlsx",
+        business_unit_id=unit, assessment_id=assessment, mapping=columns), 201))
+
+
+@router.post("/api/register-import/{batch_id}/confirm")
+@require_capability("ai_use.review")
+async def api_register_import_confirm(request: Request, batch_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: register_imports.confirm(
+        db, user, batch_id, version=body.get("version"),
+        acknowledged=body.get("acknowledged"), selected=body.get("selected"))))
+
+
 @router.get("/api/import/template.csv")
 @require_capability("ai_use.review")
 async def api_import_template(request: Request):
@@ -1373,6 +1411,17 @@ async def api_update_profile(request: Request, application_id: int):
     except ServiceError as exc:
         return _error(exc)
     return _transact(request, lambda db, user: service.update_profile(db, user, application_id, body.get("answers"), body.get("version")))
+
+
+@router.post("/api/systems/{application_id}/import-review")
+@require_capability("ai_use.review")
+async def api_imported_system_review(request: Request, application_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: service.review_imported_profile(
+        db, user, application_id, body.get("version"), body.get("decision"), body.get("reason"))))
 
 
 @router.post("/api/systems/{application_id}/tier")
