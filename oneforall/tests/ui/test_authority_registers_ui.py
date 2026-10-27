@@ -52,3 +52,28 @@ def test_audit_framework_link_preselects_register(login_as, live_app, page):
     page.goto(f"{live_app}/aria/frameworks?register_framework={framework_id}")
     page.locator("#framework-register-preview").get_by_text("1 controls", exact=False).wait_for()
     assert page.locator("#framework-register-generate").is_enabled()
+
+
+def test_grid_audit_id_is_not_mistaken_for_aria_framework_id(login_as, live_app, page):
+    login_as("compliance_manager")
+    page.goto(f"{live_app}/aria/frameworks")
+    card = page.locator(".fw-card").first
+    name = card.locator(".fw-card-name").inner_text().strip()
+    aria_id = card.locator("[data-framework-register]").get_attribute("data-framework-register")
+    requested = []
+    page.route("**/grid/api/audits/9999", lambda route: route.fulfill(json={
+        "id": 9999, "framework_id": 9876, "framework_name": name,
+    }))
+    def preview(route):
+        requested.append(route.request.url)
+        route.fulfill(json={
+            "report_type": "framework_auditor_register", "as_of": "2026-10-27T08:00:00",
+            "framework": {"id": int(aria_id), "name": name},
+            "counts": {"controls": 1, "documents": 0, "evidence": 0},
+            "total_gaps": 0, "gaps": [], "complete": True,
+        })
+    page.route("**/api/reports/register-preview?*", preview)
+    page.goto(f"{live_app}/aria/frameworks?register_from_grid_audit=9999")
+    page.locator("#framework-register-preview").get_by_text("1 controls", exact=False).wait_for()
+    assert len(requested) == 1 and f"framework_id={aria_id}" in requested[0]
+    assert "audit verdicts remain in GRID" in page.locator("#framework-register-preview").inner_text()

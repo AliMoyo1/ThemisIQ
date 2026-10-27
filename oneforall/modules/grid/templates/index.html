@@ -1163,7 +1163,7 @@
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/></svg> Follow-up</button>'+
       ' <button class="btn btn-secondary" onclick="showCrossCycleView('+id+')" title="Cross-cycle NC comparison">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><path d="M11 18H8a2 2 0 01-2-2V9"/></svg> Compare Cycles</button>'+
-      (Number(audit.framework_id)>0?' <a class="btn btn-secondary" href="/aria/frameworks?register_framework='+Number(audit.framework_id)+'" title="Preview the framework document and evidence register">Framework register</a>':'')+
+      (Number(audit.framework_id)>0?' <a class="btn btn-secondary" href="/aria/frameworks?register_from_grid_audit='+Number(id)+'" title="Find this audit framework in the document and evidence register">Framework register</a>':'')+
       (GRID_IS_ADMIN?' <button class="btn btn-danger js-grid-delete-audit" data-audit-id="'+Number(id)+'" data-audit-name="'+esc(audit.name)+'" data-from-detail="true" title="Delete this audit">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete Audit</button>':'')+
       '</div></div>'+
