@@ -379,6 +379,7 @@ def test_authority_and_register_import_schema_in_public_and_tenant_on_real_postg
         "aria_document_register_claims": {"document_code", "document_version", "source_json", "state", "version"},
         "regulatory_source_candidates": {"capture_id", "source_text_sha256", "review_state"},
         "aims_risk_applications": {"risk_id", "application_id"},
+        "report_runs": {"progress_stage"},
     }
     for schema in ("public", "tenant_authority_registers"):
         for table, columns in expected.items():

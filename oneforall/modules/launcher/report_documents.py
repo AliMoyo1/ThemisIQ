@@ -954,6 +954,13 @@ _REGISTER_COLUMNS = {
         ("evidence", "Evidence and review outcomes", (("Control", "control_ref"), ("Artifact", "title"),
                          ("Version", "version"), ("Proof state", "proof_state"), ("Period start", "period_start"),
                          ("Period end", "period_end"))),
+        ("audit_controls", "Selected audit controls", (("GRID reference", "control_id"), ("Title", "name"),
+                         ("Audit status", "status"), ("Risk", "risk_level"), ("Due", "due_date"))),
+        ("audit_findings", "Selected audit findings", (("GRID control ID", "control_id"), ("Finding", "title"),
+                         ("Severity", "severity"), ("Status", "status"), ("Due", "due_date"))),
+        ("audit_evidence", "Selected audit Vault links", (("Linked type", "entity_type"),
+                         ("Linked ID", "entity_id"), ("Artifact", "title"), ("Version", "version"),
+                         ("Review", "review_status"), ("SHA-256", "file_hash"))),
         ("gaps", "Gaps and exceptions", (("Control", "control_ref"), ("Title", "control"), ("Gap", "gap"))),
         ("manifest", "Source and version manifest", (("Source kind", "kind"), ("Source ID", "id"),
                                                     ("Version", "revision"), ("SHA-256", "hash"))),
@@ -993,8 +1000,11 @@ def _register_document(env, meta, *, db, row, run_id):
     counts = result.get("counts") or {}
     report.add(Heading("Register at a glance"), Kpis([
         Kpi(label, identity.fmt_int(counts.get(key)))
-        for key, label, _columns in _REGISTER_COLUMNS[kind] if key not in {"gaps", "document_links", "manifest"}]))
+        for key, label, _columns in _REGISTER_COLUMNS[kind]
+        if key not in {"gaps", "document_links", "manifest"} and key in sections]))
     for key, label, columns in _REGISTER_COLUMNS[kind]:
+        if key.startswith("audit_") and key not in sections:
+            continue
         # These tables deliberately have no max_rows: PDF and workbook carry
         # every authorized row, including registers above the UI page size.
         data = sections.get(key) or []

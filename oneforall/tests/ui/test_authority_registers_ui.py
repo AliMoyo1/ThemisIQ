@@ -12,6 +12,22 @@ def test_ai_registers_preview_is_readable_and_does_not_save_a_run(login_as, live
     assert "run=" not in page.url
 
 
+def test_ai_register_waits_for_complete_background_run(login_as, live_app, page):
+    login_as("dpo")
+    seen = {"polls": 0}
+    page.route("**/api/reports/quick-run", lambda route: route.fulfill(status=202, json={
+        "run_id": 4321, "status": "pending", "progress_stage": "queued"}))
+    def poll(route):
+        seen["polls"] += 1
+        route.fulfill(json={"run_id": 4321, "status": "completed" if seen["polls"] > 1 else "running",
+                            "progress_stage": "sources_read", "frozen": seen["polls"] > 1})
+    page.route("**/api/reports/runs/4321", poll)
+    page.goto(f"{live_app}/ai-governance/registers")
+    page.locator("[data-register-export='ai_systems_register']").click()
+    page.wait_for_url("**/reports?run=4321")
+    assert seen["polls"] >= 2
+
+
 def test_registers_are_usable_at_phone_width(login_as, live_app, page):
     login_as("dpo")
     page.set_viewport_size({"width": 390, "height": 844})
@@ -55,6 +71,7 @@ def test_audit_framework_link_preselects_register(login_as, live_app, page):
 
 
 def test_grid_audit_id_is_not_mistaken_for_aria_framework_id(login_as, live_app, page):
+    from urllib.parse import parse_qs, urlsplit
     login_as("compliance_manager")
     page.goto(f"{live_app}/aria/frameworks")
     card = page.locator(".fw-card").first
@@ -66,14 +83,18 @@ def test_grid_audit_id_is_not_mistaken_for_aria_framework_id(login_as, live_app,
     }))
     def preview(route):
         requested.append(route.request.url)
+        params = parse_qs(urlsplit(route.request.url).query)
         route.fulfill(json={
             "report_type": "framework_auditor_register", "as_of": "2026-10-27T08:00:00",
             "framework": {"id": int(aria_id), "name": name},
-            "counts": {"controls": 1, "documents": 0, "evidence": 0},
+            "audit": {"id": int(params["audit_id"][0]), "name": "Selected audit"},
+            "counts": {"controls": 1, "documents": 0, "evidence": 0,
+                       "audit_controls": 1, "audit_findings": 0, "audit_evidence": 0},
             "total_gaps": 0, "gaps": [], "complete": True,
         })
     page.route("**/api/reports/register-preview?*", preview)
     page.goto(f"{live_app}/aria/frameworks?register_from_grid_audit=9999")
     page.locator("#framework-register-preview").get_by_text("1 controls", exact=False).wait_for()
     assert len(requested) == 1 and f"framework_id={aria_id}" in requested[0]
-    assert "audit verdicts remain in GRID" in page.locator("#framework-register-preview").inner_text()
+    assert "audit_id=9999" in requested[0]
+    assert "selected GRID audit controls" in page.locator("#framework-register-preview").inner_text()

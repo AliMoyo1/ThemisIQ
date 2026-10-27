@@ -288,6 +288,13 @@ async def startup():
     except Exception as exc:
         log.warning("Session sweeper failed to start: %s", exc)
 
+    # Drain frozen register jobs in a tenant-bound, bounded background worker.
+    try:
+        from modules.launcher.report_job_sweeper import start_scheduler as report_jobs_start
+        report_jobs_start()
+    except Exception as exc:
+        log.warning("Report job sweeper failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -388,6 +395,11 @@ async def shutdown():
     try:
         from core.session_sweeper import stop_scheduler as session_sweeper_stop
         session_sweeper_stop()
+    except Exception:
+        pass
+    try:
+        from modules.launcher.report_job_sweeper import stop_scheduler as report_jobs_stop
+        report_jobs_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")

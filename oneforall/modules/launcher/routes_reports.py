@@ -282,6 +282,7 @@ def _owned_run(db, user, run_id, request):
 def _present(row, with_records=False) -> dict:
     """What a person is given for one saved run. Never recomputed: legacy runs say that they are legacy."""
     out = {"id": row["id"], "run_id": row["id"], "definition_id": row["definition_id"], "status": row["status"],
+           "progress_stage": row.get("progress_stage"),
            "started_at": row["started_at"], "completed_at": row["completed_at"], "error": row["error"],
            "report_name": row.get("report_name"), "report_type": row.get("report_type"),
            "description": row.get("description"), "previous_run_id": row.get("previous_run_id"),
@@ -298,7 +299,7 @@ def _present(row, with_records=False) -> dict:
                              for k, v in (env.get("inputs") or {}).items()}
         out.update(frozen=True, hash=digest, result=env.get("result"), snapshot=env)
     else:
-        out["legacy"] = True
+        out["legacy"] = row["status"] == "completed"
         if text:
             try:
                 out["result"] = json_lib.loads(text)
@@ -387,6 +388,49 @@ def _execute(request, db, user, defn, previous=_AUTO):
         "SELECT rr.*, rd.name AS report_name, rd.report_type, rd.description FROM report_runs rr "
         "LEFT JOIN report_definitions rd ON rr.definition_id = rd.id WHERE rr.id = %s", (run_id,)).fetchone()
     return _JSONResp(_present(dict(row)))
+
+
+def _queue_register(request, db, user, defn, previous_id=None):
+    """Persist a bounded register job; a scheduler reads it in the requester's tenant and scope."""
+    report_type = defn["report_type"]
+    if report_type not in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+        return _JSONResp({"error": "Not a register"}, status_code=400)
+    params, error = _checked_parameters(report_type, {"parameters": _parameters(defn)})
+    if error:
+        return _JSONResp({"error": error}, status_code=400)
+    required = {"framework_auditor_register": "module.aria.access",
+                "ai_systems_register": "ai_use.view", "ai_risk_register": "module.orm.access"}[report_type]
+    if not has_capability(user, required):
+        return _JSONResp({"error": "Not found"}, status_code=404)
+    if report_type == "framework_auditor_register":
+        scope, values = table_scope("frameworks", user)
+        if not db.execute(f"SELECT 1 FROM frameworks WHERE id=%s AND {scope}",
+                          [params["framework_id"], *values]).fetchone():
+            return _JSONResp({"error": "Not found"}, status_code=404)
+        if params.get("audit_id"):
+            scope, values = table_scope("grid_audits", user)
+            if not db.execute(f"SELECT 1 FROM grid_audits WHERE id=%s AND {scope}",
+                              [params["audit_id"], *values]).fetchone():
+                return _JSONResp({"error": "Not found"}, status_code=404)
+    pending = db.execute(
+        "SELECT COUNT(*) FROM report_runs WHERE triggered_by=%s AND status IN ('pending','running')",
+        (run_scope_key(user),)).fetchone()[0]
+    if pending >= 2:
+        return _JSONResp({"error": "Two register jobs are already queued. Open Reports to follow them."},
+                         status_code=429)
+    tenant_pending = db.execute(
+        "SELECT COUNT(*) FROM report_runs WHERE status IN ('pending','running')").fetchone()[0]
+    if tenant_pending >= 100:
+        return _JSONResp({"error": "The register queue is full. Try again after current jobs finish."},
+                         status_code=429)
+    run_id = insert_returning_id(db,
+        "INSERT INTO report_runs (definition_id,status,progress_stage,triggered_by,previous_run_id) "
+        "VALUES (%s,'pending','queued',%s,%s)",
+        (defn["id"], run_scope_key(user), previous_id))
+    db.commit()
+    log_audit(user, "platform", "report_run_queued", entity_type="report_run", entity_id=run_id,
+              details=report_type, ip=_ip(request))
+    return _JSONResp({"run_id": run_id, "status": "pending", "progress_stage": "queued"}, status_code=202)
 
 
 def _quick_definition(db, user, report_type, parameters=None, name=None) -> dict:
@@ -487,7 +531,10 @@ def _checked_parameters(report_type, data):
         return None, "Parameters must be an object"
     if report_type == "framework_auditor_register":
         framework_id = parameters.get("framework_id")
-        if type(framework_id) is not int or framework_id < 1 or set(parameters) != {"framework_id"}:
+        audit_id = parameters.get("audit_id")
+        if (type(framework_id) is not int or framework_id < 1 or
+                set(parameters) not in ({"framework_id"}, {"framework_id", "audit_id"}) or
+                ("audit_id" in parameters and (type(audit_id) is not int or audit_id < 1))):
             return None, "Select one framework ID"
     elif report_type in {"ai_systems_register", "ai_risk_register"}:
         if parameters:
@@ -605,6 +652,11 @@ async def api_register_preview(request: Request):
         except ValueError:
             return _JSONResp({"error": "Choose a framework"}, status_code=400)
         params = {"framework_id": fid}
+        if request.query_params.get("audit_id"):
+            try:
+                params["audit_id"] = int(request.query_params["audit_id"])
+            except ValueError:
+                return _JSONResp({"error": "Choose an audit"}, status_code=400)
     elif request.query_params.get("framework_id"):
         return _JSONResp({"error": "This register does not select a framework"}, status_code=400)
     db = get_db()
@@ -616,6 +668,7 @@ async def api_register_preview(request: Request):
         result = built.result
         return _JSONResp({"report_type": kind, "as_of": result["as_of"],
                           "framework": result.get("framework"), "counts": result["counts"],
+                          "audit": result.get("audit"),
                           "gaps": result["sections"].get("gaps", [])[:20],
                           "total_gaps": len(result["sections"].get("gaps", [])),
                           "complete": built.complete},
@@ -639,7 +692,10 @@ async def api_report_quick_run(request: Request):
             return _JSONResp({"error": "A case report needs a record"}, status_code=400)
         parameters = {"subject": subject}
     elif report_type == "framework_auditor_register":
-        parameters, error = _checked_parameters(report_type, {"parameters": {"framework_id": data.get("framework_id")}})
+        selection = {"framework_id": data.get("framework_id")}
+        if "audit_id" in data:
+            selection["audit_id"] = data["audit_id"]
+        parameters, error = _checked_parameters(report_type, {"parameters": selection})
         if error:
             return _JSONResp({"error": error}, status_code=400)
     user = request.state.user
@@ -651,6 +707,8 @@ async def api_report_quick_run(request: Request):
                 return _JSONResp({"error": "Not found"}, status_code=404)
             name = f"{REPORT_TYPES[report_type]}: {shown['title']}"
         defn = _quick_definition(db, user, report_type, parameters, name)
+        if report_type in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+            return _queue_register(request, db, user, defn)
         return _execute(request, db, user, defn)
     finally:
         db.close()
@@ -667,6 +725,8 @@ async def api_report_run(request: Request, rid: int):
         if (not defn or not defn["is_active"] or
                 (not user.get("is_super_admin") and defn["created_by"] != user["id"])):
             return _JSONResp({"error": "Report not found"}, status_code=404)
+        if defn["report_type"] in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+            return _queue_register(request, db, user, dict(defn))
         return _execute(request, db, user, dict(defn))
     finally:
         db.close()
@@ -1065,6 +1125,8 @@ async def api_report_run_again(request: Request, run_id: int):
         earlier = None
         if row.get("snapshot_hash") and snap.intact(row.get("result_json"), row.get("snapshot_hash")):
             earlier = json_lib.loads(row["result_json"])
+        if defn["report_type"] in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+            return _queue_register(request, db, user, dict(defn), previous_id=run_id)
         return _execute(request, db, user, dict(defn), previous=(run_id, earlier))
     finally:
         db.close()

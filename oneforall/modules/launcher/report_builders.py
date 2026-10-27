@@ -37,6 +37,7 @@ SOURCES = {
     "risk_register": ("Platform risk register", "platform"),
     "erm_enterprise_risks": ("Enterprise risks", "erm"),
     "grid_audits": ("Audits", "grid"),
+    "grid_controls": ("Audit controls", "grid"),
     "grid_non_conformances": ("Audit findings", "grid"),
     "sentinel_ropa": ("Processing records", "sentinel"),
     "sentinel_dpias": ("Impact assessments", "sentinel"),
@@ -569,7 +570,8 @@ def build(db, user, report_type, parameters=None) -> Built:
         try:
             if report_type == "framework_auditor_register":
                 framework_id = (parameters or {}).get("framework_id")
-                return register_reports.framework(db, user, framework_id)
+                return register_reports.framework(db, user, framework_id,
+                                                  audit_id=(parameters or {}).get("audit_id"))
             if report_type == "ai_systems_register":
                 return register_reports.ai_systems(db, user)
             return register_reports.ai_risks(db, user)

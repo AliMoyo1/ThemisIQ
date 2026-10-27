@@ -42,6 +42,10 @@
         body:JSON.stringify({report_type:button.dataset.registerExport})});
       const result = await json(response);
       if (!response.ok || !result.run_id) throw new Error(result.error || 'The register could not be generated.');
+      if (result.status === 'pending') {
+        await window.themisWaitReportRun(result.run_id, stage =>
+          say(`Generating a complete saved register · ${stage.replaceAll('_', ' ')}…`));
+      }
       window.location.assign(`/reports?run=${Number(result.run_id)}`);
     } catch (error) { say(error.message, true); button.disabled = false; }
   }));

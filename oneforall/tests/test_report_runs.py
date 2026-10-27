@@ -14,6 +14,7 @@ import json
 import pytest
 
 import modules.launcher.routes_reports as reports
+from modules.launcher import report_job_sweeper
 from core import rbac
 from modules.launcher import report_builders as builders
 from modules.launcher.scoped_metrics import run_scope_key
@@ -39,6 +40,39 @@ def _bcm_manager(world, tag, uid):
             full_name=f"BCM {tag}", password_hash="x", org_id=ORG, business_unit_id=unit)
     return {"id": uid, "username": f"bcm_{tag}_{uid}", "org_id": ORG, "business_unit_id": unit,
             "is_super_admin": 0, "roles": [rbac.BCM_MANAGER]}
+
+
+def test_framework_quick_run_with_audit_records_grid_context(world):
+    world.db.execute("UPDATE users SET is_super_admin=1 WHERE id=%s", (world.users["super"]["id"],))
+    _insert(world.db, "user_roles", user_id=world.users["super"]["id"], role_key=rbac.SUPER_ADMIN)
+    user = reports._recipient(world.db, world.users["super"]["id"])
+    assert rbac.has_capability(user, "module.aria.access") and rbac.has_capability(user, "module.grid.access"), user
+    assert user["is_super_admin"] is True, user
+    fid = _insert(world.db, "frameworks", name="Auditor pack QA")
+    grid_fid = _insert(world.db, "grid_frameworks", name="Auditor pack QA")
+    audit_id = _insert(world.db, "grid_audits", name="QA audit", framework_id=grid_fid,
+                       business_unit_id=world.unit["A"])
+    _insert(world.db, "grid_non_conformances", audit_id=audit_id, title="Finding A")
+    audit_row = world.db.execute("SELECT a.is_integrated,g.name AS framework_name FROM grid_audits a "
+                                 "LEFT JOIN grid_frameworks g ON g.id=a.framework_id WHERE a.id=%s",
+                                 (audit_id,)).fetchone()
+    assert (audit_row["is_integrated"], audit_row["framework_name"]) == (0, "Auditor pack QA")
+    assert world.db.execute("SELECT COUNT(*) FROM frameworks WHERE name='Auditor pack QA'").fetchone()[0] == 1
+    assert builders.build(world.db, user, "framework_auditor_register",
+                          {"framework_id": fid, "audit_id": audit_id}).result["audit"]["id"] == audit_id, user
+    status, preview = _call(reports.api_register_preview(_request(user, {
+        "report_type": "framework_auditor_register", "framework_id": str(fid), "audit_id": str(audit_id)})))
+    assert status == 200 and preview["counts"]["audit_findings"] == 1, preview
+    status, saved = _quick(user, "framework_auditor_register", framework_id=fid, audit_id=audit_id)
+    assert status == 202 and saved["status"] == "pending"
+    assert _open(user, saved["run_id"])[1]["frozen"] is False
+    assert report_job_sweeper.run_once() == 1
+    status, saved = _open(user, saved["run_id"])
+    assert status == 200 and saved["status"] == "completed", saved.get("error")
+    assert saved["result"]["audit"]["id"] == audit_id
+    assert saved["result"]["sections"]["audit_findings"][0]["title"] == "Finding A"
+    assert reports._checked_parameters("framework_auditor_register", {"parameters": {
+        "framework_id": fid, "audit_id": True}})[1] is not None
 
 
 @pytest.fixture
@@ -175,14 +209,16 @@ def test_losing_access_hides_the_saved_output_and_the_refusal_is_audited(world):
 
 
 def test_register_owner_cannot_reopen_source_moved_to_another_unit(world):
-    dpo = world.users["dpo_a"]
+    _insert(world.db, "user_roles", user_id=world.users["dpo_a"]["id"], role_key=rbac.DPO)
+    dpo = reports._recipient(world.db, world.users["dpo_a"]["id"])
     app_id = _insert(world.db, "applications", name="Visible AI system",
                      business_unit_id=world.unit["A"])
     _insert(world.db, "ai_use_profiles", application_id=app_id, purpose="Review")
     world.db.commit()
     status, created = _quick(dpo, "ai_systems_register")
-    assert status == 200
+    assert status == 202
     run_id = created["run_id"]
+    assert report_job_sweeper.run_once() == 1
     assert _open(dpo, run_id)[0] == 200
     world.db.execute("UPDATE applications SET business_unit_id=%s WHERE id=%s",
                      (world.unit["B"], app_id))
@@ -190,6 +226,30 @@ def test_register_owner_cannot_reopen_source_moved_to_another_unit(world):
     status, refused = _open(dpo, run_id)
     assert status == 403 and refused["reason"] == "access_changed"
     assert "result" not in refused and "snapshot" not in refused
+
+
+def test_queued_register_fails_closed_when_requester_scope_changes(world):
+    _insert(world.db, "user_roles", user_id=world.users["dpo_a"]["id"], role_key=rbac.DPO)
+    dpo = reports._recipient(world.db, world.users["dpo_a"]["id"])
+    status, queued = _quick(dpo, "ai_systems_register")
+    assert status == 202
+    world.db.execute("UPDATE users SET business_unit_id=%s WHERE id=%s",
+                     (world.unit["B"], dpo["id"]))
+    world.db.commit()
+    assert report_job_sweeper.run_once() == 1
+    row = world.db.execute("SELECT status,snapshot_hash,result_json,progress_stage FROM report_runs WHERE id=%s",
+                           (queued["run_id"],)).fetchone()
+    assert row["status"] == "failed" and row["progress_stage"] == "failed"
+    assert row["snapshot_hash"] is None and row["result_json"] is None
+
+
+def test_register_queue_limits_outstanding_jobs_per_requester(world):
+    _insert(world.db, "user_roles", user_id=world.users["dpo_a"]["id"], role_key=rbac.DPO)
+    dpo = reports._recipient(world.db, world.users["dpo_a"]["id"])
+    assert _quick(dpo, "ai_systems_register")[0] == 202
+    assert _quick(dpo, "ai_systems_register")[0] == 202
+    status, body = _quick(dpo, "ai_systems_register")
+    assert status == 429 and "queued" in body["error"]
 
 
 def test_a_run_that_was_changed_in_the_database_is_refused(world):

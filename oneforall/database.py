@@ -1109,6 +1109,7 @@ CREATE TABLE IF NOT EXISTS report_runs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     definition_id   INTEGER NOT NULL REFERENCES report_definitions(id),
     status          TEXT DEFAULT 'pending',
+    progress_stage  TEXT,
     started_at      TEXT DEFAULT (datetime('now')),
     completed_at    TEXT,
     result_json     TEXT,
@@ -2368,6 +2369,7 @@ CREATE TABLE IF NOT EXISTS report_runs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     definition_id   INTEGER NOT NULL REFERENCES report_definitions(id),
     status          TEXT DEFAULT 'pending',
+    progress_stage  TEXT,
     started_at      TEXT DEFAULT (datetime('now')),
     completed_at    TEXT,
     result_json     TEXT,
@@ -6771,6 +6773,7 @@ _COLUMN_MIGRATIONS = [
         # run again links to the run before it. A row with no hash is a legacy run that was never frozen.
         ("report_runs", "snapshot_hash", "TEXT"),
         ("report_runs", "previous_run_id", "INTEGER"),
+        ("report_runs", "progress_stage", "TEXT"),
         # Platform truth 4E: a critical prediction goes to the ERM inbox (erm_emerging_risks) for a person to review
         ("ai_risk_predictions", "emerging_id", "INTEGER"),
         # Email rework E1: a reminder says what the provider answered instead of being marked sent because it was
