@@ -80,7 +80,10 @@ SITES = _sites()
 def test_the_scan_finds_the_call_sites_it_is_meant_to_police():
     assert len(SITES) >= 50, "the source scan found too few model calls; the guard would pass vacuously"
     assert {rel.split("/")[1] for rel, *_ in SITES if rel.startswith("modules/")} >= {
-        "aria", "bcm", "erm", "grid", "orm", "sentinel", "evidence", "governance", "launcher"}
+        "aria", "bcm", "erm", "grid", "orm", "sentinel", "evidence", "launcher"}
+    # Governance drift matching is deterministic now; its optional capture-
+    # bound interpretation runs in core/source_interpret.py and is scanned too.
+    assert any(rel == "core/source_interpret.py" for rel, *_ in SITES)
 
 
 @pytest.mark.parametrize("rel, node, called, fn", SITES, ids=[f"{r}:{n.lineno}" for r, n, *_ in SITES])

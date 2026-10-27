@@ -10,6 +10,9 @@ from modules.governance.entity_scope import entity_scope_sql
 
 TABLE_KINDS = {
     "controls": ("aria", "control"),
+    "aria_documents": ("aria", "document"),
+    "applications": ("governance", "application"),
+    "aims_assessments": ("orm", "aims"),
     "grid_audits": ("grid", "audit"),
     "grid_non_conformances": ("grid", "nc"),
     "grid_controls": ("grid", "control"),
@@ -51,6 +54,13 @@ def table_scope(table, user, alias=""):
             org = _ORG_OF[table].format(p=f"{alias}." if alias else "")
             return f"({scope} AND {org} = %s)", [*params, user.get("org_id")]
         return scope, params
+    if table in {"ai_use_profiles", "aims_risks"}:
+        owner, key = (("applications", ("governance", "application")) if table == "ai_use_profiles"
+                      else ("aims_assessments", ("orm", "aims")))
+        foreign = "application_id" if table == "ai_use_profiles" else "assessment_id"
+        scope, params = entity_scope_sql(key, user, "owner")
+        column = f"{alias}." if alias else ""
+        return (f"EXISTS (SELECT 1 FROM {owner} owner WHERE owner.id={column}{foreign} AND {scope})", params)
     if table == "frameworks":
         allowed = has_capability(user, "module.aria.access") and "aria" in user_modules(user)
         return ("(1 = 1)" if allowed else "(1 = 0)"), []

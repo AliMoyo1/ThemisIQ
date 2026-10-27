@@ -28,6 +28,7 @@ BOARD_TYPES = frozenset({"executive_brief", "executive_summary", "preset_board"}
 
 # The module a report reads from, by the navigation name; reports that span modules belong to the Command Centre.
 MODULE_OF = {
+    "framework_auditor_register": "aria", "ai_systems_register": "ai_governance", "ai_risk_register": "orm",
     "compliance_summary": "aria", "audit_status": "grid", "privacy_overview": "sentinel", "bcm_readiness": "bcm",
     "bcm_coverage": "bcm", "bcm_plans": "bcm", "bcm_incidents": "bcm", "bcm_exercises": "bcm", "bcm_summary": "bcm",
 }
@@ -884,6 +885,8 @@ def build_document(env, *, db=None, row=None, run_id=None, viewer=None, exported
     report_type = (env.get("run") or {}).get("report_type")
     tier = tier_of(report_type)
     meta = _meta(env, report_type, run_id, viewer, db, exported_at)
+    if report_type in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+        return _register_document(env, meta, db=db, row=row, run_id=run_id)
     parts = _parts_for(env, compact=tier == theme.BOARD)
     if report_type == "preset_case" and db is not None and viewer is not None:
         if not _case_vault_addresses(env, parts, db, viewer):
@@ -937,6 +940,71 @@ def build_document(env, *, db=None, row=None, run_id=None, viewer=None, exported
             report.add(Heading("Needs attention"), Callout("What the figures call for", decisions, "decision"))
         report.add(*_narrative_blocks(env))
     report.add(*_basis_blocks(env, db, run_id, row, tier))
+    return report
+
+
+_REGISTER_COLUMNS = {
+    "framework_auditor_register": (
+        ("controls", "Controls", (("Control", "ref"), ("Title", "name"), ("Status", "status"),
+                                    ("Owner", "owner"), ("Policies", "document_links"), ("Accepted proof", "accepted_proof"))),
+        ("documents", "Controlled documents", (("Code", "doc_id"), ("Title", "title"), ("Version", "version"),
+                                                   ("Approval", "approval"), ("Review", "review_date"))),
+        ("document_links", "Reviewed document mappings", (("Control", "control_ref"),
+                         ("Document", "document_title"), ("Version ID", "version_id"), ("Approval", "approval"))),
+        ("evidence", "Evidence and review outcomes", (("Control", "control_ref"), ("Artifact", "title"),
+                         ("Version", "version"), ("Proof state", "proof_state"), ("Period start", "period_start"),
+                         ("Period end", "period_end"))),
+        ("gaps", "Gaps and exceptions", (("Control", "control_ref"), ("Title", "control"), ("Gap", "gap"))),
+        ("manifest", "Source and version manifest", (("Source kind", "kind"), ("Source ID", "id"),
+                                                    ("Version", "revision"), ("SHA-256", "hash"))),
+    ),
+    "ai_systems_register": (
+        ("systems", "AI systems", (("ID", "id"), ("External ref", "external_ref"), ("System", "name"),
+                                    ("Purpose", "purpose"), ("Capability", "capability_type"),
+                                    ("Provider", "provider_note"), ("Owner ID", "owner_user_id"), ("Tier", "tier"),
+                                    ("Status", "status"), ("Review", "next_review_at"))),
+        ("imported_claims", "Unverified imported source claims", (("System ref", "reference"),
+                                    ("Field", "field"), ("Workbook value", "source_value"), ("State", "status"))),
+        ("gaps", "Data quality", (("System", "system"), ("Missing", "missing"))),
+        ("manifest", "Source and version manifest", (("Source kind", "kind"), ("Source ID", "id"),
+                                                    ("Version", "revision"), ("Updated", "updated_at"))),
+    ),
+    "ai_risk_register": (
+        ("risks", "AI risks", (("Ref", "ref"), ("Risk", "risk_description"),
+                               ("Likelihood", "likelihood"), ("Impact", "impact"),
+                               ("Score", "inherent_score"), ("Owner", "risk_owner"), ("Status", "status"))),
+        ("treatments", "Treatment actions", (("Risk", "risk_ref"), ("Treatment", "treatment"),
+                   ("Action", "action_steps"), ("Responsible", "responsible"), ("Due", "due_date"))),
+        ("systems", "Linked systems", (("Risk ID", "risk_id"), ("System", "system"), ("Basis", "basis"))),
+        ("imported_claims", "Unverified imported source claims", (("Risk ref", "reference"),
+                                    ("Field", "field"), ("Workbook value", "source_value"), ("State", "status"))),
+        ("gaps", "Gaps and exceptions", (("Risk", "risk_ref"), ("Gap", "gap"))),
+        ("manifest", "Source and version manifest", (("Source kind", "kind"), ("Source ID", "id"),
+                                                    ("Updated", "revision"))),
+    ),
+}
+
+
+def _register_document(env, meta, *, db, row, run_id):
+    kind = (env.get("run") or {}).get("report_type")
+    result = env.get("result") or {}
+    sections = result.get("sections") or {}
+    report = Report(meta)
+    counts = result.get("counts") or {}
+    report.add(Heading("Register at a glance"), Kpis([
+        Kpi(label, identity.fmt_int(counts.get(key)))
+        for key, label, _columns in _REGISTER_COLUMNS[kind] if key not in {"gaps", "document_links", "manifest"}]))
+    for key, label, columns in _REGISTER_COLUMNS[kind]:
+        # These tables deliberately have no max_rows: PDF and workbook carry
+        # every authorized row, including registers above the UI page size.
+        data = sections.get(key) or []
+        known = {field for _title, field in columns}
+        sheet = [Col(title, field) for title, field in columns]
+        if data:
+            sheet += [Col(_label(field), field) for field in data[0] if field not in known]
+        report.add(Heading(label), Table(label, [Col(title, field) for title, field in columns],
+                                      data, sheet_name=label, sheet_columns=sheet, max_rows=None))
+    report.add(*_basis_blocks(env, db, run_id, row, theme.OPERATIONAL))
     return report
 
 

@@ -38,6 +38,9 @@ router = APIRouter()
 
 
 REPORT_TYPES = {
+    "framework_auditor_register": "Framework document and evidence register",
+    "ai_systems_register": "AI systems register",
+    "ai_risk_register": "AI risk register",
     "compliance_summary": "Compliance Summary",
     "risk_report": "Risk Report",
     "audit_status": "Audit Status",
@@ -57,6 +60,7 @@ REPORT_TYPES = {
 # The groups the page offers when somebody creates a report. A case report is made from a record, not from this list.
 # Board reports come first: short, summary first and decision oriented. Every other group is operational (the working detail).
 REPORT_GROUPS = [
+    ("Auditor registers", ["framework_auditor_register", "ai_systems_register", "ai_risk_register"]),
     ("Board reports", ["executive_brief", "executive_summary", "preset_board"]),
     ("Standard reports", ["compliance_summary", "risk_report", "audit_status", "privacy_overview", "bcm_readiness",
                           "sla_performance"]),
@@ -210,6 +214,8 @@ def _shareable(db, env, person):
             _scope_of(db, person)["fingerprint"] != scope.get("fingerprint")):
         return False
     inputs = env.get("inputs") or {}
+    full_register = (env.get("run") or {}).get("report_type") in {
+        "framework_auditor_register", "ai_systems_register", "ai_risk_register"}
     for source in env.get("sources") or []:
         if source.get("state") != "read":
             continue
@@ -220,16 +226,19 @@ def _shareable(db, env, person):
         if table not in builders.SOURCES or captured.get("truncated"):
             return False
         ids = captured.get("ids") or []
-        if any(type(i) is not int or i < 1 for i in ids) or len(ids) > snap.RECORD_CAP:
+        if any(type(i) is not int or i < 1 for i in ids) or (len(ids) > snap.RECORD_CAP and not full_register):
             return False
         if not ids:
             continue
         scope_sql, scope_params = table_scope(table, person)
-        marks = ",".join(["%s"] * len(ids))
-        visible = db.execute(
-            f"SELECT COUNT(*) FROM {table} WHERE id IN ({marks}) AND {scope_sql}",
-            [*ids, *scope_params],
-        ).fetchone()[0]
+        visible = 0
+        for start in range(0, len(ids), 300):
+            batch = ids[start:start + 300]
+            marks = ",".join(["%s"] * len(batch))
+            visible += db.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE id IN ({marks}) AND {scope_sql}",
+                [*batch, *scope_params],
+            ).fetchone()[0]
         if visible != len(set(ids)):
             return False
     return True
@@ -469,6 +478,13 @@ def _checked_parameters(report_type, data):
     parameters = data.get("parameters", {})
     if not isinstance(parameters, dict):
         return None, "Parameters must be an object"
+    if report_type == "framework_auditor_register":
+        framework_id = parameters.get("framework_id")
+        if type(framework_id) is not int or framework_id < 1 or set(parameters) != {"framework_id"}:
+            return None, "Select one framework ID"
+    elif report_type in {"ai_systems_register", "ai_risk_register"}:
+        if parameters:
+            return None, "This register does not accept parameters"
     if report_type == "preset_case":
         subject = builders.valid_subject(parameters)
         if subject is None:
@@ -568,6 +584,38 @@ async def api_report_definition_delete(request: Request, rid: int):
 
 # ── Runs ────────────────────────────────────────────────────────────────────
 
+@router.get("/api/reports/register-preview")
+@require_auth
+async def api_register_preview(request: Request):
+    """Show scoped coverage before saving a frozen auditor register."""
+    kind = request.query_params.get("report_type")
+    if kind not in {"framework_auditor_register", "ai_systems_register", "ai_risk_register"}:
+        return _JSONResp({"error": "Choose a register type"}, status_code=400)
+    params = {}
+    if kind == "framework_auditor_register":
+        try:
+            fid = int(request.query_params.get("framework_id", ""))
+        except ValueError:
+            return _JSONResp({"error": "Choose a framework"}, status_code=400)
+        params = {"framework_id": fid}
+    elif request.query_params.get("framework_id"):
+        return _JSONResp({"error": "This register does not select a framework"}, status_code=400)
+    db = get_db()
+    try:
+        try:
+            built = builders.build(db, request.state.user, kind, params)
+        except builders.RecordNotAvailable:
+            return _JSONResp({"error": "Not found"}, status_code=404)
+        result = built.result
+        return _JSONResp({"report_type": kind, "as_of": result["as_of"],
+                          "framework": result.get("framework"), "counts": result["counts"],
+                          "gaps": result["sections"].get("gaps", [])[:20],
+                          "total_gaps": len(result["sections"].get("gaps", [])),
+                          "complete": built.complete},
+                         headers={"Cache-Control": "private, no-store"})
+    finally:
+        db.close()
+
 @router.post("/api/reports/quick-run")
 @require_auth
 async def api_report_quick_run(request: Request):
@@ -583,10 +631,14 @@ async def api_report_quick_run(request: Request):
         if subject is None:
             return _JSONResp({"error": "A case report needs a record"}, status_code=400)
         parameters = {"subject": subject}
+    elif report_type == "framework_auditor_register":
+        parameters, error = _checked_parameters(report_type, {"parameters": {"framework_id": data.get("framework_id")}})
+        if error:
+            return _JSONResp({"error": error}, status_code=400)
     user = request.state.user
     db = get_db()
     try:
-        if parameters:
+        if report_type == "preset_case":
             shown = describe_record(db, canonical_key(subject["module"], subject["entity_type"]), subject["entity_id"], user)
             if shown is None:
                 return _JSONResp({"error": "Not found"}, status_code=404)

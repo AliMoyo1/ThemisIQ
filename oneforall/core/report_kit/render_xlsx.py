@@ -24,6 +24,9 @@ from core.report_kit import charts, identity, theme
 from core.report_kit.model import Chart, Heading, Kpis, Meta, Paragraphs, Callout, Report, Table, cell_text
 
 FONT = theme.DOCX_FONT
+# One header plus at most this many data rows per worksheet. This stays well
+# below Excel's 1,048,576 row ceiling and avoids giant filter ranges.
+SHEET_ROW_LIMIT = 100_000
 
 
 def _fill(hex_colour) -> PatternFill:
@@ -399,7 +402,19 @@ def render_xlsx(report: Report) -> bytes:
     wb = Workbook()
     used = {"cover", "summary"}
     summary_present = any(isinstance(b, (Heading, Kpis, Chart, Callout, Paragraphs)) for b in report.blocks)
-    table_blocks = [b for b in report.blocks if isinstance(b, Table)]
+    table_blocks = []
+    # Excel has a hard row limit. Keep every detail row, making the split
+    # explicit on the cover instead of silently saving a partial worksheet.
+    from dataclasses import replace
+    for block in (b for b in report.blocks if isinstance(b, Table)):
+        if len(block.rows) <= SHEET_ROW_LIMIT:
+            table_blocks.append(block)
+            continue
+        for offset in range(0, len(block.rows), SHEET_ROW_LIMIT):
+            part = offset // SHEET_ROW_LIMIT + 1
+            table_blocks.append(replace(block, rows=block.rows[offset:offset + SHEET_ROW_LIMIT],
+                                        sheet_name=f"{block.sheet_name or block.title} {part}",
+                                        note=f"Rows {offset + 1}–{min(offset + SHEET_ROW_LIMIT, len(block.rows))} of {len(block.rows)}. {block.note}"))
     # Sheet names are fixed first, so the cover can list them.
     plan = [("Cover", "the title, scope, who generated it and when")]
     if summary_present:

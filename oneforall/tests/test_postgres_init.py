@@ -365,6 +365,29 @@ def test_law_monitor_tables_are_created_in_public_and_tenant_on_real_postgres(pg
     assert _raw_rows("SELECT count(*) FROM public.sentinel_law_monitor_config")[0][0] == 0
 
 
+def test_authority_and_register_import_schema_in_public_and_tenant_on_real_postgres(pg):
+    """New capture, candidate and import fields must survive tenant DDL conversion."""
+    pg.init_db()
+    pg.provision_tenant_schema("authority_registers")
+    expected = {
+        "sentinel_law_captures": {"parser_version"},
+        "regulatory_updates": {"source_capture_id", "source_text_sha256"},
+        "ai_use_profiles": {"external_ref", "import_review_state", "source_claims_json"},
+        "aims_risks": {"import_batch_id", "source_claims_json"},
+        "register_import_batches": {"rows", "warnings", "version", "org_id"},
+        "aria_document_register_batches": {"rows", "warnings", "version", "org_id"},
+        "aria_document_register_claims": {"document_code", "document_version", "source_json", "state", "version"},
+        "regulatory_source_candidates": {"capture_id", "source_text_sha256", "review_state"},
+        "aims_risk_applications": {"risk_id", "application_id"},
+    }
+    for schema in ("public", "tenant_authority_registers"):
+        for table, columns in expected.items():
+            found = {row[0] for row in _raw_rows(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND table_name=%s",
+                (schema, table))}
+            assert columns <= found, (schema, table, columns - found)
+
+
 def test_plan36_exercise_calendar_and_metrics_schema_on_real_postgres(pg):
     """Fresh PostgreSQL must create the new BCM and shared projections in FK order."""
     pg.init_db()

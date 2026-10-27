@@ -221,6 +221,13 @@
       <thead><tr><th>Title</th><th>Framework</th><th>Severity</th><th>Effective Date</th><th>Status</th><th>Matched</th><th class="actions">Actions</th></tr></thead>
       <tbody id="regTBody"></tbody>
     </table>
+    {% if can_review_source %}
+    <section id="regSourceCandidates" aria-label="Captured source changes awaiting review">
+      <h3>Captured source changes awaiting review</h3>
+      <p>An approved Sentinel capture is evidence of changed source text. Decide its regulatory effect after checking the official page and affected controls.</p>
+      <div id="regSourceCandidateList" role="status">Loading candidates…</div>
+    </section>
+    {% endif %}
   </div>
 
   {% if can_assign_bu %}
@@ -888,6 +895,7 @@ function sevBadge(s){var m={info:'badge-low',medium:'badge-med',high:'badge-high
 function statusBadge(s){var m={open:'badge-high',processed:'badge-low',dismissed:'badge-inactive'};return '<span class="badge '+(m[s]||'badge-low')+'">'+esc(s||'open')+'</span>'}
 
 function govLoadReg(){
+  if(window.govLoadSourceCandidates) window.govLoadSourceCandidates();
   var st = document.getElementById('regStatusFilter') ? document.getElementById('regStatusFilter').value : '';
   apiFetch('/governance/api/regulatory-updates'+(st?'?status='+encodeURIComponent(st):'')).then(rows=>{
     govRegList = rows;
@@ -1024,4 +1032,5 @@ document.addEventListener('DOMContentLoaded', function(){
   govLoadReg();
 });
 </script>
+{% if can_review_source %}<script src="/static/js/governance_source_candidates.js" defer></script>{% endif %}
 {% endblock %}

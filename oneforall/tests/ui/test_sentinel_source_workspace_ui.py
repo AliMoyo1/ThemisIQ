@@ -38,7 +38,7 @@ def test_check_result_and_proof_remain_in_selected_inspector(login_as, live_app,
         route.fulfill(json={"source_key": "eu-framework", "result": "baseline_pending_review", "capture_id": 41})
     page.route("**/sentinel/api/law-monitor/check", check)
     page.route("**/sentinel/api/law-monitor/captures/41", lambda route: route.fulfill(json={
-        "id": 41, "jurisdiction_key": "GDPR", "proof": "Stored official capture",
+        "id": 41, "source_key": "eu-framework", "jurisdiction_key": "GDPR", "proof": "Stored official capture",
         "hash_verified": True, "source_url": "https://commission.europa.eu/example",
         "captured_at": "2026-10-25T10:00:00", "raw_sha256": "a" * 64,
         "text_sha256": "b" * 64, "review_state": "approved" if state["approved"] else "pending",
@@ -117,7 +117,7 @@ def test_unchanged_check_keeps_existing_approved_capture(login_as, live_app, pag
         route.fulfill(json={"source_key": "guidance", "result": "unchanged", "capture_id": 42})
     page.route("**/sentinel/api/law-monitor/check", check)
     page.route("**/sentinel/api/law-monitor/captures/42", lambda route: route.fulfill(json={
-        "id": 42, "jurisdiction_key": "GDPR", "proof": "Stored official capture",
+        "id": 42, "source_key": "guidance", "jurisdiction_key": "GDPR", "proof": "Stored official capture",
         "hash_verified": True, "source_url": "https://commission.europa.eu/example",
         "captured_at": "2026-10-24T10:00:00", "raw_sha256": "a" * 64,
         "text_sha256": "b" * 64, "review_state": "approved", "review_note": "Reviewed",
@@ -163,7 +163,7 @@ def test_late_capture_response_cannot_replace_another_selected_source(login_as, 
         _source("second", "Second authority"),
     ])
     page.route("**/sentinel/api/law-monitor/captures/41", lambda route: route.fulfill(json={
-        "id": 41, "jurisdiction_key": "GDPR", "proof": "Stored official capture",
+        "id": 41, "source_key": "first", "jurisdiction_key": "GDPR", "proof": "Stored official capture",
         "hash_verified": True, "source_url": "https://commission.europa.eu/example",
         "captured_at": "2026-10-25T10:00:00", "raw_sha256": "a" * 64,
         "text_sha256": "b" * 64, "review_state": "pending", "review_note": None,

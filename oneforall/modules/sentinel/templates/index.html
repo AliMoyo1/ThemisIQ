@@ -1151,7 +1151,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <div id="snRuleCards" class="sn-card-stack">Open Jurisdiction Manager to load rule cards.</div>
     <div id="snRuleCardForm"></div>
   </div>
-  <div class="card sn-section-card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
+  <div class="card sn-section-card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" data-can-propose="{{ 'true' if can_propose_source_change else 'false' }}" style="margin-top:20px">
     <h2 class="panel-title">Official-source watch</h2>
     <p class="sn-section-note">Checks capture changes from pinned authority sites. A changed page is a review item, not an amended law or an approved deadline.</p>
     <details class="sn-watch-settings">

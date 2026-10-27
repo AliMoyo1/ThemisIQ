@@ -1,5 +1,5 @@
 {
-  "route_count": 1170,
+  "route_count": 1185,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -1660,6 +1660,56 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/register-import/preview",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_register_import_preview",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/register-import/{batch_id}/confirm",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_register_import_confirm",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/regulatory",
       "methods": [
         "GET"
@@ -2742,6 +2792,31 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/systems/{application_id}/import-review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_imported_system_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/systems/{application_id}/link-candidates",
       "methods": [
         "GET"
@@ -3629,6 +3704,32 @@
       },
       "license_modules_required": [],
       "name": "register_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/registers",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.view"
+      ],
+      "roles_by_capability": {
+        "ai_use.view": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "registers_page",
       "maturity": "",
       "notes": ""
     },
@@ -5282,6 +5383,102 @@
         "aria"
       ],
       "name": "templates_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/document-register/claims/{claim_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "document_register_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/document-register/preview",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "document_register_preview",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/document-register/{batch_id}/confirm",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "document_register_confirm",
       "maturity": "",
       "notes": ""
     },
@@ -14761,6 +14958,78 @@
       "notes": ""
     },
     {
+      "path": "/governance/api/regulatory-source-candidates",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "governance.entities.manage"
+      ],
+      "roles_by_capability": {
+        "governance.entities.manage": [
+          "compliance_manager",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_reg_source_candidates",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/regulatory-source-candidates",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "governance.entities.manage"
+      ],
+      "roles_by_capability": {
+        "governance.entities.manage": [
+          "compliance_manager",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_reg_source_propose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/regulatory-source-candidates/{candidate_id}/decision",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "governance.entities.manage"
+      ],
+      "roles_by_capability": {
+        "governance.entities.manage": [
+          "compliance_manager",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_reg_source_decide",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/governance/api/regulatory-updates",
       "methods": [
         "GET"
@@ -20827,6 +21096,20 @@
       "notes": ""
     },
     {
+      "path": "/api/reports/register-preview",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_register_preview",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/reports/retention-policy",
       "methods": [
         "GET"
@@ -22150,6 +22433,76 @@
       },
       "license_modules_required": [],
       "name": "api_aims_risk_control_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/orm/api/aims/risks/{risk_id}/systems",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.orm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.orm.access"
+      ],
+      "roles_by_capability": {
+        "module.orm.access": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "orm"
+      ],
+      "name": "api_aims_risk_systems",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/orm/api/aims/risks/{risk_id}/systems/{application_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.orm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "orm.event.manage"
+      ],
+      "roles_by_capability": {
+        "orm.event.manage": [
+          "compliance_manager",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_aims_risk_system_unlink",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/orm/api/aims/risks/{risk_id}/systems/{application_id}",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.orm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "orm.event.manage"
+      ],
+      "roles_by_capability": {
+        "orm.event.manage": [
+          "compliance_manager",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_aims_risk_system_link",
       "maturity": "",
       "notes": ""
     },
@@ -25118,6 +25471,28 @@
         "sentinel"
       ],
       "name": "api_law_monitor_capture",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/law-monitor/captures/{capture_id}/draft",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.draft"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.draft": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_law_monitor_draft",
       "maturity": "",
       "notes": ""
     },

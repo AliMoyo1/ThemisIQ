@@ -145,6 +145,8 @@ async def governance_spa(request: Request):
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "can_manage": has_capability(user, "governance.entities.manage"),
+        "can_review_source": has_capability(user, "governance.entities.manage") and
+                             has_capability(user, "module.sentinel.access"),
         "can_assign_bu": has_capability(user, "governance.bu.assign"),
         **shell_ctx(request, active_module="governance"),
     })
@@ -485,6 +487,61 @@ async def api_ctrl_recompute(request: Request, cid: int):
 
 
 # ── Regulatory Inbox (PLAN-13 T4.2-lite) ─────────────────────────────────────
+
+@router.get("/api/regulatory-source-candidates")
+@require_capability("governance.entities.manage")
+async def api_reg_source_candidates(request: Request):
+    from modules.governance import source_candidates
+    if not has_capability(request.state.user, "module.sentinel.access"):
+        raise HTTPException(403, "Sentinel access is required to inspect source captures")
+    return JSONResponse(source_candidates.list_pending(request.state.user["org_id"]),
+                        headers={"Cache-Control": "private, no-store"})
+
+
+@router.post("/api/regulatory-source-candidates", status_code=201)
+@require_capability("governance.entities.manage")
+async def api_reg_source_propose(request: Request):
+    from modules.governance import source_candidates
+    from core.middleware import log_audit
+    if not has_capability(request.state.user, "module.sentinel.access"):
+        raise HTTPException(403, "Sentinel access is required to cite the capture")
+    body = await _json_body(request)
+    try:
+        capture_id = int(body.get("capture_id"))
+        if capture_id < 1:
+            raise ValueError()
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Choose a source capture") from None
+    try:
+        candidate_id = source_candidates.propose(request.state.user["org_id"], capture_id,
+            request.state.user["id"], body)
+    except LookupError:
+        raise HTTPException(404, "Capture not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "governance", "regulatory_source_proposed",
+              "regulatory_source_candidate", candidate_id)
+    return JSONResponse({"id": candidate_id}, status_code=201)
+
+
+@router.post("/api/regulatory-source-candidates/{candidate_id}/decision")
+@require_capability("governance.entities.manage")
+async def api_reg_source_decide(request: Request, candidate_id: int):
+    from modules.governance import source_candidates
+    from core.middleware import log_audit
+    if not has_capability(request.state.user, "module.sentinel.access"):
+        raise HTTPException(403, "Sentinel access is required to inspect source captures")
+    body = await _json_body(request)
+    try:
+        result = source_candidates.decide(request.state.user["org_id"], candidate_id,
+            request.state.user["id"], body.get("decision"), body.get("note"))
+    except LookupError:
+        raise HTTPException(404, "Candidate not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    log_audit(request.state.user, "governance", "regulatory_source_decided",
+              "regulatory_source_candidate", candidate_id, details=result["decision"])
+    return JSONResponse(result)
 
 @router.get("/api/regulatory-frameworks")
 @require_capability("governance.entities.view")

@@ -185,6 +185,7 @@ async def sentinel_index(request: Request):
         "special_categories": SPECIAL_CATEGORIES,
         "can_draft_jurisdiction": has_capability(user, "sentinel.jurisdiction.draft"),
         "can_approve_jurisdiction": has_capability(user, "sentinel.jurisdiction.approve"),
+        "can_propose_source_change": has_capability(user, "governance.entities.manage"),
         "can_ai_law": has_capability(user, "sentinel.ai.assess"),
         "can_manage_breach_obligations": has_capability(user, "sentinel.breach.manage"),
         **shell_ctx(request, active_module="sentinel", active_section="dashboard"),
@@ -1635,6 +1636,24 @@ async def api_law_monitor_impact(request: Request, capture_id: int):
                                            bu_scope_ids(request.state.user))
     except LookupError:
         raise HTTPException(404, "Capture not found") from None
+    return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
+
+
+@router.post("/api/law-monitor/captures/{capture_id}/draft")
+@require_capability("sentinel.jurisdiction.draft")
+@require_module("sentinel")
+async def api_law_monitor_draft(request: Request, capture_id: int):
+    """Suggest one exact changed passage for a specialist, never a legal ruling."""
+    from core.source_interpret import draft_change
+    from modules.sentinel import living_law
+    try:
+        capture = living_law.capture_detail(_law_org(request), capture_id)
+    except LookupError:
+        raise HTTPException(404, "Capture not found") from None
+    result = await asyncio.to_thread(draft_change, capture)
+    log_audit(request.state.user, "sentinel", "law_capture_draft_requested",
+              entity_type="law_capture", entity_id=capture_id,
+              details=f"verified={result['verified']}")
     return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
 
 

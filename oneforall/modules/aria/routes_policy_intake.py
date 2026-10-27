@@ -15,6 +15,7 @@ from modules.aria import policy_composition as composition
 from modules.aria import policy_pdf_rendition as pdf_rendition
 from modules.aria import policy_workflow_service as workflow
 from modules.aria import policy_storage as storage
+from modules.aria import document_register_intake as register_intake
 from modules.aria.routes import _aria_render
 from modules.aria.policy_access import document_read_ok
 
@@ -42,10 +43,87 @@ async def import_workspace(request: Request):
     db = get_db()
     try:
         entries = intake.list_imports(db, actor)
+        register_claims = register_intake.claims(db, actor)
     finally:
         db.close()
-    return _aria_render(request, "policy_imports.html", {"imports": entries, "user": actor},
+    return _aria_render(request, "policy_imports.html", {"imports": entries, "register_claims": register_claims, "user": actor},
                         active_section="documents")
+
+
+@router.post("/api/document-register/preview")
+@require_module("aria")
+async def document_register_preview(request: Request, file: UploadFile = File(...),
+                                    business_unit_id: str = Form(""), org_wide: bool = Form(False)):
+    actor = request.state.user
+    if not has_capability(actor, "aria.policy.create"):
+        return JSONResponse({"ok": False, "error": "Policy author permission required."}, 403)
+    data = await file.read(4 * 1024 * 1024 + 1)
+    try:
+        result = await asyncio.to_thread(_register_preview_sync, actor, data, file.filename or "",
+                                         business_unit_id or None, org_wide)
+        log_audit(actor, "aria", "Previewed document register", "document_register_batch", result["batch_id"])
+        return JSONResponse({"ok": True, **result})
+    except register_intake.RegisterError as exc:
+        return JSONResponse({"ok": False, "error": exc.message}, status_code=exc.status)
+
+
+def _register_preview_sync(actor, data, filename, business_unit_id, org_wide):
+    db = get_db()
+    try:
+        result = register_intake.preview(db, actor, data, filename, business_unit_id, org_wide)
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@router.post("/api/document-register/{batch_id}/confirm")
+@require_module("aria")
+async def document_register_confirm(request: Request, batch_id: int):
+    try:
+        payload = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"ok": False, "error": "Invalid request."}, 400)
+    if not isinstance(payload, dict):
+        return JSONResponse({"ok": False, "error": "Invalid request."}, 422)
+    db = get_db()
+    try:
+        result = register_intake.confirm(db, request.state.user, batch_id,
+                                         payload.get("version"), payload.get("acknowledged"))
+        db.commit()
+        log_audit(request.state.user, "aria", "Confirmed document register claims", "document_register_batch", batch_id)
+        return JSONResponse({"ok": True, **result})
+    except register_intake.RegisterError as exc:
+        db.rollback()
+        return JSONResponse({"ok": False, "error": exc.message}, status_code=exc.status)
+    finally:
+        db.close()
+
+
+@router.post("/api/document-register/claims/{claim_id}/review")
+@require_module("aria")
+async def document_register_review(request: Request, claim_id: int):
+    try:
+        payload = await request.json()
+    except (ValueError, json.JSONDecodeError):
+        return JSONResponse({"ok": False, "error": "Invalid request."}, 400)
+    if not isinstance(payload, dict):
+        return JSONResponse({"ok": False, "error": "Invalid request."}, 422)
+    db = get_db()
+    try:
+        result = register_intake.review_claim(db, request.state.user, claim_id,
+                                              payload.get("version"), payload.get("decision"))
+        db.commit()
+        log_audit(request.state.user, "aria", "Reviewed document register claim", "document_register_claim", claim_id)
+        return JSONResponse({"ok": True, **result})
+    except register_intake.RegisterError as exc:
+        db.rollback()
+        return JSONResponse({"ok": False, "error": exc.message}, status_code=exc.status)
+    finally:
+        db.close()
 
 
 @router.post("/api/policy-imports")
