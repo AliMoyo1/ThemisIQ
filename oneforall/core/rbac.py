@@ -220,6 +220,18 @@ CAPABILITIES: dict[str, set[str]] = {
 
     # ── Evidence Vault capabilities ─────────────────────────────
     "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
+    "evidence.file.org_wide":     {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    # Group roles never grant access by themselves. Each viewer also needs an
+    # exact, unexpired relationship grant and a source-approved publication.
+    "group.relationship.manage": {SUPER_ADMIN},
+    "group.relationship.ack":    {ORG_ADMIN, GRC_OFFICER},
+    "group.terms.privacy":       {DPO},
+    "group.terms.legal":         {COMPLIANCE_MGR},
+    "group.grant.manage":        {ORG_ADMIN, GRC_OFFICER},
+    "group.rights.review":       {DPO, COMPLIANCE_MGR},
+    "group.document.publish":    {GRC_OFFICER, COMPLIANCE_MGR},
+    "group.document.view":       {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
+    "group.document.download":   {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     # Saying that a version of an item supports a claim. The person who attached the file never reviews it, and the
     # reviewer must also be able to open the claim.
     "evidence.link.review":       {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, DPO, BCM_MANAGER, RISK_OWNER},

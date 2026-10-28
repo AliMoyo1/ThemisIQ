@@ -273,7 +273,8 @@ def _upload(auth, user, data, *, replace_id="", name="proof.txt"):
     import asyncio
     result = asyncio.run(ev.api_evidence_upload(
         request, file, title="Proof", description="", category="general", tags="", replace_id=replace_id, expiry_date="",
-        owner_user_id="", review_due_date="", period_start="", period_end=""))
+        owner_user_id="", review_due_date="", period_start="", period_end="",
+        filing_scope=f"unit:{user['business_unit_id']}" if user.get("business_unit_id") else "organization"))
     return result.status_code, json.loads(result.body)
 
 

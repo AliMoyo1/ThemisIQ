@@ -736,6 +736,95 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Group oversight is a registry of explicit relationships and releases, not
+-- an implicit permission to read another tenant schema. File bytes stay in
+-- the source tenant's canonical evidence_items/version chain.
+CREATE TABLE IF NOT EXISTS org_relationships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    child_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','active','ended')),
+    purpose TEXT NOT NULL,
+    child_ack_by INTEGER,
+    privacy_review_by INTEGER,
+    legal_review_by INTEGER,
+    terms_json TEXT NOT NULL DEFAULT '{}',
+    effective_at TEXT,
+    review_due_at TEXT,
+    ended_at TEXT,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK(parent_org_id != child_org_id)
+);
+CREATE INDEX IF NOT EXISTS idx_org_relationships_parent ON org_relationships(parent_org_id, status);
+CREATE INDEX IF NOT EXISTS idx_org_relationships_child ON org_relationships(child_org_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_org_relationships_active_child
+    ON org_relationships(child_org_id) WHERE status='active';
+
+CREATE TABLE IF NOT EXISTS group_view_grants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    user_id INTEGER NOT NULL,
+    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download')),
+    expires_at TEXT NOT NULL,
+    review_due_at TEXT NOT NULL,
+    revoked_at TEXT,
+    granted_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_view_grants_actor ON group_view_grants(viewer_org_id, user_id, capability);
+
+CREATE TABLE IF NOT EXISTS group_document_rights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    evidence_id INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    rights_state TEXT NOT NULL CHECK(rights_state IN ('unknown','owned','licensed')),
+    permit_group_view INTEGER NOT NULL DEFAULT 0,
+    permit_group_download INTEGER NOT NULL DEFAULT 0,
+    basis TEXT NOT NULL,
+    reviewed_by INTEGER NOT NULL,
+    reviewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(source_org_id, evidence_id, file_hash)
+);
+
+CREATE TABLE IF NOT EXISTS group_document_publications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    evidence_id INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    classification TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    rights_id INTEGER NOT NULL REFERENCES group_document_rights(id),
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    approved_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(relationship_id, viewer_org_id, evidence_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_document_publications_viewer
+    ON group_document_publications(viewer_org_id, relationship_id, revoked_at);
+
+CREATE TABLE IF NOT EXISTS group_access_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    publication_id INTEGER REFERENCES group_document_publications(id),
+    actor_id INTEGER,
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_access_events_relationship ON group_access_events(relationship_id, created_at);
+
 CREATE TABLE IF NOT EXISTS licenses (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

@@ -175,7 +175,9 @@ def _upload(auth, user, data, **fields):
     request = _req(auth, user)
     file = UploadFile(file=io.BytesIO(data), size=len(data), filename="proof.txt", headers=Headers({"content-type": "text/plain"}))
     args = {"title": "Proof", "description": "", "category": "general", "tags": "", "replace_id": "", "expiry_date": "",
-            "owner_user_id": "", "review_due_date": "", "period_start": "", "period_end": "", **fields}
+            "owner_user_id": "", "review_due_date": "", "period_start": "", "period_end": "",
+            "filing_scope": f"unit:{user['business_unit_id']}" if user.get("business_unit_id") else "organization",
+            **fields}
     result = asyncio.run(ev.api_evidence_upload(request, file, **args))
     return result.status_code, json.loads(result.body)
 
@@ -191,6 +193,13 @@ def test_an_upload_keeps_owner_review_date_and_period_and_defaults_the_owner_to_
     status, body = _upload(auth, lib.people.uploader, b"report two")
     assert status == 201
     assert lib.db.execute("SELECT owner_user_id FROM evidence_items WHERE id = %s", (body["id"],)).fetchone()[0] == 51
+
+
+def test_unlinked_upload_requires_an_explicit_filing_scope(lib, auth, tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "EVIDENCE_DIR", tmp_path)
+    status, body = _upload(auth, lib.people.uploader, b"not filed", filing_scope="")
+    assert status == 422 and "filing scope" in body["error"]
+    assert lib.db.execute("SELECT COUNT(*) FROM evidence_items WHERE title='Proof'").fetchone()[0] == 0
 
 
 def test_an_upload_with_a_bad_date_period_or_owner_is_refused_and_stores_nothing(lib, auth, tmp_path, monkeypatch):

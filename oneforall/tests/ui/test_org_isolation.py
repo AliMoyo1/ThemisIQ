@@ -77,6 +77,7 @@ def _login(base_url: str, username: str, password: str) -> httpx.Client:
 def org_a_client(live_app, synthetic_tenant):
     creds = synthetic_tenant["users"]["risk_owner"]
     client = _login(live_app, creds["username"], creds["password"])
+    client.filing_scope = f"unit:{synthetic_tenant['business_unit_id']}"
     yield client
     client.close()
 
@@ -155,7 +156,7 @@ def _upload_evidence(client: httpx.Client, title: str) -> int:
     content = f"isolation probe contents: {title}".encode()
     resp = client.post(
         "/evidence/api/items",
-        data={"title": title, "category": "general"},
+        data={"title": title, "category": "general", "filing_scope": client.filing_scope},
         files={"file": (f"{title}.txt", content, "text/plain")},
     )
     assert resp.status_code == 201, resp.text

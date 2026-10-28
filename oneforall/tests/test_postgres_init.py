@@ -2055,6 +2055,138 @@ def test_vault_rescoring_and_grid_reattach_run_on_real_postgres(pg):
 _RLS_PROBE_ROLE = "themisiq_rls_probe"
 
 
+def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg):
+    pg.init_db()
+    parent = _make_org(pg, "group_parent_probe", provision=False)
+    child = _make_org(pg, "group_child_probe", provision=False)
+    sibling = _make_org(pg, "group_sibling_probe", provision=False)
+    setup = pg.get_db_bypass_rls()
+    try:
+        relation = setup.execute(
+            "INSERT INTO public.org_relationships (parent_org_id,child_org_id,purpose) "
+            "VALUES (%s,%s,'Group review') RETURNING id", (parent, child)).fetchone()["id"]
+        setup.execute(
+            "INSERT INTO public.group_document_rights "
+            "(source_org_id,evidence_id,file_hash,rights_state,basis,reviewed_by) "
+            "VALUES (%s,1,'fixture','unknown','fixture',1)", (child,))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+    for org, visible_edge, visible_rights in ((parent, True, False), (child, True, True),
+                                               (sibling, False, False)):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                _become_restricted(conn)
+                assert bool(conn.execute("SELECT id FROM public.org_relationships WHERE id=%s",
+                                         (relation,)).fetchone()) is visible_edge
+                assert bool(conn.execute("SELECT id FROM public.group_document_rights").fetchone()) is visible_rights
+                if org == parent:
+                    with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                        conn.execute("INSERT INTO public.group_document_publications "
+                                     "(relationship_id,source_org_id,viewer_org_id,evidence_id,version,file_hash,"
+                                     "title,category,classification,purpose,rights_id,expires_at,approved_by) "
+                                     "VALUES (%s,%s,%s,1,1,'fixture','hidden','report','internal',"
+                                     "'Group review',1,'2099-01-01',1)", (relation, child, parent))
+                    conn.rollback()
+            finally:
+                _release_role(conn)
+
+
+def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg):
+    from datetime import datetime, timedelta, timezone
+    from modules.evidence import group_documents as group
+
+    pg.init_db()
+    parent_slug, child_slug = "group_parent_catalogue", "group_child_catalogue"
+    parent = _make_org(pg, parent_slug)
+    child = _make_org(pg, child_slug)
+    setup = pg.get_db_bypass_rls()
+    try:
+        ids = {}
+        for org_id, name in ((parent, "platform"), (parent, "viewer"), (parent, "parent_admin"),
+                             (child, "ack"), (child, "privacy"), (child, "legal"),
+                             (child, "publisher")):
+            ids[name] = pg.insert_returning_id(setup,
+                "INSERT INTO public.users (org_id,username,email,full_name,password_hash,is_active) "
+                "VALUES (%s,%s,%s,%s,'test',1)",
+                (org_id, name + "_pg_group", name + "@example.invalid", name))
+        setup.commit()
+    finally:
+        setup.close()
+    def actor(name, org, role):
+        return {"id": ids[name], "org_id": org, "roles": [role], "is_super_admin": role == "super_admin",
+                "business_unit_id": None}
+    users = {"platform": actor("platform", parent, "super_admin"),
+             "viewer": actor("viewer", parent, "grc_officer"),
+             "parent_admin": actor("parent_admin", parent, "org_admin"),
+             "ack": actor("ack", child, "org_admin"),
+             "privacy": actor("privacy", child, "dpo"),
+             "legal": actor("legal", child, "compliance_manager"),
+             "publisher": actor("publisher", child, "grc_officer")}
+    future = lambda days: (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+    with pg.tenant_context(parent, parent_slug, is_super_admin=True):
+        db = pg.get_db()
+        try:
+            relation = group.propose_relationship(db, users["platform"], parent, child,
+                "Group governance", {"data_classes": ["document_metadata"],
+                                     "classifications": ["internal"], "audiences": ["grc_officer"],
+                                     "fields": ["title", "category", "version", "source_name",
+                                                "classification", "expires_at"],
+                                     "jurisdictions": ["Zimbabwe"],
+                                     "legal_basis": "Synthetic pilot agreement",
+                                     "agreement_ref": "TEST-ONLY-001"}, future(60))
+            db.commit()
+        finally:
+            db.close()
+    with pg.tenant_context(child, child_slug, is_super_admin=False):
+        db = pg.get_db()
+        try:
+            item = pg.insert_returning_id(db,
+                "INSERT INTO evidence_items (org_id,title,category,status,version,file_hash) "
+                "VALUES (%s,'Child reviewed report','report','current',1,'child-hash')", (child,))
+            for who, kind in (("ack", "ack"), ("privacy", "privacy"), ("legal", "legal")):
+                group.record_relationship_decision(db, users[who], relation, kind)
+            group.reviewed_rights(db, users["privacy"], item, "owned", True, False, "Owned")
+            publication = group.publish(db, users["publisher"], relation, item,
+                                        "internal", "Group governance", future(30))
+            db.commit()
+        finally:
+            db.close()
+    with pg.tenant_context(parent, parent_slug, is_super_admin=False):
+        db = pg.get_db()
+        try:
+            group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                             "document.view", future(30), future(7))
+            db.commit()
+            assert [r["title"] for r in group.catalogue(db, users["viewer"])] == ["Child reviewed report"]
+            assert group.released_item(db, users["viewer"], publication)[1]["id"] == item
+        finally:
+            db.close()
+    with pg.tenant_context(child, child_slug, is_super_admin=False):
+        db = pg.get_db()
+        try:
+            db.execute("UPDATE evidence_items SET status='superseded' WHERE id=%s", (item,))
+            db.commit()
+        finally:
+            db.close()
+    with pg.tenant_context(parent, parent_slug, is_super_admin=False):
+        db = pg.get_db()
+        try:
+            assert group.catalogue(db, users["viewer"]) == []
+            with pytest.raises(Exception) as blocked:
+                group.released_item(db, users["viewer"], publication)
+            assert getattr(blocked.value, "status_code", None) == 404
+        finally:
+            db.close()
+
+
 def _rls_probe_world(pg):
     """Two organizations with one evidence item each, plus the restricted role. Returns the org ids."""
     pg.init_db()  # installs the policies

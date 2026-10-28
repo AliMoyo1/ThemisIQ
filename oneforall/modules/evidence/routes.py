@@ -26,7 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
-from modules.evidence import find as finder, inspector, proof, vault_views
+from modules.evidence import company_views, find as finder, group_documents, inspector, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
@@ -170,7 +170,7 @@ async def reconcile_legacy_bcm(request: Request, source_id: int):
 from modules.saved_views.data_service import register_view_schema as _register_view_schema
 _register_view_schema(
     "evidence", "items_list",
-    allowed_params={"category", "status", "q", "module", "view", "folder"},
+    allowed_params={"category", "status", "q", "module", "view", "folder", "filing_scope"},
     sortable_fields={"updated_at", "title", "expiry_date", "status"},
     available_columns={"title", "category", "status", "expiry_date", "uploaded_by_name", "link_count"},
 )
@@ -398,6 +398,172 @@ async def api_evidence_list(request: Request):
     return JSONResponse(_library_page(request.state.user, request.query_params))
 
 
+@router.get("/api/company-views")
+@require_auth
+async def api_company_views(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse(company_views.facets(db, request.state.user))
+    finally:
+        db.close()
+
+
+async def _group_body(request: Request) -> dict:
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(422, "Provide a JSON request") from None
+    if not isinstance(data, dict):
+        raise HTTPException(422, "Provide a JSON object")
+    return data
+
+
+def _group_operation(work):
+    db = get_db()
+    try:
+        result = work(db)
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@router.post("/api/group/relationships", status_code=201)
+@require_auth
+async def api_group_relationship_propose(request: Request):
+    body = await _group_body(request)
+    try:
+        parent_id, child_id = int(body.get("parent_org_id")), int(body.get("child_org_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose parent and child organizations") from None
+    relation_id = _group_operation(lambda db: group_documents.propose_relationship(
+        db, request.state.user, parent_id, child_id, str(body.get("purpose") or ""),
+        body.get("terms"), body.get("review_due_at")))
+    return JSONResponse({"id": relation_id, "status": "proposed"}, status_code=201)
+
+
+@router.post("/api/group/relationships/{relation_id}/decisions")
+@require_auth
+async def api_group_relationship_decision(request: Request, relation_id: int):
+    body = await _group_body(request)
+    result = _group_operation(lambda db: group_documents.record_relationship_decision(
+        db, request.state.user, relation_id, body.get("kind")))
+    return JSONResponse(result)
+
+
+@router.post("/api/group/relationships/{relation_id}/grants", status_code=201)
+@require_auth
+async def api_group_grant(request: Request, relation_id: int):
+    body = await _group_body(request)
+    try:
+        recipient_id = int(body.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a recipient") from None
+    grant_id = _group_operation(lambda db: group_documents.grant_view(
+        db, request.state.user, relation_id, recipient_id, body.get("capability"),
+        body.get("expires_at"), body.get("review_due_at")))
+    return JSONResponse({"id": grant_id}, status_code=201)
+
+
+@router.delete("/api/group/relationships/{relation_id}")
+@require_auth
+async def api_group_relationship_end(request: Request, relation_id: int):
+    _group_operation(lambda db: group_documents.end_relationship(db, request.state.user, relation_id))
+    return JSONResponse({"status": "ended"})
+
+
+@router.delete("/api/group/grants/{grant_id}")
+@require_auth
+async def api_group_grant_revoke(request: Request, grant_id: int):
+    _group_operation(lambda db: group_documents.revoke_grant(db, request.state.user, grant_id))
+    return JSONResponse({"status": "revoked"})
+
+
+@router.post("/api/group/rights/{eid}")
+@require_auth
+async def api_group_rights(request: Request, eid: int):
+    body = await _group_body(request)
+    rights_id = _group_operation(lambda db: group_documents.reviewed_rights(
+        db, request.state.user, eid, body.get("rights_state"),
+        body.get("permit_group_view") is True, body.get("permit_group_download") is True,
+        str(body.get("basis") or "")))
+    return JSONResponse({"id": rights_id})
+
+
+@router.post("/api/group/relationships/{relation_id}/publications", status_code=201)
+@require_auth
+async def api_group_publish(request: Request, relation_id: int):
+    body = await _group_body(request)
+    try:
+        eid = int(body.get("evidence_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose evidence") from None
+    pub_id = _group_operation(lambda db: group_documents.publish(
+        db, request.state.user, relation_id, eid, body.get("classification"),
+        str(body.get("purpose") or ""), body.get("expires_at")))
+    return JSONResponse({"id": pub_id}, status_code=201)
+
+
+@router.get("/api/group/publications")
+@require_auth
+async def api_group_catalogue(request: Request):
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except ValueError:
+        raise HTTPException(422, "Invalid catalogue page") from None
+    db = get_db()
+    try:
+        return JSONResponse({"items": group_documents.catalogue(db, request.state.user, page=page),
+                             "page": page})
+    finally:
+        db.close()
+
+
+@router.delete("/api/group/publications/{publication_id}")
+@require_auth
+async def api_group_publication_revoke(request: Request, publication_id: int):
+    _group_operation(lambda db: group_documents.revoke_publication(db, request.state.user, publication_id))
+    return JSONResponse({"status": "revoked"})
+
+
+@router.get("/api/group/publications/{publication_id}")
+@require_auth
+async def api_group_publication(request: Request, publication_id: int):
+    db = get_db()
+    try:
+        row, _ = group_documents.released_item(db, request.state.user, publication_id)
+        group_documents.access_event(db, row, request.state.user, "open")
+        db.commit()
+        return JSONResponse({"id": row["id"], "title": row["title"], "version": row["version"],
+                             "category": row["category"], "source_name": row["source_name"],
+                             "classification": row["classification"], "expires_at": row["expires_at"]})
+    finally:
+        db.close()
+
+
+@router.get("/api/group/publications/{publication_id}/download")
+@require_auth
+async def api_group_publication_download(request: Request, publication_id: int):
+    db = get_db()
+    try:
+        row, item = group_documents.released_item(db, request.state.user, publication_id, download=True)
+        rel = item["file_path"] or ""
+        if not rel or rel.startswith("aria://"):
+            raise HTTPException(404, "Publication file unavailable")
+        candidate = (EVIDENCE_DIR / rel).resolve()
+        if not candidate.is_relative_to(EVIDENCE_DIR.resolve()) or not candidate.is_file():
+            raise HTTPException(404, "Publication file unavailable")
+        group_documents.access_event(db, row, request.state.user, "download")
+        db.commit()
+        return FileResponse(str(candidate), filename=item["file_name"] or "download",
+                            media_type=item["mime_type"] or "application/octet-stream")
+    finally:
+        db.close()
+
+
 @router.get("/api/folders")
 @require_auth
 async def api_evidence_folders(request: Request):
@@ -447,6 +613,18 @@ def _library_page(user: dict, qp, size: int = None) -> dict:
     search_sql, search_params = evidence_search_sql(qp.get("q", ""))
     where = [scope_sql, search_sql]
     params = [*scope_params, *search_params]
+    filing_scope = qp.get("filing_scope", "")
+    if filing_scope:
+        db_scope = get_db()
+        try:
+            chosen_unit = company_views.selected_unit(db_scope, user, filing_scope)
+        finally:
+            db_scope.close()
+        if filing_scope == "organization":
+            where.append("e.business_unit_id IS NULL")
+        else:
+            where.append("e.business_unit_id = %s")
+            params.append(chosen_unit)
     for word in str(qp.get("words") or "").split()[:finder.WORDS_MAX]:  # Find evidence: every word must match
         word_sql, word_params = evidence_search_sql(word)
         where.append(word_sql)
@@ -498,12 +676,14 @@ def _library_page(user: dict, qp, size: int = None) -> dict:
         live = "el.evidence_id = e.id AND el.deleted_at IS NULL"
         rows = db.execute(
             "SELECT e.*, u.full_name as uploaded_by_name, ou.full_name as owner_name, "
+            "bu.name as filing_unit_name, "
             f"(SELECT COUNT(*) FROM evidence_links el WHERE {live}) as link_count, "
             f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') = 'accepted') as links_accepted, "
             f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') = 'pending') as links_pending, "
             f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') IN ('returned', 'rejected')) as links_returned, "
             f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') = 'out_of_scope') as links_out_of_scope "
             "FROM evidence_items e LEFT JOIN users u ON e.uploaded_by = u.id LEFT JOIN users ou ON e.owner_user_id = ou.id "
+            "LEFT JOIN business_units bu ON bu.id = e.business_unit_id "
             f"WHERE {where_sql} ORDER BY {order} LIMIT %s OFFSET %s",
             [*params, page_size, (page - 1) * page_size],
         ).fetchall()
@@ -628,6 +808,7 @@ async def api_evidence_upload(
     link_module: str = Form(""),
     link_entity_type: str = Form(""),
     link_entity_id: str = Form(""),
+    filing_scope: str = Form(""),
 ):
     """Upload a file and optionally create a pending link in one transaction."""
     user = request.state.user
@@ -657,6 +838,7 @@ async def api_evidence_upload(
     link_module = _s(link_module) if isinstance(link_module, str) else ""
     link_entity_type = _s(link_entity_type) if isinstance(link_entity_type, str) else ""
     link_entity_id = _s(link_entity_id) if isinstance(link_entity_id, str) else ""
+    filing_scope = filing_scope.strip() if isinstance(filing_scope, str) else ""
     selected_target = bool(link_module or link_entity_type or link_entity_id)
     if selected_target and not all((link_module, link_entity_type, link_entity_id)):
         return JSONResponse({"error": "Choose a complete claim to link."}, status_code=422)
@@ -668,6 +850,26 @@ async def api_evidence_upload(
             return JSONResponse({"error": "Choose a valid claim."}, status_code=422)
         if target_id <= 0:
             return JSONResponse({"error": "Choose a valid claim."}, status_code=422)
+
+    # Validate filing and referenced-record authority before processing bytes.
+    # An unlinked upload never silently inherits a broad or unit scope.
+    if not selected_target and not filing_scope:
+        return JSONResponse({"error": "Choose an authorized filing scope."}, status_code=422)
+    requested_unit = None
+    scope_db = get_db()
+    try:
+        if filing_scope:
+            requested_unit = company_views.selected_unit(scope_db, user, filing_scope, for_filing=True)
+        if selected_target and not _visible_target(scope_db, (link_module, link_entity_type), target_id, user):
+            raise HTTPException(404, "Link target not found")
+        replacement_for_access = replace_id.strip() if isinstance(replace_id, str) else ""
+        if replacement_for_access:
+            if not replacement_for_access.isdigit() or int(replacement_for_access) < 1:
+                return JSONResponse({"error": "Choose a valid version to replace."}, status_code=422)
+            if not _scoped_evidence_item(scope_db, int(replacement_for_access), user):
+                raise HTTPException(404, "Evidence not found")
+    finally:
+        scope_db.close()
 
     content = await file.read(MAX_FILE_SIZE + 1)
     if len(content) > MAX_FILE_SIZE:
@@ -698,6 +900,13 @@ async def api_evidence_upload(
         target_unit = user.get("business_unit_id") if not selected_target else None
         if selected_target:
             _, target_unit = record_unit(db, link_module, link_entity_type, target_id, user=user)
+        if filing_scope:
+            if selected_target and requested_unit != target_unit:
+                return JSONResponse({"error": "Filing scope must match the linked record."}, status_code=422)
+            if not selected_target:
+                target_unit = requested_unit
+        elif target_unit is None and not user.get("is_super_admin") and not company_views.can_file_org_wide(user):
+            return JSONResponse({"error": "Choose an authorized filing scope."}, status_code=422)
 
         parent_id = None
         parent_row = None
@@ -717,6 +926,8 @@ async def api_evidence_upload(
                 return JSONResponse({"error": "Generated records are versioned from their source module."}, status_code=409)
             if parent_row["status"] != "current":
                 return JSONResponse({"error": "Only the current version can be replaced."}, status_code=409)
+            if filing_scope and parent_row["business_unit_id"] != requested_unit:
+                return JSONResponse({"error": "A new version keeps the original filing scope."}, status_code=422)
             parent_id = rid
             version_num = parent_row["version"] + 1
             if selected_target and target_unit is not None and parent_row["business_unit_id"] != target_unit:

@@ -1,5 +1,5 @@
 {
-  "route_count": 1186,
+  "route_count": 1198,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13383,6 +13383,20 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/company-views",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_company_views",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/coverage",
       "methods": [
         "GET"
@@ -13449,6 +13463,160 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_evidence_record_folders",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/grants/{grant_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_grant_revoke",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/publications",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_catalogue",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/publications/{publication_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_publication_revoke",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/publications/{publication_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_publication",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/publications/{publication_id}/download",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_publication_download",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/relationships",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_relationship_propose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/relationships/{relation_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_relationship_end",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/relationships/{relation_id}/decisions",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_relationship_decision",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/relationships/{relation_id}/grants",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_grant",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/relationships/{relation_id}/publications",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_publish",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/rights/{eid}",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_rights",
       "maturity": "",
       "notes": ""
     },
