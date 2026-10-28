@@ -593,9 +593,11 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/evidence/api/group/relationships` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/group/relationships/{relation_id}` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/decisions` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/relationships/{relation_id}/exit-impact` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/grants` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/publications` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/rights/{eid}` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/workspace` | authenticated | - | - | - |  |
 | GET | `/evidence/api/inspector` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items` | authenticated | - | - | - |  |
 | POST | `/evidence/api/items` | authenticated | - | - | - |  |
@@ -627,6 +629,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/resolve-links` | authenticated | - | - | - |  |
 | GET | `/evidence/api/search-entities` | authenticated | - | - | - |  |
 | GET | `/evidence/api/stats` | authenticated | - | - | - |  |
+| GET | `/evidence/group/` | authenticated | - | - | - |  |
 
 ## `modules.evidence_campaigns.routes`
 

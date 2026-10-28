@@ -91,6 +91,69 @@ def _assert_edge(db, row):
     _org(db, row["child_org_id"])
 
 
+def management_workspace(db, actor: dict) -> dict:
+    """Small, role-filtered work queue for the group sharing page.
+
+    The ordinary user sees only edges containing their organization. Source
+    evidence and recipients are always drawn from their own tenant scope.
+    """
+    org_id = actor.get("org_id")
+    if not org_id:
+        raise HTTPException(403, "Organization required")
+    caps = {key: has_capability(actor, key) for key in (
+        "group.relationship.manage", "group.relationship.ack", "group.terms.privacy",
+        "group.terms.legal", "group.grant.manage", "group.rights.review",
+        "group.document.publish")}
+    if not any(caps.values()):
+        raise HTTPException(403, "Group sharing access required")
+    if caps["group.relationship.manage"]:
+        organizations = [dict(row) for row in db.execute(
+            "SELECT id,name FROM organizations WHERE status='active' ORDER BY name,id").fetchall()]
+        where, args = "", []
+    else:
+        organizations = []
+        where, args = "WHERE r.parent_org_id=%s OR r.child_org_id=%s", [org_id, org_id]
+    relations = [dict(row) for row in db.execute(
+        f"SELECT r.*, p.name AS parent_name, c.name AS child_name "
+        f"FROM {_table('org_relationships')} r "
+        "JOIN organizations p ON p.id=r.parent_org_id AND p.status='active' "
+        "JOIN organizations c ON c.id=r.child_org_id AND c.status='active' "
+        f"{where} ORDER BY r.created_at DESC,r.id DESC LIMIT 100", args).fetchall()]
+    for row in relations:
+        row["terms"] = json.loads(row.pop("terms_json"))
+        row["can_decide"] = row["child_org_id"] == org_id and row["status"] == "proposed"
+        row["can_grant"] = (row["status"] == "active" and org_id in
+                            (row["parent_org_id"], row["child_org_id"]))
+        row["can_publish"] = row["can_grant"]
+    recipients = []
+    if caps["group.grant.manage"]:
+        recipients = [dict(row) for row in db.execute(
+            "SELECT id,full_name FROM users WHERE org_id=%s AND is_active=1 "
+            "AND deleted_at IS NULL ORDER BY full_name,id LIMIT 250", (org_id,)).fetchall()]
+    evidence = []
+    if caps["group.rights.review"] or caps["group.document.publish"]:
+        scope, params = evidence_scope_sql(actor)
+        evidence = [dict(row) for row in db.execute(
+            "SELECT e.id,e.title,e.category,e.version FROM evidence_items e "
+            f"WHERE e.org_id=%s AND e.status='current' AND e.file_hash IS NOT NULL AND {scope} "
+            "ORDER BY e.updated_at DESC,e.id DESC LIMIT 250", [org_id, *params]).fetchall()]
+    grants = []
+    if caps["group.grant.manage"]:
+        grants = [dict(row) for row in db.execute(
+            f"SELECT g.id,g.relationship_id,g.user_id,g.capability,g.expires_at,g.review_due_at "
+            f"FROM {_table('group_view_grants')} g WHERE g.viewer_org_id=%s "
+            "AND g.revoked_at IS NULL ORDER BY g.id DESC LIMIT 100", (org_id,)).fetchall()]
+    publications = []
+    if caps["group.document.publish"]:
+        publications = [dict(row) for row in db.execute(
+            f"SELECT id,relationship_id,evidence_id,title,version,expires_at "
+            f"FROM {_table('group_document_publications')} WHERE source_org_id=%s "
+            "AND revoked_at IS NULL ORDER BY id DESC LIMIT 100", (org_id,)).fetchall()]
+    return {"capabilities": caps, "organizations": organizations,
+            "relationships": relations, "recipients": recipients,
+            "evidence": evidence, "grants": grants, "publications": publications}
+
+
 def propose_relationship(db, actor: dict, parent_id: int, child_id: int, purpose: str,
                          terms: dict, review_due: str) -> int:
     if not has_capability(actor, "group.relationship.manage"):
@@ -136,8 +199,9 @@ def record_relationship_decision(db, actor: dict, relation_id: int, kind: str) -
         raise HTTPException(403, "Reviewer capability required")
     if row[col] and row[col] != actor["id"]:
         raise HTTPException(409, "Decision already recorded")
-    if kind in ("privacy", "legal") and actor["id"] in (row["privacy_review_by"], row["legal_review_by"]):
-        raise HTTPException(409, "Independent privacy and legal reviewers required")
+    if actor["id"] in (row["child_ack_by"], row["privacy_review_by"], row["legal_review_by"]):
+        if row[col] != actor["id"]:
+            raise HTTPException(409, "Acknowledgement, privacy and legal decisions need separate reviewers")
     db.execute(f"UPDATE {_table('org_relationships')} SET {col}=%s WHERE id=%s AND status='proposed'",
                (actor["id"], relation_id))
     reviewed = db.execute(f"SELECT * FROM {_table('org_relationships')} WHERE id=%s", (relation_id,)).fetchone()
@@ -423,11 +487,25 @@ def revoke_publication(db, actor: dict, publication_id: int) -> None:
     access_event(db, row, actor, "revoke_publication")
 
 
-def end_relationship(db, actor: dict, relation_id: int) -> None:
+def exit_impact(db, actor: dict, relation_id: int) -> dict:
     if not has_capability(actor, "group.relationship.manage"):
         raise HTTPException(404, "Relationship not found")
     row = _relationship(db, relation_id)
     if row["status"] == "ended":
         raise HTTPException(404, "Relationship not found")
-    db.execute(f"UPDATE {_table('org_relationships')} SET status='ended',ended_at=%s WHERE id=%s",
-               (_now(), relation_id))
+    grants = db.execute(f"SELECT COUNT(*) FROM {_table('group_view_grants')} "
+                        "WHERE relationship_id=%s AND revoked_at IS NULL", (relation_id,)).fetchone()[0]
+    publications = db.execute(f"SELECT COUNT(*) FROM {_table('group_document_publications')} "
+                              "WHERE relationship_id=%s AND revoked_at IS NULL", (relation_id,)).fetchone()[0]
+    return {"relationship_id": relation_id, "status": row["status"],
+            "active_grants": grants, "active_publications": publications}
+
+
+def end_relationship(db, actor: dict, relation_id: int, reason: str) -> dict:
+    impact = exit_impact(db, actor, relation_id)
+    if not isinstance(reason, str) or not 10 <= len(reason.strip()) <= 500:
+        raise HTTPException(422, "Record a reason for ending this relationship")
+    db.execute(f"UPDATE {_table('org_relationships')} "
+               "SET status='ended',ended_at=%s,ended_by=%s,end_reason=%s WHERE id=%s",
+               (_now(), actor["id"], reason.strip(), relation_id))
+    return impact

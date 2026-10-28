@@ -752,6 +752,8 @@ CREATE TABLE IF NOT EXISTS org_relationships (
     effective_at TEXT,
     review_due_at TEXT,
     ended_at TEXT,
+    ended_by INTEGER,
+    end_reason TEXT,
     created_by INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     CHECK(parent_org_id != child_org_id)
@@ -6346,6 +6348,8 @@ _ERM_ORM_TABLES_PG   = _to_pg_schema(_ERM_ORM_TABLES)
 
 _COLUMN_MIGRATIONS = [
         # (table, column, definition)
+        ("org_relationships", "ended_by", "INTEGER"),
+        ("org_relationships", "end_reason", "TEXT"),
         ("aria_frameworks", "is_active", "INTEGER DEFAULT 1"),
         ("aria_frameworks", "relevant_modules", "TEXT DEFAULT ''"),
         ("users", "avatar_initials", "TEXT"),

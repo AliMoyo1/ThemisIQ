@@ -128,6 +128,33 @@ def test_relationship_is_not_derived_from_name_or_role(group_world):
         group.reviewed_rights(db, users["viewer"], evidence, "owned", True, True, "Not owner")
 
 
+def test_management_workspace_never_lists_sibling_people_or_files(group_world):
+    db, parent, child, sibling, users, evidence = group_world
+    relation = _activate(db, parent, child, users)
+    child_space = group.management_workspace(db, users["publisher"])
+    assert [row["id"] for row in child_space["relationships"]] == [relation]
+    assert [row["id"] for row in child_space["evidence"]] == [evidence]
+    assert all(row["id"] != users["viewer"]["id"] for row in child_space["recipients"])
+    parent_space = group.management_workspace(db, users["parent_admin"])
+    assert [row["id"] for row in parent_space["relationships"]] == [relation]
+    assert all(row["id"] != evidence for row in parent_space["evidence"])
+    assert all(row["id"] != users["publisher"]["id"] for row in parent_space["recipients"])
+    unrelated = group.management_workspace(db, {**users["sibling"], "roles": ["org_admin"]})
+    assert unrelated["relationships"] == []
+    assert unrelated["evidence"] == []
+    assert unrelated["organizations"] == []
+
+
+def test_relationship_acknowledgement_and_reviews_need_distinct_people(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = group.propose_relationship(db, users["platform"], parent, child,
+        "Group governance", _terms(), _future())
+    group.record_relationship_decision(db, users["ack"], relation, "ack")
+    with pytest.raises(HTTPException) as duplicate:
+        group.record_relationship_decision(db, {**users["ack"], "roles": ["dpo"]}, relation, "privacy")
+    assert duplicate.value.status_code == 409
+
+
 def test_grant_publication_and_relationship_revocation_hide_known_ids(group_world):
     db, parent, child, _, users, evidence = group_world
     relation = _activate(db, parent, child, users)
@@ -156,7 +183,10 @@ def test_grant_publication_and_relationship_revocation_hide_known_ids(group_worl
     group.revoke_publication(db, users["publisher"], publication)
     db.commit()
     assert group.catalogue(db, users["viewer"]) == []
-    group.end_relationship(db, users["platform"], relation)
+    impact = group.exit_impact(db, users["platform"], relation)
+    assert impact["active_publications"] == 0
+    assert impact["active_grants"] >= 1
+    group.end_relationship(db, users["platform"], relation, "Group agreement concluded")
     db.commit()
     with pytest.raises(HTTPException):
         group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],

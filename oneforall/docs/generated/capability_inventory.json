@@ -1,5 +1,5 @@
 {
-  "route_count": 1198,
+  "route_count": 1201,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13579,6 +13579,20 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/group/relationships/{relation_id}/exit-impact",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_exit_impact",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/group/relationships/{relation_id}/grants",
       "methods": [
         "POST"
@@ -13617,6 +13631,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_rights",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/workspace",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_workspace",
       "maturity": "",
       "notes": ""
     },
@@ -14051,6 +14079,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_evidence_stats",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/group/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "group_sharing_page",
       "maturity": "",
       "notes": ""
     },

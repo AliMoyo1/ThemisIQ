@@ -1,0 +1,82 @@
+{% extends "base_shell.html" %}
+{% block title %}Group sharing · Evidence Vault · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Evidence Vault</div><div class="module-desc">Reviewed company sharing</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Work</div>
+  <a class="nav-item" href="/evidence/">Evidence Vault</a>
+  <a class="nav-item active" href="/evidence/group/" aria-current="page">Group sharing</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.gs-page{padding:24px;max-width:1340px;margin:auto;color:var(--text)}
+.gs-hero{padding:30px 34px;border-radius:24px;background:linear-gradient(125deg,rgba(255,255,255,.89),rgba(215,226,228,.64));box-shadow:0 16px 32px rgba(28,44,50,.11),inset 0 1px rgba(255,255,255,.94)}
+.gs-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.gs-hero p{max-width:700px;line-height:1.55;color:var(--muted);margin:0}
+.gs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:22px}
+.gs-panel{padding:24px;border-radius:20px;background:var(--surface);box-shadow:0 10px 25px rgba(28,44,50,.08),inset 0 1px rgba(255,255,255,.8)}
+.gs-panel h2{font:600 23px/1.25 Georgia,serif;margin:0 0 8px}.gs-panel p{line-height:1.5;color:var(--muted);margin:0 0 17px}
+.gs-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.gs-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650}
+.gs-form input,.gs-form select,.gs-form textarea{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.gs-form .gs-wide{grid-column:1/-1}.gs-form .gs-check{display:flex;flex-direction:row;align-items:center}.gs-check input{width:auto}
+.gs-form button{justify-self:start}.gs-list{display:grid;gap:9px;margin-top:14px}
+.gs-row{padding:14px 16px;border-radius:13px;background:var(--surface2);line-height:1.45}.gs-row strong{display:block}.gs-row small{color:var(--muted)}
+.gs-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.gs-actions button{font:inherit;cursor:pointer}
+.gs-note{font-size:12px;color:var(--muted)}.gs-status{margin:16px 0;min-height:24px;font-weight:650}
+@media(max-width:850px){.gs-grid{grid-template-columns:1fr}.gs-page{padding:14px}.gs-hero{padding:23px}}
+@media(max-width:520px){.gs-form{grid-template-columns:1fr}.gs-form .gs-wide{grid-column:1}.gs-hero h1{font-size:29px}}
+[data-theme="dark"] .gs-hero{background:linear-gradient(125deg,rgba(72,86,91,.9),rgba(42,55,61,.82));box-shadow:0 16px 32px rgba(0,0,0,.2)}
+</style>
+<main class="gs-page" id="groupSharing">
+ <header class="gs-hero"><h1>Group sharing</h1><p>Set the relationship and sharing terms first. Each receiving person gets an expiring grant; each source document version needs a rights review and an independent release.</p></header>
+ <p id="gsStatus" class="gs-status" role="status" aria-live="polite"></p>
+ <div class="gs-grid">
+  <section class="gs-panel" id="gsRelationships"><h2>Company relationships</h2><p>Child acknowledgement and independent privacy and legal reviews activate a relationship.</p>
+    <div id="gsRelationshipRows" class="gs-list"></div>
+    <form id="gsPropose" class="gs-form" hidden>
+      <label>Parent company<select name="parent_org_id" required></select></label>
+      <label>Child company<select name="child_org_id" required></select></label>
+      <label class="gs-wide">Sharing purpose<input name="purpose" maxlength="300" required></label>
+      <label>Approved classes<select name="data_classes" required><option value="metadata">Catalogue metadata only</option><option value="bytes">Metadata and file bytes</option></select></label>
+      <label>Classification<select name="classification" required><option value="internal">Internal</option><option value="confidential">Confidential</option></select></label>
+      <label>Audience<select name="audience" required><option value="grc_officer">GRC officer</option><option value="compliance_manager">Compliance manager</option><option value="audit_lead">Audit lead</option><option value="dpo">DPO</option></select></label>
+      <label>Jurisdiction<input name="jurisdiction" maxlength="80" required></label>
+      <label class="gs-wide">Legal basis<input name="legal_basis" maxlength="500" required></label>
+      <label>Agreement reference<input name="agreement_ref" maxlength="250" required></label>
+      <label>Relationship review due<input type="datetime-local" name="review_due_at" required></label>
+      <button class="btn btn-primary gs-wide" type="submit">Propose relationship</button>
+    </form>
+  </section>
+  <section class="gs-panel" id="gsGrants"><h2>Named access</h2><p>Choose a person in your organization. A view grant reveals catalogue entries; a separate download grant releases permitted file bytes.</p>
+    <form id="gsGrant" class="gs-form" hidden>
+      <label>Relationship<select name="relationship_id" required></select></label>
+      <label>Recipient<select name="user_id" required></select></label>
+      <label>Access<select name="capability"><option value="document.view">View</option><option value="document.download">Download</option></select></label>
+      <label>Review due<input type="datetime-local" name="review_due_at" required></label>
+      <label>Expires<input type="datetime-local" name="expires_at" required></label>
+      <button class="btn btn-primary gs-wide" type="submit">Grant named access</button>
+    </form><div id="gsGrantRows" class="gs-list"></div>
+  </section>
+  <section class="gs-panel" id="gsRights"><h2>Source rights</h2><p>Review rights against the exact current file version. Unknown rights cannot permit group circulation.</p>
+    <form id="gsRightsForm" class="gs-form" hidden>
+      <label class="gs-wide">Source document<select name="evidence_id" required></select></label>
+      <label>Rights state<select name="rights_state"><option value="unknown">Unknown</option><option value="owned">Owned</option><option value="licensed">Licensed</option></select></label>
+      <label class="gs-check"><input type="checkbox" name="permit_group_view">Permit group view</label>
+      <label class="gs-check"><input type="checkbox" name="permit_group_download">Permit group download</label>
+      <label class="gs-wide">Recorded rights basis<textarea name="basis" maxlength="500" rows="2" required></textarea></label>
+      <button class="btn btn-primary gs-wide" type="submit">Record rights review</button>
+    </form>
+  </section>
+  <section class="gs-panel" id="gsPublications"><h2>Release a version</h2><p>A different specialist releases the version after rights review. Policies also need an approved ARIA version.</p>
+    <form id="gsPublish" class="gs-form" hidden>
+      <label>Relationship<select name="relationship_id" required></select></label>
+      <label>Source document<select name="evidence_id" required></select></label>
+      <label>Classification<select name="classification"><option value="internal">Internal</option><option value="confidential">Confidential</option></select></label>
+      <label>Expires<input type="datetime-local" name="expires_at" required></label>
+      <p class="gs-note gs-wide">The release purpose is taken from the approved relationship terms.</p>
+      <button class="btn btn-primary gs-wide" type="submit">Release this version</button>
+    </form><div id="gsPublicationRows" class="gs-list"></div>
+  </section>
+ </div>
+</main>
+<script src="/static/js/evidence_group_sharing.js?v=1" defer></script>
+{% endblock %}

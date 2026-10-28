@@ -377,7 +377,24 @@ async def evidence_page(request: Request):
     ctx["can_manage_legacy"] = bool(
         request.state.user.get("org_id") and
         has_capability(request.state.user, "platform.manage_users"))
+    ctx["can_manage_group"] = bool(request.state.user.get("org_id") and any(
+        has_capability(request.state.user, cap) for cap in (
+            "group.relationship.manage", "group.relationship.ack", "group.terms.privacy",
+            "group.terms.legal", "group.grant.manage", "group.rights.review",
+            "group.document.publish")))
     return shell_templates.TemplateResponse(request, "evidence_index.html", ctx)
+
+
+@router.get("/group/", response_class=HTMLResponse)
+@require_auth
+async def group_sharing_page(request: Request):
+    db = get_db()
+    try:
+        group_documents.management_workspace(db, request.state.user)
+    finally:
+        db.close()
+    ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    return shell_templates.TemplateResponse(request, "group_sharing.html", ctx)
 
 
 # ── CRUD API ────────────────────────────────────────────────────────────────
@@ -416,6 +433,16 @@ async def _group_body(request: Request) -> dict:
     if not isinstance(data, dict):
         raise HTTPException(422, "Provide a JSON object")
     return data
+
+
+@router.get("/api/group/workspace")
+@require_auth
+async def api_group_workspace(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse(group_documents.management_workspace(db, request.state.user))
+    finally:
+        db.close()
 
 
 def _group_operation(work):
@@ -468,10 +495,22 @@ async def api_group_grant(request: Request, relation_id: int):
     return JSONResponse({"id": grant_id}, status_code=201)
 
 
+@router.get("/api/group/relationships/{relation_id}/exit-impact")
+@require_auth
+async def api_group_exit_impact(request: Request, relation_id: int):
+    db = get_db()
+    try:
+        return JSONResponse(group_documents.exit_impact(db, request.state.user, relation_id))
+    finally:
+        db.close()
+
+
 @router.delete("/api/group/relationships/{relation_id}")
 @require_auth
 async def api_group_relationship_end(request: Request, relation_id: int):
-    _group_operation(lambda db: group_documents.end_relationship(db, request.state.user, relation_id))
+    body = await _group_body(request)
+    _group_operation(lambda db: group_documents.end_relationship(
+        db, request.state.user, relation_id, body.get("reason")))
     return JSONResponse({"status": "ended"})
 
 

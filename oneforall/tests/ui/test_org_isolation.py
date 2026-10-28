@@ -177,6 +177,25 @@ def test_evidence_from_another_org_is_not_listed(org_a_client, org_b_client):
     )
 
 
+def test_group_sharing_workspace_is_capability_gated_and_scoped(live_app, synthetic_tenant,
+                                                               org_b_client, second_org_risk_owner):
+    admin = synthetic_tenant["users"]["org_admin"]
+    client = _login(live_app, admin["username"], admin["password"])
+    try:
+        page = client.get("/evidence/group/")
+        assert page.status_code == 200, page.text[:200]
+        assert "Group sharing" in page.text
+        data = client.get("/evidence/api/group/workspace")
+        assert data.status_code == 200, data.text
+        assert data.json()["organizations"] == []
+        assert data.json()["relationships"] == []
+        assert all(person["id"] != second_org_risk_owner["user_id"] for person in data.json()["recipients"])
+        denied = org_b_client.get("/evidence/api/group/workspace")
+        assert denied.status_code == 403
+    finally:
+        client.close()
+
+
 def test_evidence_from_another_org_cannot_be_fetched_or_downloaded(org_a_client, org_b_client):
     eid = _upload_evidence(org_a_client, "Org A Evidence Fetch Probe")
 
