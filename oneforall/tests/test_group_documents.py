@@ -155,6 +155,19 @@ def test_relationship_acknowledgement_and_reviews_need_distinct_people(group_wor
     assert duplicate.value.status_code == 409
 
 
+def test_source_document_search_is_exactly_scoped_and_literal(group_world):
+    db, parent, child, _, users, evidence = group_world
+    _id(db, "evidence_items", title="Parent % secret", category="report", org_id=parent,
+        status="current", version=1, file_hash="parent-hash")
+    matches = group.source_candidates(db, users["publisher"], "Reviewed")
+    assert [row["id"] for row in matches["items"]] == [evidence]
+    assert group.source_candidates(db, users["publisher"], "%")["items"] == []
+    assert group.source_candidates(db, users["publisher"], "secret")["items"] == []
+    with pytest.raises(HTTPException) as denied:
+        group.source_candidates(db, users["ack"], "Reviewed")
+    assert denied.value.status_code == 403
+
+
 def test_grant_publication_and_relationship_revocation_hide_known_ids(group_world):
     db, parent, child, _, users, evidence = group_world
     relation = _activate(db, parent, child, users)

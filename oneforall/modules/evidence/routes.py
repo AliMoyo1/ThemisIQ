@@ -445,6 +445,21 @@ async def api_group_workspace(request: Request):
         db.close()
 
 
+@router.get("/api/group/source-candidates")
+@require_auth
+async def api_group_source_candidates(request: Request):
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except ValueError:
+        raise HTTPException(422, "Invalid document search page") from None
+    db = get_db()
+    try:
+        return JSONResponse(group_documents.source_candidates(
+            db, request.state.user, request.query_params.get("q", ""), page))
+    finally:
+        db.close()
+
+
 def _group_operation(work):
     db = get_db()
     try:

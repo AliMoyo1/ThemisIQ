@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from config import settings
 from core.rbac import has_capability
+from core.sql_like import ci_like, like_pattern
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id, tenant_context
 from modules.evidence.scope import evidence_scope_sql
@@ -152,6 +153,26 @@ def management_workspace(db, actor: dict) -> dict:
     return {"capabilities": caps, "organizations": organizations,
             "relationships": relations, "recipients": recipients,
             "evidence": evidence, "grants": grants, "publications": publications}
+
+
+def source_candidates(db, actor: dict, query: str, page: int = 1) -> dict:
+    """Search exact source-tenant scope; the page never searches another company."""
+    if not actor.get("org_id") or not any(has_capability(actor, cap) for cap in
+                                          ("group.rights.review", "group.document.publish")):
+        raise HTTPException(403, "Source document access required")
+    if not isinstance(query, str) or len(query) > 120 or not 1 <= page <= 1000:
+        raise HTTPException(422, "Invalid document search")
+    scope, params = evidence_scope_sql(actor)
+    filter_sql = f" AND {ci_like('e.title')}" if query.strip() else ""
+    values = [actor["org_id"], *params]
+    if query.strip():
+        values.append(like_pattern(query))
+    values.extend((51, (page - 1) * 50))
+    rows = db.execute(
+        "SELECT e.id,e.title,e.category,e.version FROM evidence_items e "
+        f"WHERE e.org_id=%s AND e.status='current' AND e.file_hash IS NOT NULL AND {scope}"
+        f"{filter_sql} ORDER BY e.updated_at DESC,e.id DESC LIMIT %s OFFSET %s", values).fetchall()
+    return {"items": [dict(row) for row in rows[:50]], "page": page, "has_more": len(rows) > 50}
 
 
 def propose_relationship(db, actor: dict, parent_id: int, child_id: int, purpose: str,

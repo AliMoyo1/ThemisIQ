@@ -3,6 +3,9 @@
   const root = document.getElementById('groupSharing');
   if (!root) return;
   let workspace;
+  let evidenceMatches = [];
+  let evidencePage = 1;
+  let searchSequence = 0;
   const status = document.getElementById('gsStatus');
   const byId = id => document.getElementById(id);
   const text = (tag, value, className) => {
@@ -89,7 +92,7 @@
     });
   }
   function renderDocuments() {
-    const files = workspace.evidence.map(row => ({id: row.id, label: `${row.title} · v${row.version}`}));
+    const files = evidenceMatches.map(row => ({id: row.id, label: `${row.title} · v${row.version}`}));
     const rights = byId('gsRightsForm');
     rights.hidden = !workspace.capabilities['group.rights.review'];
     if (!rights.hidden) select(rights, 'evidence_id', files, 'Choose source document');
@@ -112,8 +115,33 @@
   }
   async function refresh() {
     workspace = await ApiClient.request('/evidence/api/group/workspace', {actionId: 'group.workspace'});
+    evidenceMatches = workspace.evidence;
+    byId('gsEvidenceSearch').hidden = !(workspace.capabilities['group.rights.review'] ||
+      workspace.capabilities['group.document.publish']);
     renderRelationships(); renderGrants(); renderDocuments();
   }
+  async function searchEvidence(page) {
+    const sequence = ++searchSequence;
+    const query = byId('gsEvidenceSearch').value.trim();
+    const result = byId('gsEvidenceResult');
+    result.textContent = 'Searching…';
+    try {
+      const data = await ApiClient.request(`/evidence/api/group/source-candidates?q=${encodeURIComponent(query)}&page=${page}`,
+        {actionId: 'group.source_search'});
+      if (sequence !== searchSequence) return;
+      evidencePage = page;
+      evidenceMatches = page === 1 ? data.items : evidenceMatches.concat(data.items);
+      byId('gsEvidenceMore').hidden = !data.has_more;
+      result.textContent = `${evidenceMatches.length} matching source documents shown`;
+      renderDocuments();
+    } catch (error) { if (sequence === searchSequence) result.textContent = error.detail || 'Search is unavailable.'; }
+  }
+  let searchTimer;
+  byId('gsEvidenceSearch').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => searchEvidence(1), 250);
+  });
+  byId('gsEvidenceMore').addEventListener('click', () => searchEvidence(evidencePage + 1));
   async function act(method, path, body, success) {
     status.textContent = 'Saving…';
     try {
