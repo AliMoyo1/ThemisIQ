@@ -1047,6 +1047,16 @@ CREATE TABLE IF NOT EXISTS ai_usage_log (
 CREATE INDEX IF NOT EXISTS idx_ai_usage_org_created ON ai_usage_log(org_id, created_at);
 
 -- ── Evidence Repository ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS evidence_companies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(org_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_companies_org ON evidence_companies(org_id, is_active);
 CREATE TABLE IF NOT EXISTS evidence_items (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     title           TEXT NOT NULL,
@@ -1079,6 +1089,17 @@ CREATE TABLE IF NOT EXISTS evidence_links (
 
 CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidence_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
+CREATE TABLE IF NOT EXISTS evidence_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    evidence_id INTEGER NOT NULL,
+    company_id INTEGER REFERENCES evidence_companies(id),
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_company_events_item ON evidence_company_events(org_id,evidence_id,id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
 CREATE TABLE IF NOT EXISTS generated_record_documents (
@@ -2267,6 +2288,18 @@ CREATE TABLE IF NOT EXISTS platform_ai_features (
 # These tables hold org-specific data. The global/public schema also gets them via
 # init_db() (for the default org), but new orgs get isolated copies in tenant_{slug}.
 _PLATFORM_TABLES = """
+-- A company label is navigation metadata inside the source tenant. It never
+-- changes evidence_items.org_id or business_unit_id authorization.
+CREATE TABLE IF NOT EXISTS evidence_companies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(org_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_companies_org ON evidence_companies(org_id, is_active);
 -- ── Notifications ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2341,6 +2374,17 @@ CREATE TABLE IF NOT EXISTS evidence_links (
 
 CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidence_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
+CREATE TABLE IF NOT EXISTS evidence_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    evidence_id INTEGER NOT NULL,
+    company_id INTEGER REFERENCES evidence_companies(id),
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_company_events_item ON evidence_company_events(org_id,evidence_id,id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
 CREATE TABLE IF NOT EXISTS generated_record_documents (
@@ -6765,6 +6809,12 @@ _COLUMN_MIGRATIONS = [
         ("evidence_items",         "review_due_date", "TEXT"),
         ("evidence_items",         "period_start", "TEXT"),
         ("evidence_items",         "period_end", "TEXT"),
+        ("evidence_items",         "company_id", "INTEGER REFERENCES evidence_companies(id)"),
+        ("evidence_items",         "company_state", "TEXT DEFAULT 'unconfirmed'"),
+        ("evidence_items",         "company_proposed_by", "INTEGER"),
+        ("evidence_items",         "company_reviewed_by", "INTEGER"),
+        ("evidence_items",         "company_reviewed_at", "TEXT"),
+        ("evidence_items",         "company_reason", "TEXT"),
         # Pinned-source parser identity is recorded per immutable capture.
         # Existing captures remain readable, with NULL meaning the legacy parser.
         ("sentinel_law_captures", "parser_version", "TEXT"),

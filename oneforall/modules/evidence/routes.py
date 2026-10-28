@@ -26,7 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
-from modules.evidence import company_views, find as finder, group_adoption, group_documents, group_requests, inspector, proof, vault_views
+from modules.evidence import company_views, find as finder, group_adoption, group_documents, group_requests, inspector, ownership, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
@@ -374,6 +374,7 @@ async def evidence_page(request: Request):
     """Evidence repository SPA page."""
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
     ctx["can_bulk_archive"] = has_capability(request.state.user, "evidence.delete")
+    ctx["can_manage_company"] = has_capability(request.state.user, "evidence.company.manage") or has_capability(request.state.user, "evidence.company.review")
     ctx["can_manage_legacy"] = bool(
         request.state.user.get("org_id") and
         has_capability(request.state.user, "platform.manage_users"))
@@ -435,6 +436,16 @@ async def evidence_batch_page(request: Request):
     return shell_templates.TemplateResponse(request, "evidence_batch.html", ctx)
 
 
+@router.get("/companies/", response_class=HTMLResponse)
+@require_auth
+async def evidence_companies_page(request: Request):
+    if not (has_capability(request.state.user, "evidence.company.manage") or
+            has_capability(request.state.user, "evidence.company.review")):
+        raise HTTPException(403, "Company review permission required")
+    ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    return shell_templates.TemplateResponse(request, "evidence_companies.html", ctx)
+
+
 # ── CRUD API ────────────────────────────────────────────────────────────────
 
 _SORTS = {
@@ -459,6 +470,74 @@ async def api_company_views(request: Request):
     db = get_db()
     try:
         return JSONResponse(company_views.facets(db, request.state.user))
+    finally:
+        db.close()
+
+
+@router.get("/api/companies")
+@require_auth
+async def api_evidence_companies(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse({**ownership.facets(db, request.state.user),
+                             "catalogue": ownership.companies(db, request.state.user),
+                             "can_manage": has_capability(request.state.user, "evidence.company.manage"),
+                             "can_review": has_capability(request.state.user, "evidence.company.review")})
+    finally:
+        db.close()
+
+
+@router.post("/api/companies", status_code=201)
+@require_auth
+async def api_evidence_company_create(request: Request):
+    data = await _group_body(request)
+    db = get_db()
+    try:
+        company_id = ownership.create_company(db, request.state.user, data.get("name"))
+        db.commit()
+        from core.middleware import log_audit
+        log_audit(request.state.user, "evidence", "Created company label", "evidence_company", company_id)
+        return JSONResponse({"id": company_id}, status_code=201)
+    finally:
+        db.close()
+
+
+@router.post("/api/items/{eid}/company/propose")
+@require_auth
+async def api_evidence_company_propose(request: Request, eid: int):
+    data = await _group_body(request)
+    db = get_db()
+    try:
+        ownership.propose(db, request.state.user, eid, data.get("company_id"), data.get("reason"))
+        db.commit()
+        from core.middleware import log_audit
+        log_audit(request.state.user, "evidence", "Proposed company label", "evidence", eid)
+        return JSONResponse({"state": "pending"})
+    finally:
+        db.close()
+
+
+@router.post("/api/items/{eid}/company/review")
+@require_auth
+async def api_evidence_company_review(request: Request, eid: int):
+    data = await _group_body(request)
+    db = get_db()
+    try:
+        state = ownership.review(db, request.state.user, eid, data.get("decision"), data.get("reason"))
+        db.commit()
+        from core.middleware import log_audit
+        log_audit(request.state.user, "evidence", "Reviewed company label: " + state, "evidence", eid)
+        return JSONResponse({"state": state})
+    finally:
+        db.close()
+
+
+@router.get("/api/items/{eid}/company/history")
+@require_auth
+async def api_evidence_company_history(request: Request, eid: int):
+    db = get_db()
+    try:
+        return JSONResponse({"events": ownership.history(db, request.state.user, eid)})
     finally:
         db.close()
 
@@ -831,6 +910,19 @@ def _library_page(user: dict, qp, size: int = None) -> dict:
         else:
             where.append("e.business_unit_id = %s")
             params.append(chosen_unit)
+    company_view = qp.get("company", "")
+    if company_view:
+        db_scope = get_db()
+        try:
+            company_id = ownership.selected_company(db_scope, user, company_view)
+        finally:
+            db_scope.close()
+        if company_view == "unconfirmed":
+            where.append("NOT EXISTS (SELECT 1 FROM evidence_companies c WHERE c.id=e.company_id "
+                         "AND c.org_id=e.org_id AND c.is_active=1 AND e.company_state='confirmed')")
+        else:
+            where.append("e.company_id = %s AND e.company_state = 'confirmed'")
+            params.append(company_id)
     for word in str(qp.get("words") or "").split()[:finder.WORDS_MAX]:  # Find evidence: every word must match
         word_sql, word_params = evidence_search_sql(word)
         where.append(word_sql)
@@ -1222,7 +1314,7 @@ async def api_evidence_upload(
             db,
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
             "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date, org_id, "
-            "owner_user_id, review_due_date, period_start, period_end, business_unit_id) "
+            "owner_user_id, review_due_date, period_start, period_end, business_unit_id, company_id) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 display_title, description, str(stored_name), original_name,
@@ -1230,6 +1322,7 @@ async def api_evidence_upload(
                 category, tags, version_num, parent_id, _uid(request), exp, org_id,
                 owner, days["review_due_date"], days["period_start"], days["period_end"],
                 (parent_row["business_unit_id"] if parent_row is not None else target_unit),
+                (parent_row["company_id"] if parent_row is not None else None),
             )
         )
         impact = None

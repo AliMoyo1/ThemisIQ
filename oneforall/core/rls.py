@@ -176,6 +176,14 @@ _STMTS = [
     "ALTER TABLE public.evidence_items FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_items",
     f"CREATE POLICY tenant_isolation ON public.evidence_items USING {_USING}",
+    "ALTER TABLE public.evidence_companies ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_companies FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_companies",
+    f"CREATE POLICY tenant_isolation ON public.evidence_companies USING {_USING} WITH CHECK {_USING}",
+    "ALTER TABLE public.evidence_company_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_company_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_company_events",
+    f"CREATE POLICY tenant_isolation ON public.evidence_company_events USING {_USING} WITH CHECK {_USING}",
 
     # Parsed document text is more sensitive than its metadata. Public rows
     # get the same organization guard; business-unit access is checked via

@@ -221,6 +221,8 @@ CAPABILITIES: dict[str, set[str]] = {
     # ── Evidence Vault capabilities ─────────────────────────────
     "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
     "evidence.file.org_wide":     {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "evidence.company.manage":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "evidence.company.review":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     # Group roles never grant access by themselves. Each viewer also needs an
     # exact, unexpired relationship grant and a source-approved publication.
     "group.relationship.manage": {SUPER_ADMIN},

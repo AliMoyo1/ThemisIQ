@@ -2313,6 +2313,35 @@ def test_rls_policies_filter_rows_by_organization_for_an_ordinary_role_on_real_p
         _release_role(db)
 
 
+def test_evidence_company_labels_and_history_are_rls_scoped_on_real_postgres(pg):
+    org_a, org_b = _rls_probe_world(pg)
+    pg.provision_tenant_schema("companylabels")
+    assert {"evidence_companies", "evidence_company_events"} <= _tables_present(pg, "companylabels")
+    assert _raw_rows("SELECT column_name FROM information_schema.columns "
+                     "WHERE table_schema='tenant_companylabels' AND table_name='evidence_items' "
+                     "AND column_name='company_state'") == [("company_state",)]
+    admin = pg.get_db_bypass_rls()
+    try:
+        admin.execute("INSERT INTO evidence_companies(org_id,name) VALUES(%s,'Visible Co')", (org_a,))
+        admin.execute("INSERT INTO evidence_companies(org_id,name) VALUES(%s,'Hidden Co')", (org_b,))
+        item = admin.execute("SELECT id FROM evidence_items WHERE org_id=%s", (org_a,)).fetchone()[0]
+        admin.execute("INSERT INTO evidence_company_events(org_id,evidence_id,action,actor_id,reason) "
+                      "VALUES(%s,%s,'proposed',1,'Synthetic review')", (org_a, item))
+        admin.commit()
+    finally:
+        admin.close()
+    with pg.tenant_context(org_a, "public", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            _become_restricted(db)
+            assert [r["name"] for r in db.execute("SELECT name FROM evidence_companies").fetchall()] == ["Visible Co"]
+            assert db.execute("SELECT COUNT(*) FROM evidence_company_events").fetchone()[0] == 1
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                db.execute("INSERT INTO evidence_companies(org_id,name) VALUES(%s,'Foreign Co')", (org_b,))
+        finally:
+            _release_role(db)
+
+
 def test_rls_rejects_a_write_for_another_organization_on_real_postgres(pg):
     org_a, org_b = _rls_probe_world(pg)
     with pg.tenant_context(org_a, "public", is_super_admin=False):
