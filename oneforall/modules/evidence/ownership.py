@@ -10,6 +10,7 @@ from core.rbac import has_capability
 from core.timeutils import utcnow
 from database import insert_returning_id
 from modules.evidence.scope import evidence_scope_sql
+from modules.governance.data_service import bu_scope_ids
 
 
 def _org(actor):
@@ -158,3 +159,122 @@ def history(db, actor, evidence_id):
         "SELECT action,actor_id,reason,created_at FROM evidence_company_events "
         "WHERE org_id=%s AND evidence_id=%s ORDER BY id DESC LIMIT 100",
         (_org(actor), evidence_id)).fetchall()]
+
+
+def _visible_unit(db, actor, unit_id):
+    if not isinstance(unit_id, int) or isinstance(unit_id, bool) or unit_id < 1:
+        raise HTTPException(404, "Business unit not found")
+    allowed = bu_scope_ids(actor)
+    if allowed is not None and unit_id not in allowed:
+        raise HTTPException(404, "Business unit not found")
+    row = db.execute("SELECT id,name FROM business_units WHERE id=%s AND is_active=1",
+                     (unit_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Business unit not found")
+    return row
+
+
+def unit_mappings(db, actor):
+    """An approved map suggests a filing label; it never changes an item's scope."""
+    if not (has_capability(actor, "evidence.company.manage") or
+            has_capability(actor, "evidence.company.review")):
+        raise HTTPException(403, "Company catalogue permission required")
+    allowed = bu_scope_ids(actor)
+    if allowed is not None and not [unit for unit in allowed if unit > 0]:
+        return []
+    scope = "" if allowed is None else "AND u.id IN (" + ",".join("%s" for _ in allowed) + ") "
+    rows = db.execute(
+        "SELECT u.id AS unit_id,u.name AS unit_name,m.confirmed_company_id,"
+        "m.proposed_company_id,m.proposed_by,m.proposed_reason,m.reviewed_by,m.review_reason,"
+        "c.name AS confirmed_company_name,p.name AS proposed_company_name "
+        "FROM business_units u LEFT JOIN evidence_unit_company_mappings m "
+        "ON m.business_unit_id=u.id AND m.org_id=%s "
+        "LEFT JOIN evidence_companies c ON c.id=m.confirmed_company_id AND c.org_id=m.org_id "
+        "LEFT JOIN evidence_companies p ON p.id=m.proposed_company_id AND p.org_id=m.org_id "
+        "WHERE u.is_active=1 " + scope + "ORDER BY u.name,u.id",
+        [_org(actor), *([] if allowed is None else allowed)],
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def propose_unit_mapping(db, actor, unit_id, company_id, reason):
+    if not has_capability(actor, "evidence.company.manage"):
+        raise HTTPException(403, "Company assignment permission required")
+    _visible_unit(db, actor, unit_id)
+    if not isinstance(company_id, int) or isinstance(company_id, bool) or company_id < 1:
+        raise HTTPException(422, "Choose a company")
+    org_id = _org(actor)
+    company = db.execute("SELECT id FROM evidence_companies WHERE id=%s AND org_id=%s AND is_active=1",
+                         (company_id, org_id)).fetchone()
+    if not company:
+        raise HTTPException(404, "Company not found")
+    why = _reason(reason)
+    row = db.execute("SELECT id,proposed_company_id,confirmed_company_id FROM evidence_unit_company_mappings "
+                     "WHERE org_id=%s AND business_unit_id=%s", (org_id, unit_id)).fetchone()
+    if row and row["proposed_company_id"] is not None:
+        raise HTTPException(409, "This unit mapping awaits review")
+    if row and row["confirmed_company_id"] == company_id:
+        raise HTTPException(409, "This unit is already mapped to that company")
+    if row:
+        db.execute("UPDATE evidence_unit_company_mappings SET proposed_company_id=%s,proposed_by=%s,"
+                   "proposed_reason=%s WHERE id=%s AND org_id=%s",
+                   (company_id, actor["id"], why, row["id"], org_id))
+    else:
+        db.execute("INSERT INTO evidence_unit_company_mappings "
+                   "(org_id,business_unit_id,proposed_company_id,proposed_by,proposed_reason) "
+                   "VALUES(%s,%s,%s,%s,%s)", (org_id, unit_id, company_id, actor["id"], why))
+    db.execute("INSERT INTO evidence_unit_company_events "
+               "(org_id,business_unit_id,company_id,action,actor_id,reason) "
+               "VALUES(%s,%s,%s,'proposed',%s,%s)",
+               (org_id, unit_id, company_id, actor["id"], why))
+
+
+def review_unit_mapping(db, actor, unit_id, decision, reason):
+    if not has_capability(actor, "evidence.company.review"):
+        raise HTTPException(403, "Company review permission required")
+    _visible_unit(db, actor, unit_id)
+    org_id = _org(actor)
+    row = db.execute("SELECT id,proposed_company_id,proposed_by FROM evidence_unit_company_mappings "
+                     "WHERE org_id=%s AND business_unit_id=%s", (org_id, unit_id)).fetchone()
+    if not row or row["proposed_company_id"] is None:
+        raise HTTPException(409, "No unit mapping awaits review")
+    if row["proposed_by"] == actor["id"]:
+        raise HTTPException(409, "A different specialist must review this mapping")
+    if decision not in ("confirm", "reject"):
+        raise HTTPException(422, "Choose confirm or reject")
+    why = _reason(reason)
+    target = row["proposed_company_id"]
+    if decision == "confirm":
+        company = db.execute("SELECT id FROM evidence_companies WHERE id=%s AND org_id=%s AND is_active=1",
+                             (target, org_id)).fetchone()
+        if not company:
+            raise HTTPException(409, "The proposed company is no longer active")
+    changed = db.execute(
+        "UPDATE evidence_unit_company_mappings SET "
+        "confirmed_company_id=CASE WHEN %s='confirm' THEN proposed_company_id ELSE confirmed_company_id END,"
+        "proposed_company_id=NULL,proposed_by=NULL,proposed_reason=NULL,"
+        "reviewed_by=%s,reviewed_at=%s,review_reason=%s "
+        "WHERE id=%s AND org_id=%s AND proposed_company_id=%s AND proposed_by=%s",
+        (decision, actor["id"], utcnow().isoformat(), why, row["id"], org_id,
+         target, row["proposed_by"]),
+    )
+    if changed.rowcount != 1:
+        raise HTTPException(409, "This mapping changed. Reload and try again")
+    db.execute("INSERT INTO evidence_unit_company_events "
+               "(org_id,business_unit_id,company_id,action,actor_id,reason) "
+               "VALUES(%s,%s,%s,%s,%s,%s)",
+               (org_id, unit_id, target, "confirmed" if decision == "confirm" else "rejected",
+                actor["id"], why))
+    return decision
+
+
+def suggested_company_for_unit(db, actor, unit_id):
+    if unit_id is None:
+        return None
+    _visible_unit(db, actor, unit_id)
+    row = db.execute("SELECT m.confirmed_company_id FROM evidence_unit_company_mappings m "
+                     "JOIN evidence_companies c ON c.id=m.confirmed_company_id "
+                     "AND c.org_id=m.org_id AND c.is_active=1 "
+                     "WHERE m.org_id=%s AND m.business_unit_id=%s",
+                     (_org(actor), unit_id)).fetchone()
+    return row["confirmed_company_id"] if row else None

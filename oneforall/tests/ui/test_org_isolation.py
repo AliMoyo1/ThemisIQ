@@ -163,6 +163,32 @@ def _upload_evidence(client: httpx.Client, title: str) -> int:
     return resp.json()["id"]
 
 
+def test_reviewed_unit_map_suggests_but_does_not_confirm_uploaded_document(org_a_client, synthetic_tenant):
+    org_id = synthetic_tenant["org_id"]
+    unit_id = synthetic_tenant["business_unit_id"]
+    db = database.get_db()
+    try:
+        company = db.execute("INSERT INTO evidence_companies(org_id,name) "
+                             "VALUES(%s,'Synthetic mapped company') RETURNING id", (org_id,)).fetchone()[0]
+        db.execute("INSERT INTO evidence_unit_company_mappings "
+                   "(org_id,business_unit_id,confirmed_company_id) VALUES(%s,%s,%s)",
+                   (org_id, unit_id, company))
+        db.commit()
+    finally:
+        db.close()
+    eid = _upload_evidence(org_a_client, "Mapped unit upload remains unconfirmed")
+    db = database.get_db()
+    try:
+        row = db.execute("SELECT company_id,company_state,business_unit_id FROM evidence_items "
+                         "WHERE id=%s AND org_id=%s", (eid, org_id)).fetchone()
+        assert (row["company_id"], row["company_state"], row["business_unit_id"]) == (
+            company, "pending", unit_id)
+    finally:
+        db.close()
+    assert all(item["id"] != company for item in org_a_client.get(
+        "/evidence/api/companies").json()["companies"])
+
+
 def test_evidence_from_another_org_is_not_listed(org_a_client, org_b_client):
     eid = _upload_evidence(org_a_client, "Org A Evidence Isolation Probe")
 

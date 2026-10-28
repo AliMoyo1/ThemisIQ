@@ -1057,6 +1057,30 @@ CREATE TABLE IF NOT EXISTS evidence_companies (
     UNIQUE(org_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_evidence_companies_org ON evidence_companies(org_id, is_active);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id INTEGER NOT NULL,
+    confirmed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_by INTEGER,
+    proposed_reason TEXT,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_reason TEXT,
+    UNIQUE(org_id, business_unit_id)
+);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER NOT NULL,
+    company_id INTEGER NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_unit_company_events ON evidence_unit_company_events(org_id,business_unit_id,id);
 CREATE TABLE IF NOT EXISTS evidence_items (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     title           TEXT NOT NULL,
@@ -2300,6 +2324,30 @@ CREATE TABLE IF NOT EXISTS evidence_companies (
     UNIQUE(org_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_evidence_companies_org ON evidence_companies(org_id, is_active);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id INTEGER NOT NULL,
+    confirmed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_by INTEGER,
+    proposed_reason TEXT,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_reason TEXT,
+    UNIQUE(org_id, business_unit_id)
+);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER NOT NULL,
+    company_id INTEGER NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_unit_company_events ON evidence_unit_company_events(org_id,business_unit_id,id);
 -- ── Notifications ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

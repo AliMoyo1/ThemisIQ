@@ -542,6 +542,48 @@ async def api_evidence_company_history(request: Request, eid: int):
         db.close()
 
 
+@router.get("/api/unit-company-mappings")
+@require_auth
+async def api_unit_company_mappings(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse({"units": ownership.unit_mappings(db, request.state.user)})
+    finally:
+        db.close()
+
+
+@router.post("/api/units/{unit_id}/company/propose")
+@require_auth
+async def api_unit_company_propose(request: Request, unit_id: int):
+    data = await _group_body(request)
+    db = get_db()
+    try:
+        ownership.propose_unit_mapping(db, request.state.user, unit_id,
+                                       data.get("company_id"), data.get("reason"))
+        db.commit()
+        from core.middleware import log_audit
+        log_audit(request.state.user, "evidence", "Proposed unit company mapping", "business_unit", unit_id)
+        return JSONResponse({"status": "pending"})
+    finally:
+        db.close()
+
+
+@router.post("/api/units/{unit_id}/company/review")
+@require_auth
+async def api_unit_company_review(request: Request, unit_id: int):
+    data = await _group_body(request)
+    db = get_db()
+    try:
+        decision = ownership.review_unit_mapping(db, request.state.user, unit_id,
+                                                 data.get("decision"), data.get("reason"))
+        db.commit()
+        from core.middleware import log_audit
+        log_audit(request.state.user, "evidence", "Reviewed unit company mapping", "business_unit", unit_id)
+        return JSONResponse({"status": decision})
+    finally:
+        db.close()
+
+
 async def _group_body(request: Request) -> dict:
     try:
         data = await request.json()
@@ -1351,6 +1393,19 @@ async def api_evidence_upload(
                 (parent_row["company_id"] if parent_row is not None else None),
             )
         )
+        if parent_id is None and target_unit is not None and org_id is not None:
+            # A reviewed unit map is only a suggestion for this document. A
+            # different specialist still has to confirm its company label.
+            suggested = ownership.suggested_company_for_unit(db, user, target_unit)
+            if suggested is not None:
+                why = "Suggested from reviewed business-unit mapping; confirm this document's owner"
+                db.execute("UPDATE evidence_items SET company_id=%s,company_state='pending',"
+                           "company_proposed_by=%s,company_reason=%s WHERE id=%s AND org_id=%s",
+                           (suggested, _uid(request), why, eid, org_id))
+                db.execute("INSERT INTO evidence_company_events "
+                           "(org_id,evidence_id,company_id,action,actor_id,reason) "
+                           "VALUES(%s,%s,%s,'proposed',%s,%s)",
+                           (org_id, eid, suggested, _uid(request), why))
         impact = None
         touched_controls = []
         if parent_id is not None:

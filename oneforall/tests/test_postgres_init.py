@@ -2319,7 +2319,8 @@ def test_rls_policies_filter_rows_by_organization_for_an_ordinary_role_on_real_p
 def test_evidence_company_labels_and_history_are_rls_scoped_on_real_postgres(pg):
     org_a, org_b = _rls_probe_world(pg)
     pg.provision_tenant_schema("companylabels")
-    assert {"evidence_companies", "evidence_company_events"} <= _tables_present(pg, "companylabels")
+    assert {"evidence_companies", "evidence_company_events", "evidence_unit_company_mappings",
+            "evidence_unit_company_events"} <= _tables_present(pg, "companylabels")
     assert _raw_rows("SELECT column_name FROM information_schema.columns "
                      "WHERE table_schema='tenant_companylabels' AND table_name='evidence_items' "
                      "AND column_name='company_state'") == [("company_state",)]
@@ -2330,6 +2331,11 @@ def test_evidence_company_labels_and_history_are_rls_scoped_on_real_postgres(pg)
         item = admin.execute("SELECT id FROM evidence_items WHERE org_id=%s", (org_a,)).fetchone()[0]
         admin.execute("INSERT INTO evidence_company_events(org_id,evidence_id,action,actor_id,reason) "
                       "VALUES(%s,%s,'proposed',1,'Synthetic review')", (org_a, item))
+        admin.execute("INSERT INTO evidence_unit_company_mappings(org_id,business_unit_id) "
+                      "VALUES(%s,1001),(%s,1002)", (org_a, org_b))
+        admin.execute("INSERT INTO evidence_unit_company_events "
+                      "(org_id,business_unit_id,company_id,action,actor_id,reason) "
+                      "VALUES(%s,1001,1,'proposed',1,'Synthetic mapping')", (org_a,))
         admin.commit()
     finally:
         admin.close()
@@ -2339,6 +2345,8 @@ def test_evidence_company_labels_and_history_are_rls_scoped_on_real_postgres(pg)
             _become_restricted(db)
             assert [r["name"] for r in db.execute("SELECT name FROM evidence_companies").fetchall()] == ["Visible Co"]
             assert db.execute("SELECT COUNT(*) FROM evidence_company_events").fetchone()[0] == 1
+            assert db.execute("SELECT COUNT(*) FROM evidence_unit_company_mappings").fetchone()[0] == 1
+            assert db.execute("SELECT COUNT(*) FROM evidence_unit_company_events").fetchone()[0] == 1
             with pytest.raises(psycopg2.errors.InsufficientPrivilege):
                 db.execute("INSERT INTO evidence_companies(org_id,name) VALUES(%s,'Foreign Co')", (org_b,))
         finally:

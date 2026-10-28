@@ -1,5 +1,5 @@
 {
-  "route_count": 1223,
+  "route_count": 1226,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -14331,6 +14331,48 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_evidence_stats",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/unit-company-mappings",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_unit_company_mappings",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/units/{unit_id}/company/propose",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_unit_company_propose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/units/{unit_id}/company/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_unit_company_review",
       "maturity": "",
       "notes": ""
     },

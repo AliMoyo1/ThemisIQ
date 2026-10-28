@@ -28,6 +28,7 @@
  <section class="co-panel" id="coCreatePanel" hidden><h2>Add a company label</h2><p>Use the customer's confirmed legal or operating name. This catalogue is local to this organization.</p>
   <form class="co-form" id="coCreate"><label>Company name<input name="name" required minlength="2" maxlength="120"></label><button type="submit" class="btn btn-primary">Add company</button></form>
  </section>
+ <section class="co-panel" aria-labelledby="coUnitsHeading"><h2 id="coUnitsHeading">Map business units to companies</h2><p>A second specialist reviews each mapping. Approved mappings suggest a label for new uploads in that unit; each document still needs its own ownership review. Existing documents keep their current labels and filing permissions.</p><div id="coUnitList"></div></section>
  <section class="co-panel"><h2>Documents to review</h2><div class="co-toolbar"><label for="coFilter">Show</label><select id="coFilter"><option value="unconfirmed">Unconfirmed and pending</option><option value="">All accessible documents</option></select></div>
   <div id="coList"></div><button type="button" id="coMore" class="btn btn-secondary" hidden>Show more</button>
  </section>

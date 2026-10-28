@@ -13,7 +13,43 @@
     const data = await api('/evidence/api/companies');
     rights = data;
     document.getElementById('coCreatePanel').hidden = !data.can_manage;
+    await loadUnits();
     await load(1);
+  }
+  function renderUnit(row) {
+    const card = el('article', ''); card.className = 'co-card';
+    card.append(el('h3', row.unit_name));
+    card.append(el('p', `Reviewed company: ${row.confirmed_company_name || 'none'}`));
+    if (row.proposed_company_id) {
+      card.append(el('p', `Awaiting review: ${row.proposed_company_name || 'company unavailable'} · ${row.proposed_reason}`));
+      if (rights.can_review) {
+        const form = document.createElement('form'); form.className = 'co-form';
+        const reason = formField('Review reason', 'reason', 'textarea');
+        const confirm = el('button', 'Confirm mapping'); confirm.type = 'button'; confirm.className = 'btn btn-primary';
+        const reject = el('button', 'Reject mapping'); reject.type = 'button'; reject.className = 'btn btn-secondary';
+        for (const [button, decision] of [[confirm, 'confirm'], [reject, 'reject']]) {
+          button.addEventListener('click', () => save(`/evidence/api/units/${row.unit_id}/company/review`, {decision,reason:reason.lastChild.value}, 'Mapping review recorded.'));
+        }
+        form.append(reason, confirm, reject); card.append(form);
+      }
+    } else if (rights.can_manage && rights.catalogue.length) {
+      const form = document.createElement('form'); form.className = 'co-form';
+      const company = formField('Propose company for unit', 'company_id', 'select');
+      for (const item of rights.catalogue) company.lastChild.append(new Option(item.name, item.id));
+      const reason = formField('Reason / source of mapping', 'reason', 'textarea');
+      const submit = el('button', 'Send mapping for review'); submit.type = 'submit'; submit.className = 'btn btn-secondary';
+      form.append(company, reason, submit);
+      form.addEventListener('submit', event => { event.preventDefault(); save(`/evidence/api/units/${row.unit_id}/company/propose`, {company_id:Number(company.lastChild.value),reason:reason.lastChild.value}, 'Mapping sent for independent review.'); });
+      card.append(form);
+    }
+    return card;
+  }
+  async function loadUnits() {
+    const host = document.getElementById('coUnitList');
+    const data = await api('/evidence/api/unit-company-mappings');
+    host.replaceChildren();
+    (data.units || []).forEach(row => host.append(renderUnit(row)));
+    if (!data.units.length) host.append(el('p', 'No business units are available in your scope.'));
   }
   function formField(label, name, kind) {
     const wrap = el('label', label), node = document.createElement(kind === 'select' ? 'select' : kind === 'textarea' ? 'textarea' : 'input');

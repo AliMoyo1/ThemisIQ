@@ -7,6 +7,8 @@ def test_company_label_page_and_vault_facet(login_as, live_app):
     page = login_as("compliance_manager")
     page.goto(f"{live_app}/evidence/companies/")
     expect(page.get_by_role("heading", name="Company labels")).to_be_visible()
+    expect(page.get_by_role("heading", name="Map business units to companies")).to_be_visible()
+    expect(page.locator("#coUnitList .co-card")).to_have_count(1)
     expect(page.locator("#coCreatePanel")).to_be_visible()
     page.locator("#coCreate input[name=name]").fill("Synthetic Test Company")
     page.locator("#coCreate button").click()

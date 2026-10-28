@@ -79,3 +79,37 @@ def test_assignment_requires_local_company_and_review_rejects_without_filing(tes
     with pytest.raises(HTTPException) as malformed:
         _library_page(proposer, {"company": "1 OR 1=1"})
     assert malformed.value.status_code == 404
+
+
+def test_reviewed_unit_map_keeps_prior_mapping_until_independent_decision(test_db):
+    db = test_db
+    org = row(db, "organizations", name="Source", slug="unit-map-source", status="active")
+    unit = row(db, "business_units", name="Omni unit", is_active=1)
+    hidden_unit = row(db, "business_units", name="Private unit", is_active=1)
+    proposer, reviewer = actor(org, unit, 501), actor(org, unit, 502)
+    first = ownership.create_company(db, proposer, "OmniContact")
+    second = ownership.create_company(db, proposer, "EcoCash")
+    db.commit()
+    with pytest.raises(HTTPException) as invisible:
+        ownership.propose_unit_mapping(db, proposer, hidden_unit, first, "Signed entity register")
+    assert invisible.value.status_code == 404
+    ownership.propose_unit_mapping(db, proposer, unit, first, "Signed entity register")
+    db.commit()
+    assert ownership.suggested_company_for_unit(db, proposer, unit) is None
+    with pytest.raises(HTTPException) as self_review:
+        ownership.review_unit_mapping(db, proposer, unit, "confirm", "Independent review")
+    assert self_review.value.status_code == 409
+    assert ownership.review_unit_mapping(db, reviewer, unit, "confirm", "Matched legal register") == "confirm"
+    db.commit()
+    assert ownership.suggested_company_for_unit(db, proposer, unit) == first
+    ownership.propose_unit_mapping(db, proposer, unit, second, "Corporate register changed")
+    db.commit()
+    assert ownership.suggested_company_for_unit(db, proposer, unit) == first
+    assert ownership.review_unit_mapping(db, reviewer, unit, "reject", "No verified ownership change") == "reject"
+    db.commit()
+    assert ownership.suggested_company_for_unit(db, proposer, unit) == first
+    mapped = ownership.unit_mappings(db, proposer)
+    assert [item["unit_id"] for item in mapped] == [unit]
+    assert mapped[0]["confirmed_company_name"] == "OmniContact"
+    assert db.execute("SELECT COUNT(*) FROM evidence_unit_company_events WHERE org_id=%s",
+                      (org,)).fetchone()[0] == 4
