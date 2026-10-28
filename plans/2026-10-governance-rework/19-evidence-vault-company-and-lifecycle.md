@@ -4,6 +4,8 @@
 
 ## 1. Outcome and current baseline
 
+**Update 2026-10-28 (owner):** the tenants hold no real data, so there is nothing to migrate. The legacy "Ownership unconfirmed" queue, the bulk confirm path and the inventory slice V0 are no longer needed for the first release; the null-unit exposure becomes a rule for new items (an explicit unit, or an explicit organization-wide confirmation, at filing). See [20a](20a-g0-inventory-and-decisions.md) section 7. The first release is therefore the minimal V1 below.
+
 **Scope of the first release.** Finding a subsidiary's policies by company is mostly an inventory (V0) and a small company filter built from the existing business-unit tree (minimal V1). Ownership is metadata only: nothing in V1 changes `business_unit_id`, so no one gains or loses access. The applicability relation, the legal-entity catalogue, the staging queue and the AI gates are deferred until V0 shows they are needed.
 
 A specialist at a parent company can move from **Econet Group**, **OmniContact** or **EcoCash** to an authorized document, its exact current version, its source and the claims it supports in a few actions. A subsidiary specialist sees only authorized material. The same Vault artifact may appear in a company view, an audit, an incident, a framework register and an evidence request without another file copy.

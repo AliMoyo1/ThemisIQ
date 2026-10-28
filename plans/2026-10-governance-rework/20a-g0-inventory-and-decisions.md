@@ -1,6 +1,6 @@
 # 20a. Group oversight G0: inventory and decisions
 
-**Status:** G0 of [20 Group oversight across tenants](20-group-oversight-across-tenants.md), 2026-10-28. Read only: no behavior changed and no data touched. Part A (the code inventory) is complete. Part B (the live server inventory) is a ready script that the owner runs on the server; its results are not in this document yet. G0 is therefore **not signed off**.
+**Status:** G0 of [20 Group oversight across tenants](20-group-oversight-across-tenants.md), 2026-10-28. Read only: no behavior changed and no data touched. Part A (the code inventory) is complete. **Part B (the live server inventory) is not needed:** the owner confirmed in chat (2026-10-28) that the tenants hold no real data, and anything present is test data that does not matter. The script stays in the repository as an optional check to run before any real data is loaded. G0 is complete once the three small decisions in section 8 are recorded.
 
 ## 1. How this was done
 
@@ -68,9 +68,16 @@ Free text columns that must never cross (counted by the live inventory so their 
 - **A gap to design for:** the Chief GRC Officer role has no `module.orm.access` (it has aria, bcm, erm, grid and sentinel), and the DPO has no bcm or orm access. A group view of ORM or BCM figures must therefore not be gated by the holder's `module.*` capability in the group tenant; it is gated by the new group capability and by what the subsidiary's snapshot contains.
 - Capability counts for the roles chosen in plan 20: Chief GRC Officer 34, Compliance Manager 60, DPO 37, Audit Lead 33.
 
-## 7. Part B: running the live inventory
+## 7. Part B: the live inventory (optional, not required now)
 
-Not done yet. It needs the code on the server (after this branch is merged and pulled) and root access, so it is the owner's step. On the server, from the project folder, one command:
+Skipped by the owner's decision: no real data exists in any tenant. What this changes:
+
+1. **No legacy migration.** There is no existing data to classify, so the "Ownership unconfirmed" queue and the bulk confirm path of plan 19 are not needed for the first release.
+2. **The null-unit exposure becomes a prevention rule, not a cleanup.** A null business unit still means the whole organization. New items must therefore carry an explicit choice at filing (a unit, or the whole organization after a confirmation), so a subsidiary-confidential document can never be filed by accident as organization-wide.
+3. **The personal data design still matters.** Real data will arrive once the platform is used, and the group views must be safe from the first real record, so sections 2 to 4 stay in force. The privacy review is a gate before real data, not before building.
+4. **Whether Econet, EcoCash and OmniContact are three organizations** is settled by the owner's statement (separate tenants with their own licenses); creating them is an operational step at license time.
+
+The script remains available. If it is ever wanted, on the server, from the project folder, one command:
 
 `cd /project/oneforall`
 
@@ -80,11 +87,7 @@ then
 
 It prints, for the shared registry: each organization, its status and plan, each license (modules, seats, dates) and active users per organization id; then for each schema: the business-unit tree (names and depth), row counts of the level 1 tables, how many rows hold a value in each personal data column and each free text column, how many Vault items have no unit, how many families and versions exist, and how many no-unit items mention an organization or unit name. The output contains no personal value and can be pasted back here. Please paste it, so this document can be completed with the real numbers.
 
-What the live run settles:
-
-1. Whether Econet, EcoCash and OmniContact already exist as three organizations (separate tenants and licenses) or still as business units inside one.
-2. How large the "Ownership unconfirmed" queue would be in each tenant, and how many no-unit Vault items look subsidiary specific.
-3. How much class A, B and free text data actually exists per tenant, so the privacy review is sized on facts.
+Use it before real data is first loaded, or later as a regression check that no tenant holds personal data in a column the group views must not reach.
 
 ## 8. G0 sign-off checklist
 
@@ -94,11 +97,13 @@ What the live run settles:
 | Level 1 allowlist | Done (section 3) |
 | Level 2 allowlist proposal for the issue register | Proposed (section 4), needs the privacy reviewer |
 | Role mapping against the existing roles and capabilities | Done in plan 20; section 6 adds the module gap |
-| Live inventory (tenants, licenses, counts) | **Script ready and tested; needs the owner to run it** |
-| Snapshot cadence | Daily proposed; owner to confirm |
-| Named privacy reviewer at Econet | **Open** |
-| Whether a group case may show a subsidiary another subsidiary's released item | Recommendation: no; owner to confirm |
+| Live inventory (tenants, licenses, counts) | **Not needed** (owner: no real data; script kept as an optional check) |
+| Snapshot cadence | Daily, adopted as the default (changeable in one setting) pending the owner's objection |
+| Named privacy reviewer at Econet | Needed before real data, not before building |
+| Whether a group case may show a subsidiary another subsidiary's released item | No, adopted as the default pending the owner's objection |
+| **G1 may start** | Yes: nothing above blocks the relationship table, group capabilities and snapshot rollup |
 
 ## 9. Log
 
-- 2026-10-28: Part A written from the schema scan. Script and tests added (4 tests; the script was also run against a throwaway PostgreSQL 18 with two tenants and refused a write). The live run is waiting for the owner.
+- 2026-10-28: Part A written from the schema scan. Script and tests added (4 tests; the script was also run against a throwaway PostgreSQL 18 with two tenants and refused a write).
+- 2026-10-28: owner said the tenants hold no real data, so the live run is dropped and the legacy migration work of plan 19 is cut (see section 7). Defaults for snapshot cadence and group cases recorded as chat-confirmed defaults, not sign-off.
