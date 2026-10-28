@@ -250,6 +250,32 @@ def detail(db, actor: dict, import_id: str) -> dict:
             "reviewed": json.loads(row["reviewed_json"] or "{}"), "links": links}
 
 
+def refresh_suggestions(db, actor: dict, import_id: str) -> dict:
+    """Re-extract an immutable staged source without changing its review decisions."""
+    if not has_capability(actor, "aria.policy.create"):
+        raise IntakeError(403, "Policy author permission required.")
+    row = get_import(db, actor, import_id)
+    if row["state"] != "needs_review":
+        raise IntakeError(409, "Only a staged import can refresh suggestions.")
+    path = _source_path(row)
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_FILE:
+            raise IntakeError(409, "The submitted file changed or is missing.")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != row["file_hash"]:
+            raise IntakeError(409, "The submitted file changed or is missing.")
+    except OSError as exc:
+        raise IntakeError(409, "The submitted file changed or is missing.") from exc
+    ext = Path(row["file_name"]).suffix.lower()
+    if ext not in MIME:
+        raise IntakeError(422, "Unsupported source format.")
+    extracted = _extract_isolated(path, ext, row["file_name"])
+    db.execute("UPDATE aria_policy_imports SET extracted_json=%s,updated_at=%s "
+               "WHERE id=%s AND org_id=%s AND state='needs_review'",
+               (json.dumps(extracted), utcnow().isoformat(), import_id, actor["org_id"]))
+    db.commit()
+    return detail(db, actor, import_id)
+
+
 def search_controls(db, actor: dict, query: str) -> list[dict]:
     if not has_capability(actor, "aria.policy.create"):
         raise IntakeError(403, "Policy author permission required.")

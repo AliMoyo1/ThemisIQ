@@ -165,6 +165,28 @@ async def get_detail(request: Request, import_id: str):
         db.close()
 
 
+@router.post("/api/policy-imports/{import_id}/refresh")
+@require_module("aria")
+async def refresh_suggestions(request: Request, import_id: str):
+    if denied := _authoring_gate(request.state.user):
+        return denied
+    try:
+        result = await asyncio.to_thread(_refresh_sync, request.state.user, import_id)
+        log_audit(request.state.user, "aria", "Refreshed staged policy suggestions", "policy_import", 0,
+                  details=import_id)
+        return JSONResponse({"ok": True, **result})
+    except intake.IntakeError as exc:
+        return _error(exc)
+
+
+def _refresh_sync(actor, import_id):
+    db = get_db()
+    try:
+        return intake.refresh_suggestions(db, actor, import_id)
+    finally:
+        db.close()
+
+
 @router.get("/api/policy-import-controls")
 @require_module("aria")
 async def import_control_search(request: Request, q: str = ""):

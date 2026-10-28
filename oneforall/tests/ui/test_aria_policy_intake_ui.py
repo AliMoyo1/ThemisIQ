@@ -6,6 +6,59 @@ import uuid
 from docx import Document
 
 
+def test_table_metadata_prefills_and_existing_import_can_refresh(login_as, live_app, synthetic_tenant,
+                                                                 monkeypatch, tmp_path):
+    import database
+    from config import settings
+    from modules.aria import routes as aria_routes
+    monkeypatch.setattr(aria_routes, "ARIA_UPLOAD_DIR", tmp_path / "aria")
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", True)
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [synthetic_tenant["org_id"]])
+    doc = Document()
+    doc.add_paragraph("DATA RETENTION POLICY")
+    control = doc.add_table(rows=2, cols=4)
+    for row, values in zip(control.rows, (
+        ("Version Number", "3.0", "Implementation Date", "2026/03/19"),
+        ("Approval Date", "19/03/2026", "Review Date", "19/03/2027"),
+    )):
+        for cell, value in zip(row.cells, values): cell.text = value
+    approval = doc.add_table(rows=2, cols=4)
+    for row, values in zip(approval.rows, (
+        ("Authorized by", "Full Names", "Signature", "Date"),
+        ("COO", "External Approver", "", "19-03-2026"),
+    )):
+        for cell, value in zip(row.cells, values): cell.text = value
+    output = io.BytesIO(); doc.save(output)
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/aria/policy-imports")
+    page.set_input_files("#intake-files", files=[{"name": "retention_v3.0.docx", "mimeType":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "buffer": output.getvalue()}])
+    page.click('#intake-upload button[type="submit"]')
+    page.wait_for_selector("#intake-review:not([hidden])", timeout=15000)
+    assert page.locator("#intake-field-version").input_value() == "3.0"
+    assert page.locator("#intake-field-approver").input_value() == "External Approver"
+    assert page.locator("#intake-field-effective_date").input_value() == "2026-03-19"
+    assert "2026-03-19" in page.locator("#intake-external-approval-suggestion").inner_text()
+    import_id = page.locator("[data-import-id]").first.get_attribute("data-import-id")
+    db = database.get_db()
+    try:
+        old = {"parser": "local-docx-1", "metadata": {}, "spans": [], "text_status": "extracted"}
+        db.execute("UPDATE aria_policy_imports SET extracted_json=%s WHERE id=%s", (json.dumps(old), import_id))
+        db.commit()
+    finally:
+        db.close()
+    page.reload()
+    page.click(f'[data-import-id="{import_id}"]')
+    page.wait_for_selector("#intake-review:not([hidden])")
+    assert page.locator("#intake-field-version").input_value() == ""
+    page.fill("#intake-field-title", "My reviewed title")
+    page.click("#intake-refresh")
+    page.wait_for_function("() => document.getElementById('intake-field-version').value === '3.0'")
+    assert page.locator("#intake-field-title").input_value() == "My reviewed title"
+    assert page.locator("#intake-field-approver").input_value() == "External Approver"
+    assert not page.console_errors, page.console_errors
+
+
 def test_policy_intake_upload_obeys_organization_rollout(login_as, live_app, synthetic_tenant,
                                                          monkeypatch):
     from config import settings

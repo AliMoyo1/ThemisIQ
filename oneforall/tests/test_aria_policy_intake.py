@@ -1,5 +1,7 @@
 """Existing-policy intake: provenance, version integrity and scope."""
 import io
+import json
+import hashlib
 
 import pytest
 from docx import Document
@@ -47,6 +49,87 @@ def _docx():
     doc.add_paragraph("A.5.1 requires policies for information security.")
     out = io.BytesIO(); doc.save(out)
     return out.getvalue()
+
+
+def _table_policy_docx(explicit_owner=""):
+    doc = Document()
+    doc.add_paragraph("DATA RETENTION POLICY")
+    control = doc.add_table(rows=3, cols=4)
+    for row, values in zip(control.rows, (
+        ("Document Classification:", "Company Confidential", "Version N°:", "3.0"),
+        ("Implementation Date:", "2026/03/19", "Approval Date:", "19/03/2026"),
+        ("Document Custodian:", "19/03/2027", "", ""),
+    )):
+        for cell, value in zip(row.cells, values):
+            cell.text = value
+    history = doc.add_table(rows=3, cols=4)
+    for row, values in zip(history.rows, (
+        ("Version Number", "Author(s)", "Changes", "Date"),
+        ("2.0", "Earlier Author", "Earlier revision", "2025/04/20"),
+        ("3.0", "Latest Author", "Current revision", "2026/03/19"),
+    )):
+        for cell, value in zip(row.cells, values):
+            cell.text = value
+    approval = doc.add_table(rows=2, cols=4)
+    for row, values in zip(approval.rows, (
+        ("Authorized by", "Full Names", "Signature", "Date"),
+        ("COO", "External Approver", "", "19-03-2026"),
+    )):
+        for cell, value in zip(row.cells, values):
+            cell.text = value
+    doc.add_paragraph("Data Owner: Determining retention requirements")
+    if explicit_owner:
+        doc.add_paragraph(f"Document Owner: {explicit_owner}")
+    out = io.BytesIO()
+    doc.save(out)
+    return out.getvalue()
+
+
+def test_table_policy_suggests_anchored_metadata_without_confusing_responsibility():
+    from modules.aria.policy_parser import extract
+
+    parsed = extract(_table_policy_docx(), ".docx", "ISMS-OMNI-P015_v3.0.docx")
+    metadata = parsed["metadata"]
+    assert parsed["parser"] == "local-docx-2"
+    assert {key: metadata[key]["value"] for key in (
+        "title", "version", "effective_date", "approval_date", "approver", "owner"
+    )} == {
+        "title": "Data Retention Policy", "version": "3.0", "effective_date": "2026-03-19",
+        "approval_date": "2026-03-19", "approver": "External Approver", "owner": "Latest Author",
+    }
+    assert metadata["owner"]["kind"] == "inferred"
+    assert "confirm" in metadata["owner"]["note"].lower()
+    assert "review_date" not in metadata
+    explicit = extract(_table_policy_docx("Policy Team"), ".docx", "ISMS-OMNI-P015_v3.0.docx")["metadata"]
+    assert explicit["owner"]["value"] == "Policy Team"
+    assert explicit["owner"]["kind"] == "stated"
+
+
+def test_refresh_staged_import_updates_suggestions_without_changing_source_or_scope(test_db, monkeypatch, tmp_path):
+    _setup(test_db, monkeypatch, tmp_path)
+    actor = _actor(test_db, 101)
+    content = _table_policy_docx()
+    staged = intake.stage_import(test_db, actor, content, "ISMS-OMNI-P015_v3.0.docx")
+    old = {"parser": "local-docx-1", "metadata": {"owner": {"value": "Determining retention requirements",
+                                                  "anchor": "block 42", "kind": "stated"}},
+           "spans": [], "text_status": "extracted"}
+    test_db.execute("UPDATE aria_policy_imports SET extracted_json=%s WHERE id=%s",
+                    (json.dumps(old), staged["id"]))
+    test_db.commit()
+    for uid in (103, 104):
+        with pytest.raises(intake.IntakeError) as hidden:
+            intake.refresh_suggestions(test_db, _actor(test_db, uid), staged["id"])
+        assert hidden.value.status == 404
+    refreshed = intake.refresh_suggestions(test_db, actor, staged["id"])
+    assert refreshed["extracted"]["metadata"]["owner"]["value"] == "Latest Author"
+    assert refreshed["extracted"]["metadata"]["version"]["value"] == "3.0"
+    assert refreshed["file_hash"] == hashlib.sha256(content).hexdigest()
+    assert intake.stage_import(test_db, actor, content, "ISMS-OMNI-P015_v3.0.docx")["extracted"]["parser"] == "local-docx-2"
+    assert test_db.execute("SELECT COUNT(*) FROM aria_policy_imports").fetchone()[0] == 1
+    intake.register_import(test_db, actor, staged["id"], {}, [])
+    with pytest.raises(intake.IntakeError) as registered:
+        intake.refresh_suggestions(test_db, actor, staged["id"])
+    assert registered.value.status == 409
 
 
 def test_import_requires_review_and_independent_external_attestation(test_db, monkeypatch, tmp_path):

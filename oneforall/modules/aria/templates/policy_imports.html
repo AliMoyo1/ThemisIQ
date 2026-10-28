@@ -88,8 +88,9 @@
   <h2>Review a document</h2><p>Select a file in the queue. The original remains intact; edits below change the register metadata only.</p>
   <div id="intake-review" hidden>
    <p><a id="intake-source-link" target="_blank" rel="noopener">Open original file</a> <span id="intake-text-state"></span></p>
-   <h3>Suggested details</h3>
+   <div class="intake-actions"><h3>Suggested details</h3><button type="button" class="btn btn-ghost" id="intake-refresh">Refresh suggestions</button></div>
    <div class="intake-fields" id="intake-fields"></div>
+   <p id="intake-external-approval-suggestion" hidden></p>
    <h3>Source extract</h3><div id="intake-source-text" class="intake-source"></div>
    <h3>Possible framework and control links</h3><p>Exact references found in the source. Check only those you have verified against the cited text.</p>
    <div id="intake-links"></div>
@@ -97,7 +98,7 @@
    <div id="intake-version-match"><h4>File as a new version</h4><p>If this is the annual update of an approved policy, find that policy and select it. The current approved version stays in force until a different approver verifies this replacement. Leave the choice blank for a new policy.</p><div class="intake-fields"><label class="wide">Find existing policy by title<input id="intake-version-query" placeholder="Search a policy in this business unit"></label><label class="wide">Reviewed existing policy<select id="intake-version-results"><option value="">Create a new policy</option></select></label></div><button type="button" class="btn btn-ghost" id="intake-version-search">Find policy</button></div>
    <button type="button" class="btn btn-primary" id="intake-register">Register reviewed document</button>
    <div id="intake-attestation" hidden>
-    <h3>Verify existing external approval</h3><p>A different authorized approver must inspect the source evidence. This records external provenance; it does not create a ThemisIQ approval decision.</p>
+    <h3>Verify existing external approval</h3><p>A different authorized approver must inspect the source evidence. Extracted approver and date are suggestions only; inspect the signed page before recording verification. This records external provenance; it does not create a ThemisIQ approval decision.</p>
     <div class="intake-fields"><label>External approver<input id="intake-approver"></label><label>Approval date<input id="intake-date" type="date"></label><label class="wide">Evidence location, signed page or Vault reference<textarea id="intake-proof" rows="2"></textarea></label></div>
     <button type="button" class="btn btn-ghost" id="intake-verify">Verify external approval</button>
    </div>
@@ -141,4 +142,4 @@
  </section>
 </div>
 {% endblock %}
-{% block extra_scripts %}{{ super() }}<script defer src="/static/js/aria_policy_intake.js?v=2"></script><script defer src="/static/js/aria_document_register.js?v=1"></script>{% endblock %}
+{% block extra_scripts %}{{ super() }}<script defer src="/static/js/aria_policy_intake.js?v=3"></script><script defer src="/static/js/aria_document_register.js?v=1"></script>{% endblock %}
