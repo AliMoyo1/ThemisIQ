@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only inventory for plans 19 and 20 (group oversight across tenants), slice G0.
+"""Read-only inventory for the unified Vault and group oversight plan, stage 0.
 
 It answers, for every tenant on the server:
   1. which organizations and licenses exist, and how many people use each;
@@ -9,9 +9,10 @@ It answers, for every tenant on the server:
      mention an organization or unit name, which are candidates for narrowing;
   5. how many evidence families and versions exist (a family is a root item; versions chain by parent_id).
 
-The command has no write mode. It prints counts and organization or business-unit names only. It never prints a
-person's name, an email address, a record title, a file name, document content, a connection string or an
-environment value. Every statement is a SELECT and each tenant is read inside a READ ONLY transaction.
+The command has no write mode. It prints counts and organization or business-unit names. Those configurable
+names might themselves identify a person, so review and redact the output before sharing it. It does not
+print stored emails, record titles, file names, document content, connection strings or environment values.
+Every statement is a SELECT and each tenant is read inside a READ ONLY transaction.
 
 Run on the server as root from /project/oneforall so the production environment file can be read:
     .venv/bin/python3 scripts/inventory_group_oversight.py

@@ -1,0 +1,191 @@
+# 19. Evidence Vault and group oversight: one company view across permitted tenants
+
+**Status:** Unified implementation plan, 2026-10-28. This reconciles the earlier Vault company plan, group oversight plan and G0 inventory note. It describes proposed behavior, not a built or deployed feature. The schema survey and optional read-only inventory script exist; no live tenant inventory, privacy approval or group pilot is claimed complete.
+
+**Product outcome:** A governance specialist can choose their own organization, an authorized subsidiary, or the whole group, then find the relevant current document, its evidence links, exact version and review outcome. The same canonical Vault artifact serves audits, incidents, controls and reports. Organizations outside a group remain isolated. This works for any customer with a parent and subsidiaries, including nested groups, rather than for one named customer.
+
+This plan extends [Vault assurance](02-evidence-vault-and-assurance.md), the [Vault product plan](../../design/evidence-vault/PLAN.md), [policy intake](18-policy-intake-and-document-composition.md), and the existing tenant and report contracts. Where an earlier proposal disagreed, the decisions below govern this feature. Historical implementation evidence remains in the existing ledgers.
+
+## 1. Decisions, boundaries and terms
+
+| Term | Rule |
+| --- | --- |
+| Organization / tenant | The existing `organizations` row, tenant schema and RLS boundary. A group relationship never makes a parent login a member of a child tenant. Each organization retains its own license, users and source records. |
+| Group | A configured, active parent-child organization relationship. The platform may host many unrelated groups. A child has one active direct parent in the initial product; the schema may support a deeper acyclic tree. Access across each edge is evaluated explicitly, not inherited merely because two tenants share a name. |
+| Company view | Navigation over the viewer's own tenant and approved group projections. A company card is not a folder or second file store. It never exposes a company the viewer may not know exists. |
+| Access unit | Existing `business_unit_id` authorization scope within the source tenant. A null unit currently means organization-wide visibility **inside that tenant**. An owner label or applicability link never changes this scope. |
+| Owning entity | The legal company accountable for an artifact, represented by a stable ID. It is separate from the access unit and can be marked unconfirmed. A business unit is mapped to an entity only when the customer's hierarchy actually represents legal entities. |
+| Applicable entity | A company for which a policy or proof is relevant. This relationship is semantic; it grants no file, snippet, search or report access. |
+| Artifact family | The existing root `evidence_items` row and immutable versions linked through `parent_id`. Do not create an `artifact_family_id` table or duplicate binary store. Current and historical versions stay distinguishable. |
+| Published group item | A specific version and approved metadata deliberately made visible to named group roles. Publication is a scoped grant, with expiry, revocation and an audit record; it is not inferred from `business_unit_id IS NULL`. |
+| Sensitive request | A group member's request for information that has not been published. The source tenant reviewer may approve, narrow or decline it. No parent override is created. |
+
+**Recorded product choices:** Parent oversight of approved figures is part of group membership, while subsidiary specialists can see the group relationship and what is shared. Subsidiary files that need case-by-case review travel through a request, decision and release workflow. Published parent documents can be shown to eligible subsidiaries. Group packaging is included in participating organizations' licenses rather than sold as a separate module. These are product decisions, not legal or privacy approvals. One existing customer's group DPO handles legal review; other customers assign their own named reviewer and may use their DPO if appropriate.
+
+**Correction to earlier plans:** A business-unit filter cannot show another tenant's documents. A screenshot with subsidiary-named files does not establish their ownership or tenant. The first value release must include a governed cross-tenant catalogue and published document path as well as the within-tenant company filter. A parent sees only approved catalogue entries or releases, never the whole child Vault by default.
+
+## 2. Verified starting point and work still proposed
+
+- The Vault has scoped, paginated results; metadata search; saved views; virtual views by linked work; card/list presentation; an inspector; exact-hash duplicate detection; `evidence_items` version chains; link reviews; and generated-record deduplication. Report-run sign-off and retention infrastructure exists elsewhere. Reuse these readers and decisions.
+- The Vault list lacks a company facet and the upload flow lacks an explicit company choice. Existing policy intake can suggest metadata and candidate control links; the Vault should reuse that extraction path rather than build a second policy parser.
+- The existing source scope treats null `business_unit_id` as organization-wide inside a tenant. That is an exposure risk if a confidential unit document was filed without a unit. It does **not** create cross-tenant visibility.
+- Current tenant schema and license records do not encode a parent relationship or group capabilities. The schema survey identified personal-data and free-text fields; it did not classify every real value. The optional `oneforall/scripts/inventory_group_oversight.py` script reads counts and organization/unit names. Those names may contain personal information, so treat its output as sensitive and do not paste it into public issues or chat without review.
+- The owner said current tenant records are disposable test data, so a production-grade migration of those rows is unnecessary. A read-only count and schema inventory remains a release preflight. No plan may equate “not live customer data” with “no rows exist.” Test records can be reset by a separate, authorized operation; this plan does not delete them.
+
+## 3. Information architecture and specialist journeys
+
+### One Vault, several viewpoints
+
+The main Vault has **By company**, **By work**, **Needs attention**, and **All documents** entry points. Search, **Add evidence**, **Find evidence**, card/list toggle and saved views remain available. The last view, filters, page, selected row and scroll position survive an inspector round trip.
+
+1. **By company:** show **My organization**, each authorized subsidiary or subgroup, and **Group overview** where permitted. Inside one tenant, show mapped business units and an explicit organization-wide view. A company card's counts distinguish current published documents, review due, unfiled items and requests. The group overview does not silently merge records or count one shared artifact twice.
+2. **By work:** Audits, Incidents, Privacy records, Continuity plans, AI assessments, Reports, Policies and Generated records. A company filter persists across these views. The source module still decides whether a user may see an audit or case.
+3. **Needs attention:** My filing, My reviews, Renewals, Requests, Ownership unconfirmed and Index failures. Each row names the next action, responsible team and age. Historic, archived and superseded versions remain reachable through authorized history.
+4. **Results:** compact rows by default; premium folders for browsing and cards for images. Show full distinguishable title, company, source, exact version, period, review due and proof state. On mobile use a full-screen inspector, on wide screens a side panel. The view works with keyboard, 200% zoom and reduced motion.
+
+The company switcher has three modes: **this tenant**, **one authorized related tenant**, and **authorized group rollup**. “Not reporting” and “not authorized” differ from zero, but an unauthorized viewer gets no existence signal. A company card, badge, search hit, saved-view total and pagination total all use the same permissioned source query or approved projection. Clicking a count opens exactly the counted rows.
+
+### Parent finding a subsidiary document
+
+For a document approved for routine group publication, the subsidiary specialist confirms the version, classification, audience, expiry and source links. The parent sees a company card and that version's permitted catalogue metadata, opens its inspector and follows a source-tenant-checked preview/download. For a restricted item, the parent starts a request from the company view; no title, count or search hint for the hidden item appears before authorization. A declined request remains an auditable outcome without revealing the withheld document.
+
+The earliest useful pilot includes this journey for at least one synthetic parent and two synthetic subsidiaries. A within-tenant filter alone does not meet the parent-company request.
+
+## 4. Tenant relationship, grants and ownership data
+
+| Record / service | Required fields and invariant |
+| --- | --- |
+| `org_relationships` in the shared registry | Parent and child org IDs, status, effective interval, relationship type, creator, approval record and version. Reject self-links, cycles, conflicting active parents and cross-group ID reuse. Relationships are managed by an authorized platform operator and visible to both sides. A platform operator gets no content access merely by creating one. |
+| Group capability grant | Principal, group org, permitted child org or subtree, named capability, grantor, interval and revocation version. A role name alone is insufficient. A group user may be limited to one subsidiary. |
+| Entity mapping in a tenant | Stable legal-entity ID and optional mapping from a business-unit ancestor. If units are operational departments, use a tenant-scoped entity catalogue and explicit mapping; never treat free text or a filename as a security principal. |
+| Vault ownership metadata | Family root, owning entity, confirmation state, reviewer, reason, time and source. Keep `org_id` and `business_unit_id` as the access boundary. A change in ownership metadata does not widen access. |
+| Applicability | Family root, applicable entity ID, reason, reviewer, interval and status. Use only after a customer needs multi-entity policy discovery; never use it to authorize a download. |
+| Publication / release grant | Source tenant, family and exact version ID, permitted parent/group and role or recipient, safe metadata fields, classification, purpose, expiry, revocation, decision actor and audit IDs. Grant metadata is not a copy of the file. |
+
+Store approved cross-tenant projections in a narrow platform registry, not a database role that reads all tenant tables. A source-tenant publisher uses one tenant-scoped transaction and an allowlisted payload; the parent reads that projection. A request for bytes returns to the source tenant for fresh authorization and streams the approved version. Do not join tenant tables in a group query, relax source `org_id` predicates, or treat a parent as a source-tenant super administrator. RLS is an additional boundary, not a substitute for application checks.
+
+For nested groups, each edge is explicit. The initial UI supports one parent and direct children; a later nested UI may aggregate only through approved edges with path, lineage and deduplication recorded. Reparenting, ending a relationship, suspending a license or revoking a grant removes current views immediately and invalidates caches and links; immutable history remains governed by retention and holds.
+
+## 5. Intake, ownership and document lifecycle
+
+At filing, a person chooses an authorized access unit or explicitly confirms organization-wide scope. The UI displays who that choice lets see the file. A linked module record supplies its source unit when authoritative; an unlinked upload never silently defaults to broad visibility. Ask for owning entity separately if the hierarchy cannot derive it. The uploader may leave ownership unconfirmed, which enters a review queue; that queue is needed for new ambiguous files even if disposable legacy rows are not migrated.
+
+Add a resumable batch staging queue with per-file states: received, validating, extracting, suggested, needs review, filed, duplicate, failed and quarantined. Keep original bytes intact until an authorized filing. Bound individual and batch size, format, nested archives, extraction time and memory; scan under the existing malware policy. Do not execute embedded content or fetch embedded URLs. Use the isolated parser and record source hash, parser version, page/section and failure state. OCR and external AI extraction remain separate opt-ins.
+
+Show each proposed title, type, version, owner, date, entity and framework/record link beside the source passage or deterministic rule that supports it. Allow edits, blank unknowns and per-file confirmation. Do not infer legal ownership from an author name or filename. An exact hash offers **Use existing**; a likely revision offers a comparison; a changed file creates a new immutable version. The existing generated-record deduplication keeps repeat output out of the main view; current plus two prior versions remain prominent, while retention and holds govern older bytes.
+
+A new version proposes carry-forward links but resets target review. An earlier accepted verdict remains attached to its earlier version and period. Bulk editing is allowed only for genuinely shared fields with a preview, per-row failures, reason, actor and undo for metadata changes. No bulk company/classification or reviewer stamp is inferred from filenames. If real legacy rows are later retained, a read-only inventory sizes ambiguous rows and a separate approved migration handles them without silently changing visibility.
+
+## 6. Group visibility levels and disclosure controls
+
+| Level | Content and path | Default rule |
+| --- | --- | --- |
+| 1. Figures | Source tenant publishes versioned, hashed metrics and denominators from approved metric definitions, as-of time, method and reporting scope. The group rolls up these frozen figures; stale/missing members say **not reporting**. | No raw free text, identifiers or row copies. Counts and trends can still disclose a rare event. A privacy-approved minimum cohort, small-cell suppression, time-window rule and differencing test govern subsidiary-visible aggregates. Withhold a group band if these conditions fail. |
+| 2. Structured registers | An explicit field allowlist per record type, prepared in the source tenant. Title/name fields, references and dates are reviewed because values can contain people or sensitive case facts. | Parent roles see only fields approved for that group, purpose and jurisdiction. No “all fields except these” projection. Staff contact fields require notice and review. |
+| 3. Documents and narrative | Published non-sensitive versions use a reviewed catalogue and version-bound grant. Restricted versions and free-text detail use the request workflow. | Source reviewer checks classification, redaction, purpose and audience. No automatic publication from `business_unit_id IS NULL`, policy status or a detected company name. |
+
+For group metrics, reuse the current metric registry's documented definitions rather than recalculate from parent-visible rows. A snapshot carries measure key, numerator/denominator, unit, source tenant, methodology version, period, as-of time, publication version and integrity hash. Daily is a configurable starting cadence, not a legal requirement; a controlled manual refresh records its actor. A suspended/ended child contributes **not reporting**, never zero. Rollups record membership and method used so an old report is reproducible.
+
+The prior G0 schema review identified higher-risk data in data-subject requests, consent, breaches, incident narratives, staff/contact directories, signatures, logs, tokens and free text. `demo_requests` belongs to the platform, never to a group. For the first proposed issue register, start from structured breach severity/status/discovery/notification dates, DSR reference/type/deadline/status, and DPIA/RoPA reference/status/review date. Exclude requesters, subjects, free-text descriptions, AI drafts, signatures, IPs and secrets. Even a reference or title is not automatically safe: inspect representative values and approve a field contract before publication. Consent remains count-only. A field added later is excluded until reviewed.
+
+The intended subsidiary view may show a banded group score and trend to named senior roles, but five bands are **not** assumed safe. Before enabling it, test small groups, known own contribution, periodic changes, membership changes and subtraction attacks; suppress or coarsen until a named privacy reviewer accepts the residual risk. Parent group roles may receive exact per-subsidiary metrics only under explicit grants and organizational agreement.
+
+## 7. Roles, human decisions and cross-tenant workflow
+
+Configure group capabilities separately from module roles. Proposed starting map: Chief GRC Officer sees granted group figures and issued packs; Compliance Manager sees granted control and audit projections; Audit Lead sees granted audit projections; DPO sees granted privacy issue data and leads group cases. A parent user never gains every subsidiary by role name alone. A subsidiary's equivalent roles decide requests in their domains. Super administrators manage configuration without automatic group content access. Each organization can assign a named legal/privacy reviewer; the DPO can fill that function where the organization has delegated it.
+
+Capabilities include `group.relationship.manage`, `group.figure.view_exact`, `group.figure.view_band`, `group.register.view`, `group.document.publish`, `group.document.view`, `group.request.create`, `group.request.decide`, `group.release.fulfil`, `group.case.participate`, and pack issue/share/revoke. Each is scoped to a group, descendant, data level and interval. Map them to existing RBAC and license checks without assuming every group role has every source module's access. The group viewer passes their own group grant check; the source tenant checks that its authorized publisher or reviewer approved the exact disclosure and that the source record is still eligible at each open. A parent does not need an account or module role inside the child tenant, and the service does not impersonate one. Relationship status, license state and classification are rechecked on every request. No grant is derived from a corporate name.
+
+**Sensitive request:** requester states target subsidiary, purpose, needed-by date, period and optional case, without using hidden document autocomplete. The source tenant receives a work item. Its reviewer may approve, narrow or decline with a reason; a different authorized fulfiller selects the exact version/fields, applies redaction and sets an expiry. The parent sees a time-limited release and a clear decision state. The source tenant rechecks authorization at each open/download. Both tenants record requester, decision, version, recipient, access and revocation. An expired in-app link stops working; the product cannot erase a file a recipient already downloaded, so release notices and retention rules must account for that. Unanswered requests age in My Work with one reminder stream; an escalation path is configured, not a silent parent override.
+
+**Group case:** a parent record links issues across descendants without copying their source records. A subsidiary participant sees only its own part and an approved parent position. It never gains a sibling's identity or released files merely by joining. Group DPO participation and any legal reviewer are explicit. A cross-entity case can ask a subsidiary to release a redacted item through the same request path.
+
+**Document publication:** a parent policy may flow down after its authoring module approves the version and a group publisher approves audience/classification. A child may publish a routine document upward after its own reviewer approves exact metadata and version. Neither direction moves drafts automatically. Revocation, expiry, version replacement and group-edge removal invalidate the catalogue, preview, download, search and held share links.
+
+## 8. Search, proof and cross-module reuse
+
+Search title, reference, owner, confirmed entity, linked record, framework/control and authorized indexed text. Prefer exact references and metadata before text. Show why a hit matched and which version/page supports it. The optional text index must say **unavailable** when disabled or failed, not claim the contents had no matches. Search counts, duplicate warnings, snippets, previews, recommendations and AI context share one authorization rule. A wrong-tenant or wrong-unit direct ID returns a masked 404.
+
+Find evidence may create editable filters and suggest candidates. AI may summarize an accessible, exact-version passage with citation and uncertainty, but cannot assign access, declare sufficiency, approve a policy, issue a release, or claim it verified inaccessible content. Check organization AI policy, data class, source permission and prompt-injection handling before provider use. Keep a non-AI path and an explicit **I cannot verify this from accessible records** response.
+
+An item inspector shows source, owning/applicable entity, current version and period, linked claims with independent verdicts, review due, integrity, activity and history. The proof ladder is **Unfiled → Linked awaiting review → Accepted for this claim and period → Returned/Expired/Superseded/Archived**. The same artifact can be accepted for one control and rejected for another. A hash or metadata score is never proof of compliance.
+
+| Consumer | Canonical Vault connection; decision stays with its module |
+| --- | --- |
+| ARIA / Governance | Published policy version and framework/control mapping cite exact Vault versions. ARIA approves the policy; operational control proof needs its own review. |
+| GRID | Audit test sees a candidate version and the auditor's test-specific verdict. ARIA acceptance does not approve a GRID test. |
+| BCM | Plan, exercise and incident attach canonical files; BCM owns plan and exercise decisions. |
+| Sentinel | DPIA, breach and DSR attachments inherit case/classification scope in search, preview, exports and AI. |
+| ERM, ORM, AI Governance | Treatment, event, evaluation and decision packs cite exact version and reviewer outcome. |
+| Reports / My Work | Work and exports deep-link to the authorized source; a metric opens the exact permitted set it counted. |
+
+## 9. Auditor register, packs, retention and licensing
+
+From a framework, audit or Vault view, select framework, authorized companies/units, period and as-of time. Export a **document control and evidence register** with every authorized detailed row, source tenant, artifact family and exact version, hash, title, owner, period, linked requirement, verdict, reviewer/date, expiry, exceptions and omission reason. A group export contains only approved projections/releases for each child; its manifest records any child **not reporting** or withheld item without exposing a secret title. The complete scoped workbook has no arbitrary 60-row or similar limit. A PDF may have a summary front section but must carry or link to the full detailed record set requested. CSV/JSON formula and injection defenses apply.
+
+An issued pack freezes scope, membership, source IDs, version hashes, verdicts, redactions, query/method version, as-of time, preparer, independent sign-off and share expiry. Reopening an issued pack reproduces its approved view subject to recipient entitlement and hold rules; it must not silently recompute from current rows. The group pack does not create a second canonical file. Saved reports may be shared only to named authorized recipients with a separate issue/sign-off capability and auditable revocation.
+
+Each tenant configures retention periods, holds, reviewers and permitted defaults with a recorded basis; a group release also respects the source tenant's classification and legal hold. Expiry is a review event, not automatic deletion of regulated bytes. Specify how original bytes, prior versions, extracted text, previews, indexes, snapshots, releases, exports and audit logs age together. Never shorten a source tenant hold through a parent setting. Email remains an optional notification channel; an undelivered message cannot complete a request.
+
+License packaging records participating parent/child organizations and the group entitlement without combining seats or bypassing module capabilities. The group feature is included for those licenses as a product choice. Do not infer a relationship from plan name, domain, branding or billing account.
+
+## 10. Security, privacy and reliability gates
+
+1. **Source authority first:** the source publisher/reviewer is checked against its own organization's business-unit and module/record capability before approving disclosure. The group viewer is checked against its group capability and the exact publication/release grant before ranking, counting, formatting or streaming. Recheck item eligibility in the source tenant on access. Use masked 404 for foreign IDs. A service publisher may output only an audited, typed allowlist; it cannot query arbitrary cross-tenant records at a user's request.
+2. **Projection hygiene:** raw free text, content, filenames, identifiers, tokens, emails and IPs never enter a figure snapshot. A structured field is allowlisted per register and reviewed using real value samples. Names of organizations/units and small counts can themselves reveal people or cases; classify them accordingly.
+3. **Inference tests:** test sibling existence, totals, search suggestions, zero/empty states, timing, band changes, known own score, export omissions, caching, link previews and AI citations with two- and three-tenant fixtures. Minimum cohort and suppression rules fail closed.
+4. **Revocation:** a changed relationship, role, license, item status, redaction or publication is effective on the next request. Invalidate previews, snippets, search indexes, cached rollups and AI retrieval. Immutable access history follows retention and holds.
+5. **Files and workers:** bound extraction size/time/memory, block active content and network fetches, quarantine suspicious input, constrain preview/index workers and credentials. No new package or external processing service is implied.
+6. **Human review:** a named privacy reviewer and relevant legal/contract owner approve each customer's cross-entity field and document sharing policy before real data flows, **including** metric snapshots and small-group scores. Do not assume intra-group sharing is automatically lawful. Approval is recorded with jurisdiction, purpose, fields, audience and review date.
+7. **Operational truth:** on publisher failure, stale schema, disabled index or source-module outage, show **unavailable/stale/not reporting**, never zero, sample data or an ungrounded AI answer. Writes are retry-safe and auditable. Existing users and records remain intact during rollout.
+
+## 11. Delivery and acceptance
+
+| Stage | Build and dependencies | Completion evidence |
+| --- | --- | --- |
+| 0. Reconcile and inventory | Confirm tenant relationships, unit-to-entity mapping, licenses, real versus disposable rows, null-unit counts and source classifications. Run the optional inventory read-only in a controlled environment; review its names before sharing output. Record privacy/legal owner and field contract. | Written decisions and inventory result. The code-only schema survey is complete; live inventory and sign-off are **not**. No data mutation. |
+| 1. Tenant company view | Add explicit filing scope, ownership metadata, company facet, authorized counts, saved-view filters, company/work switcher and inspector state. Keep existing `business_unit_id` semantics. | Two-unit authorization and 500/5,000-item navigation tests; no count/title leak; new ambiguous files enter review. |
+| 2. Group relationship and figures | Add relationship validation, scoped capabilities, source-tenant publisher, frozen snapshots, rollup and not-reporting states. Subsidiary band stays withheld until disclosure tests pass. | Two- and three-tenant PostgreSQL/RLS tests, cycle/reparent/revoke tests, hash/method reproducibility, small-cell tests and privacy sign-off for real data. |
+| 3. Published document catalogue | Add exact-version publication in both directions, company cards over permitted catalogue entries, source-checked inspector/preview/download, revocation and history. Combine with stages 1 and 2 for the **first parent-company document-navigation pilot**. | Parent finds a published child document under the correct company; child sees only its own and approved parent items; hidden sibling files have no existence signal. |
+| 4. Guided intake and work | Batch staging, extraction-backed suggestions, duplicate/revision choices, ownership review, requests and My Work. | 50 mixed files with isolated failures; no unauthorized unit/target accepted; retry, quarantine, keyboard and mobile tests. |
+| 5. Sensitive requests and cases | Decision, redaction, expiring release, group cases and reviewed issue register. | Approve/narrow/decline and expiry/revocation tests; audit in both tenants; no sibling leakage; privacy/legal sign-off before real release. |
+| 6. Registers and packs | Complete framework register, version-frozen packs, sign-off/share/retention and group projections for other modules after field review. | Scoped row count equals exported detail; issued pack reproducible; omissions explicit; negative authorization tests. |
+| 7. Controlled intelligence | Scoped retrieval, evidence suggestions and cited answers after quality/privacy review. | Wrong-tenant/unit adversarial cases, prompt-injection and provider-off tests; human verdicts unchanged. |
+
+Pilot with a synthetic parent and two subsidiaries on disposable data; then one separately approved customer group. Use focused route, browser, accessibility, security, disposable PostgreSQL and stage-wide checks. Test direct IDs and aggregate paths under wrong tenant, wrong unit and revoked grants. At 500 and 5,000 files measure actual p95 scoped search and known-item discovery; target under one second for metadata search and under 30 seconds for a known document, then report measured results. Run schema dry run, verified backup/restore, count/hash comparison, feature flag, rollback of reader code and a post-release specialist walkthrough. After accepting new records, an old database backup is not an automatic rollback. No release claim follows from this plan alone.
+
+## 12. Decisions requiring a customer or platform owner
+
+| Decision | Safe working rule until recorded |
+| --- | --- |
+| Which business units represent legal companies? | Do not infer a legal entity from unit or filename; require confirmation or an explicit tenant-scoped mapping. |
+| Which roles may file organization-wide, publish a version, decide a sensitive request, issue a pack and change retention? | Separate capabilities; no broadening from an existing module role or super-admin label. |
+| Which documents are routinely publishable, and which fields may cross to the parent? | Nothing crosses except a separately approved synthetic pilot. Classification and purpose are per customer and jurisdiction. |
+| Who reviews privacy, legal basis, contracts and group score inference? | Record named reviewers before enabling real cross-entity sharing. An existing DPO may be assigned; it is not hard-coded as universal legal counsel. |
+| What cadence, minimum cohort and banding should apply to group figures? | Daily as a configurable scheduling default; subsidiary group band withheld until suppression and inference review. |
+| How are unanswered or declined requests escalated? | Show age and outcome; do not auto-release or grant a parent override. |
+| What retention applies to issued packs, releases and prior versions? | Use configurable tenant policy and legal holds; no unreviewed auto-purge. |
+
+## 13. Prior design research and dependency choice
+
+The former plans recorded this open-source survey on 2026-10-28. These are **historical plan observations**, not fresh verification of current licenses, maintenance or code safety. No code, installer, container or telemetry from these projects was adopted or sent customer data. Recheck exact versions before any later dependency choice.
+
+| Project previously considered | Useful approach | Prior plan's licence/maintenance and fit finding | Decision |
+| --- | --- | --- | --- |
+| [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) | Correspondents, types, tags, saved views, bulk metadata and content search | GPL-3.0; active at the earlier review; a separate Django application | Reuse navigation ideas, not code or a second file service. |
+| [Mayan EDMS](https://github.com/mayan-edms/Mayan-EDMS) | Metadata, OCR, permissions and document workflows | Earlier review described an Apache-licensed mirror; a full EDMS adds high operational complexity | Reuse workflow ideas only; verify authoritative licence if reconsidered. |
+| [Docspell](https://github.com/eikek/docspell) | Suggested dates and tags from source content | AGPL-3.0 and Scala; different stack | Reuse the human-review suggestion pattern, not code. |
+| [CISO Assistant community](https://github.com/intuitem/ciso-assistant-community) | Multi-level domains and specialist GRC navigation | Earlier survey identified AGPL/community and commercial-area licensing; its domain tree does not establish safe federation of separate ThemisIQ tenants | Competitor and UX reference only. |
+| [OpenFGA](https://github.com/openfga/openfga), [SpiceDB](https://github.com/authzed/spicedb), [Ory Keto](https://github.com/ory/keto), [Casbin](https://github.com/apache/casbin), [Cerbos](https://github.com/cerbos/cerbos) | Explicit relationship or policy-based grants | Earlier survey found permissive licensing for these engines, but a separate authorization service adds a trust and operational boundary | Borrow explicit, revocable grant semantics; keep authorization in ThemisIQ for this scope. |
+| [ZITADEL](https://github.com/zitadel/zitadel) and [Keycloak](https://github.com/keycloak/keycloak) | Organization grants and membership | Prior notes identified AGPL for ZITADEL, Apache-2.0 for Keycloak; identity platforms do not solve document disclosure decisions | Borrow grantor-controlled revocation concepts only. |
+| [Eclipse EDC](https://github.com/eclipse-edc/Connector) | Request, decision and release of shared data | Apache-2.0 in the earlier survey; a full data-space connector is too large for this workflow | Borrow request and expiring-release concepts only. |
+
+The chosen design reuses ThemisIQ's Vault, RBAC, tenant checks and report kit. Before adopting any dependency, verify current licence obligations, maintenance, provenance, dependency lock, build/install scripts, obfuscation, network and environment reads, telemetry, package-name authenticity and privacy impact. Reject abandoned, hijacked, over-engineered or data-exporting packages.
+
+## 14. Reconciliation record
+
+- The former Plan 19 mixed “V0 plus V1” with “V0 removed.” This document keeps a short, read-only Stage 0 release preflight and makes the first useful customer journey Stages 1 to 3. Disposable test rows do not require a legacy migration; new ambiguous rows still need a review queue.
+- The former Plan 20 assumed figures have no personal data and that five score bands are safe. This document treats counts, unit names and changes over time as possible disclosure signals and gates real publication on privacy review and adversarial testing.
+- The former G0 note said the inventory output could never contain a person's name. The script prints configurable organization and unit names, so the output is treated as sensitive until reviewed.
+- Parent document navigation now has an explicit controlled publication path for routine versions and a separate request path for restricted material. No parent gets unrestricted child Vault access.
+- Customer names are examples only. Relationship IDs, roles, source-tenant decisions and licenses govern every group; there is no Econet-specific branch or fixed number of subsidiaries.
