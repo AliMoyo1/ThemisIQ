@@ -9,10 +9,11 @@ These are confirmed in chat by the owner, not signed off by a privacy or legal r
 1. Econet is the group company. EcoCash and OmniContact are subsidiaries, each a **separate tenant with its own license**.
 2. **Group visibility is mandatory.** A subsidiary does not opt in and cannot switch it off. It can see what the group sees (transparency).
 3. Sensitive documents and similar material move only through a **request pipeline**: the group requester asks, the subsidiary decides and fulfils.
-4. Some work is shared. A **group DPO and group legal** look at issues across the whole group.
+4. Some work is shared. The **group DPO, who also covers legal**, looks at issues across the whole group.
 5. Subsidiary senior roles may see the **overall group score** and **group-published documentation** (published versions only, never drafts). They never see another subsidiary.
 6. **Group pricing is included by default** in the licenses; it is not a separate add-on.
 7. The group score display for subsidiaries, and the choice of senior roles, were delegated to the planner (sections 4 and 5).
+8. **Legal falls under the Data Protection Officer.** There is no separate legal role: the group DPO covers group legal matters, and the capabilities for group cases and requests sit with the DPO role.
 
 ## 2. The three views
 
@@ -53,16 +54,15 @@ Existing roles are in `core/rbac.py`. None of them gains group access by name; a
 | --- | --- | --- |
 | Chief GRC Officer (`grc_officer`) | Full group view, exact scores and per-subsidiary breakdown, levels 1 and 2, create and track requests, run group cases | See the group band and group-published documents, decide requests aimed at the subsidiary |
 | Compliance Manager (`compliance_manager`) | Level 1 exact, level 2 for policy, control and audit registers, create requests | Group band and group documents, decide requests |
-| Data Protection Officer (`dpo`) | Level 1 privacy figures, level 2 privacy issue register (counts and deadlines, no subjects), create requests, group privacy cases | Group band and group documents, decide privacy requests |
+| Data Protection Officer (`dpo`), including group legal matters | Level 1 privacy figures, level 2 issue register for the whole group (counts and deadlines, no subjects), create requests, run and join group cases | Group band and group documents, decide privacy and legal requests |
 | Audit Lead (`audit_lead`) | Level 1, level 2 audit register, create audit evidence requests | Group band and group documents, decide audit evidence requests |
-| **Group counsel (new role, proposed)** | Level 2 issue register read only, group cases, create requests | Not applicable. The role exists in the group tenant only. |
 | Super Administrator | Configures relationships and licenses. **No** group content access through this path unless also granted a group role. | Same |
 | Risk Owner, BCM Manager | Not in the first release. Level 1 for their module can follow. | None |
 | Org Administrator, Policy Author and Approver, Control Owner, Auditor, Privacy Analyst, BCM Responder, Incident Commander, Employee, External Auditor | No group access | No group access |
 
-There is no legal role in the platform today. A group counsel role is proposed; the alternative is to grant the capabilities to Compliance Manager, which gives legal more than it needs. Decision 1 in section 11.
+There is no legal role in the platform today and none is added: by the owner's decision legal falls under the DPO, so the group DPO holds the group case and issue register capabilities. If the group later wants a separate legal reviewer, that is a new role and a new decision.
 
-New capabilities (names provisional): `group.score.view_exact`, `group.score.view_band`, `group.register.view`, `group.request.create`, `group.request.decide`, `group.case.participate`, `group.documents.view_published`, `group.relationship.manage` (platform operator only). Each is added to the capability inventory and tested per role.
+New capabilities (names provisional): `group.score.view_exact`, `group.score.view_band`, `group.register.view`, `group.request.create`, `group.request.decide`, `group.case.participate` (DPO), `group.documents.view_published`, `group.relationship.manage` (platform operator only). Each is added to the capability inventory and tested per role.
 
 A group role can be limited to one subsidiary: a person may hold the grant for EcoCash only. Grants are assigned by the group's Chief GRC Officer and listed to the subsidiary.
 
@@ -80,7 +80,7 @@ The request pipeline reuses the Vault's evidence-request and review concepts whe
 
 A **group case** is a record in the group tenant that tracks an issue across subsidiaries: for example a breach affecting two entities, a regulator inquiry, or a policy exception. Participants are named people from the group and, when invited, a named person from a subsidiary.
 
-- The group DPO and group counsel see level 2 issue information for the whole group (severity, status, authority notification state, deadlines), with no data subject details.
+- The group DPO (covering legal) sees level 2 issue information for the whole group (severity, status, authority notification state, deadlines), with no data subject details.
 - Details come through requests (section 6), attached to the case.
 - A subsidiary participant sees only their own subsidiary's part of the case and the group's published position. They are not shown other subsidiaries' material.
 - A case never copies a subsidiary's record into the group tenant; it holds references and released, expiring items.
@@ -121,7 +121,7 @@ Plan 19 (company navigation) continues for Econet's **own** business units. Its 
 
 ## 12. Open decisions
 
-1. Add a **group counsel** role, or grant the group capabilities to Compliance Manager. Recommendation: add the role.
+1. ~~Group counsel role~~ Settled: legal falls under the DPO (decision 8).
 2. Snapshot cadence (daily is the proposed default) and who may trigger an early refresh.
 3. The named privacy reviewer and the legal reviewer at Econet for section 8.
 4. Whether a group case may ever ask a subsidiary participant to see another subsidiary's released item. Recommendation: no.
@@ -129,8 +129,22 @@ Plan 19 (company navigation) continues for Econet's **own** business units. Its 
 
 ## 13. Research before build
 
-Before G1 begins, compare existing approaches to parent and child tenant oversight and consent or request based data sharing in open source multi-tenant and governance products (licence, maintenance, fit, privacy and supply-chain risk), record the findings here, and adapt rather than invent. This plan has not yet done that survey. Not started.
+Survey done 2026-10-28, before G1, as the owner's instructions require. Method: web search and reading each project's public page or documentation; licence, last push and archive status from the GitHub API. **Nothing was installed, executed or copied, and no data was sent to any of these projects.** The conclusion is to build the small mechanism in-house and borrow patterns only.
+
+| Project | What it offers for this problem | Licence, maintenance | Decision |
+| --- | --- | --- | --- |
+| [CISO Assistant community](https://github.com/intuitem/ciso-assistant-community) (GRC platform) | The closest product. It has "multi-level domains" and role based access inside one instance. Advanced multi-tenancy for large organizations and MSPs is described as a separate effort (CA Hub) and its page does not say what is in the free edition. | Repository pushed 2026-10-28, not archived. Files outside `enterprise/` are AGPL-3.0; the `enterprise/` directory is under a commercial licence, and GitHub reports the repository licence as unrecognised. | No code reuse: the AGPL and commercial split is a licensing risk for embedding, and a single-instance domain tree is not our separate-tenant case. Treat as competitor reference only. |
+| [OpenFGA](https://github.com/openfga/openfga) and [its multi-tenant guide](https://openfga.dev/docs/use-cases/multi-tenant-saas) | Relationship tuples. Tenant isolation is the default; a resource can be granted to a user of another organization through the same model, and a `parent` relation lets permissions follow an edge. | Apache-2.0, pushed 2026-10-28. | Borrow the idea: an explicit, revocable relationship record per grant, default deny. Do not adopt the server: a separate authorization service adds a second trust boundary for a few relationship rows. |
+| [SpiceDB](https://github.com/authzed/spicedb), [Ory Keto](https://github.com/ory/keto), [Casbin](https://github.com/apache/casbin), [Cerbos](https://github.com/cerbos/cerbos) | Authorization engines of the same family (Zanzibar style or policy engines). | All Apache-2.0; SpiceDB, Casbin and Cerbos active in October 2026, Keto last pushed 2026-09-04. Only repository metadata was checked. | Not adopted, for the same reason as OpenFGA. |
+| [ZITADEL](https://github.com/zitadel/zitadel) and [its organizations article](https://zitadel.com/blog/multi-tenancy-with-organizations) | **Granted projects:** one organization grants a project and a subset of roles to another; the grantor controls it and removing the grant removes every authorization that came from it. Organizations are flat, not a tree. | AGPL-3.0, pushed 2026-10-28. | Borrow the semantics (grantor controlled, revocation cascades, narrowed role subset). No code: AGPL, and it is an identity provider. |
+| [Keycloak](https://github.com/keycloak/keycloak) organizations | A second tier of organizations inside a realm; a user can belong to several. No native parent and child tree found. | Apache-2.0, very active. | Not a fit: it is login and membership, not data oversight. |
+| PostgreSQL row level security patterns (vendor and community articles) | A dedicated reporting role with its own permissive policy can read across tenants; analytics across tenants is costly, which supports precomputed rollups. | PostgreSQL feature, no dependency. | We deliberately avoid a cross-tenant reporting role: snapshots published per tenant keep the boundary intact. Nothing found covers leak resistant snapshots (banding, minimum reporting entities), so that part is our own design and gets adversarial tests. |
+| [Eclipse EDC](https://github.com/eclipse-edc/Connector) (data space connector) | Contract negotiation between organizations before data moves, the closest published pattern to the request and release pipeline. | Apache-2.0, pushed 2026-10-28. Only repository metadata was checked; not read in depth. | Borrow the idea of an explicit request, a recorded decision and an expiring release. Far too heavy to run. |
+| Eramba | Searched for the public repository; the name did not resolve on GitHub. Not assessed. | Unknown. | Not assessed. |
+
+**Result:** no open source GRC product or access control component provides a ready parent and child oversight with mandatory visibility, snapshot rollup and a request and release pipeline. The mechanism in sections 3 and 6 is small (a relationship table, capabilities, a snapshot table, a request and release record) and is built in the existing codebase. Patterns taken: explicit revocable grants (OpenFGA, ZITADEL), grantor-controlled cascade on revocation (ZITADEL), request then decision then expiring release (EDC). Risks noted for any later adoption: the AGPL and commercial split of CISO Assistant, the AGPL of ZITADEL, and the added trust boundary of any external authorization service. This survey is an input to the plan, not a legal opinion on licences.
 
 ## 14. Log
 
 - 2026-10-28: plan written from the owner's decisions in chat. Group score band and the senior role selection chosen by the planner and recorded for the owner to confirm.
+- 2026-10-28: owner decided legal falls under the DPO; the proposed group counsel role is dropped. Open source survey done (section 13); conclusion: build in-house, borrow patterns.
