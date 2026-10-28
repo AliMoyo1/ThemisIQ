@@ -807,6 +807,32 @@ async def api_group_catalogue(request: Request):
         db.close()
 
 
+@router.get("/api/group/companies")
+@require_auth
+async def api_group_source_companies(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse({"companies": group_documents.source_companies(db, request.state.user)})
+    finally:
+        db.close()
+
+
+@router.get("/api/group/companies/{source_org_id}/publications")
+@require_auth
+async def api_group_company_publications(request: Request, source_org_id: int):
+    raw = request.query_params.get("before", "")
+    try:
+        before = int(raw) if raw else None
+    except ValueError:
+        raise HTTPException(422, "Invalid catalogue cursor") from None
+    db = get_db()
+    try:
+        return JSONResponse(group_documents.catalogue_cursor(
+            db, request.state.user, source_org_id=source_org_id, before_id=before))
+    finally:
+        db.close()
+
+
 @router.delete("/api/group/publications/{publication_id}")
 @require_auth
 async def api_group_publication_revoke(request: Request, publication_id: int):
@@ -1315,7 +1341,7 @@ async def api_evidence_upload(
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
             "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date, org_id, "
             "owner_user_id, review_due_date, period_start, period_end, business_unit_id, company_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 display_title, description, str(stored_name), original_name,
                 len(content), file_hash, declared_mime,

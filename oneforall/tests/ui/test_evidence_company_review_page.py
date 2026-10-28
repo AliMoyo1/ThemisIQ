@@ -15,6 +15,7 @@ def test_company_label_page_and_vault_facet(login_as, live_app):
     expect(page.get_by_role("heading", name="By reviewed company")).to_be_visible()
     expect(page.get_by_role("link", name="Review company labels")).to_be_visible()
     expect(page.locator("#evEntityViews")).to_contain_text("All accessible documents")
+    expect(page.locator("#evGroupSection")).to_be_hidden()
 
 
 def test_employee_cannot_open_company_review_page(login_as, live_app):

@@ -1,5 +1,5 @@
 {
-  "route_count": 1221,
+  "route_count": 1223,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13519,6 +13519,34 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_adoption_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/companies",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_source_companies",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/companies/{source_org_id}/publications",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_company_publications",
       "maturity": "",
       "notes": ""
     },

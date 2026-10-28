@@ -2217,6 +2217,8 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
                 "Parent requirement 1", "Need current proof", future(10))
             db.commit()
             assert [r["title"] for r in group.catalogue(db, users["viewer"])] == ["Child reviewed report"]
+            assert group.source_companies(db, users["viewer"]) == [{"id": child, "name": child_slug}]
+            assert [r["id"] for r in group.catalogue_cursor(db, users["viewer"], source_org_id=child)["items"]] == [publication]
             assert group.released_item(db, users["viewer"], publication)[1]["id"] == item
             assert [r["id"] for r in requests.list_requests(db, users["viewer"])["items"]] == [request_id]
         finally:
@@ -2236,6 +2238,7 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
         db = pg.get_db()
         try:
             assert group.catalogue(db, users["viewer"]) == []
+            assert group.catalogue_cursor(db, users["viewer"], source_org_id=child)["items"] == []
             with pytest.raises(Exception) as blocked:
                 group.released_item(db, users["viewer"], publication)
             assert getattr(blocked.value, "status_code", None) == 404

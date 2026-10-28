@@ -379,22 +379,31 @@ def _source_current(row, *, download: bool = False):
 
 
 def _granted_rows(db, actor: dict, *, publication_id: int | None = None,
-                  page: int = 1, page_size: int = 50, category: str | None = None):
+                  page: int = 1, page_size: int = 50, category: str | None = None,
+                  source_org_id: int | None = None, before_id: int | None = None):
     if not actor.get("org_id") or not has_capability(actor, "group.document.view"):
         return []
     if not 1 <= page <= 100000 or not 1 <= page_size <= 100:
         raise HTTPException(422, "Invalid catalogue page")
     exact = "AND p.id=%s " if publication_id is not None else ""
-    paging = "" if publication_id is not None else "LIMIT %s OFFSET %s"
+    paging = "" if publication_id is not None else (
+        "LIMIT %s" if before_id is not None else "LIMIT %s OFFSET %s")
     now = _now()
     parameters = [actor["id"], now, now, actor["org_id"], now, now]
     category_sql = "AND p.category=%s " if category else ""
     if category:
         parameters.append(category)
+    source_sql = "AND p.source_org_id=%s " if source_org_id is not None else ""
+    if source_org_id is not None:
+        parameters.append(source_org_id)
+    cursor_sql = "AND p.id<%s " if before_id is not None else ""
+    if before_id is not None:
+        parameters.append(before_id)
     if publication_id is not None:
         parameters.append(publication_id)
     else:
-        parameters.extend((page_size, (page - 1) * page_size))
+        parameters.extend((page_size,) if before_id is not None else
+                          (page_size, (page - 1) * page_size))
     rows = db.execute(
         f"SELECT p.*, o.slug AS source_slug, o.name AS source_name, "
         "r.terms_json AS sharing_terms, r.purpose AS sharing_purpose "
@@ -411,8 +420,8 @@ def _granted_rows(db, actor: dict, *, publication_id: int | None = None,
         "AND r.status='active' AND r.child_ack_by IS NOT NULL AND r.privacy_review_by IS NOT NULL "
         "AND r.legal_review_by IS NOT NULL AND r.review_due_at>%s "
         "AND r.parent_org_id IN (p.source_org_id,p.viewer_org_id) "
-        "AND r.child_org_id IN (p.source_org_id,p.viewer_org_id) " + category_sql + exact +
-        "ORDER BY p.created_at DESC,p.id DESC " + paging,
+        "AND r.child_org_id IN (p.source_org_id,p.viewer_org_id) " + category_sql + source_sql + cursor_sql + exact +
+        ("ORDER BY p.id DESC " if before_id is not None else "ORDER BY p.created_at DESC,p.id DESC ") + paging,
         parameters,
     ).fetchall()
     return [dict(r) for r in rows]
@@ -422,27 +431,85 @@ def catalogue(db, actor: dict, *, page: int = 1, page_size: int = 50,
               category: str | None = None) -> list[dict]:
     out = []
     for row in _granted_rows(db, actor, page=page, page_size=page_size, category=category):
-        terms = json.loads(row["sharing_terms"])
-        if ("document_metadata" in terms.get("data_classes", [])
-                and set(actor.get("roles") or []) & set(terms.get("audiences", []))
-                and row["classification"] in terms.get("classifications", [])
-                and row["purpose"] == row["sharing_purpose"] and _source_current(row)):
-            can_download = False
-            if ("document_bytes" in terms.get("data_classes", [])
-                    and has_capability(actor, "group.document.download")):
-                grant = db.execute(f"SELECT id FROM {_table('group_view_grants')} "
-                                   "WHERE relationship_id=%s AND source_org_id=%s AND viewer_org_id=%s "
-                                   "AND user_id=%s AND capability='document.download' AND revoked_at IS NULL "
-                                   "AND expires_at>%s AND review_due_at>%s LIMIT 1",
-                                   (row["relationship_id"], row["source_org_id"], row["viewer_org_id"],
-                                    actor["id"], _now(), _now())).fetchone()
-                can_download = bool(grant and _source_current(row, download=True))
-            out.append({"id": row["id"], "source_org_id": row["source_org_id"],
-                        "source_name": row["source_name"], "title": row["title"],
-                        "category": row["category"], "version": row["version"],
-                        "classification": row["classification"], "expires_at": row["expires_at"],
-                        "can_download": can_download})
+        entry = _catalogue_entry(db, actor, row)
+        if entry:
+            out.append(entry)
     return out
+
+
+def _catalogue_entry(db, actor: dict, row: dict) -> dict | None:
+    terms = json.loads(row["sharing_terms"])
+    if ("document_metadata" in terms.get("data_classes", [])
+            and set(actor.get("roles") or []) & set(terms.get("audiences", []))
+            and row["classification"] in terms.get("classifications", [])
+            and row["purpose"] == row["sharing_purpose"] and _source_current(row)):
+        can_download = False
+        if ("document_bytes" in terms.get("data_classes", [])
+                and has_capability(actor, "group.document.download")):
+            grant = db.execute(f"SELECT id FROM {_table('group_view_grants')} "
+                               "WHERE relationship_id=%s AND source_org_id=%s AND viewer_org_id=%s "
+                               "AND user_id=%s AND capability='document.download' AND revoked_at IS NULL "
+                               "AND expires_at>%s AND review_due_at>%s LIMIT 1",
+                               (row["relationship_id"], row["source_org_id"], row["viewer_org_id"],
+                                actor["id"], _now(), _now())).fetchone()
+            can_download = bool(grant and _source_current(row, download=True))
+        return {"id": row["id"], "source_org_id": row["source_org_id"],
+                "source_name": row["source_name"], "title": row["title"],
+                "category": row["category"], "version": row["version"],
+                "classification": row["classification"], "expires_at": row["expires_at"],
+                "can_download": can_download}
+    return None
+
+
+def source_companies(db, actor: dict) -> list[dict]:
+    """A name is shown only for an active relationship and named view grant."""
+    if not actor.get("org_id") or not has_capability(actor, "group.document.view"):
+        return []
+    rows = db.execute(
+        f"SELECT DISTINCT o.id,o.name FROM {_table('group_view_grants')} g "
+        f"JOIN {_table('org_relationships')} r ON r.id=g.relationship_id "
+        "JOIN organizations o ON o.id=g.source_org_id AND o.status='active' "
+        "WHERE g.viewer_org_id=%s AND g.user_id=%s AND g.capability='document.view' "
+        "AND g.revoked_at IS NULL AND g.expires_at>%s AND g.review_due_at>%s "
+        "AND r.status='active' AND r.child_ack_by IS NOT NULL "
+        "AND r.privacy_review_by IS NOT NULL AND r.legal_review_by IS NOT NULL "
+        "AND r.review_due_at>%s AND r.parent_org_id IN (g.source_org_id,g.viewer_org_id) "
+        "AND r.child_org_id IN (g.source_org_id,g.viewer_org_id) ORDER BY o.name,o.id",
+        (actor["org_id"], actor["id"], _now(), _now(), _now()),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def catalogue_cursor(db, actor: dict, *, source_org_id: int, before_id: int | None = None,
+                     page_size: int = 50) -> dict:
+    """Fill a page from source-rechecked releases. Invalidated rows do not make empty pages."""
+    if not isinstance(source_org_id, int) or source_org_id < 1:
+        raise HTTPException(422, "Choose a source company")
+    if before_id is not None and (not isinstance(before_id, int) or before_id < 1):
+        raise HTTPException(422, "Invalid catalogue cursor")
+    if not 1 <= page_size <= 100:
+        raise HTTPException(422, "Invalid catalogue page size")
+    if not any(row["id"] == source_org_id for row in source_companies(db, actor)):
+        # An unknown source and a source without a current named grant look alike.
+        raise HTTPException(404, "Company not found")
+    found = []
+    cursor = before_id
+    while len(found) <= page_size:
+        rows = _granted_rows(db, actor, page_size=100, source_org_id=source_org_id,
+                             before_id=cursor if cursor is not None else 2**63 - 1)
+        if not rows:
+            break
+        for row in rows:
+            cursor = row["id"]
+            entry = _catalogue_entry(db, actor, row)
+            if entry:
+                found.append(entry)
+            if len(found) > page_size:
+                break
+        if len(rows) < 100:
+            break
+    items = found[:page_size]
+    return {"items": items, "next_cursor": items[-1]["id"] if len(found) > page_size else None}
 
 
 def released_item(db, actor: dict, publication_id: int, *, download: bool = False):

@@ -236,7 +236,9 @@
 
   <section id="evGroupSection" aria-labelledby="evGroupHeading" hidden>
     <div class="ev-folders-heading"><h2 id="evGroupHeading">Shared by related companies</h2><button id="evGroupRefresh" type="button" class="btn btn-secondary">Refresh</button></div>
-    <div id="evGroupViews" class="ev-company-grid" role="group" aria-label="Approved group documents"></div>
+    <p>Each company shows only releases covered by your named grant. Open a company to browse its approved versions.</p>
+    <div id="evGroupViews" class="ev-company-grid" role="group" aria-label="Companies with named group access"></div>
+    <div id="evGroupBrowse" hidden><h3 id="evGroupBrowseName"></h3><div id="evGroupItems" class="ev-company-grid" role="group" aria-label="Approved group documents"></div></div>
     <div id="evGroupDetail" class="ev-record-folders" hidden aria-live="polite"></div>
     <div id="evGroupPager" style="display:flex;gap:10px;align-items:center;margin:12px 0"></div>
   </section>
@@ -543,7 +545,7 @@
 <script>
 var currentView='all', currentModule='', currentCategory='', currentStatus='', searchTimeout=null, entitySearchTimeout=null;
 var evFolder='',evFolderGroup='',evFolderPage=1,evFolderSearchTimer=null;
-var evCompanyScope='',evCompanyViews=null,evGroupPage=1;
+var evCompanyScope='',evCompanyViews=null,evGroupSource=null,evGroupCursor=null,evGroupBack=[];
 var evEntityScope='',evEntityViews=null;
 var evPage=1, evPages=1;
 var evSavedViews=[], evUserId={{ user.id }};
@@ -2014,23 +2016,53 @@ async function evOpenGroupPublication(item){
 async function evLoadGroupPublications(){
   var section=document.getElementById('evGroupSection'),host=document.getElementById('evGroupViews');
   try{
-    var response=await fetch('/evidence/api/group/publications?page='+evGroupPage);
+    var response=await fetch('/evidence/api/group/companies');
     if(!response.ok)throw new Error();
-    var data=await response.json(),items=data.items||[];
-    if(!items.length&&evGroupPage>1){evGroupPage--;return evLoadGroupPublications();}
-    section.hidden=!items.length;host.replaceChildren();
-    items.forEach(function(item){
+    var data=await response.json(),companies=data.companies||[];
+    section.hidden=!companies.length;host.replaceChildren();
+    if(evGroupSource&&!companies.some(function(c){return c.id===evGroupSource.id;})){
+      evGroupSource=null;document.getElementById('evGroupBrowse').hidden=true;
+      document.getElementById('evGroupDetail').hidden=true;
+    }
+    companies.forEach(function(item){
+      var button=document.createElement('button');button.type='button';button.className='ev-company-card';
+      button.setAttribute('aria-pressed',evGroupSource&&evGroupSource.id===item.id?'true':'false');
+      var title=document.createElement('strong');title.textContent=item.name;
+      var label=document.createElement('small');label.textContent='Browse approved releases';
+      button.append(title,label);button.addEventListener('click',function(){
+        evGroupSource=item;evGroupCursor=null;evGroupBack=[];
+        document.getElementById('evGroupBrowse').hidden=false;
+        document.getElementById('evGroupBrowseName').textContent=item.name+' · approved releases';
+        document.getElementById('evGroupDetail').hidden=true;
+        evLoadGroupPublications();
+      });host.appendChild(button);
+    });
+    if(evGroupSource)evLoadGroupCompanyItems();
+  }catch(_){section.hidden=true;host.replaceChildren();}
+}
+async function evLoadGroupCompanyItems(){
+  if(!evGroupSource)return;
+  var sourceId=evGroupSource.id,cursor=evGroupCursor;
+  var host=document.getElementById('evGroupItems'),pager=document.getElementById('evGroupPager');
+  host.textContent='Loading approved releases…';pager.replaceChildren();
+  try{
+    var url='/evidence/api/group/companies/'+encodeURIComponent(sourceId)+'/publications';
+    if(cursor)url+='?before='+encodeURIComponent(cursor);
+    var response=await fetch(url);if(!response.ok)throw new Error();
+    var data=await response.json();if(!evGroupSource||evGroupSource.id!==sourceId||evGroupCursor!==cursor)return;
+    host.replaceChildren();
+    if(!data.items.length)host.textContent='No current approved releases for this company.';
+    (data.items||[]).forEach(function(item){
       var button=document.createElement('button');button.type='button';button.className='ev-company-card';
       var title=document.createElement('strong');title.textContent=item.title;
-      var label=document.createElement('small');label.textContent=item.source_name+' · version '+item.version+' · '+item.category;
+      var label=document.createElement('small');label.textContent='Version '+item.version+' · '+item.category;
       button.append(title,label);button.addEventListener('click',function(){evOpenGroupPublication(item);});host.appendChild(button);
     });
-    var pager=document.getElementById('evGroupPager');pager.replaceChildren();
-    if(evGroupPage>1){var prev=document.createElement('button');prev.type='button';prev.className='btn btn-secondary';
-      prev.textContent='Previous';prev.addEventListener('click',function(){evGroupPage--;evLoadGroupPublications();});pager.appendChild(prev);}
-    if(items.length===50){var next=document.createElement('button');next.type='button';next.className='btn btn-secondary';
-      next.textContent='Next';next.addEventListener('click',function(){evGroupPage++;evLoadGroupPublications();});pager.appendChild(next);}
-  }catch(_){section.hidden=true;host.replaceChildren();}
+    if(evGroupBack.length){var prev=document.createElement('button');prev.type='button';prev.className='btn btn-secondary';
+      prev.textContent='Previous';prev.addEventListener('click',function(){evGroupCursor=evGroupBack.pop();evLoadGroupCompanyItems();});pager.appendChild(prev);}
+    if(data.next_cursor){var next=document.createElement('button');next.type='button';next.className='btn btn-secondary';
+      next.textContent='Next';next.addEventListener('click',function(){evGroupBack.push(evGroupCursor);evGroupCursor=data.next_cursor;evLoadGroupCompanyItems();});pager.appendChild(next);}
+  }catch(_){host.textContent='Approved releases are unavailable. Try again.';}
 }
 document.getElementById('evGroupRefresh').addEventListener('click',evLoadGroupPublications);
 function evChooseFolder(key,openRecords){

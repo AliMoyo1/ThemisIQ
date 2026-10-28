@@ -84,6 +84,8 @@ def test_version_bound_publication_requires_all_gates_and_revokes_immediately(gr
                      "document.view", _future(), _future(7))
     db.commit()
     assert group.catalogue(db, users["viewer"]) == []
+
+
     rights = group.reviewed_rights(db, users["privacy"], evidence, "owned", True, True,
                                     "Original policy, approved for group circulation")
     db.commit()
@@ -114,6 +116,41 @@ def test_version_bound_publication_requires_all_gates_and_revokes_immediately(gr
     db.execute("UPDATE group_document_rights SET rights_state='unknown',permit_group_view=0 WHERE id=%s", (rights,))
     db.commit()
     assert group.catalogue(db, users["viewer"]) == []
+
+
+def test_company_browse_cursor_skips_invalidated_releases_without_leaking_sources(group_world):
+    db, parent, child, sibling, users, evidence = group_world
+    relation = _activate(db, parent, child, users)
+    group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                     "document.view", _future(), _future(7))
+    db.commit()
+    publications = []
+    evidence_ids = [evidence]
+    for index in (2, 3):
+        evidence_ids.append(_id(db, "evidence_items", title=f"Report {index}", category="report",
+                                org_id=child, status="current", version=1, file_hash=f"hash-{index}"))
+    for item in evidence_ids:
+        group.reviewed_rights(db, users["privacy"], item, "owned", True, False,
+                              "Approved for named group access")
+        db.commit()
+        publications.append(group.publish(db, users["publisher"], relation, item,
+                                          "internal", "Group governance", _future()))
+        db.commit()
+    db.execute("UPDATE evidence_items SET status='superseded' WHERE id=%s", (evidence_ids[1],))
+    db.commit()
+    assert group.source_companies(db, users["viewer"]) == [{"id": child, "name": "Child Co"}]
+    assert group.source_companies(db, users["ungranted"]) == []
+    first = group.catalogue_cursor(db, users["viewer"], source_org_id=child, page_size=1)
+    assert [item["id"] for item in first["items"]] == [publications[2]]
+    assert first["next_cursor"] == publications[2]
+    second = group.catalogue_cursor(db, users["viewer"], source_org_id=child,
+                                    before_id=first["next_cursor"], page_size=1)
+    assert [item["id"] for item in second["items"]] == [publications[0]]
+    assert second["next_cursor"] is None
+    for actor, source in ((users["ungranted"], child), (users["viewer"], sibling)):
+        with pytest.raises(HTTPException) as hidden:
+            group.catalogue_cursor(db, actor, source_org_id=source)
+        assert hidden.value.status_code == 404
 
 
 def test_relationship_is_not_derived_from_name_or_role(group_world):
