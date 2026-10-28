@@ -122,6 +122,19 @@ _STMTS = [
     "ALTER TABLE public.group_request_mappings FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_request_mappings_source ON public.group_request_mappings",
     f"CREATE POLICY group_request_mappings_source ON public.group_request_mappings USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
+    "ALTER TABLE public.group_policy_adoptions ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_policy_adoptions FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_policy_adoptions_child ON public.group_policy_adoptions",
+    "DROP POLICY IF EXISTS group_policy_adoptions_view ON public.group_policy_adoptions",
+    "CREATE POLICY group_policy_adoptions_view ON public.group_policy_adoptions FOR SELECT "
+    "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_policy_adoptions_propose ON public.group_policy_adoptions",
+    "CREATE POLICY group_policy_adoptions_propose ON public.group_policy_adoptions FOR INSERT "
+    "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_policy_adoptions_review ON public.group_policy_adoptions",
+    "CREATE POLICY group_policy_adoptions_review ON public.group_policy_adoptions FOR UPDATE "
+    "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
+    "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
     # users
     "ALTER TABLE public.users ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.users FORCE ROW LEVEL SECURITY",

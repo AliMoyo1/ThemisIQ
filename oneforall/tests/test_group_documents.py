@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 from modules.evidence import group_documents as group
 from modules.evidence import group_requests as requests
+from modules.evidence import group_adoption as adoption
 
 
 def _id(db, table, **fields):
@@ -31,7 +32,7 @@ def _future(days=30):
 
 def _terms(*classes):
     return {"data_classes": ["document_metadata", *classes], "classifications": ["internal"],
-            "audiences": ["grc_officer"],
+            "audiences": ["grc_officer", "compliance_manager"],
             "fields": ["title", "category", "version", "source_name", "classification", "expires_at"],
             "jurisdictions": ["Zimbabwe"], "legal_basis": "Synthetic pilot agreement",
             "agreement_ref": "TEST-ONLY-001"}
@@ -329,3 +330,61 @@ def test_unapproved_policy_cannot_be_published(group_world):
         group.publish(db, users["publisher"], relation, policy,
                       "internal", "Group governance", _future())
     assert blocked.value.status_code == 409
+
+
+def test_child_policy_adoption_is_independent_and_exact_version_bound(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    parent_privacy = _actor(db, parent, "policy_privacy", "dpo")
+    parent_publisher = _actor(db, parent, "policy_publisher", "grc_officer")
+    parent_document = _id(db, "aria_documents", doc_id="PARENT-POLICY-1",
+                          framework="ISO 27001", title="Group access policy", org_id=parent)
+    for reviewer in (users["publisher"], users["legal"]):
+        group.grant_view(db, users["ack"], relation, reviewer["id"],
+                         "document.view", _future(25), _future(7))
+    db.commit()
+
+    def release(version, hash_value):
+        version_id = _id(db, "aria_policy_versions", org_id=parent,
+                         document_id=parent_document, version_major=version,
+                         version_minor=0, version=f"{version}.0", state="approved", origin="authored")
+        evidence_id = _id(db, "evidence_items", title="Group access policy",
+                          org_id=parent, category="policy", status="current", version=version,
+                          file_hash=hash_value, aria_policy_version_id=version_id)
+        group.reviewed_rights(db, parent_privacy, evidence_id, "owned", True, False,
+                              "Owned group policy")
+        pub = group.publish(db, parent_publisher, relation, evidence_id,
+                            "internal", "Group governance", _future(20))
+        db.commit()
+        return pub
+
+    first = release(1, "group-policy-v1")
+    assert [p["id"] for p in adoption.list_policies(db, users["publisher"])["items"]] == [first]
+    parent_version = db.execute("SELECT aria_policy_version_id FROM evidence_items WHERE file_hash=%s",
+                                ("group-policy-v1",)).fetchone()[0]
+    with pytest.raises(HTTPException) as foreign_local_version:
+        adoption.propose(db, users["publisher"], first, "adapted", "Local changes reviewed",
+                         "2099-01-01", "2026-10-28", parent_version)
+    assert foreign_local_version.value.status_code == 404
+    with pytest.raises(HTTPException) as hidden:
+        adoption.propose(db, users["sibling"], first, "adopted", "Accepted locally",
+                         "2099-01-01", "2026-10-28")
+    assert hidden.value.status_code in (403, 404)
+    proposal = adoption.propose(db, users["publisher"], first, "adopted",
+                                "Local owner checked group terms", "2099-01-01", "2026-10-28")
+    db.commit()
+    assert adoption.list_policies(db, users["publisher"])["items"][0]["adoption"]["state"] == "pending_review"
+    with pytest.raises(HTTPException) as same_person:
+        adoption.review(db, {**users["publisher"], "roles": ["grc_officer", "compliance_manager"]},
+                        proposal, "approve", "Reviewed")
+    assert same_person.value.status_code == 409
+    assert adoption.review(db, users["legal"], proposal, "approve", "Independently checked") == "adopted"
+    db.commit()
+    assert adoption.list_policies(db, users["legal"])["items"][0]["adoption"]["state"] == "adopted"
+    second = release(2, "group-policy-v2")
+    current = adoption.list_policies(db, users["publisher"])["items"]
+    assert current[0]["id"] == second and current[0]["adoption"] is None
+    assert current[1]["id"] == first and current[1]["adoption"]["state"] == "adopted"
+    group.revoke_publication(db, parent_publisher, first)
+    db.commit()
+    assert [p["id"] for p in adoption.list_policies(db, users["publisher"])["items"]] == [second]

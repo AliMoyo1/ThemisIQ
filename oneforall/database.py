@@ -853,6 +853,32 @@ CREATE TABLE IF NOT EXISTS group_evidence_requests (
 CREATE INDEX IF NOT EXISTS idx_group_requests_source ON group_evidence_requests(source_org_id,status,id);
 CREATE INDEX IF NOT EXISTS idx_group_requests_requester ON group_evidence_requests(requester_org_id,requested_by,id);
 
+-- A subsidiary's independent decision about an exact published parent policy.
+-- A new publication/version needs a new local review; it cannot inherit this one.
+CREATE TABLE IF NOT EXISTS group_policy_adoptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    publication_id INTEGER NOT NULL REFERENCES group_document_publications(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    proposed_state TEXT NOT NULL CHECK(proposed_state IN
+        ('adopted','adapted','exception_requested','declined')),
+    state TEXT NOT NULL DEFAULT 'pending_review' CHECK(state IN
+        ('pending_review','adopted','adapted','exception_requested','declined','rejected')),
+    reason TEXT NOT NULL,
+    local_policy_version_id INTEGER,
+    effective_at TEXT,
+    review_due_at TEXT NOT NULL,
+    proposed_by INTEGER NOT NULL,
+    proposed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_policy_adoptions_viewer
+    ON group_policy_adoptions(viewer_org_id,state,review_due_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_policy_one_pending
+    ON group_policy_adoptions(publication_id) WHERE state='pending_review';
+
 CREATE TABLE IF NOT EXISTS group_request_mappings (
     request_id INTEGER PRIMARY KEY REFERENCES group_evidence_requests(id),
     source_org_id INTEGER NOT NULL REFERENCES organizations(id),

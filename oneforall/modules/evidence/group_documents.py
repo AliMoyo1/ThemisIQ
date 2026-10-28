@@ -379,7 +379,7 @@ def _source_current(row, *, download: bool = False):
 
 
 def _granted_rows(db, actor: dict, *, publication_id: int | None = None,
-                  page: int = 1, page_size: int = 50):
+                  page: int = 1, page_size: int = 50, category: str | None = None):
     if not actor.get("org_id") or not has_capability(actor, "group.document.view"):
         return []
     if not 1 <= page <= 100000 or not 1 <= page_size <= 100:
@@ -388,6 +388,9 @@ def _granted_rows(db, actor: dict, *, publication_id: int | None = None,
     paging = "" if publication_id is not None else "LIMIT %s OFFSET %s"
     now = _now()
     parameters = [actor["id"], now, now, actor["org_id"], now, now]
+    category_sql = "AND p.category=%s " if category else ""
+    if category:
+        parameters.append(category)
     if publication_id is not None:
         parameters.append(publication_id)
     else:
@@ -408,16 +411,17 @@ def _granted_rows(db, actor: dict, *, publication_id: int | None = None,
         "AND r.status='active' AND r.child_ack_by IS NOT NULL AND r.privacy_review_by IS NOT NULL "
         "AND r.legal_review_by IS NOT NULL AND r.review_due_at>%s "
         "AND r.parent_org_id IN (p.source_org_id,p.viewer_org_id) "
-        "AND r.child_org_id IN (p.source_org_id,p.viewer_org_id) " + exact +
+        "AND r.child_org_id IN (p.source_org_id,p.viewer_org_id) " + category_sql + exact +
         "ORDER BY p.created_at DESC,p.id DESC " + paging,
         parameters,
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def catalogue(db, actor: dict, *, page: int = 1, page_size: int = 50) -> list[dict]:
+def catalogue(db, actor: dict, *, page: int = 1, page_size: int = 50,
+              category: str | None = None) -> list[dict]:
     out = []
-    for row in _granted_rows(db, actor, page=page, page_size=page_size):
+    for row in _granted_rows(db, actor, page=page, page_size=page_size, category=category):
         terms = json.loads(row["sharing_terms"])
         if ("document_metadata" in terms.get("data_classes", [])
                 and set(actor.get("roles") or []) & set(terms.get("audiences", []))

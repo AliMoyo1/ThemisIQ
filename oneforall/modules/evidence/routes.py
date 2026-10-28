@@ -26,7 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
-from modules.evidence import company_views, find as finder, group_documents, group_requests, inspector, proof, vault_views
+from modules.evidence import company_views, find as finder, group_adoption, group_documents, group_requests, inspector, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
@@ -386,6 +386,9 @@ async def evidence_page(request: Request):
         has_capability(request.state.user, cap) for cap in (
             "group.request.create", "group.request.manage", "group.request.review",
             "group.request.fulfill")))
+    ctx["can_group_adoption"] = bool(request.state.user.get("org_id") and any(
+        has_capability(request.state.user, cap) for cap in (
+            "group.policy.propose", "group.policy.review")))
     return shell_templates.TemplateResponse(request, "evidence_index.html", ctx)
 
 
@@ -411,6 +414,18 @@ async def group_requests_page(request: Request):
         db.close()
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
     return shell_templates.TemplateResponse(request, "group_requests.html", ctx)
+
+
+@router.get("/group/adoption/", response_class=HTMLResponse)
+@require_auth
+async def group_adoption_page(request: Request):
+    db = get_db()
+    try:
+        group_adoption.list_policies(db, request.state.user)
+    finally:
+        db.close()
+    ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    return shell_templates.TemplateResponse(request, "group_adoption.html", ctx)
 
 
 @router.get("/batch/", response_class=HTMLResponse)
@@ -495,6 +510,40 @@ async def api_group_requests(request: Request):
         return JSONResponse(group_requests.list_requests(db, request.state.user, page=page))
     finally:
         db.close()
+
+
+@router.get("/api/group/adoptions")
+@require_auth
+async def api_group_adoptions(request: Request):
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except ValueError:
+        raise HTTPException(422, "Invalid policy page") from None
+    db = get_db()
+    try:
+        return JSONResponse(group_adoption.list_policies(db, request.state.user, page=page))
+    finally:
+        db.close()
+
+
+@router.post("/api/group/publications/{publication_id}/adoptions", status_code=201)
+@require_auth
+async def api_group_adoption_propose(request: Request, publication_id: int):
+    body = await _group_body(request)
+    adoption_id = _group_operation(lambda db: group_adoption.propose(
+        db, request.state.user, publication_id, body.get("proposed_state"),
+        body.get("reason"), body.get("review_due_at"), body.get("effective_at"),
+        body.get("local_policy_version_id")))
+    return JSONResponse({"id": adoption_id, "status": "pending_review"}, status_code=201)
+
+
+@router.post("/api/group/adoptions/{adoption_id}/review")
+@require_auth
+async def api_group_adoption_review(request: Request, adoption_id: int):
+    body = await _group_body(request)
+    state = _group_operation(lambda db: group_adoption.review(
+        db, request.state.user, adoption_id, body.get("decision"), body.get("reason")))
+    return JSONResponse({"status": state})
 
 
 @router.get("/api/group/requests/{request_id}/release-candidates")

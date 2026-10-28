@@ -585,10 +585,13 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/evidence/api/find` | authenticated | - | - | - |  |
 | GET | `/evidence/api/folders` | authenticated | - | - | - |  |
 | GET | `/evidence/api/folders/{group}/records` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/adoptions` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/adoptions/{adoption_id}/review` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/group/grants/{grant_id}` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/publications` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/group/publications/{publication_id}` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/publications/{publication_id}` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/publications/{publication_id}/adoptions` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/publications/{publication_id}/download` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/group/relationships/{relation_id}` | authenticated | - | - | - |  |
@@ -639,6 +642,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/stats` | authenticated | - | - | - |  |
 | GET | `/evidence/batch/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/` | authenticated | - | - | - |  |
+| GET | `/evidence/group/adoption/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/requests/` | authenticated | - | - | - |  |
 
 ## `modules.evidence_campaigns.routes`

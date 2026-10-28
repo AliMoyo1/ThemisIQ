@@ -2065,10 +2065,21 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
         relation = setup.execute(
             "INSERT INTO public.org_relationships (parent_org_id,child_org_id,purpose) "
             "VALUES (%s,%s,'Group review') RETURNING id", (parent, child)).fetchone()["id"]
-        setup.execute(
+        rights_id = setup.execute(
             "INSERT INTO public.group_document_rights "
             "(source_org_id,evidence_id,file_hash,rights_state,basis,reviewed_by) "
-            "VALUES (%s,1,'fixture','unknown','fixture',1)", (child,))
+            "VALUES (%s,1,'fixture','unknown','fixture',1) RETURNING id", (child,)).fetchone()["id"]
+        publication_id = setup.execute(
+            "INSERT INTO public.group_document_publications "
+            "(relationship_id,source_org_id,viewer_org_id,evidence_id,version,file_hash,title,"
+            "category,classification,purpose,rights_id,expires_at,approved_by) "
+            "VALUES (%s,%s,%s,1,1,'fixture','fixture','policy','internal','Group review',"
+            "%s,'2099-01-01',1) RETURNING id", (relation, child, parent, rights_id)).fetchone()["id"]
+        adoption_id = setup.execute(
+            "INSERT INTO public.group_policy_adoptions "
+            "(publication_id,source_org_id,viewer_org_id,proposed_state,reason,review_due_at,proposed_by) "
+            "VALUES (%s,%s,%s,'adopted','fixture review','2099-01-01',1) RETURNING id",
+            (publication_id, child, parent)).fetchone()["id"]
         request_id = setup.execute(
             "INSERT INTO public.group_evidence_requests "
             "(relationship_id,requester_org_id,source_org_id,requested_by,requirement_ref,purpose,needed_by) "
@@ -2100,6 +2111,8 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
                                          (request_id,)).fetchone()) is visible_edge
                 assert bool(conn.execute("SELECT request_id FROM public.group_request_mappings WHERE request_id=%s",
                                          (request_id,)).fetchone()) is (org == child)
+                assert bool(conn.execute("SELECT id FROM public.group_policy_adoptions WHERE id=%s",
+                                         (adoption_id,)).fetchone()) is (org == parent)
                 if org == parent:
                     assert conn.execute("UPDATE public.group_evidence_requests SET status='approved' "
                                         "WHERE id=%s RETURNING id", (request_id,)).fetchone() is None

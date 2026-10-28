@@ -1,5 +1,5 @@
 {
-  "route_count": 1211,
+  "route_count": 1215,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13467,6 +13467,34 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/group/adoptions",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_adoptions",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/adoptions/{adoption_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_adoption_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/group/grants/{grant_id}",
       "methods": [
         "DELETE"
@@ -13519,6 +13547,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_publication",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/publications/{publication_id}/adoptions",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_adoption_propose",
       "maturity": "",
       "notes": ""
     },
@@ -14219,6 +14261,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "group_sharing_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/group/adoption/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "group_adoption_page",
       "maturity": "",
       "notes": ""
     },

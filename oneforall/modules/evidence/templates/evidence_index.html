@@ -190,6 +190,7 @@
     <a class="btn btn-secondary" href="/evidence/batch/">Batch upload</a>
     {% if can_manage_group %}<a class="btn btn-secondary" href="/evidence/group/">Group sharing</a>{% endif %}
     {% if can_group_requests %}<a class="btn btn-secondary" href="/evidence/group/requests/">Proof requests</a>{% endif %}
+    {% if can_group_adoption %}<a class="btn btn-secondary" href="/evidence/group/adoption/">Policy adoption</a>{% endif %}
     {% if can_manage_legacy %}<button class="btn btn-secondary" type="button" onclick="evOpenLegacy()">Review legacy files</button>{% endif %}
     <button class="btn btn-primary" onclick="ModalManager.open('uploadModal')">+ Upload</button>
   </div>

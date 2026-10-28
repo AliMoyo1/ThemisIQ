@@ -12,3 +12,11 @@ def test_proof_request_page_empty_state_and_vault_navigation(login_as, live_app)
     expect(page.locator("#grCreate")).to_be_hidden()
     page.get_by_role("link", name="Evidence Vault").first.click()
     expect(page.locator(".page-title")).to_contain_text("Evidence Vault")
+
+
+def test_policy_adoption_page_requires_named_parent_policy(login_as, live_app):
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence/group/adoption/")
+    expect(page.get_by_role("heading", name="Policy adoption")).to_be_visible()
+    expect(page.locator("#gaList")).to_contain_text("No published parent policies")
+    expect(page.locator("#gaMore")).to_be_hidden()
