@@ -397,6 +397,13 @@ async def group_sharing_page(request: Request):
     return shell_templates.TemplateResponse(request, "group_sharing.html", ctx)
 
 
+@router.get("/batch/", response_class=HTMLResponse)
+@require_auth
+async def evidence_batch_page(request: Request):
+    ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    return shell_templates.TemplateResponse(request, "evidence_batch.html", ctx)
+
+
 # ── CRUD API ────────────────────────────────────────────────────────────────
 
 _SORTS = {

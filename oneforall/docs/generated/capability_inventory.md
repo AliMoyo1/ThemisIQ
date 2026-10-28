@@ -630,6 +630,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/resolve-links` | authenticated | - | - | - |  |
 | GET | `/evidence/api/search-entities` | authenticated | - | - | - |  |
 | GET | `/evidence/api/stats` | authenticated | - | - | - |  |
+| GET | `/evidence/batch/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/` | authenticated | - | - | - |  |
 
 ## `modules.evidence_campaigns.routes`
