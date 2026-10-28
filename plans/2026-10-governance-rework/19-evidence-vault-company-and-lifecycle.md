@@ -139,7 +139,7 @@ Release behind a tenant feature flag, beginning with a synthetic group and subsi
 
 ## 11. Open decisions
 
-1. **Decide first; it changes the shape of everything else.** Are Econet Group, OmniContact and EcoCash represented as business units within one tenant, separate tenants, or both? Confirm against actual records in V0.
+1. **Settled by the owner (chat, 2026-10-28): separate tenants.** Econet is the group company; EcoCash and OmniContact are subsidiaries, each its own tenant with its own license. Cross-tenant oversight is therefore not part of this plan: it is [20 Group oversight across tenants](20-group-oversight-across-tenants.md). This plan's company facet covers Econet's own business units only. V0 still confirms the setup against the real records.
 2. Does the business-unit tree identify legal companies or operational departments? If mixed, approve a separate legal-entity catalogue and mapping.
 3. Which roles may mark an item Group-wide, reassign its company, confirm applicability, approve a link, issue/share a pack and override retention? Record these as separate capabilities.
 4. Which file types require mandatory classification, period, owner or independent review? Agree minimums per policy, audit proof, privacy case and generated record.
@@ -159,7 +159,7 @@ Supply-chain screen for this plan: no package, installer, container or plugin fr
 
 ## 13. Review log
 
-2026-10-28, after external review. Accepted and applied above:
+2026-10-28, after external review. Later the same day the owner settled open decision 1 as separate tenants, which moves cross-tenant visibility into plan 20. Accepted and applied above:
 
 1. **Exposure problem named.** Null-unit means organization-wide, so subsidiary-confidential files filed without a unit are visible to every unit today. V0 flags such items as narrowing candidates (section 1, slice V0).
 2. **Family means the root evidence item.** Checked against the code: versions are `evidence_items` rows linked by `parent_id` and `version`; there is no `evidence_versions` table for the Vault (that name exists only for GRID) and no `artifact_family_id`. The plan now says so and forbids a parallel table. The review's wording of "evidence_versions children" was slightly off; the family is the `parent_id` chain.
