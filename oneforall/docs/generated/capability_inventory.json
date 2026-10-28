@@ -1,5 +1,5 @@
 {
-  "route_count": 1185,
+  "route_count": 1186,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -5831,6 +5831,38 @@
         "aria"
       ],
       "name": "pdf_pages",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/policy-imports/{import_id}/refresh",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes_policy_intake",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "refresh_suggestions",
       "maturity": "",
       "notes": ""
     },

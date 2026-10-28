@@ -30,7 +30,7 @@
     input.value = reviewed[key] || suggestion?.value || '';
     label.append(input);
     const hint = document.createElement('small');
-    hint.textContent = suggestion ? `Suggested from ${suggestion.anchor} (${suggestion.kind})` : 'No value found in source';
+    hint.textContent = suggestion ? `Suggested from ${suggestion.anchor} (${suggestion.kind})${suggestion.note ? ' · ' + suggestion.note : ''}` : 'No value found in source';
     label.append(hint);
     return label;
   }
@@ -53,6 +53,13 @@
     byId('intake-text-state').textContent = data.extracted.text_status === 'extracted' ? 'Text extracted locally' : 'No readable text; review the original manually';
     const fields = byId('intake-fields'); fields.replaceChildren();
     keys.forEach(k => fields.append(field(k, data.extracted.metadata[k], data.reviewed || {})));
+    byId('intake-refresh').hidden = data.state !== 'needs_review';
+    const approvalDate = data.extracted.metadata.approval_date;
+    const approvalNote = byId('intake-external-approval-suggestion');
+    approvalNote.hidden = !approvalDate;
+    approvalNote.textContent = approvalDate ? `Source approval date: ${approvalDate.value} (${approvalDate.anchor}). Independent verification is required after registration.` : '';
+    byId('intake-approver').value = data.extracted.metadata.approver?.value || '';
+    byId('intake-date').value = data.extracted.metadata.approval_date?.value || '';
     const text = data.extracted.spans.map(s => `${s.anchor}\n${s.text}`).join('\n\n');
     byId('intake-source-text').textContent = text || 'No extractable text. The original file can still be reviewed and registered.';
     renderLinks(data);
@@ -93,6 +100,25 @@
     byId('intake-confirm-candidate').disabled = !ready || !byId('intake-compare-attest').checked;
   }
   async function open(id) { try { show(await api('/aria/api/policy-imports/' + encodeURIComponent(id))); } catch (e) { status('intake-action-status', e.message); } }
+  byId('intake-refresh').addEventListener('click', async () => {
+    if (!current || current.state !== 'needs_review') return;
+    const id = current.id;
+    const edited = {};
+    keys.forEach(key => {
+      const prior = current.reviewed?.[key] || current.extracted.metadata[key]?.value || '';
+      const value = byId('intake-field-' + key).value;
+      if (value !== prior) edited[key] = value;
+    });
+    const button = byId('intake-refresh'); button.disabled = true;
+    try {
+      const data = await api('/aria/api/policy-imports/' + encodeURIComponent(id) + '/refresh', {method:'POST'});
+      if (current?.id !== id) return;
+      show(data);
+      Object.entries(edited).forEach(([key, value]) => { byId('intake-field-' + key).value = value; });
+      status('intake-action-status', 'Suggestions refreshed from the original file. Check each field before registration.');
+    } catch (err) { status('intake-action-status', err.message); }
+    finally { button.disabled = false; }
+  });
   list.addEventListener('click', e => { const button = e.target.closest('[data-import-id]'); if (button) open(button.dataset.importId); });
   const upload = byId('intake-upload');
   if (upload) upload.addEventListener('submit', async e => {
