@@ -593,6 +593,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/group/companies` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/companies/{source_org_id}/publications` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/group/grants/{grant_id}` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/grants/{grant_id}/review` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/publications` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/group/publications/{publication_id}` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/publications/{publication_id}` | authenticated | - | - | - |  |

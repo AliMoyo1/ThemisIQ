@@ -58,6 +58,16 @@
       <label>Expires<input type="datetime-local" name="expires_at" required></label>
       <button class="btn btn-primary gs-wide" type="submit">Grant named access</button>
     </form><div id="gsGrantRows" class="gs-list"></div>
+    <form id="gsReviewGrant" class="gs-form" hidden aria-label="Review named access">
+      <input type="hidden" name="grant_id">
+      <p id="gsReviewTarget" class="gs-wide"></p>
+      <label>Decision<select name="decision" required><option value="keep">Keep access</option><option value="narrow">Narrow download to view</option><option value="revoke">Revoke access</option></select></label>
+      <label>Next review due<input type="datetime-local" name="review_due_at" required></label>
+      <label>New expiry<input type="datetime-local" name="expires_at" required></label>
+      <label class="gs-wide">Review reason<textarea name="reason" minlength="10" maxlength="500" rows="2" required></textarea></label>
+      <button class="btn btn-primary" type="submit">Record independent review</button>
+      <button class="btn btn-secondary" type="button" id="gsReviewCancel">Cancel</button>
+    </form>
   </section>
   <section class="gs-panel" id="gsRights"><h2>Source rights</h2><p>Review rights against the exact current file version. Unknown rights cannot permit group circulation.</p>
     <label for="gsEvidenceSearch">Find a source document by title</label>
@@ -85,5 +95,5 @@
   </section>
  </div>
 </main>
-<script src="/static/js/evidence_group_sharing.js?v=1" defer></script>
+<script src="/static/js/evidence_group_sharing.js?v=2" defer></script>
 {% endblock %}

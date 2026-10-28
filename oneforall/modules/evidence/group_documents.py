@@ -141,9 +141,11 @@ def management_workspace(db, actor: dict) -> dict:
     grants = []
     if caps["group.grant.manage"]:
         grants = [dict(row) for row in db.execute(
-            f"SELECT g.id,g.relationship_id,g.user_id,g.capability,g.expires_at,g.review_due_at "
+            f"SELECT g.id,g.relationship_id,g.user_id,g.capability,g.expires_at,g.review_due_at,g.granted_by "
             f"FROM {_table('group_view_grants')} g WHERE g.viewer_org_id=%s "
             "AND g.revoked_at IS NULL ORDER BY g.id DESC LIMIT 100", (org_id,)).fetchall()]
+        for grant in grants:
+            grant["can_review"] = grant["granted_by"] != actor["id"] and grant["user_id"] != actor["id"]
     publications = []
     if caps["group.document.publish"]:
         publications = [dict(row) for row in db.execute(
@@ -564,6 +566,42 @@ def revoke_grant(db, actor: dict, grant_id: int) -> None:
                "VALUES (%s,%s,%s,%s,'revoke_grant',%s)",
                (row["relationship_id"], row["source_org_id"], row["viewer_org_id"],
                 actor["id"], str(grant_id)))
+
+
+def review_grant(db, actor: dict, grant_id: int, decision: str, reason: str,
+                 expires_at: str | None = None, review_due_at: str | None = None) -> dict:
+    """Replace a grant after independent review; preserve its immutable decision trail."""
+    if not has_capability(actor, "group.grant.manage"):
+        raise HTTPException(404, "Grant not found")
+    row = db.execute(f"SELECT * FROM {_table('group_view_grants')} "
+                     "WHERE id=%s AND viewer_org_id=%s AND revoked_at IS NULL",
+                     (grant_id, actor.get("org_id"))).fetchone()
+    if not row:
+        raise HTTPException(404, "Grant not found")
+    if actor["id"] in (row["granted_by"], row["user_id"]):
+        raise HTTPException(403, "A different specialist must review this grant")
+    if decision not in ("keep", "narrow", "revoke") or not isinstance(reason, str) or not 10 <= len(reason.strip()) <= 500:
+        raise HTTPException(422, "Choose a review outcome and record a reason")
+    if decision == "narrow" and row["capability"] != "document.download":
+        raise HTTPException(422, "Only download access can be narrowed to view")
+    relation = _relationship(db, row["relationship_id"])
+    _assert_edge(db, relation)
+    replacement_id = None
+    if decision != "revoke":
+        capability = "document.view" if decision == "narrow" else row["capability"]
+        replacement_id = grant_view(db, actor, row["relationship_id"], row["user_id"],
+                                    capability, expires_at, review_due_at)
+    changed = db.execute(f"UPDATE {_table('group_view_grants')} SET revoked_at=%s "
+                         "WHERE id=%s AND revoked_at IS NULL", (_now(), grant_id))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "Grant changed during review")
+    db.execute(f"INSERT INTO {_table('group_access_events')} "
+               "(relationship_id,source_org_id,viewer_org_id,actor_id,action,detail) "
+               "VALUES (%s,%s,%s,%s,'review_grant',%s)",
+               (row["relationship_id"], row["source_org_id"], row["viewer_org_id"], actor["id"],
+                json.dumps({"grant_id": grant_id, "outcome": decision,
+                            "replacement_id": replacement_id, "reason": reason.strip()}, sort_keys=True)))
+    return {"status": decision, "replacement_id": replacement_id}
 
 
 def revoke_publication(db, actor: dict, publication_id: int) -> None:

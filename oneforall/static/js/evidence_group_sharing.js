@@ -87,6 +87,7 @@
       box.appendChild(text('strong', `${people.get(row.user_id) || 'Named person'} · ${row.capability}`));
       box.appendChild(text('small', `Review ${row.review_due_at} · expires ${row.expires_at}`));
       const actions = text('div', '', 'gs-actions');
+      if (row.can_review) actions.appendChild(button('Review access', 'review-grant', row.id));
       actions.appendChild(button('Revoke access', 'revoke-grant', row.id));
       box.appendChild(actions); target.appendChild(box);
     });
@@ -148,8 +149,10 @@
       await ApiClient.request(path, {method, body, actionId: 'group.sharing'});
       await refresh();
       status.textContent = success;
+      return true;
     } catch (error) {
       status.textContent = error.detail || error.message || 'The change could not be saved.';
+      return false;
     }
   }
   root.addEventListener('click', async event => {
@@ -159,6 +162,16 @@
     const action = control.dataset.action;
     if (action.startsWith('decide:')) {
       act('POST', `/evidence/api/group/relationships/${id}/decisions`, {kind: action.slice(7)}, 'Decision recorded.');
+    } else if (action === 'review-grant') {
+      const grant = workspace.grants.find(row => String(row.id) === String(control.dataset.id));
+      if (!grant || !grant.can_review) return;
+      const form = byId('gsReviewGrant');
+      form.reset(); form.elements.grant_id.value = String(grant.id);
+      form.elements.decision.querySelector('option[value="narrow"]').disabled = grant.capability !== 'document.download';
+      byId('gsReviewTarget').textContent = `Review ${grant.capability} for ${
+        workspace.recipients.find(person => person.id === grant.user_id)?.full_name || 'named person'}. ` +
+        'Access stops on its review date until independently renewed.';
+      form.hidden = false; form.scrollIntoView({block: 'nearest'});
     } else if (action === 'revoke-grant') {
       if (confirm('Revoke this person’s access now?')) act('DELETE', `/evidence/api/group/grants/${id}`, null, 'Access revoked.');
     } else if (action === 'revoke-publication') {
@@ -194,6 +207,29 @@
       user_id: Number(data.get('user_id')), capability: data.get('capability'),
       review_due_at: iso(data.get('review_due_at')), expires_at: iso(data.get('expires_at'))
     }, 'Named access granted.'); } catch (error) { status.textContent = error.message; }
+  });
+  const reviewForm = byId('gsReviewGrant');
+  const reviewDates = () => {
+    const needed = reviewForm.elements.decision.value !== 'revoke';
+    ['review_due_at', 'expires_at'].forEach(name => {
+      reviewForm.elements[name].required = needed;
+      reviewForm.elements[name].disabled = !needed;
+    });
+  };
+  reviewForm.elements.decision.addEventListener('change', reviewDates);
+  byId('gsReviewCancel').addEventListener('click', () => { reviewForm.hidden = true; reviewForm.reset(); });
+  reviewForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const data = new FormData(reviewForm);
+    const decision = data.get('decision');
+    try {
+      const saved = await act('POST', `/evidence/api/group/grants/${encodeURIComponent(data.get('grant_id'))}/review`, {
+        decision, reason: data.get('reason'),
+        review_due_at: decision === 'revoke' ? null : iso(data.get('review_due_at')),
+        expires_at: decision === 'revoke' ? null : iso(data.get('expires_at'))
+      }, 'Access review recorded.');
+      if (saved) { reviewForm.hidden = true; reviewForm.reset(); }
+    } catch (error) { status.textContent = error.message; }
   });
   byId('gsRightsForm').addEventListener('submit', event => {
     event.preventDefault(); const data = new FormData(event.target);

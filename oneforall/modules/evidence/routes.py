@@ -844,6 +844,16 @@ async def api_group_grant_revoke(request: Request, grant_id: int):
     return JSONResponse({"status": "revoked"})
 
 
+@router.post("/api/group/grants/{grant_id}/review")
+@require_auth
+async def api_group_grant_review(request: Request, grant_id: int):
+    body = await _group_body(request)
+    result = _group_operation(lambda db: group_documents.review_grant(
+        db, request.state.user, grant_id, body.get("decision"), body.get("reason"),
+        body.get("expires_at"), body.get("review_due_at")))
+    return JSONResponse(result)
+
+
 @router.post("/api/group/rights/{eid}")
 @require_auth
 async def api_group_rights(request: Request, eid: int):

@@ -70,6 +70,48 @@ def _activate(db, parent, child, users):
     return relation
 
 
+def test_grant_recertification_is_independent_audited_and_cannot_widen(group_world):
+    db, parent, child, _, users, evidence = group_world
+    relation = _activate(db, parent, child, users)
+    second_admin = _actor(db, parent, "parent_second_admin", "org_admin")
+    group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                     "document.view", _future(), _future(7))
+    download = group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                                "document.download", _future(), _future(7))
+    group.reviewed_rights(db, users["privacy"], evidence, "owned", True, True,
+                          "Synthetic group circulation permission")
+    publication = group.publish(db, users["publisher"], relation, evidence,
+                                "internal", "Group governance", _future())
+    db.commit()
+    assert group.released_item(db, users["viewer"], publication, download=True)[1]["id"] == evidence
+
+    with pytest.raises(HTTPException) as same_reviewer:
+        group.review_grant(db, users["parent_admin"], download, "keep", "Still needed for audit",
+                           _future(), _future(7))
+    assert same_reviewer.value.status_code == 403
+    with pytest.raises(HTTPException) as wrong_org:
+        group.review_grant(db, users["sibling"], download, "revoke", "No longer needed")
+    assert wrong_org.value.status_code == 404
+    narrowed = group.review_grant(db, second_admin, download, "narrow",
+                                  "Only catalogue view is still required", _future(), _future(7))
+    db.commit()
+    assert narrowed["replacement_id"] != download
+    assert db.execute("SELECT capability FROM group_view_grants WHERE id=%s",
+                      (narrowed["replacement_id"],)).fetchone()[0] == "document.view"
+    with pytest.raises(HTTPException) as denied:
+        group.released_item(db, users["viewer"], publication, download=True)
+    assert denied.value.status_code == 404
+    assert group.catalogue(db, users["viewer"])
+    with pytest.raises(HTTPException) as broaden:
+        group.review_grant(db, users["parent_admin"], narrowed["replacement_id"], "narrow",
+                           "Cannot widen view back to download", _future(), _future(7))
+    assert broaden.value.status_code == 422
+    event = db.execute("SELECT action,detail FROM group_access_events WHERE action='review_grant' "
+                       "ORDER BY id DESC LIMIT 1").fetchone()
+    assert event["action"] == "review_grant"
+    assert '"outcome": "narrow"' in event["detail"]
+
+
 def test_version_bound_publication_requires_all_gates_and_revokes_immediately(group_world):
     db, parent, child, _, users, evidence = group_world
     relation = group.propose_relationship(db, users["platform"], parent, child,
