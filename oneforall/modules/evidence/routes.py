@@ -436,6 +436,41 @@ async def evidence_batch_page(request: Request):
     return shell_templates.TemplateResponse(request, "evidence_batch.html", ctx)
 
 
+@router.post("/api/batch/suggest")
+@require_auth
+async def api_evidence_batch_suggest(request: Request, file: UploadFile = File(...)):
+    """Parse a selected file in the existing isolated worker; return hints only."""
+    from tempfile import TemporaryDirectory
+    from modules.aria.policy_intake import MAX_FILE, IntakeError, _extract_isolated
+    from modules.aria.policy_storage import DocxValidationError, validate_docx
+
+    if not request.state.user.get("org_id"):
+        raise HTTPException(403, "Select an organization")
+    name = Path(file.filename or "").name[:180]
+    extension = Path(name).suffix.lower()
+    if extension not in (".docx", ".pdf"):
+        raise HTTPException(422, "Suggestions support DOCX and PDF files")
+    content = await file.read(MAX_FILE + 1)
+    if not content or len(content) > MAX_FILE:
+        raise HTTPException(422, "Choose a nonempty document under 25 MB")
+    if extension == ".pdf" and not content.startswith(b"%PDF-"):
+        raise HTTPException(422, "The PDF file signature is invalid")
+    try:
+        with TemporaryDirectory(prefix="themisiq-batch-extract-") as folder:
+            source = Path(folder) / ("source" + extension)
+            source.write_bytes(content)
+            if extension == ".docx":
+                validate_docx(source)
+            extracted = _extract_isolated(source, extension, name)
+    except (DocxValidationError, IntakeError) as exc:
+        raise HTTPException(422, "Local extraction could not safely read this file") from exc
+    metadata = extracted.get("metadata", {})
+    allowed = ("title", "doc_type", "version", "owner", "approver", "effective_date", "review_date")
+    suggestions = {field: metadata[field] for field in allowed if field in metadata}
+    return JSONResponse({"suggestions": suggestions, "parser": extracted.get("parser"),
+                         "text_status": extracted.get("text_status")})
+
+
 @router.get("/companies/", response_class=HTMLResponse)
 @require_auth
 async def evidence_companies_page(request: Request):

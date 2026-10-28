@@ -44,9 +44,31 @@
   };
   const edit = (row, name, value) => {
     row[name] = value;
+    row[`${name}Edited`] = true;
     row.reviewed = false;
     refresh();
   };
+  async function suggest(row) {
+    row.reviewed = false; row.state = 'extracting'; row.message = 'Extracting locally for review…'; refresh();
+    const body = new FormData(); body.append('file', row.file);
+    try {
+      const result = await ApiClient.request('/evidence/api/batch/suggest', {
+        method: 'POST', body, timeoutMs: 60000, actionId: 'evidence.batch_suggest'
+      });
+      const hints = result.suggestions || {};
+      row.suggestions = hints;
+      if (hints.title && !row.titleEdited) row.title = hints.title.value;
+      const types = {Policy:'policy', Procedure:'procedure', Record:'general'};
+      if (hints.doc_type && !row.categoryEdited && types[hints.doc_type.value])
+        row.category = types[hints.doc_type.value];
+      if (hints.review_date && !row.reviewDueEdited) row.reviewDue = hints.review_date.value;
+      row.reviewed = false; row.state = 'staged';
+      row.message = 'Suggestions extracted. Check each value against the original before filing.';
+    } catch (error) {
+      row.state = 'staged'; row.message = error.detail || 'Suggestions unavailable. Review the original manually.';
+    }
+    refresh();
+  }
   function refresh() {
     queue.replaceChildren();
     rows.forEach((row, index) => {
@@ -62,6 +84,13 @@
       reviewed.addEventListener('change', () => { row.reviewed = reviewed.checked; updateSummary(); });
       grid.appendChild(field('Checked for filing', reviewed));
       card.appendChild(grid);
+      if (row.suggestions) {
+        const hints = element('div', '', 'eb-note');
+        Object.entries(row.suggestions).forEach(([name, item]) => {
+          hints.appendChild(element('p', `${name.replaceAll('_', ' ')}: ${item.value} · ${item.anchor} · ${item.kind}${item.note ? ` · ${item.note}` : ''}`));
+        });
+        card.appendChild(hints);
+      }
       const state = element('p', row.message || 'Waiting for review', 'eb-state');
       state.dataset.state = row.state;
       card.appendChild(state);
@@ -70,19 +99,24 @@
         link.href = `/evidence/?open=item:${row.existingId}`;
         card.appendChild(link);
       }
-      if (row.state !== 'uploaded' && !busy) {
+      if (row.state !== 'uploaded' && row.state !== 'extracting' && !busy) {
+        if (/\.(docx|pdf)$/i.test(row.file.name) && row.file.size <= 25 * 1024 * 1024 && row.state !== 'extracting') {
+          const extract = element('button', 'Extract suggestions', 'btn btn-secondary');
+          extract.type = 'button'; extract.addEventListener('click', () => suggest(row));
+          card.appendChild(extract);
+        }
         const remove = element('button', 'Remove from queue', 'btn btn-secondary');
         remove.type = 'button';
         remove.addEventListener('click', () => { rows.splice(index, 1); refresh(); });
         card.appendChild(remove);
       }
-      if (row.state === 'uploaded' || busy) card.querySelectorAll('input,select').forEach(node => node.disabled = true);
+      if (row.state === 'uploaded' || row.state === 'extracting' || busy) card.querySelectorAll('input,select').forEach(node => node.disabled = true);
       queue.appendChild(card);
     });
     updateSummary();
   }
   function updateSummary() {
-    const ready = rows.filter(row => row.reviewed && row.state !== 'uploaded' && row.file.size <= 100 * 1024 * 1024 && row.scope && row.title.trim());
+    const ready = rows.filter(row => row.reviewed && !['uploaded','extracting'].includes(row.state) && row.file.size <= 100 * 1024 * 1024 && row.scope && row.title.trim());
     upload.disabled = busy || !ready.length;
     picker.disabled = busy || !scopes.length;
     document.getElementById('ebClear').disabled = busy;

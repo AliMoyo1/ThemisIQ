@@ -29,7 +29,7 @@
  <header class="eb-hero"><h1>Batch upload</h1><p>Stage up to 50 documents, check each title and filing scope, then upload. Each file is handled separately; a duplicate or failed file stays in the queue for review.</p></header>
  <section class="eb-panel" aria-labelledby="ebChooseHeading">
   <h2 id="ebChooseHeading">Choose files</h2>
-  <p>Titles are suggested from filenames. They have not been verified against the file contents. Choose a scope that you are authorized to file into.</p>
+  <p>For DOCX and PDF files, extract local, source-anchored suggestions for title, type and review date. Version, author and approver hints remain visible for comparison. Every value needs your review; a document author is not automatically its owner. Choose a scope that you are authorized to file into.</p>
   <label for="ebFiles">Files to stage</label><input id="ebFiles" type="file" multiple disabled aria-describedby="ebLimit">
   <p id="ebLimit" class="eb-note">At most 50 files per queue; each file must pass the Vault's size and content checks. Files remain on this device until you start upload.</p>
   <div class="eb-actions"><button type="button" id="ebUpload" class="btn btn-primary" disabled>Upload reviewed files</button>
@@ -41,5 +41,5 @@
   <div id="ebQueue"></div>
  </section>
 </main>
-<script src="/static/js/evidence_batch.js?v=1" defer></script>
+<script src="/static/js/evidence_batch.js?v=2" defer></script>
 {% endblock %}
