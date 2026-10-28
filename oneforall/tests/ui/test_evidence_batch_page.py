@@ -74,3 +74,39 @@ def test_batch_rejects_invalid_pdf_without_claiming_extraction(login_as, live_ap
     expect(page.locator("#ebQueue .eb-state")).to_contain_text("PDF file signature is invalid")
     expect(page.locator("#ebQueue input[type=text]").first).to_have_value("fake")
     expect(page.locator("#ebUpload")).to_be_disabled()
+
+
+def test_batch_new_version_requires_current_record_check_and_keeps_scope(login_as, live_app):
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence/batch/")
+    expect(page.locator("#ebSummary")).to_contain_text("Choose files")
+    page.locator("#ebFiles").set_input_files({
+        "name": "Original.txt", "mimeType": "text/plain", "buffer": b"Original synthetic policy version"
+    })
+    first = page.locator("#ebQueue .eb-row").first
+    first.get_by_label("Filing scope").select_option(index=1)
+    first.get_by_label("Checked for filing").check()
+    with page.expect_response(lambda response: response.url.endswith("/evidence/api/items") and
+                              response.request.method == "POST") as uploaded:
+        page.locator("#ebUpload").click()
+    original_id = uploaded.value.json()["id"]
+    expect(first.locator(".eb-state")).to_contain_text("Filed in the Vault")
+
+    page.locator("#ebFiles").set_input_files({
+        "name": "Updated.txt", "mimeType": "text/plain", "buffer": b"Updated synthetic policy version"
+    })
+    second = page.locator("#ebQueue .eb-row").last
+    second.get_by_label("Filing scope").select_option(index=1)
+    second.get_by_label("File as").select_option("replace")
+    second.get_by_label("Current Vault document ID").fill(str(original_id))
+    second.get_by_label("Checked for filing").check()
+    expect(page.locator("#ebUpload")).to_be_disabled()
+    second.get_by_role("button", name="Check current version").click()
+    expect(second.locator(".eb-state")).to_contain_text("Checked:")
+    expect(page.locator("#ebUpload")).to_be_disabled()
+    second.get_by_label("Checked for filing").check()
+    with page.expect_response(lambda response: response.url.endswith("/evidence/api/items") and
+                              response.request.method == "POST") as revised:
+        page.locator("#ebUpload").click()
+    assert revised.value.json()["version"] == 2
+    expect(second.locator(".eb-state")).to_contain_text("New version filed")

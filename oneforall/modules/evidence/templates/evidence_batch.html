@@ -15,8 +15,9 @@
 .eb-panel{margin-top:22px;padding:24px;border-radius:20px;background:var(--surface);box-shadow:0 12px 28px rgba(25,44,51,.07),inset 0 1px rgba(255,255,255,.8)}
 .eb-panel h2{font:600 22px/1.25 Georgia,serif;margin:0 0 8px}.eb-panel p{line-height:1.45;color:var(--muted)}
 .eb-panel input,.eb-panel select{min-width:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
-.eb-grid{display:grid;grid-template-columns:2.3fr 1.3fr 1fr 1.3fr .8fr;gap:10px;align-items:end}
+.eb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
 .eb-row{padding:18px;margin:12px 0;border-radius:15px;background:var(--surface2)}.eb-row label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650}
+.eb-replacement{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:12px}.eb-replacement label{min-width:220px}.eb-replacement a{align-self:center}
 .eb-name{font-size:12px;color:var(--muted);word-break:break-all;margin-bottom:10px}
 .eb-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:15px}.eb-actions button{font:inherit}
 .eb-state{font-weight:650;margin:10px 0 0}.eb-state[data-state="failed"],.eb-state[data-state="duplicate"]{color:#a33b22}.eb-state[data-state="uploaded"]{color:#17744a}
@@ -26,7 +27,7 @@
 [data-theme="dark"] .eb-hero{background:linear-gradient(125deg,rgba(73,88,92,.9),rgba(43,56,61,.83));box-shadow:0 14px 30px rgba(0,0,0,.2)}
 </style>
 <main class="eb-page" id="evidenceBatch">
- <header class="eb-hero"><h1>Batch upload</h1><p>Stage up to 50 documents, check each title and filing scope, then upload. Each file is handled separately; a duplicate or failed file stays in the queue for review.</p></header>
+ <header class="eb-hero"><h1>Batch upload</h1><p>Stage up to 50 documents, check each title and filing scope, then upload. Choose “new version” only after checking the exact current Vault document. Each file is handled separately; a duplicate or failed file stays in the queue for review.</p></header>
  <section class="eb-panel" aria-labelledby="ebChooseHeading">
   <h2 id="ebChooseHeading">Choose files</h2>
   <p>For DOCX and PDF files, extract local, source-anchored suggestions for title, type and review date. Version, author and approver hints remain visible for comparison. Every value needs your review; a document author is not automatically its owner. Choose a scope that you are authorized to file into.</p>
@@ -41,5 +42,5 @@
   <div id="ebQueue"></div>
  </section>
 </main>
-<script src="/static/js/evidence_batch.js?v=2" defer></script>
+<script src="/static/js/evidence_batch.js?v=3" defer></script>
 {% endblock %}
