@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from modules.evidence import group_documents as group
+from modules.evidence import group_requests as requests
 
 
 def _id(db, table, **fields):
@@ -19,6 +20,8 @@ def _id(db, table, **fields):
 def _actor(db, org, key, role, unit=None):
     uid = _id(db, "users", username=key, email=key + "@example.invalid", full_name=key,
               password_hash="test", org_id=org, is_active=1)
+    db.execute("INSERT INTO user_roles (user_id,role_key) VALUES (%s,%s)", (uid, role))
+    db.commit()
     return {"id": uid, "org_id": org, "business_unit_id": unit, "roles": [role]}
 
 
@@ -166,6 +169,94 @@ def test_source_document_search_is_exactly_scoped_and_literal(group_world):
     with pytest.raises(HTTPException) as denied:
         group.source_candidates(db, users["ack"], "Reviewed")
     assert denied.value.status_code == 403
+
+
+def test_requirement_request_never_names_source_record_to_parent(group_world):
+    db, parent, child, sibling, users, evidence = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "Parent control 7.2", "Need proof of current oversight", _future(14))
+    db.commit()
+    parent_list = requests.list_requests(db, users["viewer"])["items"]
+    assert [row["id"] for row in parent_list] == [request_id]
+    assert "source_mapping" not in parent_list[0]
+    assert requests.list_requests(db, users["sibling"])["items"] == []
+    with pytest.raises(HTTPException):
+        requests.review_request(db, users["viewer"], request_id, "approved", "Looks good")
+    with pytest.raises(HTTPException) as unmapped:
+        requests.review_request(db, users["legal"], request_id, "approved", "Reviewed source")
+    assert unmapped.value.status_code == 409
+    source_doc = _id(db, "aria_documents", doc_id="SOURCE-DOC-1", framework="ISO 27001",
+                     title="Child internal claim", org_id=child)
+    requests.map_request(db, users["legal"], request_id, "aria", "document", source_doc)
+    db.commit()
+    child_list = requests.list_requests(db, users["legal"])["items"]
+    assert child_list[0]["source_mapping"]["entity_id"] == source_doc
+    assert "source_mapping" not in requests.list_requests(db, users["viewer"])["items"][0]
+    requests.review_request(db, users["legal"], request_id, "approved", "Reviewed for group release")
+    db.commit()
+    with pytest.raises(HTTPException):
+        requests.fulfill_request(db, users["legal"], request_id, 1)
+    group.reviewed_rights(db, users["privacy"], evidence, "owned", True, False, "Owned group report")
+    publication = group.publish(db, users["publisher"], relation, evidence,
+                                "internal", "Group governance", _future(20))
+    with pytest.raises(HTTPException) as ungranted:
+        requests.fulfill_request(db, users["publisher"], request_id, publication)
+    assert ungranted.value.status_code == 409
+    group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                     "document.view", _future(25), _future(7))
+    db.commit()
+    requests.fulfill_request(db, users["publisher"], request_id, publication)
+    db.commit()
+    fulfilled = requests.list_requests(db, users["viewer"])["items"][0]
+    assert fulfilled["status"] == "fulfilled"
+    assert fulfilled["released_publication_id"] == publication
+    assert "source_mapping" not in fulfilled
+    events = db.execute("SELECT action,detail FROM group_access_events "
+                        "WHERE detail=%s ORDER BY id", (str(request_id),)).fetchall()
+    assert [event["action"] for event in events] == [
+        "request_created", "request_mapped", "request_approved", "request_fulfilled"]
+    assert all("SOURCE-DOC-1" not in event["detail"] for event in events)
+
+
+def test_requirement_clarification_resends_without_source_mapping(group_world):
+    db, parent, child, sibling, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "Parent control 1", "Need current proof", _future(14))
+    requests.review_request(db, users["legal"], request_id, "clarification", "Specify the reporting period")
+    db.commit()
+    visible = requests.list_requests(db, users["viewer"])["items"][0]
+    assert visible["status"] == "clarification" and visible["can_revise"]
+    assert "requested_by" not in visible and "source_mapping" not in visible
+    with pytest.raises(HTTPException) as wrong_person:
+        requests.revise_request(db, users["ungranted"], request_id,
+            "Parent control 1", "Clarified", _future(14), "2026-01-01", "2026-12-31")
+    assert wrong_person.value.status_code == 404
+    with pytest.raises(HTTPException) as wrong_org:
+        requests.revise_request(db, users["sibling"], request_id,
+            "Parent control 1", "Clarified", _future(14), "2026-01-01", "2026-12-31")
+    assert wrong_org.value.status_code == 404
+    requests.revise_request(db, users["viewer"], request_id,
+        "Parent control 1", "Clarified", _future(14), "2026-01-01", "2026-12-31")
+    db.commit()
+    row = requests.list_requests(db, users["legal"])["items"][0]
+    assert row["status"] == "requested" and row["period_start"] == "2026-01-01"
+    assert row["decision_reason"] is None
+
+
+def test_request_list_has_more_only_if_another_authorized_page_exists(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    for index in range(51):
+        requests.create_request(db, users["viewer"], relation,
+            f"Parent requirement {index}", "Need assurance", _future(14))
+    db.commit()
+    first = requests.list_requests(db, users["viewer"], page=1)
+    second = requests.list_requests(db, users["viewer"], page=2)
+    assert len(first["items"]) == 50 and first["has_more"]
+    assert len(second["items"]) == 1 and not second["has_more"]
+    assert requests.list_requests(db, users["sibling"])["items"] == []
 
 
 def test_grant_publication_and_relationship_revocation_hide_known_ids(group_world):

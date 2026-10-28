@@ -596,6 +596,13 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/group/relationships/{relation_id}/exit-impact` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/grants` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/publications` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/relationships/{relation_id}/requests` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/requests` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/requests/{request_id}/decisions` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/requests/{request_id}/fulfillment` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/requests/{request_id}/mapping` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/requests/{request_id}/release-candidates` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/requests/{request_id}/revision` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/rights/{eid}` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/source-candidates` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/workspace` | authenticated | - | - | - |  |
@@ -632,6 +639,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/stats` | authenticated | - | - | - |  |
 | GET | `/evidence/batch/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/` | authenticated | - | - | - |  |
+| GET | `/evidence/group/requests/` | authenticated | - | - | - |  |
 
 ## `modules.evidence_campaigns.routes`
 

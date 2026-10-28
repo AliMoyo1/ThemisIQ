@@ -827,6 +827,42 @@ CREATE TABLE IF NOT EXISTS group_access_events (
 );
 CREATE INDEX IF NOT EXISTS idx_group_access_events_relationship ON group_access_events(relationship_id, created_at);
 
+-- A requirement-led request names no hidden subsidiary file. The source's
+-- internal record mapping is separate and readable only by its own tenant.
+CREATE TABLE IF NOT EXISTS group_evidence_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    requester_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    requested_by INTEGER NOT NULL,
+    requirement_ref TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    needed_by TEXT NOT NULL,
+    period_start TEXT,
+    period_end TEXT,
+    status TEXT NOT NULL DEFAULT 'requested'
+        CHECK(status IN ('requested','clarification','approved','no_proof','declined','fulfilled')),
+    decision_reason TEXT,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    publication_id INTEGER REFERENCES group_document_publications(id),
+    fulfilled_by INTEGER,
+    fulfilled_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_requests_source ON group_evidence_requests(source_org_id,status,id);
+CREATE INDEX IF NOT EXISTS idx_group_requests_requester ON group_evidence_requests(requester_org_id,requested_by,id);
+
+CREATE TABLE IF NOT EXISTS group_request_mappings (
+    request_id INTEGER PRIMARY KEY REFERENCES group_evidence_requests(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    module TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    mapped_by INTEGER NOT NULL,
+    mapped_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS licenses (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

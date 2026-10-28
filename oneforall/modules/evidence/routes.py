@@ -26,7 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
-from modules.evidence import company_views, find as finder, group_documents, inspector, proof, vault_views
+from modules.evidence import company_views, find as finder, group_documents, group_requests, inspector, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
@@ -382,6 +382,10 @@ async def evidence_page(request: Request):
             "group.relationship.manage", "group.relationship.ack", "group.terms.privacy",
             "group.terms.legal", "group.grant.manage", "group.rights.review",
             "group.document.publish")))
+    ctx["can_group_requests"] = bool(request.state.user.get("org_id") and any(
+        has_capability(request.state.user, cap) for cap in (
+            "group.request.create", "group.request.manage", "group.request.review",
+            "group.request.fulfill")))
     return shell_templates.TemplateResponse(request, "evidence_index.html", ctx)
 
 
@@ -395,6 +399,18 @@ async def group_sharing_page(request: Request):
         db.close()
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
     return shell_templates.TemplateResponse(request, "group_sharing.html", ctx)
+
+
+@router.get("/group/requests/", response_class=HTMLResponse)
+@require_auth
+async def group_requests_page(request: Request):
+    db = get_db()
+    try:
+        group_requests.list_requests(db, request.state.user)
+    finally:
+        db.close()
+    ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    return shell_templates.TemplateResponse(request, "group_requests.html", ctx)
 
 
 @router.get("/batch/", response_class=HTMLResponse)
@@ -465,6 +481,86 @@ async def api_group_source_candidates(request: Request):
             db, request.state.user, request.query_params.get("q", ""), page))
     finally:
         db.close()
+
+
+@router.get("/api/group/requests")
+@require_auth
+async def api_group_requests(request: Request):
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except ValueError:
+        raise HTTPException(422, "Invalid request page") from None
+    db = get_db()
+    try:
+        return JSONResponse(group_requests.list_requests(db, request.state.user, page=page))
+    finally:
+        db.close()
+
+
+@router.get("/api/group/requests/{request_id}/release-candidates")
+@require_auth
+async def api_group_request_release_candidates(request: Request, request_id: int):
+    db = get_db()
+    try:
+        return JSONResponse({"items": group_requests.release_candidates(
+            db, request.state.user, request_id)})
+    finally:
+        db.close()
+
+
+@router.post("/api/group/relationships/{relation_id}/requests", status_code=201)
+@require_auth
+async def api_group_request_create(request: Request, relation_id: int):
+    body = await _group_body(request)
+    request_id = _group_operation(lambda db: group_requests.create_request(
+        db, request.state.user, relation_id, body.get("requirement_ref"), body.get("purpose"),
+        body.get("needed_by"), body.get("period_start"), body.get("period_end")))
+    return JSONResponse({"id": request_id, "status": "requested"}, status_code=201)
+
+
+@router.post("/api/group/requests/{request_id}/mapping")
+@require_auth
+async def api_group_request_map(request: Request, request_id: int):
+    body = await _group_body(request)
+    try:
+        entity_id = int(body.get("entity_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a source record") from None
+    _group_operation(lambda db: group_requests.map_request(
+        db, request.state.user, request_id, body.get("module"), body.get("entity_type"), entity_id))
+    return JSONResponse({"status": "mapped"})
+
+
+@router.post("/api/group/requests/{request_id}/decisions")
+@require_auth
+async def api_group_request_review(request: Request, request_id: int):
+    body = await _group_body(request)
+    _group_operation(lambda db: group_requests.review_request(
+        db, request.state.user, request_id, body.get("decision"), body.get("reason")))
+    return JSONResponse({"status": body.get("decision")})
+
+
+@router.post("/api/group/requests/{request_id}/revision")
+@require_auth
+async def api_group_request_revise(request: Request, request_id: int):
+    body = await _group_body(request)
+    _group_operation(lambda db: group_requests.revise_request(
+        db, request.state.user, request_id, body.get("requirement_ref"), body.get("purpose"),
+        body.get("needed_by"), body.get("period_start"), body.get("period_end")))
+    return JSONResponse({"status": "requested"})
+
+
+@router.post("/api/group/requests/{request_id}/fulfillment")
+@require_auth
+async def api_group_request_fulfill(request: Request, request_id: int):
+    body = await _group_body(request)
+    try:
+        publication_id = int(body.get("publication_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a released document") from None
+    _group_operation(lambda db: group_requests.fulfill_request(
+        db, request.state.user, request_id, publication_id))
+    return JSONResponse({"status": "fulfilled"})
 
 
 def _group_operation(work):

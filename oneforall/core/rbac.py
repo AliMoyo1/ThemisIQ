@@ -232,6 +232,10 @@ CAPABILITIES: dict[str, set[str]] = {
     "group.document.publish":    {GRC_OFFICER, COMPLIANCE_MGR},
     "group.document.view":       {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.document.download":   {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
+    "group.request.create":      {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD},
+    "group.request.manage":      {ORG_ADMIN, GRC_OFFICER},
+    "group.request.review":      {COMPLIANCE_MGR, AUDIT_LEAD, DPO},
+    "group.request.fulfill":     {GRC_OFFICER, COMPLIANCE_MGR},
     # Saying that a version of an item supports a claim. The person who attached the file never reviews it, and the
     # reviewer must also be able to open the claim.
     "evidence.link.review":       {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, DPO, BCM_MANAGER, RISK_OWNER},

@@ -2069,6 +2069,15 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
             "INSERT INTO public.group_document_rights "
             "(source_org_id,evidence_id,file_hash,rights_state,basis,reviewed_by) "
             "VALUES (%s,1,'fixture','unknown','fixture',1)", (child,))
+        request_id = setup.execute(
+            "INSERT INTO public.group_evidence_requests "
+            "(relationship_id,requester_org_id,source_org_id,requested_by,requirement_ref,purpose,needed_by) "
+            "VALUES (%s,%s,%s,1,'Parent control','Need scoped proof','2099-01-01') RETURNING id",
+            (relation, parent, child)).fetchone()["id"]
+        setup.execute(
+            "INSERT INTO public.group_request_mappings "
+            "(request_id,source_org_id,module,entity_type,entity_id,mapped_by) "
+            "VALUES (%s,%s,'aria','document',1,1)", (request_id, child))
         setup.execute(
             "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
             "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
@@ -2087,7 +2096,13 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
                 assert bool(conn.execute("SELECT id FROM public.org_relationships WHERE id=%s",
                                          (relation,)).fetchone()) is visible_edge
                 assert bool(conn.execute("SELECT id FROM public.group_document_rights").fetchone()) is visible_rights
+                assert bool(conn.execute("SELECT id FROM public.group_evidence_requests WHERE id=%s",
+                                         (request_id,)).fetchone()) is visible_edge
+                assert bool(conn.execute("SELECT request_id FROM public.group_request_mappings WHERE request_id=%s",
+                                         (request_id,)).fetchone()) is (org == child)
                 if org == parent:
+                    assert conn.execute("UPDATE public.group_evidence_requests SET status='approved' "
+                                        "WHERE id=%s RETURNING id", (request_id,)).fetchone() is None
                     with pytest.raises(psycopg2.errors.InsufficientPrivilege):
                         conn.execute("INSERT INTO public.group_document_publications "
                                      "(relationship_id,source_org_id,viewer_org_id,evidence_id,version,file_hash,"
@@ -2098,10 +2113,31 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
             finally:
                 _release_role(conn)
 
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute("UPDATE public.group_evidence_requests SET status='clarification' WHERE id=%s", (request_id,))
+        setup.commit()
+    finally:
+        setup.close()
+    with pg.tenant_context(parent, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            revised = conn.execute("UPDATE public.group_evidence_requests SET status='requested', "
+                                   "purpose='Clarified period' WHERE id=%s RETURNING id",
+                                   (request_id,)).fetchone()
+            assert revised["id"] == request_id
+            assert conn.execute("SELECT request_id FROM public.group_request_mappings WHERE request_id=%s",
+                                (request_id,)).fetchone() is None
+            conn.rollback()
+        finally:
+            _release_role(conn)
+
 
 def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg):
     from datetime import datetime, timedelta, timezone
     from modules.evidence import group_documents as group
+    from modules.evidence import group_requests as requests
 
     pg.init_db()
     parent_slug, child_slug = "group_parent_catalogue", "group_child_catalogue"
@@ -2164,14 +2200,21 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
         try:
             group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
                              "document.view", future(30), future(7))
+            request_id = requests.create_request(db, users["viewer"], relation,
+                "Parent requirement 1", "Need current proof", future(10))
             db.commit()
             assert [r["title"] for r in group.catalogue(db, users["viewer"])] == ["Child reviewed report"]
             assert group.released_item(db, users["viewer"], publication)[1]["id"] == item
+            assert [r["id"] for r in requests.list_requests(db, users["viewer"])["items"]] == [request_id]
         finally:
             db.close()
     with pg.tenant_context(child, child_slug, is_super_admin=False):
         db = pg.get_db()
         try:
+            assert [r["id"] for r in requests.list_requests(db, users["legal"])["items"]] == [request_id]
+            assert db.execute("SELECT action FROM public.group_access_events "
+                              "WHERE action='request_created' AND detail=%s",
+                              (str(request_id),)).fetchone()
             db.execute("UPDATE evidence_items SET status='superseded' WHERE id=%s", (item,))
             db.commit()
         finally:

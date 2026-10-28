@@ -96,6 +96,32 @@ _STMTS = [
     f"CREATE POLICY group_events_orgs ON public.group_access_events FOR SELECT USING {_GROUP_SHARED_USING}",
     "DROP POLICY IF EXISTS group_events_insert ON public.group_access_events",
     f"CREATE POLICY group_events_insert ON public.group_access_events FOR INSERT WITH CHECK {_GROUP_SHARED_USING}",
+
+    "ALTER TABLE public.group_evidence_requests ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_evidence_requests FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_requests_parties ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_parties ON public.group_evidence_requests FOR SELECT "
+    "USING (COALESCE(current_setting('app.bypass_rls',true),'')='true' OR "
+    "requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int OR "
+    "source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_requests_parent_create ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_parent_create ON public.group_evidence_requests FOR INSERT "
+    "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_requests_source_review ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_source_review ON public.group_evidence_requests FOR UPDATE "
+    "USING (source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
+    "WITH CHECK (source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_requests_parent_revise ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_parent_revise ON public.group_evidence_requests FOR UPDATE "
+    "USING (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "AND status='clarification') "
+    "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "AND status='requested')",
+
+    "ALTER TABLE public.group_request_mappings ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_request_mappings FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_request_mappings_source ON public.group_request_mappings",
+    f"CREATE POLICY group_request_mappings_source ON public.group_request_mappings USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
     # users
     "ALTER TABLE public.users ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.users FORCE ROW LEVEL SECURITY",
