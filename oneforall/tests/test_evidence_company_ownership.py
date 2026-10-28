@@ -113,3 +113,27 @@ def test_reviewed_unit_map_keeps_prior_mapping_until_independent_decision(test_d
     assert mapped[0]["confirmed_company_name"] == "OmniContact"
     assert db.execute("SELECT COUNT(*) FROM evidence_unit_company_events WHERE org_id=%s",
                       (org,)).fetchone()[0] == 4
+
+
+@pytest.mark.parametrize("count", [500, 5000])
+def test_company_facet_and_page_return_exact_scoped_count_at_scale(test_db, count):
+    db = test_db
+    org = row(db, "organizations", name="Scale test", slug=f"company-scale-{count}", status="active")
+    unit = row(db, "business_units", name="Scale unit", is_active=1)
+    hidden = row(db, "business_units", name="Hidden scale unit", is_active=1)
+    viewer = actor(org, unit, 901)
+    company = ownership.create_company(db, viewer, "Reviewed company")
+    db.execute("INSERT INTO evidence_items(org_id,business_unit_id,title,status,company_id,company_state) "
+               "VALUES(%s,%s,'Hidden document','current',%s,'confirmed')", (org, hidden, company))
+    for index in range(count):
+        db.execute("INSERT INTO evidence_items(org_id,business_unit_id,title,status,company_id,company_state) "
+                   "VALUES(%s,%s,%s,'current',%s,'confirmed')",
+                   (org, unit, f"Document {index:05d}", company))
+    db.commit()
+    assert ownership.facets(db, viewer)["companies"] == [
+        {"id": company, "name": "Reviewed company", "count": count}]
+    page = _library_page(viewer, {"company": str(company), "page_size": "50"})
+    assert page["total"] == count
+    assert page["pages"] == count // 50
+    assert len(page["items"]) == 50
+    assert all(item["title"] != "Hidden document" for item in page["items"])
