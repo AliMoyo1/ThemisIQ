@@ -140,6 +140,39 @@ def test_super_admin_sees_every_organization(world, auth):
     assert body["total"] == 4
 
 
+def test_batch_version_picker_requires_exact_filing_scope_and_hides_other_org(test_db, world, auth):
+    _item(test_db, "Access Review archived", world.org1, status="archived")
+    _item(test_db, "Access Review generated", world.org1, category="generated_record")
+    search = ev.api_evidence_batch_version_candidates
+    unit_user = {**world.users.unit_a, "roles": ["compliance_manager"]}
+    org_user = {**world.users.no_unit, "roles": ["compliance_manager"]}
+    unit = _get(search(_req(auth, unit_user, q="access review", filing_scope=f"unit:{world.bu_a}")))
+    assert {item["id"] for item in unit["items"]} == {world.ids["a"]}
+    assert set(unit["items"][0]) == {"id", "title", "version", "category", "review_due_date", "file_name"}
+    org = _get(search(_req(auth, org_user, q="access review", filing_scope="organization")))
+    assert {item["id"] for item in org["items"]} == {world.ids["wide"]}
+    with pytest.raises(ev.HTTPException) as hidden:
+        _get(search(_req(auth, unit_user, q="access review", filing_scope=f"unit:{world.bu_b}")))
+    assert hidden.value.status_code == 404
+    with pytest.raises(ev.HTTPException) as forbidden:
+        _get(search(_req(auth, unit_user, q="access review", filing_scope="organization")))
+    assert forbidden.value.status_code == 404
+
+
+def test_batch_version_picker_bounds_search_and_results(test_db, world, auth):
+    search = ev.api_evidence_batch_version_candidates
+    org_user = {**world.users.no_unit, "roles": ["compliance_manager"]}
+    for term in ("x", "x" * 101):
+        with pytest.raises(ev.HTTPException) as invalid:
+            _get(search(_req(auth, org_user, q=term, filing_scope="organization")))
+        assert invalid.value.status_code == 422
+    for index in range(30):
+        _item(test_db, f"Batch candidate {index:02d}", world.org1)
+    found = _get(search(_req(auth, org_user, q="Batch candidate", filing_scope="organization")))
+    assert len(found["items"]) == 15
+    assert all(item["title"].startswith("Batch candidate") for item in found["items"])
+
+
 def test_pages_cover_every_item_exactly_once_when_timestamps_tie(test_db, world, auth):
     for i in range(60):
         _item(test_db, f"bulk {i:03d}", world.org1, updated_at="2026-01-01 00:00:00")

@@ -471,6 +471,36 @@ async def api_evidence_batch_suggest(request: Request, file: UploadFile = File(.
                          "text_status": extracted.get("text_status")})
 
 
+@router.get("/api/batch/version-candidates")
+@require_auth
+async def api_evidence_batch_version_candidates(request: Request):
+    """Small, scope-exact picker for a new immutable version; no cross-tenant totals."""
+    user = request.state.user
+    if not user.get("org_id"):
+        raise HTTPException(403, "Select an organization")
+    term = (request.query_params.get("q") or "").strip()
+    filing_scope = (request.query_params.get("filing_scope") or "").strip()
+    if len(term) < 2 or len(term) > 100:
+        raise HTTPException(422, "Search using 2 to 100 characters")
+    db = get_db()
+    try:
+        unit_id = company_views.selected_unit(db, user, filing_scope, for_filing=True)
+        visible_sql, visible_params = evidence_scope_sql(user)
+        unit_sql = "e.business_unit_id IS NULL" if unit_id is None else "e.business_unit_id = %s"
+        rows = db.execute(
+            "SELECT e.id,e.title,e.version,e.category,e.review_due_date,e.file_name "
+            "FROM evidence_items e WHERE e.org_id=%s AND " + visible_sql +
+            " AND " + unit_sql + " AND e.status='current' AND e.category != 'generated_record' "
+            f"AND ({ci_like('e.title')} OR {ci_like('e.file_name')}) "
+            "ORDER BY e.updated_at DESC,e.id DESC LIMIT 15",
+            [user["org_id"], *visible_params, *([unit_id] if unit_id is not None else []),
+             like_pattern(term), like_pattern(term)],
+        ).fetchall()
+        return JSONResponse({"items": [dict(row) for row in rows]})
+    finally:
+        db.close()
+
+
 @router.get("/companies/", response_class=HTMLResponse)
 @require_auth
 async def evidence_companies_page(request: Request):

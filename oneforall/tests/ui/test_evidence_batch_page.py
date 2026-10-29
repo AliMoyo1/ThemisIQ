@@ -98,14 +98,21 @@ def test_batch_new_version_requires_current_record_check_and_keeps_scope(login_a
     second = page.locator("#ebQueue .eb-row").last
     second.get_by_label("Filing scope").select_option(index=1)
     second.get_by_label("File as").select_option("replace")
-    second.get_by_label("Current Vault document ID").fill(str(original_id))
+    second.get_by_label("Find current Vault document").fill("Original")
     second.get_by_label("Checked for filing").check()
     expect(page.locator("#ebUpload")).to_be_disabled()
-    second.get_by_role("button", name="Check current version").click()
+    second.get_by_role("button", name="Find documents").click()
+    expect(second.locator(".eb-matches button")).to_have_count(1)
+    second.locator(".eb-matches button").click()
     expect(second.locator(".eb-state")).to_contain_text("Checked:")
+    expect(second.locator("a.eb-note")).to_have_attribute("href", f"/evidence/?open=item:{original_id}")
     expect(second.locator(".eb-compare")).to_contain_text("Original.txt → Updated.txt")
     expect(second.locator(".eb-compare")).to_contain_text("compares metadata only")
     expect(page.locator("#ebUpload")).to_be_disabled()
+    second.get_by_label("Checked for filing").check()
+    second.get_by_role("button", name="Find documents").click()
+    expect(page.locator("#ebUpload")).to_be_disabled()
+    second.locator(".eb-matches button").click()
     second.get_by_label("Checked for filing").check()
     with page.expect_response(lambda response: response.url.endswith("/evidence/api/items") and
                               response.request.method == "POST") as revised:
