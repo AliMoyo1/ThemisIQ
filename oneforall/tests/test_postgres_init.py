@@ -2250,13 +2250,31 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
             assert _group_proof_requests(db, users["parent_admin"])[0]["entity_id"] == request_id
         finally:
             db.close()
+    # The lane's own user is a superuser, which bypasses row level security: the raw table counts below are only
+    # meaningful as an ordinary role, so give the probe role the rights it needs on the public tables.
+    grant = pg.get_db_bypass_rls()
+    try:
+        grant.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        grant.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        grant.execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        grant.commit()
+    finally:
+        grant.close()
     with pg.tenant_context(child, child_slug, is_super_admin=False):
         db = pg.get_db()
         try:
             assert [r["id"] for r in requests.list_requests(db, users["legal"])["items"]] == [request_id]
-            assert db.execute("SELECT COUNT(*) FROM public.group_cases").fetchone()[0] == 0
-            assert db.execute("SELECT COUNT(*) FROM public.group_case_requests").fetchone()[0] == 0
-            assert db.execute("SELECT COUNT(*) FROM public.group_case_events").fetchone()[0] == 0
+            db.execute("SET ROLE " + _RLS_PROBE_ROLE)
+            db.commit()
+            try:
+                assert db.execute("SELECT COUNT(*) FROM public.group_cases").fetchone()[0] == 0
+                assert db.execute("SELECT COUNT(*) FROM public.group_case_requests").fetchone()[0] == 0
+                assert db.execute("SELECT COUNT(*) FROM public.group_case_events").fetchone()[0] == 0
+            finally:
+                db.execute("RESET ROLE")
+                db.commit()
             assert cases.list_cases(db, users["legal"])["items"] == []
             assert group.grant_review_queue(db, users["ack"])["items"] == []
             assert db.execute("SELECT action FROM public.group_access_events "
