@@ -94,6 +94,232 @@ async def api_connected(request: Request, module: str, entity_type: str, entity_
     return response
 
 
+@router.get("/group/figures/", response_class=HTMLResponse)
+@require_auth
+async def group_figures_page(request: Request):
+    if not has_capability(request.state.user, "group.figure.view_exact"):
+        raise HTTPException(404, "Not found")
+    return templates.TemplateResponse(request, "group_figures.html", {
+        "user": request.state.user, **shell_ctx(request, active_module="governance")})
+
+
+@router.get("/api/group/figures/views")
+@require_auth
+async def api_group_figure_views(request: Request):
+    from modules.governance import group_figures
+    db = get_db()
+    try:
+        response = JSONResponse(group_figures.views(db, request.state.user))
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/figures")
+@require_auth
+async def api_group_figures(request: Request):
+    from modules.governance import group_figures
+    which = request.query_params.get("view", "own")
+    raw = request.query_params.get("org_id")
+    try:
+        org_id = int(raw) if raw not in (None, "") else None
+    except ValueError:
+        raise HTTPException(422, "Choose a company")
+    db = get_db()
+    try:
+        data = group_figures.view(db, request.state.user, which, org_id)
+        db.commit()  # the read is recorded in the shared access log
+    finally:
+        db.close()
+    response = JSONResponse(data)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/issues/views")
+@require_auth
+async def api_group_issue_views(request: Request):
+    from modules.governance import group_issues
+    db = get_db()
+    try:
+        response = JSONResponse(group_issues.views(db, request.state.user))
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/issues")
+@require_auth
+async def api_group_issues(request: Request, org_id: int, issue_type: str, page: int = 1):
+    from modules.governance import group_issues
+    db = get_db()
+    try:
+        response = JSONResponse(group_issues.view(db, request.state.user, org_id, issue_type, page))
+        db.commit()  # the access is logged
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/packs")
+@require_auth
+async def api_group_packs(request: Request):
+    from modules.governance import group_packs
+    db = get_db()
+    try:
+        response = JSONResponse({"items": group_packs.listing(db, request.state.user),
+                                 "can_create": has_capability(request.state.user, "group.pack.create")})
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/packs", status_code=201)
+@require_auth
+async def api_group_pack_create(request: Request):
+    from modules.governance import group_packs
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        new_id = group_packs.create(db, request.state.user, body.get("title"), body.get("period"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.get("/api/group/packs/{pack_id}")
+@require_auth
+async def api_group_pack(request: Request, pack_id: int):
+    from modules.governance import group_packs
+    db = get_db()
+    try:
+        response = JSONResponse(group_packs.get(db, request.state.user, pack_id))
+        db.commit()  # the access is logged
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/packs/{pack_id}/review")
+@require_auth
+async def api_group_pack_review(request: Request, pack_id: int):
+    from modules.governance import group_packs
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        result = group_packs.review(db, request.state.user, pack_id, body.get("decision"), body.get("note"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(result)
+
+
+@router.get("/api/group/packs/{pack_id}/export")
+@require_auth
+async def api_group_pack_export(request: Request, pack_id: int):
+    from core.report_kit import respond
+    from modules.governance import group_packs
+    fmt = respond.format_of(request)
+    if fmt is None:
+        return JSONResponse({"detail": "Choose pdf or xlsx"}, status_code=400)
+    user = request.state.user
+    db = get_db()
+    try:
+        pack = group_packs.get(db, user, pack_id, log=False)
+        org = db.execute("SELECT name FROM organizations WHERE id=%s", (user["org_id"],)).fetchone()
+        group_packs.log_export(db, user, pack_id, fmt)
+        db.commit()
+    finally:
+        db.close()
+    report = group_packs.build_report(user, org["name"] if org else "", pack)
+    return await respond.download(report, fmt, f"ThemisIQ_group_pack_{pack_id}")
+
+
+@router.get("/api/group/band")
+@require_auth
+async def api_group_band(request: Request):
+    from modules.governance import group_band
+    db = get_db()
+    try:
+        response = JSONResponse(group_band.read(db, request.state.user))
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/figures/restatements")
+@require_auth
+async def api_group_figure_restatements(request: Request):
+    from modules.governance import group_figures
+    db = get_db()
+    try:
+        response = JSONResponse({"items": group_figures.list_restatements(db, request.state.user)})
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/figures/restatements", status_code=201)
+@require_auth
+async def api_group_figure_restatement_propose(request: Request):
+    from modules.governance import group_figures
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        new_id = group_figures.propose_restatement(db, request.state.user, body.get("measure_key"),
+                                                   body.get("new_value"), body.get("reason"), body.get("period") or "")
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.post("/api/group/figures/restatements/{restatement_id}/review")
+@require_auth
+async def api_group_figure_restatement_review(request: Request, restatement_id: int):
+    from modules.governance import group_figures
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        result = group_figures.review_restatement(db, request.state.user, restatement_id,
+                                                  body.get("decision"), body.get("reason"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(result)
+
+
+@router.post("/api/group/figures/publish")
+@require_auth
+async def api_group_figures_publish(request: Request):
+    """Platform operator: freeze one organization's figures now (the schedule does the same for every party)."""
+    from database import get_db_bypass_rls
+    from modules.governance import group_figures
+    if not has_capability(request.state.user, "group.relationship.manage"):
+        raise HTTPException(404, "Not found")
+    body = await _json_body(request)
+    try:
+        org_id = int(body.get("org_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose an organization")
+    db = get_db_bypass_rls()
+    try:
+        org = db.execute("SELECT id, slug FROM organizations WHERE id=%s AND status='active'", (org_id,)).fetchone()
+    finally:
+        db.close()
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    return JSONResponse({"written": group_figures.publish_tenant(org["id"], org["slug"])})
+
+
 @router.get("/changes", response_class=HTMLResponse)
 @require_auth
 async def changes_page(request: Request):

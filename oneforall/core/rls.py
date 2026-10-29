@@ -100,6 +100,111 @@ _STMTS = [
     "DROP POLICY IF EXISTS group_publications_source_revoke ON public.group_document_publications",
     f"CREATE POLICY group_publications_source_revoke ON public.group_document_publications FOR UPDATE USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
 
+    # Figures: the source organization reads its own; the parent of an active relationship reads its children's.
+    # Nothing here can be updated or deleted by a tenant, and a child never reads its parent's.
+    "ALTER TABLE public.group_figure_snapshots ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_figure_snapshots FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_figures_read ON public.group_figure_snapshots",
+    "CREATE POLICY group_figures_read ON public.group_figure_snapshots FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.child_org_id = group_figure_snapshots.source_org_id "
+    "AND r.parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_figures_insert ON public.group_figure_snapshots",
+    "CREATE POLICY group_figures_insert ON public.group_figure_snapshots FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
+
+    # Group packs belong to the parent. A pack can be created, and decided once; after that no policy lets it change.
+    "ALTER TABLE public.group_packs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_packs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_packs_read ON public.group_packs",
+    f"CREATE POLICY group_packs_read ON public.group_packs FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_packs_insert ON public.group_packs",
+    f"CREATE POLICY group_packs_insert ON public.group_packs FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_packs_decide ON public.group_packs",
+    "CREATE POLICY group_packs_decide ON public.group_packs FOR UPDATE USING (status = 'proposed' AND "
+    f"{_GROUP_PARENT_USING}) WITH CHECK {_GROUP_PARENT_USING}",
+
+    # Issue register: written and pruned only by the platform's own job (bypass). The source reads its own rows and the
+    # parent of an active relationship reads its child's; whether a person may is decided by grant and terms in code.
+    "ALTER TABLE public.group_issue_runs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_issue_runs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_issue_runs_read ON public.group_issue_runs",
+    "CREATE POLICY group_issue_runs_read ON public.group_issue_runs FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.child_org_id = group_issue_runs.source_org_id "
+    "AND r.parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_issue_runs_write ON public.group_issue_runs",
+    "CREATE POLICY group_issue_runs_write ON public.group_issue_runs FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "DROP POLICY IF EXISTS group_issue_runs_prune ON public.group_issue_runs",
+    "CREATE POLICY group_issue_runs_prune ON public.group_issue_runs FOR DELETE USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "ALTER TABLE public.group_issue_rows ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_issue_rows FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_issue_rows_read ON public.group_issue_rows",
+    "CREATE POLICY group_issue_rows_read ON public.group_issue_rows FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.child_org_id = group_issue_rows.source_org_id "
+    "AND r.parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_issue_rows_write ON public.group_issue_rows",
+    "CREATE POLICY group_issue_rows_write ON public.group_issue_rows FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "DROP POLICY IF EXISTS group_issue_rows_prune ON public.group_issue_rows",
+    "CREATE POLICY group_issue_rows_prune ON public.group_issue_rows FOR DELETE USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+
+    # Group band: written only by the platform's own job (bypass). The parent reads everything; a subsidiary reads the
+    # publication of its own parent and only its own viewer row; the cohort and exact mean are parent-only.
+    "ALTER TABLE public.group_band_publications ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_band_publications FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_band_pub_read ON public.group_band_publications",
+    "CREATE POLICY group_band_pub_read ON public.group_band_publications FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.parent_org_id = group_band_publications.parent_org_id "
+    "AND r.child_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_band_pub_write ON public.group_band_publications",
+    "CREATE POLICY group_band_pub_write ON public.group_band_publications FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "ALTER TABLE public.group_band_internal ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_band_internal FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_band_internal_read ON public.group_band_internal",
+    f"CREATE POLICY group_band_internal_read ON public.group_band_internal FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_band_internal_write ON public.group_band_internal",
+    "CREATE POLICY group_band_internal_write ON public.group_band_internal FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "ALTER TABLE public.group_band_viewers ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_band_viewers FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_band_viewers_read ON public.group_band_viewers",
+    "CREATE POLICY group_band_viewers_read ON public.group_band_viewers FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR child_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)))",
+    "DROP POLICY IF EXISTS group_band_viewers_write ON public.group_band_viewers",
+    "CREATE POLICY group_band_viewers_write ON public.group_band_viewers FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+
+    "ALTER TABLE public.group_figure_restatements ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_figure_restatements FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_restatements_source ON public.group_figure_restatements",
+    f"CREATE POLICY group_restatements_source ON public.group_figure_restatements USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
+
+    "ALTER TABLE public.group_figure_lineage ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_figure_lineage FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_lineage_source ON public.group_figure_lineage",
+    f"CREATE POLICY group_lineage_source ON public.group_figure_lineage FOR SELECT USING {_GROUP_SOURCE_USING}",
+    "DROP POLICY IF EXISTS group_lineage_insert ON public.group_figure_lineage",
+    f"CREATE POLICY group_lineage_insert ON public.group_figure_lineage FOR INSERT WITH CHECK {_GROUP_SOURCE_USING}",
+
     "ALTER TABLE public.group_access_events ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_access_events FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_events_orgs ON public.group_access_events",

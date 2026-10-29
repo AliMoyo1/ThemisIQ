@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS group_view_grants (
     source_org_id INTEGER NOT NULL REFERENCES organizations(id),
     viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
     user_id INTEGER NOT NULL,
-    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download')),
+    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download','figure.view','issue.view')),
     expires_at TEXT NOT NULL,
     review_due_at TEXT NOT NULL,
     revoked_at TEXT,
@@ -814,6 +814,137 @@ CREATE TABLE IF NOT EXISTS group_document_publications (
 );
 CREATE INDEX IF NOT EXISTS idx_group_document_publications_viewer
     ON group_document_publications(viewer_org_id, relationship_id, revoked_at);
+
+-- How each published figure was made and whether it reconciled (plan 21). Readable only by the organization that
+-- published it: the parent receives the figure and the approved explanation, never the lineage.
+CREATE TABLE IF NOT EXISTS group_figure_lineage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    measure_key TEXT NOT NULL,
+    state TEXT NOT NULL,
+    value REAL,
+    definition_text TEXT NOT NULL DEFAULT '',
+    eligibility_text TEXT NOT NULL DEFAULT '',
+    denominator_text TEXT,
+    window_text TEXT,
+    reconciliation TEXT NOT NULL CHECK(reconciliation IN ('ok','failed')),
+    reason TEXT NOT NULL DEFAULT '',
+    built_at TEXT NOT NULL,
+    snapshot_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_group_figure_lineage_run ON group_figure_lineage(source_org_id, run_id);
+
+-- Frozen figures a tenant publishes about itself for its parent (plan 21). Append only: a newer snapshot replaces
+-- nothing, the reader takes the latest per measure and the earlier ones stay as the trend and the audit trail.
+CREATE TABLE IF NOT EXISTS group_figure_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    measure_key TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL CHECK(state IN ('measured','partial','not_measured','unavailable','stale')),
+    value REAL,
+    window_text TEXT,
+    detail_json TEXT NOT NULL DEFAULT '{}',
+    method_version TEXT NOT NULL,
+    as_of TEXT NOT NULL,
+    publication_version INTEGER NOT NULL DEFAULT 1,
+    content_hash TEXT NOT NULL,
+    restates_snapshot_id INTEGER,
+    restatement_reason TEXT,
+    published_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_figure_latest ON group_figure_snapshots(source_org_id, measure_key, id);
+
+-- A group pack (plan 21, slice 6): a manifest of snapshot ids and its hash, signed off by a second person. Once decided
+-- the row cannot change (row level security on PostgreSQL).
+CREATE TABLE IF NOT EXISTS group_packs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    title TEXT NOT NULL,
+    period_text TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','issued','rejected')),
+    manifest_json TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_packs_parent ON group_packs(parent_org_id, id);
+
+-- The level-2 issue register (plan 21, slice 5): sanitized rows per record, from the fields the code allows.
+CREATE TABLE IF NOT EXISTS group_issue_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    issue_type TEXT NOT NULL CHECK(issue_type IN ('breach','dsr','dpia','ropa','consent')),
+    published_at TEXT NOT NULL,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    truncated INTEGER NOT NULL DEFAULT 0,
+    content_hash TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_issue_runs_source ON group_issue_runs(source_org_id, issue_type, id);
+CREATE TABLE IF NOT EXISTS group_issue_rows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES group_issue_runs(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    issue_type TEXT NOT NULL,
+    ref_number TEXT NOT NULL,
+    fields_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_issue_rows_run ON group_issue_rows(run_id, id);
+
+-- The banded group score (plan 21, slice 4). The publication holds only what a subsidiary may see; the cohort and the
+-- exact mean are parent-only; a viewer row says, per subsidiary, whether it may see the band this period.
+CREATE TABLE IF NOT EXISTS group_band_publications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    period_key TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('published','withheld')),
+    band INTEGER,
+    scale INTEGER NOT NULL DEFAULT 3,
+    trend TEXT NOT NULL DEFAULT 'new',
+    computed_at TEXT NOT NULL,
+    UNIQUE(parent_org_id, period_key)
+);
+CREATE TABLE IF NOT EXISTS group_band_internal (
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    period_key TEXT NOT NULL,
+    cohort_hash TEXT NOT NULL,
+    cohort_size INTEGER NOT NULL,
+    mean_score REAL,
+    PRIMARY KEY(parent_org_id, period_key)
+);
+CREATE TABLE IF NOT EXISTS group_band_viewers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    period_key TEXT NOT NULL,
+    child_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    visible INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(parent_org_id, period_key, child_org_id)
+);
+
+-- A correction to a published figure: the source proposes, a different person approves, and approval publishes a NEW
+-- snapshot that points at the original. Pending proposals are visible to the source only.
+CREATE TABLE IF NOT EXISTS group_figure_restatements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    measure_key TEXT NOT NULL,
+    original_snapshot_id INTEGER NOT NULL REFERENCES group_figure_snapshots(id),
+    old_value REAL,
+    new_value REAL NOT NULL,
+    period_text TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','rejected')),
+    proposed_by INTEGER NOT NULL,
+    reviewed_by INTEGER,
+    review_reason TEXT,
+    replacement_snapshot_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_figure_restatements_source ON group_figure_restatements(source_org_id, status, id);
 
 CREATE TABLE IF NOT EXISTS group_access_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -8691,6 +8822,14 @@ def _run_pg_alters(conn) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
         except Exception:
             pass
+    # A group grant may now be for figures as well as documents (plan 21). The check was created with two values.
+    try:
+        conn.execute("ALTER TABLE public.group_view_grants DROP CONSTRAINT IF EXISTS group_view_grants_capability_check")
+        conn.execute("ALTER TABLE public.group_view_grants ADD CONSTRAINT group_view_grants_capability_check "
+                     "CHECK(capability IN ('document.view','document.download','figure.view','issue.view'))")
+        conn.commit()
+    except Exception:
+        conn.rollback()
     conn.execute(
         "UPDATE workflow_instances SET org_id=(SELECT org_id FROM users WHERE id=started_by) "
         "WHERE org_id IS NULL AND started_by IS NOT NULL"

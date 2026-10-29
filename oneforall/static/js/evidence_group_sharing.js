@@ -74,6 +74,24 @@
       const orgs = workspace.organizations.map(row => ({id: row.id, label: row.name}));
       select(proposal, 'parent_org_id', orgs, 'Choose parent');
       select(proposal, 'child_org_id', orgs, 'Choose child');
+      const list = byId('gsMeasureList');
+      if (!list.childElementCount) (workspace.figure_measures || []).forEach(measure => {
+        const label = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox'; box.name = 'figure_measures'; box.value = measure.key;
+        label.append(box, ' ' + measure.label);
+        label.style.display = 'block';
+        list.append(label);
+      });
+      const issues = byId('gsIssueList');
+      if (!issues.childElementCount) (workspace.issue_types || []).forEach(item => {
+        const label = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox'; box.name = 'issue_types'; box.value = item.key;
+        label.append(box, ' ' + item.label);
+        label.style.display = 'block';
+        issues.append(label);
+      });
     }
   }
   function renderGrants() {
@@ -225,7 +243,8 @@
         terms: {data_classes: data.get('data_classes') === 'bytes' ? ['document_metadata', 'document_bytes'] : ['document_metadata'],
           classifications: [data.get('classification')], audiences: [data.get('audience')],
           fields, jurisdictions: [data.get('jurisdiction')], legal_basis: data.get('legal_basis'),
-          agreement_ref: data.get('agreement_ref')}
+          agreement_ref: data.get('agreement_ref'), figure_measures: data.getAll('figure_measures'),
+          issue_types: data.getAll('issue_types')}
       }, 'Relationship proposed for review.');
     } catch (error) { status.textContent = error.message; }
   });

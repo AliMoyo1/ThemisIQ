@@ -1,0 +1,72 @@
+{% extends "base_shell.html" %}
+{% block title %}Group figures · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Governance</div><div class="module-desc">Group oversight</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Group</div>
+  <a class="nav-item active" href="/governance/group/figures/" aria-current="page">Group figures</a>
+  <a class="nav-item" href="/evidence/group/">Group sharing</a>
+  <a class="nav-item" href="/evidence/group/requests/">Proof requests</a>
+  <a class="nav-item" href="/evidence/group/cases/">Group cases</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.gf-page{max-width:1300px;padding:24px;margin:auto;color:var(--text)}
+.gf-hero{padding:28px 32px;border-radius:24px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
+.gf-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.gf-hero p{max-width:780px;color:var(--muted);line-height:1.55;margin:0}
+.gf-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.gf-tabs button{cursor:pointer}
+.gf-tabs button[aria-pressed=true]{outline:2px solid var(--accent)}
+.gf-status{min-height:24px;font-weight:650;margin:10px 0}
+.gf-entity{padding:20px;border-radius:18px;background:var(--surface);box-shadow:0 10px 24px rgba(28,44,50,.06);margin-bottom:16px}
+.gf-entity h2{font:600 20px/1.25 Georgia,serif;margin:0 0 4px}.gf-entity small{color:var(--muted)}
+.gf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.gf-card{background:var(--surface2);border-radius:14px;padding:14px}.gf-card b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.gf-card span{display:block;font-size:12px;color:var(--muted)}
+.gf-table{width:100%;border-collapse:collapse;font-size:13px}.gf-table th,.gf-table td{text-align:left;padding:8px;border-bottom:1px solid var(--border)}
+.gf-form{display:grid;gap:8px;max-width:520px;margin-top:12px}.gf-form[hidden]{display:none}.gf-form label{display:grid;gap:4px;font-size:13px;font-weight:650}
+@media(max-width:700px){.gf-page{padding:14px}.gf-hero{padding:20px}.gf-hero h1{font-size:27px}}
+</style>
+<main class="gf-page" id="groupFigures">
+  <header class="gf-hero"><h1>Group figures</h1><p>Frozen figures each organization publishes about itself, as of the time shown. A subsidiary that has not published recently shows as not reporting. It is never counted as zero. Counts are added up for the group; shares and levels are shown per organization because they cannot be added.</p></header>
+  <div class="gf-tabs" id="gfTabs" role="group" aria-label="View"></div>
+  <p id="gfStatus" class="gf-status" role="status" aria-live="polite"></p>
+  <div id="gfTotals"></div>
+  <div id="gfEntities"></div>
+  <section class="gf-entity" id="gfPacks" hidden>
+    <h2>Group packs</h2>
+    <small>A pack freezes the figures you can see now. A different person signs it off, and after that it never changes: a later correction is shown beside it.</small>
+    <form id="gfPackForm" class="gf-form" hidden>
+      <label>Title<input name="title" maxlength="120" required></label>
+      <label>Period<input name="period" maxlength="80" required placeholder="Q4 2026"></label>
+      <button class="btn btn-primary" type="submit">Freeze a pack</button>
+    </form>
+    <div id="gfPackRows" style="margin-top:12px"></div>
+    <div id="gfPackDetail"></div>
+  </section>
+  <section class="gf-entity" id="gfIssues" hidden>
+    <h2>Issue register</h2>
+    <small>Individual records a subsidiary has approved for its group, by reference. Only fixed fields are shown: no titles, names or descriptions leave the subsidiary.</small>
+    <form id="gfIssueForm" class="gf-form">
+      <label>Subsidiary<select name="org_id" required></select></label>
+      <label>Register<select name="issue_type" required></select></label>
+      <button class="btn btn-secondary" type="submit">Show</button>
+    </form>
+    <p id="gfIssueNote" class="gf-status" role="status" aria-live="polite"></p>
+    <div style="overflow-x:auto"><table class="gf-table" id="gfIssueTable"></table></div>
+    <div class="gf-tabs"><button class="btn btn-secondary" type="button" id="gfIssuePrev" hidden>Previous</button><button class="btn btn-secondary" type="button" id="gfIssueNext" hidden>Next</button></div>
+  </section>
+  <section class="gf-entity" id="gfCorrections" hidden>
+    <h2>Corrections to your published figures</h2>
+    <small>A correction is proposed by one person and approved by another. Approval publishes a new figure marked as restated; the original stays on record.</small>
+    <form id="gfPropose" class="gf-form" hidden>
+      <label>Figure<select name="measure_key" required></select></label>
+      <label>Corrected value<input name="new_value" type="number" min="0" step="any" required></label>
+      <label>Period affected<input name="period" maxlength="80"></label>
+      <label>Reason<textarea name="reason" maxlength="500" rows="3" required></textarea></label>
+      <button class="btn btn-primary" type="submit">Propose correction</button>
+    </form>
+    <div id="gfCorrectionRows" style="margin-top:12px"></div>
+  </section>
+</main>
+<script src="/static/js/group_figures.js?v=4" defer></script>
+{% endblock %}

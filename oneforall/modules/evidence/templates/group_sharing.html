@@ -46,6 +46,8 @@
       <label>Jurisdiction<input name="jurisdiction" maxlength="80" required></label>
       <label class="gs-wide">Legal basis<input name="legal_basis" maxlength="500" required></label>
       <label>Agreement reference<input name="agreement_ref" maxlength="250" required></label>
+      <fieldset class="gs-wide" id="gsMeasures"><legend>Group figures the child publishes (none by default)</legend><div id="gsMeasureList"></div></fieldset>
+      <fieldset class="gs-wide" id="gsIssues"><legend>Individual records the child lists by reference, with fixed fields only (none by default)</legend><div id="gsIssueList"></div></fieldset>
       <label>Relationship review due<input type="datetime-local" name="review_due_at" required></label>
       <button class="btn btn-primary gs-wide" type="submit">Propose relationship</button>
     </form>
@@ -54,7 +56,7 @@
     <form id="gsGrant" class="gs-form" hidden>
       <label>Relationship<select name="relationship_id" required></select></label>
       <label>Recipient<select name="user_id" required></select></label>
-      <label>Access<select name="capability"><option value="document.view">View</option><option value="document.download">Download</option></select></label>
+      <label>Access<select name="capability"><option value="document.view">View documents</option><option value="document.download">Download documents</option><option value="figure.view">View group figures</option><option value="issue.view">View issue register</option></select></label>
       <label>Review due<input type="datetime-local" name="review_due_at" required></label>
       <label>Expires<input type="datetime-local" name="expires_at" required></label>
       <button class="btn btn-primary gs-wide" type="submit">Grant named access</button>
@@ -98,5 +100,5 @@
   </section>
  </div>
 </main>
-<script src="/static/js/evidence_group_sharing.js?v=2" defer></script>
+<script src="/static/js/evidence_group_sharing.js?v=3" defer></script>
 {% endblock %}

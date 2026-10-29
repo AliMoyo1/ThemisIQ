@@ -5059,3 +5059,281 @@ def test_a_group_dpo_reviews_from_the_parent_and_notice_is_deemed_on_real_postgr
         check.close()
     assert (row["status"], row["child_ack_by"], row["privacy_review_by"], row["legal_review_by"]) == ("active", None, dpo, dpo)
     assert row["notice_deemed_at"]
+
+
+def test_group_figures_publish_and_row_level_security_on_real_postgres(pg):
+    """A tenant publishes its own Command Centre figures from its own schema; the parent of an active relationship
+    reads its child's rows, a sibling reads none, a child never reads its parent's, and nobody can rewrite history."""
+    import psycopg2
+    from modules.governance import group_figures as gf
+
+    pg.init_db()
+    parent = _make_org(pg, "fig_parent_pg")
+    child = _make_org(pg, "fig_child_pg")
+    sibling = _make_org(pg, "fig_sibling_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,"
+            "privacy_review_by,legal_review_by,terms_json,review_due_at) "
+            "VALUES (%s,%s,'active','Group',1,2,3,%s,'2099-01-01T00:00:00')",
+            (parent, child, __import__("json").dumps({"figure_measures": list(gf.PUBLISHABLE)})))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+    # The builders run on PostgreSQL inside each tenant schema.
+    written = {org: gf.publish_tenant(org, slug) for org, slug in (
+        (parent, "fig_parent_pg"), (child, "fig_child_pg"), (sibling, "fig_sibling_pg"))}
+    assert all(n > 5 for n in written.values()), written
+
+    def visible(org, where=""):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                _become_restricted(conn)
+                rows = conn.execute("SELECT DISTINCT source_org_id FROM public.group_figure_snapshots " + where).fetchall()
+                return sorted(r["source_org_id"] for r in rows)
+            finally:
+                _release_role(conn)
+    assert visible(parent) == sorted([parent, child]), "the parent reads itself and its child"
+    assert visible(child) == [child], "a child never reads its parent's rows"
+    assert visible(sibling) == [sibling], "a sibling reads only itself"
+    # No tenant can write another's rows, rewrite history or delete it.
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_figure_snapshots (source_org_id,measure_key,state,value,"
+                             "method_version,as_of,content_hash) VALUES (%s,'cc.open_breaches','measured',0,'x','x','x')",
+                             (parent,))
+            conn.rollback()
+            assert conn.execute("UPDATE public.group_figure_snapshots SET value=-1 WHERE source_org_id=%s", (child,)).rowcount == 0
+            assert conn.execute("DELETE FROM public.group_figure_snapshots WHERE source_org_id=%s", (child,)).rowcount == 0
+            conn.commit()
+        finally:
+            _release_role(conn)
+    check = pg.get_db_bypass_rls()
+    try:
+        assert check.execute("SELECT COUNT(*) FROM public.group_figure_snapshots WHERE source_org_id=%s AND value=-1",
+                             (child,)).fetchone()[0] == 0
+    finally:
+        check.close()
+
+
+def test_group_band_restatement_and_lineage_row_level_security_on_real_postgres(pg):
+    """The banded score is readable by the parent and by each subsidiary of an active relationship, but a subsidiary
+    reads only its own viewer row and never the exact mean or cohort. Lineage and restatements belong to their source."""
+    import psycopg2
+    from modules.governance import group_band as gb
+
+    pg.init_db()
+    parent = _make_org(pg, "band_parent_pg")
+    child = _make_org(pg, "band_child_pg")
+    child2 = _make_org(pg, "band_child2_pg")
+    outsider = _make_org(pg, "band_outsider_pg")
+    from core.timeutils import utcnow
+    now = utcnow().isoformat()
+    setup = pg.get_db_bypass_rls()
+    try:
+        for kid in (child, child2):
+            setup.execute(
+                "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,"
+                "privacy_review_by,legal_review_by,terms_json,review_due_at) "
+                "VALUES (%s,%s,'active','Group',1,2,3,'{}','2099-01-01T00:00:00')", (parent, kid))
+        setup.execute("INSERT INTO public.group_band_publications (parent_org_id,period_key,status,band,scale,trend,computed_at) "
+                      "VALUES (%s,'2026-W44','published',2,3,'new',%s)", (parent, now))
+        setup.execute("INSERT INTO public.group_band_internal (parent_org_id,period_key,cohort_hash,cohort_size,mean_score) "
+                      "VALUES (%s,'2026-W44','h',3,64.3)", (parent,))
+        setup.execute("INSERT INTO public.group_band_viewers (parent_org_id,period_key,child_org_id,visible) "
+                      "VALUES (%s,'2026-W44',%s,1)", (parent, child))
+        setup.execute("INSERT INTO public.group_band_viewers (parent_org_id,period_key,child_org_id,visible) "
+                      "VALUES (%s,'2026-W44',%s,0)", (parent, child2))
+        snapshot = setup.execute(
+            "INSERT INTO public.group_figure_snapshots (source_org_id,measure_key,state,value,method_version,as_of,content_hash) "
+            "VALUES (%s,'cc.open_breaches','measured',4,'x','x','band-pg') RETURNING id", (child,)).fetchone()["id"]
+        setup.execute(
+            "INSERT INTO public.group_figure_restatements (source_org_id,measure_key,original_snapshot_id,old_value,new_value,"
+            "reason,proposed_by) VALUES (%s,'cc.open_breaches',%s,4,5,'Corrected after review',1)", (child, snapshot))
+        setup.execute(
+            "INSERT INTO public.group_figure_lineage (run_id,source_org_id,measure_key,state,value,reconciliation,built_at) "
+            "VALUES ('run1',%s,'cc.open_breaches','measured',4,'ok','x')", (child,))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+
+    def count(org, table):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                _become_restricted(conn)
+                return conn.execute(f"SELECT COUNT(*) FROM public.{table}").fetchone()[0]
+            finally:
+                _release_role(conn)
+
+    for table, expected in (
+        ("group_band_publications", {parent: 1, child: 1, child2: 1, outsider: 0}),
+        ("group_band_internal", {parent: 1, child: 0, child2: 0, outsider: 0}),
+        ("group_band_viewers", {parent: 2, child: 1, child2: 1, outsider: 0}),
+        ("group_figure_restatements", {parent: 0, child: 1, child2: 0, outsider: 0}),
+        ("group_figure_lineage", {parent: 0, child: 1, child2: 0, outsider: 0}),
+    ):
+        assert {org: count(org, table) for org in expected} == expected, table
+
+    # A subsidiary cannot write a band, and the real read path works for an ordinary role.
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_band_publications (parent_org_id,period_key,status,band,scale,trend,"
+                             "computed_at) VALUES (%s,'2026-W45','published',3,3,'up','x')", (parent,))
+            conn.rollback()
+            actor = {"id": 1, "org_id": child, "roles": ["grc_officer"], "is_super_admin": False}
+            seen = gb.read(conn, actor)
+            assert seen["state"] == "shown" and (seen["band"], seen["of"]) == (2, 3)
+            assert set(seen) == {"state", "band", "of", "label", "trend", "period", "as_of"}
+        finally:
+            _release_role(conn)
+    with pg.tenant_context(child2, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            assert gb.read(conn, {"id": 1, "org_id": child2, "roles": ["grc_officer"], "is_super_admin": False}) == {
+                "state": "not_available"}
+        finally:
+            _release_role(conn)
+
+
+def test_group_issue_register_row_level_security_on_real_postgres(pg):
+    """The parent of an active relationship reads its children's register rows, a child reads only its own, an outsider
+    nothing, and no ordinary role can add, change or prune rows."""
+    import psycopg2
+    from modules.governance import group_issues as gi
+
+    pg.init_db()
+    parent = _make_org(pg, "iss_parent_pg")
+    child = _make_org(pg, "iss_child_pg")
+    child2 = _make_org(pg, "iss_child2_pg")
+    outsider = _make_org(pg, "iss_outsider_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        for kid in (child, child2):
+            setup.execute(
+                "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,"
+                "privacy_review_by,legal_review_by,terms_json,review_due_at) "
+                "VALUES (%s,%s,'active','Group',1,2,3,%s,'2099-01-01T00:00:00')",
+                (parent, kid, __import__("json").dumps({"issue_types": ["dsr"]})))
+            run = setup.execute(
+                "INSERT INTO public.group_issue_runs (source_org_id,issue_type,published_at,row_count,content_hash) "
+                "VALUES (%s,'dsr','2026-10-29T00:00:00',1,'h') RETURNING id", (kid,)).fetchone()["id"]
+            setup.execute(
+                "INSERT INTO public.group_issue_rows (run_id,source_org_id,issue_type,ref_number,fields_json) "
+                "VALUES (%s,%s,'dsr','DSR-1','{}')", (run, kid))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+
+    def count(org, table):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                _become_restricted(conn)
+                return conn.execute(f"SELECT COUNT(*) FROM public.{table}").fetchone()[0]
+            finally:
+                _release_role(conn)
+
+    for table in ("group_issue_runs", "group_issue_rows"):
+        assert {org: count(org, table) for org in (parent, child, child2, outsider)} == {
+            parent: 2, child: 1, child2: 1, outsider: 0}, table
+
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_issue_runs (source_org_id,issue_type,published_at,content_hash) "
+                             "VALUES (%s,'dsr','x','x')", (child,))
+            conn.rollback()
+            assert conn.execute("DELETE FROM public.group_issue_rows WHERE source_org_id=%s", (child,)).rowcount == 0
+            assert conn.execute("DELETE FROM public.group_issue_runs WHERE source_org_id=%s", (child,)).rowcount == 0
+            conn.commit()
+        finally:
+            _release_role(conn)
+    # The platform's own publish and prune path works on real PostgreSQL.
+    check = pg.get_db_bypass_rls()
+    try:
+        before = check.execute("SELECT COUNT(*) FROM public.group_issue_runs WHERE source_org_id=%s", (child,)).fetchone()[0]
+        gi.publish_tenant(child, "iss_child_pg")
+        after = check.execute("SELECT COUNT(*) FROM public.group_issue_runs WHERE source_org_id=%s", (child,)).fetchone()[0]
+    finally:
+        check.close()
+    assert after == before + 1, "one run for the one approved type, written from inside the tenant schema"
+
+
+def test_a_decided_group_pack_cannot_change_and_belongs_to_its_parent_on_real_postgres(pg):
+    """The parent creates a pack and decides it once; after that no ordinary role can alter it, and nobody else reads it."""
+    pg.init_db()
+    parent = _make_org(pg, "pack_parent_pg")
+    child = _make_org(pg, "pack_child_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+    with pg.tenant_context(parent, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            pack = conn.execute(
+                "INSERT INTO public.group_packs (parent_org_id,title,period_text,manifest_json,content_hash,created_by,created_at) "
+                "VALUES (%s,'Board pack','Q4','[]','h',1,'2026-10-29T00:00:00') RETURNING id", (parent,)).fetchone()["id"]
+            assert conn.execute("UPDATE public.group_packs SET status='issued', reviewed_by=2 WHERE id=%s", (pack,)).rowcount == 1
+            assert conn.execute("UPDATE public.group_packs SET title='Changed' WHERE id=%s", (pack,)).rowcount == 0, \
+                "an issued pack is immutable"
+            assert conn.execute("UPDATE public.group_packs SET status='rejected' WHERE id=%s", (pack,)).rowcount == 0
+            assert conn.execute("DELETE FROM public.group_packs WHERE id=%s", (pack,)).rowcount == 0
+            conn.commit()
+        finally:
+            _release_role(conn)
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            assert conn.execute("SELECT COUNT(*) FROM public.group_packs").fetchone()[0] == 0
+            with __import__("pytest").raises(__import__("psycopg2").errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_packs (parent_org_id,title,manifest_json,content_hash,created_by,created_at) "
+                             "VALUES (%s,'x','[]','h',1,'x')", (parent,))
+            conn.rollback()
+        finally:
+            _release_role(conn)
+    check = pg.get_db_bypass_rls()
+    try:
+        row = check.execute("SELECT title, status FROM public.group_packs WHERE parent_org_id=%s", (parent,)).fetchone()
+    finally:
+        check.close()
+    assert (row["title"], row["status"]) == ("Board pack", "issued")
