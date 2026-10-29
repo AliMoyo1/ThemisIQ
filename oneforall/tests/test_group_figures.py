@@ -33,6 +33,9 @@ def _future(days=30):
     return (datetime.now(timezone.utc) + timedelta(days=days)).replace(tzinfo=None).isoformat()
 
 
+ALL_MEASURES = json.dumps({"figure_measures": list(gf.PUBLISHABLE)})
+
+
 @pytest.fixture
 def world(test_db):
     db = test_db
@@ -42,10 +45,10 @@ def world(test_db):
     sibling = _id(db, "organizations", name="Sibling Co", slug="fig_sibling", status="active")
     relation = _id(db, "org_relationships", parent_org_id=parent, child_org_id=child, status="active",
                    purpose="Group", child_ack_by=1, privacy_review_by=2, legal_review_by=3,
-                   terms_json="{}", review_due_at=_future(90))
+                   terms_json=ALL_MEASURES, review_due_at=_future(90))
     relation_other = _id(db, "org_relationships", parent_org_id=parent, child_org_id=other, status="active",
                          purpose="Group", child_ack_by=1, privacy_review_by=2, legal_review_by=3,
-                         terms_json="{}", review_due_at=_future(90))
+                         terms_json=ALL_MEASURES, review_due_at=_future(90))
     users = {
         "grc": _actor(db, parent, "fig_grc", "grc_officer"),
         "dpo": _actor(db, parent, "fig_dpo", "dpo"),
@@ -272,3 +275,61 @@ def test_an_unknown_view_is_refused(world):
     with pytest.raises(HTTPException) as bad:
         gf.view(db, users["grc"], "everything")
     assert bad.value.status_code == 422
+
+
+# ── the approved measure list and the cadence ───────────────────────────────
+
+def test_a_child_publishes_only_the_measures_its_terms_approve(world):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    db.execute("UPDATE org_relationships SET terms_json=%s WHERE id=%s",
+               (json.dumps({"figure_measures": ["cc.open_breaches", "cc.module_health"]}), relation))
+    db.commit()
+    gf.publish_tenant(child, "fig_child")
+    keys = {r["measure_key"] for r in db.execute(
+        "SELECT DISTINCT measure_key FROM group_figure_snapshots WHERE source_org_id=%s", (child,)).fetchall()}
+    assert keys and all(k.split(":")[0] in ("cc.open_breaches", "cc.module_health") for k in keys), keys
+
+
+def test_a_child_with_no_approved_measures_publishes_nothing_and_a_parent_is_unrestricted(world):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    db.execute("UPDATE org_relationships SET terms_json='{}' WHERE id=%s", (relation,))
+    db.commit()
+    assert gf.publish_tenant(child, "fig_child") == 0
+    assert gf.publish_tenant(parent, "fig_parent") > 5, "an organization that is nobody's child publishes its own figures"
+
+
+def test_a_narrowed_term_hides_figures_published_earlier(world):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    _grant(db, relation, parent, child, users["grc"])
+    _snapshot(db, child, "cc.open_breaches", 5, module="sentinel")
+    _snapshot(db, child, "cc.overdue_actions", 9)
+    db.execute("UPDATE org_relationships SET terms_json=%s WHERE id=%s",
+               (json.dumps({"figure_measures": ["cc.open_breaches"]}), relation))
+    db.commit()
+    figures = gf.view(db, users["grc"], "subsidiary", child)["entities"][0]["figures"]
+    assert [f["key"] for f in figures] == ["cc.open_breaches"]
+
+
+def test_the_terms_accept_only_known_measures():
+    assert gf.validate_measures(None) == []
+    assert gf.validate_measures(["cc.open_breaches", "cc.overdue_actions"]) == ["cc.open_breaches", "cc.overdue_actions"]
+    for bad in ("cc.open_breaches", ["cc.not_real"], ["cc.open_breaches", "cc.open_breaches"], [3], {"a": 1}):
+        with pytest.raises(HTTPException):
+            gf.validate_measures(bad)
+
+
+def test_the_cadence_setting_decides_which_tenants_are_due(world):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    assert gf.interval_hours() == 24
+    db.execute("INSERT INTO settings (key, value) VALUES ('group.figures.interval_hours', '6')")
+    db.commit()
+    assert gf.interval_hours() == 6
+    db.execute("UPDATE settings SET value='9999' WHERE key='group.figures.interval_hours'")
+    db.commit()
+    assert gf.interval_hours() == 168, "clamped"
+    db.execute("UPDATE settings SET value='soon' WHERE key='group.figures.interval_hours'")
+    db.commit()
+    assert gf.interval_hours() == 24
+    fresh = (datetime.now(timezone.utc) - timedelta(hours=1)).replace(tzinfo=None).isoformat()
+    _snapshot(db, child, "cc.open_breaches", 1, module="sentinel", as_of=fresh)
+    assert gf._due(db, child, 24) is False and gf._due(db, child, 1) is True and gf._due(db, other, 24) is True

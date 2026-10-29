@@ -5076,7 +5076,8 @@ def test_group_figures_publish_and_row_level_security_on_real_postgres(pg):
         setup.execute(
             "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,"
             "privacy_review_by,legal_review_by,terms_json,review_due_at) "
-            "VALUES (%s,%s,'active','Group',1,2,3,'{}','2099-01-01T00:00:00')", (parent, child))
+            "VALUES (%s,%s,'active','Group',1,2,3,%s,'2099-01-01T00:00:00')",
+            (parent, child, __import__("json").dumps({"figure_measures": list(gf.PUBLISHABLE)})))
         setup.execute(
             "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
             "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")

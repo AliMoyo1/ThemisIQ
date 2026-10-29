@@ -40,6 +40,48 @@ _TEXT_DETAIL = {"module", "unit", "name"}
 _DETAIL_KEY = re.compile(r"[a-z0-9_ -]{1,40}")
 
 
+# The measures a child may publish are the Command Centre ones; which of them cross to a parent is decided per
+# relationship, in its reviewed sharing terms (`figure_measures`). Nothing crosses that the terms do not list.
+PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.startswith("cc.")))
+
+
+def publishable_measures() -> "list[dict]":
+    """The measures a relationship's terms may approve, for the proposal form."""
+    return [{"key": k, "label": registry.REGISTRY[k].label,
+             "module": registry.REGISTRY[k].module or ""} for k in PUBLISHABLE]
+
+
+def validate_measures(raw) -> "list[str]":
+    if raw is None:
+        return []
+    if (not isinstance(raw, list) or len(raw) > len(PUBLISHABLE) or len(raw) != len(set(raw))
+            or not all(isinstance(k, str) and k in PUBLISHABLE for k in raw)):
+        raise HTTPException(422, "Choose group figures from the list")
+    return sorted(raw)
+
+
+def _approved(terms_json) -> "set[str]":
+    try:
+        terms = json.loads(terms_json or "{}")
+    except ValueError:
+        return set()
+    listed = terms.get("figure_measures")
+    return {k for k in listed if k in PUBLISHABLE} if isinstance(listed, list) else set()
+
+
+def approved_for_child(db, org_id: int) -> "set[str] | None":
+    """What the parents of this organization approved it to publish; None when it is nobody's child (no limit)."""
+    rows = db.execute(
+        f"SELECT terms_json FROM {_table('org_relationships')} WHERE child_org_id=%s AND status='active'",
+        (org_id,)).fetchall()
+    if not rows:
+        return None
+    allowed = set()
+    for row in rows:
+        allowed |= _approved(row["terms_json"])
+    return allowed
+
+
 def _table(name: str) -> str:
     return f"public.{name}" if settings.is_postgres() else name
 
@@ -129,6 +171,9 @@ def publish_tenant(org_id: int, slug: str) -> int:
     as_of = _now().isoformat()
     db = get_db_bypass_rls()
     try:
+        allowed = approved_for_child(db, org_id)
+        if allowed is not None:
+            rows = [r for r in rows if _base(r["measure_key"]) in allowed]
         written = 0
         for row in rows:
             last = db.execute(
@@ -149,9 +194,37 @@ def publish_tenant(org_id: int, slug: str) -> int:
         db.close()
 
 
-def publish_all() -> dict:
-    """Publish every active tenant that is a party to an active relationship (as child or parent)."""
+def interval_hours() -> int:
+    """The publish cadence: the platform setting `group.figures.interval_hours`, daily by default, 1 to 168 hours."""
+    db = get_db_bypass_rls()
+    try:
+        row = db.execute("SELECT value FROM settings WHERE key=%s", ("group.figures.interval_hours",)).fetchone()
+    except Exception:
+        row = None
+    finally:
+        db.close()
+    try:
+        return max(1, min(168, int(row["value"]))) if row else 24
+    except (TypeError, ValueError):
+        return 24
+
+
+def _due(db, org_id: int, hours: int) -> bool:
+    row = db.execute(f"SELECT MAX(as_of) AS a FROM {_table('group_figure_snapshots')} WHERE source_org_id=%s",
+                     (org_id,)).fetchone()
+    if not row or not row["a"]:
+        return True
+    try:
+        return datetime.fromisoformat(row["a"]) <= _now() - timedelta(hours=hours)
+    except ValueError:
+        return True
+
+
+def publish_all(*, only_due: bool = False) -> dict:
+    """Publish every active tenant that is a party to an active relationship (as child or parent). With `only_due`,
+    skip tenants that published within the configured interval, so an hourly schedule honours the setting."""
     from database import list_active_tenants
+    hours = interval_hours()
     db = get_db_bypass_rls()
     try:
         involved = {r["org_id"] for r in db.execute(
@@ -163,6 +236,13 @@ def publish_all() -> dict:
     for org_id, slug in list_active_tenants():
         if org_id not in involved:
             continue
+        if only_due:
+            check = get_db_bypass_rls()
+            try:
+                if not _due(check, org_id, hours):
+                    continue
+            finally:
+                check.close()
         try:
             done[org_id] = publish_tenant(org_id, slug)
         except Exception:
@@ -188,7 +268,7 @@ def _children(db, actor: dict) -> "list[dict]":
     unexpired figure.view grant for exactly this person."""
     now = _now().isoformat()
     rows = db.execute(
-        "SELECT DISTINCT r.id AS relationship_id, o.id AS org_id, o.name AS name "
+        "SELECT DISTINCT r.id AS relationship_id, o.id AS org_id, o.name AS name, r.terms_json AS terms_json "
         f"FROM {_table('org_relationships')} r "
         "JOIN organizations o ON o.id=r.child_org_id AND o.status='active' "
         f"JOIN {_table('group_view_grants')} g ON g.relationship_id=r.id AND g.viewer_org_id=r.parent_org_id "
@@ -243,8 +323,10 @@ def _figure(entry: dict) -> dict:
                                                 and not row["measure_key"].startswith("cc.module_health"))}
 
 
-def _entity(db, org_id: int, name: str, families) -> dict:
+def _entity(db, org_id: int, name: str, families, approved=None) -> dict:
     latest = _latest(db, org_id, families)
+    if approved is not None:  # defence in depth: terms may have been narrowed after publication
+        latest = {k: v for k, v in latest.items() if _base(k) in approved}
     reporting, last = _reporting(latest)
     figures = [_figure(v) for v in latest.values()] if reporting else []
     return {"org_id": org_id, "name": name, "state": "reporting" if reporting else "not_reporting",
@@ -283,7 +365,7 @@ def view(db, actor: dict, which: str, org_id: "int | None" = None) -> dict:
         child = next((c for c in children if c["org_id"] == org_id), None)
         if child is None:
             raise HTTPException(404, "Company not found")  # an unknown company and an ungranted one look alike
-        entity = _entity(db, child["org_id"], child["name"], families)
+        entity = _entity(db, child["org_id"], child["name"], families, _approved(child["terms_json"]))
         _log(db, actor, child["relationship_id"], child["org_id"], "figures_view")
         return {"view": "subsidiary", "entities": [entity], "totals": []}
     if which != "group":
@@ -292,7 +374,7 @@ def view(db, actor: dict, which: str, org_id: "int | None" = None) -> dict:
         raise HTTPException(404, "Company not found")
     entities = [_entity(db, org["id"], org["name"], families)]
     for child in children:
-        entities.append(_entity(db, child["org_id"], child["name"], families))
+        entities.append(_entity(db, child["org_id"], child["name"], families, _approved(child["terms_json"])))
         _log(db, actor, child["relationship_id"], child["org_id"], "figures_view")
     return {"view": "group", "entities": entities, "totals": _totals(entities)}
 

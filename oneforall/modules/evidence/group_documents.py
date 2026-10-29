@@ -38,13 +38,16 @@ def _approved_terms(raw) -> dict:
             or not all(isinstance(v, str) and 2 <= len(v.strip()) <= 80 for v in jurisdictions)
             or len(jurisdictions) != len(set(jurisdictions))):
         raise HTTPException(422, "Record the sharing jurisdictions")
+    from modules.governance import group_figures
+    measures = group_figures.validate_measures(raw.get("figure_measures"))
     for key, maximum in (("legal_basis", 500), ("agreement_ref", 250)):
         value = raw.get(key)
         if not isinstance(value, str) or not value.strip() or len(value) > maximum:
             raise HTTPException(422, f"Record the {key.replace('_', ' ')}")
     return {"data_classes": classes, "classifications": classifications, "audiences": audiences,
             "fields": fields, "jurisdictions": [v.strip() for v in jurisdictions],
-            "legal_basis": raw["legal_basis"].strip(), "agreement_ref": raw["agreement_ref"].strip()}
+            "legal_basis": raw["legal_basis"].strip(), "agreement_ref": raw["agreement_ref"].strip(),
+            "figure_measures": measures}
 
 
 def _table(name: str) -> str:
@@ -164,7 +167,9 @@ def management_workspace(db, actor: dict) -> dict:
             f"SELECT id,relationship_id,evidence_id,title,version,expires_at "
             f"FROM {_table('group_document_publications')} WHERE source_org_id=%s "
             "AND revoked_at IS NULL ORDER BY id DESC LIMIT 100", (org_id,)).fetchall()]
+    from modules.governance import group_figures
     return {"capabilities": caps, "organizations": organizations,
+            "figure_measures": group_figures.publishable_measures() if caps["group.relationship.manage"] else [],
             "relationships": relations, "recipients": recipients,
             "evidence": evidence, "publications": publications}
 

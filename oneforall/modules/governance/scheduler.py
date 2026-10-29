@@ -46,7 +46,7 @@ def _publish_group_figures() -> None:
         lock.close()
     try:
         from modules.governance import group_figures
-        done = group_figures.publish_all()
+        done = group_figures.publish_all(only_due=True)
         log.info("Group figures: published for %d organization(s)", len(done))
     except Exception as exc:
         log.warning("Group figures publish failed: %s", exc)
@@ -67,7 +67,7 @@ def start_scheduler() -> None:
     )
     _scheduler.add_job(
         _publish_group_figures,
-        CronTrigger(hour=2, minute=30, timezone=TZ),
+        CronTrigger(minute=30, timezone=TZ),  # hourly; the interval setting decides which tenants are due
         id="governance_group_figures_publish",
         replace_existing=True,
         misfire_grace_time=600,

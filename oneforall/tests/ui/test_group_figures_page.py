@@ -5,7 +5,27 @@ from datetime import datetime, timedelta, timezone
 
 import database
 import pytest
+from modules.governance import group_figures as gf
 from playwright.sync_api import expect
+
+
+@pytest.fixture(autouse=True)
+def _remove_seeded_group(live_app):
+    """The browser tests share one database: take this module's organizations, grants and figures away afterwards so
+    the other group pages see an empty tenant."""
+    yield
+    db = database.get_db()
+    try:
+        ids = [r["id"] for r in db.execute("SELECT id FROM organizations WHERE slug LIKE 'gf_%'").fetchall()]
+        for org in ids:
+            db.execute("DELETE FROM group_figure_snapshots WHERE source_org_id=%s", (org,))
+            db.execute("DELETE FROM group_access_events WHERE source_org_id=%s", (org,))
+            db.execute("DELETE FROM group_view_grants WHERE source_org_id=%s", (org,))
+            db.execute("DELETE FROM org_relationships WHERE child_org_id=%s", (org,))
+            db.execute("DELETE FROM organizations WHERE id=%s", (org,))
+        db.commit()
+    finally:
+        db.close()
 
 
 def _stamp(days=0, hours=0):
@@ -27,8 +47,8 @@ def _seed(synthetic_tenant, persona):
         for kid in (child, quiet):
             db.execute(
                 "INSERT INTO org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,privacy_review_by,"
-                "legal_review_by,terms_json,review_due_at) VALUES (%s,%s,'active','Group',1,2,3,'{}',%s)",
-                (parent, kid, _stamp(90)))
+                "legal_review_by,terms_json,review_due_at) VALUES (%s,%s,'active','Group',1,2,3,%s,%s)",
+                (parent, kid, json.dumps({"figure_measures": list(gf.PUBLISHABLE)}), _stamp(90)))
             rel = db.execute("SELECT MAX(id) AS i FROM org_relationships").fetchone()["i"]
             db.execute(
                 "INSERT INTO group_view_grants (relationship_id,source_org_id,viewer_org_id,user_id,capability,expires_at,"
