@@ -23,6 +23,7 @@ The owning module keeps the record and its lifecycle. Dashboards, My Work, relat
 | [05 Delivery](05-delivery-and-acceptance.md) | Sequence, decisions, migration, acceptance, rollout | [Portfolio roadmap](../ROADMAP-2026-10.md), [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) |
 | [06 Email](06-email-notifications-and-delivery.md) | Temporary Gmail sender, role-based touch points, shared templates, delivery outcomes, fallback, service-identity cutover | Existing `core/email.py`, module schedulers and platform notifications |
 | [18 Policy intake and composition](18-policy-intake-and-document-composition.md) | Existing-policy import, metadata and clause review, framework links, rebranding, diagrams, and connected references | [PLAN-35](../PLAN-35-aria-policy-authoring-flow.md), [Vault assurance](02-evidence-vault-and-assurance.md), [PLAN-37](../PLAN-37-connected-compliance-experience.md) |
+| [19 Evidence Vault and group oversight](19-evidence-vault-and-group-oversight.md) | One customer-neutral plan for company navigation, group onboarding/exit, policy adoption, requirement-led requests, reviewed metrics and restatements, filing, proof, auditor registers/rooms, distribution rights and privacy gates | [Vault assurance](02-evidence-vault-and-assurance.md), [18 Policy intake](18-policy-intake-and-document-composition.md), tenant and licence model |
 
 ## Implementation records
 

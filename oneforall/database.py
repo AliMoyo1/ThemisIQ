@@ -736,6 +736,214 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Group oversight is a registry of explicit relationships and releases, not
+-- an implicit permission to read another tenant schema. File bytes stay in
+-- the source tenant's canonical evidence_items/version chain.
+CREATE TABLE IF NOT EXISTS org_relationships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    child_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','active','ended')),
+    purpose TEXT NOT NULL,
+    child_ack_by INTEGER,
+    notice_deemed_at TEXT,
+    privacy_review_by INTEGER,
+    legal_review_by INTEGER,
+    terms_json TEXT NOT NULL DEFAULT '{}',
+    effective_at TEXT,
+    review_due_at TEXT,
+    ended_at TEXT,
+    ended_by INTEGER,
+    end_reason TEXT,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK(parent_org_id != child_org_id)
+);
+CREATE INDEX IF NOT EXISTS idx_org_relationships_parent ON org_relationships(parent_org_id, status);
+CREATE INDEX IF NOT EXISTS idx_org_relationships_child ON org_relationships(child_org_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_org_relationships_active_child
+    ON org_relationships(child_org_id) WHERE status='active';
+
+CREATE TABLE IF NOT EXISTS group_view_grants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    user_id INTEGER NOT NULL,
+    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download')),
+    expires_at TEXT NOT NULL,
+    review_due_at TEXT NOT NULL,
+    revoked_at TEXT,
+    granted_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_view_grants_actor ON group_view_grants(viewer_org_id, user_id, capability);
+
+CREATE TABLE IF NOT EXISTS group_document_rights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    evidence_id INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    rights_state TEXT NOT NULL CHECK(rights_state IN ('unknown','owned','licensed')),
+    permit_group_view INTEGER NOT NULL DEFAULT 0,
+    permit_group_download INTEGER NOT NULL DEFAULT 0,
+    basis TEXT NOT NULL,
+    reviewed_by INTEGER NOT NULL,
+    reviewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(source_org_id, evidence_id, file_hash)
+);
+
+CREATE TABLE IF NOT EXISTS group_document_publications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    evidence_id INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    classification TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    rights_id INTEGER NOT NULL REFERENCES group_document_rights(id),
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    approved_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(relationship_id, viewer_org_id, evidence_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_document_publications_viewer
+    ON group_document_publications(viewer_org_id, relationship_id, revoked_at);
+
+CREATE TABLE IF NOT EXISTS group_access_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    publication_id INTEGER REFERENCES group_document_publications(id),
+    actor_id INTEGER,
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_access_events_relationship ON group_access_events(relationship_id, created_at);
+
+-- A requirement-led request names no hidden subsidiary file. The source's
+-- internal record mapping is separate and readable only by its own tenant.
+CREATE TABLE IF NOT EXISTS group_evidence_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relationship_id INTEGER NOT NULL REFERENCES org_relationships(id),
+    requester_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    requested_by INTEGER NOT NULL,
+    requirement_ref TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    needed_by TEXT NOT NULL,
+    period_start TEXT,
+    period_end TEXT,
+    status TEXT NOT NULL DEFAULT 'requested'
+        CHECK(status IN ('requested','clarification','approved','no_proof','declined','fulfilled')),
+    decision_reason TEXT,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    publication_id INTEGER REFERENCES group_document_publications(id),
+    fulfilled_by INTEGER,
+    fulfilled_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_requests_source ON group_evidence_requests(source_org_id,status,id);
+CREATE INDEX IF NOT EXISTS idx_group_requests_requester ON group_evidence_requests(requester_org_id,requested_by,id);
+
+-- The requesting tenant judges the exact release against its own claim.
+-- Returning proof does not edit a source-tenant review or erase its history.
+CREATE TABLE IF NOT EXISTS group_request_verdicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL REFERENCES group_evidence_requests(id),
+    requester_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    publication_id INTEGER NOT NULL REFERENCES group_document_publications(id),
+    outcome TEXT NOT NULL CHECK(outcome IN ('accepted','returned')),
+    reason TEXT NOT NULL,
+    reviewed_by INTEGER NOT NULL,
+    reviewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(request_id,publication_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_request_verdicts_request
+    ON group_request_verdicts(request_id,requester_org_id,id);
+
+-- A subsidiary's independent decision about an exact published parent policy.
+-- A new publication/version needs a new local review; it cannot inherit this one.
+CREATE TABLE IF NOT EXISTS group_policy_adoptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    publication_id INTEGER NOT NULL REFERENCES group_document_publications(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    proposed_state TEXT NOT NULL CHECK(proposed_state IN
+        ('adopted','adapted','exception_requested','declined')),
+    state TEXT NOT NULL DEFAULT 'pending_review' CHECK(state IN
+        ('pending_review','adopted','adapted','exception_requested','declined','rejected')),
+    reason TEXT NOT NULL,
+    local_policy_version_id INTEGER,
+    effective_at TEXT,
+    review_due_at TEXT NOT NULL,
+    proposed_by INTEGER NOT NULL,
+    proposed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_policy_adoptions_viewer
+    ON group_policy_adoptions(viewer_org_id,state,review_due_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_policy_one_pending
+    ON group_policy_adoptions(publication_id) WHERE state='pending_review';
+
+CREATE TABLE IF NOT EXISTS group_request_mappings (
+    request_id INTEGER PRIMARY KEY REFERENCES group_evidence_requests(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    module TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    mapped_by INTEGER NOT NULL,
+    mapped_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- A parent-only coordination record. Children see only their own proof
+-- requests, never a case title or another child's participation.
+CREATE TABLE IF NOT EXISTS group_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    reference TEXT NOT NULL,
+    title TEXT NOT NULL,
+    position TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','closed','closed_with_gaps')),
+    created_by INTEGER NOT NULL,
+    closed_by INTEGER,
+    closed_at TEXT,
+    close_reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(parent_org_id,reference)
+);
+CREATE INDEX IF NOT EXISTS idx_group_cases_parent ON group_cases(parent_org_id,status,id);
+CREATE TABLE IF NOT EXISTS group_case_requests (
+    case_id INTEGER NOT NULL REFERENCES group_cases(id),
+    request_id INTEGER NOT NULL REFERENCES group_evidence_requests(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    linked_by INTEGER NOT NULL,
+    linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY(case_id,request_id),
+    UNIQUE(request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_case_requests_parent ON group_case_requests(parent_org_id,case_id);
+CREATE TABLE IF NOT EXISTS group_case_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL REFERENCES group_cases(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    actor_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_case_events_parent ON group_case_events(parent_org_id,case_id,id);
+
 CREATE TABLE IF NOT EXISTS licenses (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -894,6 +1102,40 @@ CREATE TABLE IF NOT EXISTS ai_usage_log (
 CREATE INDEX IF NOT EXISTS idx_ai_usage_org_created ON ai_usage_log(org_id, created_at);
 
 -- ── Evidence Repository ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS evidence_companies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(org_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_companies_org ON evidence_companies(org_id, is_active);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id INTEGER NOT NULL,
+    confirmed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_by INTEGER,
+    proposed_reason TEXT,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_reason TEXT,
+    UNIQUE(org_id, business_unit_id)
+);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER NOT NULL,
+    company_id INTEGER NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_unit_company_events ON evidence_unit_company_events(org_id,business_unit_id,id);
 CREATE TABLE IF NOT EXISTS evidence_items (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     title           TEXT NOT NULL,
@@ -926,6 +1168,17 @@ CREATE TABLE IF NOT EXISTS evidence_links (
 
 CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidence_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
+CREATE TABLE IF NOT EXISTS evidence_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    evidence_id INTEGER NOT NULL,
+    company_id INTEGER REFERENCES evidence_companies(id),
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_company_events_item ON evidence_company_events(org_id,evidence_id,id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
 CREATE TABLE IF NOT EXISTS generated_record_documents (
@@ -2114,6 +2367,42 @@ CREATE TABLE IF NOT EXISTS platform_ai_features (
 # These tables hold org-specific data. The global/public schema also gets them via
 # init_db() (for the default org), but new orgs get isolated copies in tenant_{slug}.
 _PLATFORM_TABLES = """
+-- A company label is navigation metadata inside the source tenant. It never
+-- changes evidence_items.org_id or business_unit_id authorization.
+CREATE TABLE IF NOT EXISTS evidence_companies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(org_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_companies_org ON evidence_companies(org_id, is_active);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id INTEGER NOT NULL,
+    confirmed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_company_id INTEGER REFERENCES evidence_companies(id),
+    proposed_by INTEGER,
+    proposed_reason TEXT,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_reason TEXT,
+    UNIQUE(org_id, business_unit_id)
+);
+CREATE TABLE IF NOT EXISTS evidence_unit_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    business_unit_id INTEGER NOT NULL,
+    company_id INTEGER NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_unit_company_events ON evidence_unit_company_events(org_id,business_unit_id,id);
 -- ── Notifications ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2188,6 +2477,17 @@ CREATE TABLE IF NOT EXISTS evidence_links (
 
 CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidence_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
+CREATE TABLE IF NOT EXISTS evidence_company_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    evidence_id INTEGER NOT NULL,
+    company_id INTEGER REFERENCES evidence_companies(id),
+    action TEXT NOT NULL CHECK(action IN ('proposed','confirmed','rejected')),
+    actor_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_company_events_item ON evidence_company_events(org_id,evidence_id,id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
 CREATE TABLE IF NOT EXISTS generated_record_documents (
@@ -6257,6 +6557,8 @@ _ERM_ORM_TABLES_PG   = _to_pg_schema(_ERM_ORM_TABLES)
 
 _COLUMN_MIGRATIONS = [
         # (table, column, definition)
+        ("org_relationships", "ended_by", "INTEGER"),
+        ("org_relationships", "end_reason", "TEXT"),
         ("aria_frameworks", "is_active", "INTEGER DEFAULT 1"),
         ("aria_frameworks", "relevant_modules", "TEXT DEFAULT ''"),
         ("users", "avatar_initials", "TEXT"),
@@ -6610,6 +6912,12 @@ _COLUMN_MIGRATIONS = [
         ("evidence_items",         "review_due_date", "TEXT"),
         ("evidence_items",         "period_start", "TEXT"),
         ("evidence_items",         "period_end", "TEXT"),
+        ("evidence_items",         "company_id", "INTEGER REFERENCES evidence_companies(id)"),
+        ("evidence_items",         "company_state", "TEXT DEFAULT 'unconfirmed'"),
+        ("evidence_items",         "company_proposed_by", "INTEGER"),
+        ("evidence_items",         "company_reviewed_by", "INTEGER"),
+        ("evidence_items",         "company_reviewed_at", "TEXT"),
+        ("evidence_items",         "company_reason", "TEXT"),
         # Pinned-source parser identity is recorded per immutable capture.
         # Existing captures remain readable, with NULL meaning the legacy parser.
         ("sentinel_law_captures", "parser_version", "TEXT"),

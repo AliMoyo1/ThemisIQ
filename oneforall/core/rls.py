@@ -27,7 +27,167 @@ _USING = """(
     )
   )"""
 
+_GROUP_REL_USING = """(
+    COALESCE(current_setting('app.bypass_rls', true), '') = 'true'
+    OR COALESCE(current_setting('app.is_super_admin', true), '') = 'true'
+    OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
+        AND (parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int
+             OR child_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int))
+)"""
+_GROUP_SHARED_USING = """(
+    COALESCE(current_setting('app.bypass_rls', true), '') = 'true'
+    OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
+        AND (source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int
+             OR viewer_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int))
+)"""
+_GROUP_SOURCE_USING = """(
+    COALESCE(current_setting('app.bypass_rls', true), '') = 'true'
+    OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
+        AND source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
+)"""
+_GROUP_PARENT_USING = """(
+    COALESCE(current_setting('app.bypass_rls', true), '') = 'true'
+    OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
+        AND parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
+)"""
+
 _STMTS = [
+    "ALTER TABLE public.org_relationships ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.org_relationships FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_edge_orgs ON public.org_relationships",
+    f"CREATE POLICY group_edge_orgs ON public.org_relationships FOR SELECT USING {_GROUP_REL_USING}",
+    "DROP POLICY IF EXISTS group_edge_create ON public.org_relationships",
+    "CREATE POLICY group_edge_create ON public.org_relationships FOR INSERT "
+    "WITH CHECK (COALESCE(current_setting('app.bypass_rls', true),'')='true' OR "
+    "COALESCE(current_setting('app.is_super_admin', true),'')='true')",
+    "DROP POLICY IF EXISTS group_edge_child_review ON public.org_relationships",
+    "CREATE POLICY group_edge_child_review ON public.org_relationships FOR UPDATE "
+    "USING (child_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int) "
+    "WITH CHECK (child_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int)",
+    # The group DPO records the privacy and legal reviews from the parent side (legal sits with the DPO).
+    "DROP POLICY IF EXISTS group_edge_parent_review ON public.org_relationships",
+    "CREATE POLICY group_edge_parent_review ON public.org_relationships FOR UPDATE "
+    "USING (parent_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int) "
+    "WITH CHECK (parent_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int)",
+    "DROP POLICY IF EXISTS group_edge_platform_end ON public.org_relationships",
+    "CREATE POLICY group_edge_platform_end ON public.org_relationships FOR UPDATE "
+    "USING (COALESCE(current_setting('app.is_super_admin', true),'')='true') "
+    "WITH CHECK (COALESCE(current_setting('app.is_super_admin', true),'')='true')",
+
+    "ALTER TABLE public.group_view_grants ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_view_grants FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_grants_orgs ON public.group_view_grants",
+    f"CREATE POLICY group_grants_orgs ON public.group_view_grants FOR SELECT USING {_GROUP_SHARED_USING}",
+    "DROP POLICY IF EXISTS group_grants_viewer_write ON public.group_view_grants",
+    "CREATE POLICY group_grants_viewer_write ON public.group_view_grants FOR INSERT "
+    "WITH CHECK (viewer_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int)",
+    "DROP POLICY IF EXISTS group_grants_viewer_revoke ON public.group_view_grants",
+    "CREATE POLICY group_grants_viewer_revoke ON public.group_view_grants FOR UPDATE "
+    "USING (viewer_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int) "
+    "WITH CHECK (viewer_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int)",
+
+    "ALTER TABLE public.group_document_rights ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_document_rights FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_rights_source ON public.group_document_rights",
+    f"CREATE POLICY group_rights_source ON public.group_document_rights USING {_GROUP_SOURCE_USING}",
+
+    "ALTER TABLE public.group_document_publications ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_document_publications FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_publications_orgs ON public.group_document_publications",
+    f"CREATE POLICY group_publications_orgs ON public.group_document_publications FOR SELECT USING {_GROUP_SHARED_USING}",
+    "DROP POLICY IF EXISTS group_publications_source_write ON public.group_document_publications",
+    f"CREATE POLICY group_publications_source_write ON public.group_document_publications FOR INSERT WITH CHECK {_GROUP_SOURCE_USING}",
+    "DROP POLICY IF EXISTS group_publications_source_revoke ON public.group_document_publications",
+    f"CREATE POLICY group_publications_source_revoke ON public.group_document_publications FOR UPDATE USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
+
+    "ALTER TABLE public.group_access_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_access_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_events_orgs ON public.group_access_events",
+    f"CREATE POLICY group_events_orgs ON public.group_access_events FOR SELECT USING {_GROUP_SHARED_USING}",
+    "DROP POLICY IF EXISTS group_events_insert ON public.group_access_events",
+    f"CREATE POLICY group_events_insert ON public.group_access_events FOR INSERT WITH CHECK {_GROUP_SHARED_USING}",
+
+    "ALTER TABLE public.group_evidence_requests ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_evidence_requests FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_requests_parties ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_parties ON public.group_evidence_requests FOR SELECT "
+    "USING (COALESCE(current_setting('app.bypass_rls',true),'')='true' OR "
+    "requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int OR "
+    "source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_requests_parent_create ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_parent_create ON public.group_evidence_requests FOR INSERT "
+    "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_requests_source_review ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_source_review ON public.group_evidence_requests FOR UPDATE "
+    "USING (source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
+    "WITH CHECK (source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_requests_parent_revise ON public.group_evidence_requests",
+    "CREATE POLICY group_requests_parent_revise ON public.group_evidence_requests FOR UPDATE "
+    "USING (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "AND status='clarification') "
+    "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "AND status='requested')",
+
+    "ALTER TABLE public.group_request_verdicts ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_request_verdicts FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_request_verdicts_parties ON public.group_request_verdicts",
+    "CREATE POLICY group_request_verdicts_parties ON public.group_request_verdicts FOR SELECT "
+    "USING (COALESCE(current_setting('app.bypass_rls',true),'')='true' OR "
+    "EXISTS (SELECT 1 FROM public.group_evidence_requests r "
+    "WHERE r.id=request_id AND r.requester_org_id=group_request_verdicts.requester_org_id "
+    "AND (r.requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "OR r.source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)))",
+    "DROP POLICY IF EXISTS group_request_verdicts_parent_insert ON public.group_request_verdicts",
+    "CREATE POLICY group_request_verdicts_parent_insert ON public.group_request_verdicts FOR INSERT "
+    "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "AND EXISTS (SELECT 1 FROM public.group_evidence_requests r "
+    "JOIN public.group_document_publications p ON p.id=group_request_verdicts.publication_id "
+    "WHERE r.id=request_id AND r.requester_org_id=group_request_verdicts.requester_org_id "
+    "AND r.status='fulfilled' AND r.publication_id=p.id "
+    "AND p.relationship_id=r.relationship_id AND p.viewer_org_id=r.requester_org_id "
+    "AND p.source_org_id=r.source_org_id))",
+
+    "ALTER TABLE public.group_request_mappings ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_request_mappings FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_request_mappings_source ON public.group_request_mappings",
+    f"CREATE POLICY group_request_mappings_source ON public.group_request_mappings USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
+    "ALTER TABLE public.group_cases ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_cases FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_cases_parent ON public.group_cases",
+    f"CREATE POLICY group_cases_parent ON public.group_cases FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_cases_parent_create ON public.group_cases",
+    f"CREATE POLICY group_cases_parent_create ON public.group_cases FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_cases_parent_close ON public.group_cases",
+    f"CREATE POLICY group_cases_parent_close ON public.group_cases FOR UPDATE USING {_GROUP_PARENT_USING} WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_case_requests ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_case_requests FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_case_requests_parent ON public.group_case_requests",
+    f"CREATE POLICY group_case_requests_parent ON public.group_case_requests FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_case_requests_parent_insert ON public.group_case_requests",
+    "CREATE POLICY group_case_requests_parent_insert ON public.group_case_requests FOR INSERT "
+    f"WITH CHECK ({_GROUP_PARENT_USING} AND "
+    "EXISTS (SELECT 1 FROM public.group_cases c WHERE c.id=case_id AND c.parent_org_id=group_case_requests.parent_org_id) "
+    "AND EXISTS (SELECT 1 FROM public.group_evidence_requests r WHERE r.id=request_id "
+    "AND r.requester_org_id=group_case_requests.parent_org_id))",
+    "ALTER TABLE public.group_case_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_case_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_case_events_parent ON public.group_case_events",
+    f"CREATE POLICY group_case_events_parent ON public.group_case_events FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_case_events_parent_insert ON public.group_case_events",
+    f"CREATE POLICY group_case_events_parent_insert ON public.group_case_events FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_policy_adoptions ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_policy_adoptions FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_policy_adoptions_child ON public.group_policy_adoptions",
+    "DROP POLICY IF EXISTS group_policy_adoptions_view ON public.group_policy_adoptions",
+    "CREATE POLICY group_policy_adoptions_view ON public.group_policy_adoptions FOR SELECT "
+    "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_policy_adoptions_propose ON public.group_policy_adoptions",
+    "CREATE POLICY group_policy_adoptions_propose ON public.group_policy_adoptions FOR INSERT "
+    "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "DROP POLICY IF EXISTS group_policy_adoptions_review ON public.group_policy_adoptions",
+    "CREATE POLICY group_policy_adoptions_review ON public.group_policy_adoptions FOR UPDATE "
+    "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
+    "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
     # users
     "ALTER TABLE public.users ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.users FORCE ROW LEVEL SECURITY",
@@ -69,6 +229,22 @@ _STMTS = [
     "ALTER TABLE public.evidence_items FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_items",
     f"CREATE POLICY tenant_isolation ON public.evidence_items USING {_USING}",
+    "ALTER TABLE public.evidence_companies ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_companies FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_companies",
+    f"CREATE POLICY tenant_isolation ON public.evidence_companies USING {_USING} WITH CHECK {_USING}",
+    "ALTER TABLE public.evidence_company_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_company_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_company_events",
+    f"CREATE POLICY tenant_isolation ON public.evidence_company_events USING {_USING} WITH CHECK {_USING}",
+    "ALTER TABLE public.evidence_unit_company_mappings ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_unit_company_mappings FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_unit_company_mappings",
+    f"CREATE POLICY tenant_isolation ON public.evidence_unit_company_mappings USING {_USING} WITH CHECK {_USING}",
+    "ALTER TABLE public.evidence_unit_company_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_unit_company_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_unit_company_events",
+    f"CREATE POLICY tenant_isolation ON public.evidence_unit_company_events USING {_USING} WITH CHECK {_USING}",
 
     # Parsed document text is more sensitive than its metadata. Public rows
     # get the same organization guard; business-unit access is checked via

@@ -1,0 +1,37 @@
+{% extends "base_shell.html" %}
+{% block title %}Company labels · Evidence Vault · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Evidence Vault</div><div class="module-desc">Document ownership review</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Work</div>
+  <a class="nav-item" href="/evidence/">Evidence Vault</a>
+  <a class="nav-item active" href="/evidence/companies/" aria-current="page">Company labels</a>
+  <a class="nav-item" href="/evidence/group/">Group sharing</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.co-page{max-width:1120px;margin:auto;padding:24px;color:var(--text)}
+.co-hero,.co-panel{background:var(--surface);border-radius:22px;padding:26px;box-shadow:0 12px 28px rgba(25,44,51,.08),inset 0 1px rgba(255,255,255,.8)}
+.co-hero{background:linear-gradient(125deg,rgba(255,255,255,.9),rgba(219,228,230,.7))}
+.co-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.co-hero p{max-width:820px;line-height:1.55;color:var(--muted);margin:0}
+.co-panel{margin-top:18px}.co-panel h2{font:600 22px/1.2 Georgia,serif;margin:0 0 8px}
+.co-card{padding:18px;border-radius:16px;background:var(--surface2);margin:12px 0}.co-card h3{font-size:17px;margin:0 0 6px}.co-card p{margin:4px 0;color:var(--muted)}
+.co-form{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:12px}.co-form label{display:flex;flex-direction:column;gap:5px;font-weight:650;font-size:12px}
+.co-form input,.co-form select,.co-form textarea,.co-toolbar select{min-width:180px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.co-form textarea{min-width:260px;min-height:44px}.co-form button{min-height:44px}.co-status{min-height:24px;margin:12px 0;font-weight:650}
+.co-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.co-toolbar label{font-weight:650}
+@media(max-width:700px){.co-page{padding:14px}.co-hero h1{font-size:29px}.co-form label,.co-form input,.co-form select,.co-form textarea{width:100%;min-width:0}}
+</style>
+<main class="co-page" id="companyReview">
+ <header class="co-hero"><h1>Company labels</h1><p>Assign a company to an existing Vault document without changing who can open it. A different specialist confirms the proposal before the label appears in company views. Names and document contents are never inferred from filenames.</p></header>
+ <p class="co-status" id="coStatus" role="status" aria-live="polite"></p>
+ <section class="co-panel" id="coCreatePanel" hidden><h2>Add a company label</h2><p>Use the customer's confirmed legal or operating name. This catalogue is local to this organization.</p>
+  <form class="co-form" id="coCreate"><label>Company name<input name="name" required minlength="2" maxlength="120"></label><button type="submit" class="btn btn-primary">Add company</button></form>
+ </section>
+ <section class="co-panel" aria-labelledby="coUnitsHeading"><h2 id="coUnitsHeading">Map business units to companies</h2><p>A second specialist reviews each mapping. Approved mappings suggest a label for new uploads in that unit; each document still needs its own ownership review. Existing documents keep their current labels and filing permissions.</p><div id="coUnitList"></div></section>
+ <section class="co-panel"><h2>Documents to review</h2><div class="co-toolbar"><label for="coFilter">Show</label><select id="coFilter"><option value="unconfirmed">Unconfirmed and pending</option><option value="">All accessible documents</option></select></div>
+  <div id="coList"></div><button type="button" id="coMore" class="btn btn-secondary" hidden>Show more</button>
+ </section>
+</main>
+<script src="/static/js/evidence_company_review.js?v=2" defer></script>
+{% endblock %}

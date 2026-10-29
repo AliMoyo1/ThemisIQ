@@ -98,6 +98,109 @@ def _evidence_expiring(db, user: dict) -> list[dict]:
     return items
 
 
+def _group_proof_requests(db, user: dict) -> list[dict]:
+    """Surface the same scoped request rows as the group work page."""
+    from modules.evidence.group_requests import list_requests
+
+    if not any(has_capability(user, cap) for cap in (
+        "group.request.create", "group.request.manage", "group.request.review", "group.request.fulfill"
+    )):
+        return []
+    items = []
+    for page in (1, 2):
+        batch = list_requests(db, user, page=page)
+        for row in batch["items"]:
+            if row["is_source"]:
+                if row["status"] == "requested" and row["can_map"]:
+                    action, bucket = "review_group_request", "open"
+                elif row["status"] == "approved" and row["can_fulfill"]:
+                    action, bucket = "fulfill_group_request", "open"
+                elif row["can_refulfill"]:
+                    action, bucket = "replace_group_proof", "open"
+                else:
+                    continue
+            elif row["can_revise"]:
+                action, bucket = "clarify_group_request", "open"
+            elif row["can_review_verdict"]:
+                action, bucket = "decide_group_proof", "open"
+            elif row["status"] in ("requested", "approved", "fulfilled"):
+                action, bucket = "await_group_proof", "waiting"
+            else:
+                continue
+            items.append({
+                "source_module": "evidence", "entity_type": "group_proof_request",
+                "entity_id": row["id"], "action": action,
+                "title": f"Group proof: {row['requirement_ref']}",
+                "due_date": row["needed_by"], "priority": "high",
+                "org_id": user["org_id"], "business_unit_id": None,
+                "link": "/evidence/group/requests/",
+                "section": _section_for(bucket, row["needed_by"]) if bucket == "open" else "waiting_on_others",
+            })
+        if not batch["has_more"]:
+            break
+    return items
+
+
+def _group_grant_reviews(db, user: dict) -> list[dict]:
+    """Show due named-access reviews to an independent grant manager."""
+    from datetime import timedelta
+    from core.timeutils import utcnow
+    from modules.evidence.group_documents import grant_review_queue
+
+    if not has_capability(user, "group.grant.manage"):
+        return []
+    cutoff = (utcnow() + timedelta(days=30)).date().isoformat()
+    items = []
+    for page in (1, 2):
+        batch = grant_review_queue(db, user, page=page)
+        for row in batch["items"]:
+            if str(row["review_due_at"])[:10] > cutoff:
+                return items
+            if not row["can_review"]:
+                continue
+            items.append({
+                "source_module": "evidence", "entity_type": "group_access_grant",
+                "entity_id": row["id"], "action": "review_group_grant",
+                "title": f"Review group access: {row['recipient_name'] or 'former user'} · {row['source_name']}",
+                "due_date": row["review_due_at"], "priority": "high",
+                "org_id": user["org_id"], "business_unit_id": None,
+                "link": "/evidence/group/", "section": _section_for("open", row["review_due_at"]),
+            })
+        if not batch["has_more"]:
+            break
+    return items
+
+
+def _group_case_reviews(db, user: dict) -> list[dict]:
+    """Project parent-only case decisions; closure still rechecks live releases."""
+    if not has_capability(user, "group.case.review") or not user.get("org_id"):
+        return []
+    prefix = "public." if settings.is_postgres() else ""
+    rows = db.execute(
+        f"SELECT c.id,c.title,COUNT(r.id) AS request_count,"
+        "SUM(CASE WHEN r.id IS NULL THEN 0 "
+        "WHEN r.status IN ('no_proof','declined') THEN 0 "
+        "WHEN r.status='fulfilled' AND v.outcome='accepted' THEN 0 ELSE 1 END) AS unresolved "
+        f"FROM {prefix}group_cases c "
+        f"LEFT JOIN {prefix}group_case_requests cr ON cr.case_id=c.id AND cr.parent_org_id=c.parent_org_id "
+        f"LEFT JOIN {prefix}group_evidence_requests r ON r.id=cr.request_id "
+        "AND r.requester_org_id=c.parent_org_id "
+        f"LEFT JOIN {prefix}group_request_verdicts v ON v.request_id=r.id "
+        "AND v.publication_id=r.publication_id AND v.outcome='accepted' "
+        "WHERE c.parent_org_id=%s AND c.status='open' AND c.created_by<>%s "
+        "GROUP BY c.id,c.title ORDER BY c.id DESC LIMIT 100",
+        (user["org_id"], user["id"]),
+    ).fetchall()
+    return [{
+        "source_module": "evidence", "entity_type": "group_case", "entity_id": row["id"],
+        "action": "review_group_case" if not row["unresolved"] else "await_group_case_proof",
+        "title": f"Group case: {row['title']}", "due_date": None, "priority": "high",
+        "org_id": user["org_id"], "business_unit_id": None,
+        "link": f"/evidence/group/cases/?case={row['id']}",
+        "section": "needs_my_action" if not row["unresolved"] else "waiting_on_others",
+    } for row in rows if row["request_count"]]
+
+
 def _my_tasks(db, user: dict) -> list[dict]:
     """Restrict to personal tasks and the same BU visibility as Task Board."""
     bu_where, bu_params = _bu_filter("business_unit_id", bu_scope_ids(user))
@@ -809,6 +912,9 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
     sources = [
         ("aria_approvals", "aria", lambda: _aria_approvals(db, user)),
         ("evidence_expiry", None, lambda: _evidence_expiring(db, user)),
+        ("group_proof_requests", None, lambda: _group_proof_requests(db, user)),
+        ("group_grant_reviews", None, lambda: _group_grant_reviews(db, user)),
+        ("group_case_reviews", None, lambda: _group_case_reviews(db, user)),
         ("task_board", None, lambda: _my_tasks(db, user)),
         ("notifications", None, lambda: _unread_notifications(db, user)),
         ("workflow_actions", None, lambda: _workflow_actions(db, user)),

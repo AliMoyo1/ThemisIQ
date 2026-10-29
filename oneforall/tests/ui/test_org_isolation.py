@@ -77,6 +77,7 @@ def _login(base_url: str, username: str, password: str) -> httpx.Client:
 def org_a_client(live_app, synthetic_tenant):
     creds = synthetic_tenant["users"]["risk_owner"]
     client = _login(live_app, creds["username"], creds["password"])
+    client.filing_scope = f"unit:{synthetic_tenant['business_unit_id']}"
     yield client
     client.close()
 
@@ -155,11 +156,37 @@ def _upload_evidence(client: httpx.Client, title: str) -> int:
     content = f"isolation probe contents: {title}".encode()
     resp = client.post(
         "/evidence/api/items",
-        data={"title": title, "category": "general"},
+        data={"title": title, "category": "general", "filing_scope": client.filing_scope},
         files={"file": (f"{title}.txt", content, "text/plain")},
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
+
+
+def test_reviewed_unit_map_suggests_but_does_not_confirm_uploaded_document(org_a_client, synthetic_tenant):
+    org_id = synthetic_tenant["org_id"]
+    unit_id = synthetic_tenant["business_unit_id"]
+    db = database.get_db()
+    try:
+        company = db.execute("INSERT INTO evidence_companies(org_id,name) "
+                             "VALUES(%s,'Synthetic mapped company') RETURNING id", (org_id,)).fetchone()[0]
+        db.execute("INSERT INTO evidence_unit_company_mappings "
+                   "(org_id,business_unit_id,confirmed_company_id) VALUES(%s,%s,%s)",
+                   (org_id, unit_id, company))
+        db.commit()
+    finally:
+        db.close()
+    eid = _upload_evidence(org_a_client, "Mapped unit upload remains unconfirmed")
+    db = database.get_db()
+    try:
+        row = db.execute("SELECT company_id,company_state,business_unit_id FROM evidence_items "
+                         "WHERE id=%s AND org_id=%s", (eid, org_id)).fetchone()
+        assert (row["company_id"], row["company_state"], row["business_unit_id"]) == (
+            company, "pending", unit_id)
+    finally:
+        db.close()
+    assert all(item["id"] != company for item in org_a_client.get(
+        "/evidence/api/companies").json()["companies"])
 
 
 def test_evidence_from_another_org_is_not_listed(org_a_client, org_b_client):
@@ -174,6 +201,25 @@ def test_evidence_from_another_org_is_not_listed(org_a_client, org_b_client):
     assert any(item["id"] == eid for item in org_a_items), (
         "positive control failed: org A can't see its own uploaded evidence"
     )
+
+
+def test_group_sharing_workspace_is_capability_gated_and_scoped(live_app, synthetic_tenant,
+                                                               org_b_client, second_org_risk_owner):
+    admin = synthetic_tenant["users"]["org_admin"]
+    client = _login(live_app, admin["username"], admin["password"])
+    try:
+        page = client.get("/evidence/group/")
+        assert page.status_code == 200, page.text[:200]
+        assert "Group sharing" in page.text
+        data = client.get("/evidence/api/group/workspace")
+        assert data.status_code == 200, data.text
+        assert data.json()["organizations"] == []
+        assert data.json()["relationships"] == []
+        assert all(person["id"] != second_org_risk_owner["user_id"] for person in data.json()["recipients"])
+        denied = org_b_client.get("/evidence/api/group/workspace")
+        assert denied.status_code == 403
+    finally:
+        client.close()
 
 
 def test_evidence_from_another_org_cannot_be_fetched_or_downloaded(org_a_client, org_b_client):

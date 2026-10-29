@@ -156,6 +156,13 @@
 .ev-record-folder{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid rgba(255,255,255,.82);border-radius:11px;background:rgba(231,239,239,.61);color:var(--text);font:inherit;text-align:left;cursor:pointer}
 .ev-record-folder:hover,.ev-record-folder:focus-visible{background:rgba(255,255,255,.94);box-shadow:0 7px 16px rgba(23,43,52,.1)}
 .ev-record-folder span:nth-child(2){min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin:12px 0 22px}
+.ev-company-card{min-height:92px;padding:15px 17px;border:0;border-radius:16px;text-align:left;font:inherit;color:var(--text);cursor:pointer;background:linear-gradient(130deg,rgba(255,255,255,.85),rgba(217,226,228,.64));box-shadow:0 10px 24px rgba(26,46,53,.09),inset 0 1px rgba(255,255,255,.9);transition:transform .2s ease,box-shadow .2s ease}
+.ev-company-card:hover,.ev-company-card:focus-visible{transform:translateY(-2px);box-shadow:0 14px 28px rgba(26,46,53,.14)}
+.ev-company-card[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent),0 12px 26px rgba(26,46,53,.13)}
+.ev-company-card strong{display:block;font-size:14px;line-height:1.35}.ev-company-card small{display:block;margin-top:8px;color:var(--muted);font-size:11px}
+[data-theme="dark"] .ev-company-card{background:linear-gradient(130deg,rgba(70,85,90,.91),rgba(43,55,61,.81));box-shadow:0 10px 24px rgba(0,0,0,.22)}
+@media (prefers-reduced-motion:reduce){.ev-company-card{transition:none!important;transform:none!important}}
 [data-theme="dark"] .ev-folder-card{background:linear-gradient(145deg,rgba(60,77,83,.62),rgba(32,43,49,.65));box-shadow:0 16px 28px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.16)}
 [data-theme="dark"] .ev-folder-back{background:linear-gradient(135deg,rgba(101,119,125,.92),rgba(53,68,75,.92));border-color:rgba(255,255,255,.20)}
 [data-theme="dark"] .ev-folder-back::before{background:rgba(90,109,115,.91);border-color:rgba(255,255,255,.18)}
@@ -180,6 +187,11 @@
       </button>
     </div>
     <button class="btn btn-secondary" onclick="evFindOpen()">Find evidence</button>
+    <a class="btn btn-secondary" href="/evidence/batch/">Batch upload</a>
+    {% if can_manage_group %}<a class="btn btn-secondary" href="/evidence/group/">Group sharing</a>{% endif %}
+    {% if can_group_requests %}<a class="btn btn-secondary" href="/evidence/group/requests/">Proof requests</a>{% endif %}
+    {% if can_group_cases %}<a class="btn btn-secondary" href="/evidence/group/cases/">Group cases</a>{% endif %}
+    {% if can_group_adoption %}<a class="btn btn-secondary" href="/evidence/group/adoption/">Policy adoption</a>{% endif %}
     {% if can_manage_legacy %}<button class="btn btn-secondary" type="button" onclick="evOpenLegacy()">Review legacy files</button>{% endif %}
     <button class="btn btn-primary" onclick="ModalManager.open('uploadModal')">+ Upload</button>
   </div>
@@ -209,6 +221,28 @@
   <!-- Search first, so the results start at the top of the page -->
   <label for="searchInput" class="sr-only">Search the Vault by name, tag, description or indexed file text</label>
   <input type="search" id="searchInput" class="ev-search" placeholder="Search names, tags and file text" onkeyup="debounceSearch()" autocomplete="off">
+
+  <section aria-labelledby="evCompanyHeading" style="margin-top:20px">
+    <div class="ev-folders-heading"><h2 id="evCompanyHeading">By filing scope</h2><p>Only documents you may open</p></div>
+    <div id="evCompanyViews" class="ev-company-grid" role="group" aria-label="Accessible filing scopes"></div>
+  </section>
+
+  <section aria-labelledby="evEntityHeading" style="margin-top:20px">
+    <div class="ev-folders-heading"><h2 id="evEntityHeading">By reviewed company</h2>
+      {% if can_manage_company %}<a class="btn btn-secondary" href="/evidence/companies/">Review company labels</a>{% endif %}
+    </div>
+    <p>Company labels help you browse. Filing permissions stay the same.</p>
+    <div id="evEntityViews" class="ev-company-grid" role="group" aria-label="Reviewed company labels"></div>
+  </section>
+
+  <section id="evGroupSection" aria-labelledby="evGroupHeading" hidden>
+    <div class="ev-folders-heading"><h2 id="evGroupHeading">Shared by related companies</h2><button id="evGroupRefresh" type="button" class="btn btn-secondary">Refresh</button></div>
+    <p>Each company shows only releases covered by your named grant. Open a company to browse its approved versions.</p>
+    <div id="evGroupViews" class="ev-company-grid" role="group" aria-label="Companies with named group access"></div>
+    <div id="evGroupBrowse" hidden><h3 id="evGroupBrowseName"></h3><div id="evGroupItems" class="ev-company-grid" role="group" aria-label="Approved group documents"></div></div>
+    <div id="evGroupDetail" class="ev-record-folders" hidden aria-live="polite"></div>
+    <div id="evGroupPager" style="display:flex;gap:10px;align-items:center;margin:12px 0"></div>
+  </section>
 
   <section class="ev-folders" aria-labelledby="evFolderHeading">
     <div class="ev-folders-heading"><h2 id="evFolderHeading">Browse the Vault</h2><p>One file, several connected views</p></div>
@@ -316,6 +350,11 @@
     </div>
     <div class="modal-body" style="padding:20px">
       <form id="uploadForm" onsubmit="handleUpload(event)">
+        <div style="margin-bottom:14px">
+          <label for="uploadFilingScope" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">File for</label>
+          <select id="uploadFilingScope" required class="form-input" style="width:100%"><option value="">Choose an authorized filing scope</option></select>
+          <p id="uploadFilingNote" style="font-size:11px;color:var(--muted);margin:6px 0 0">A linked record must use the same scope. Organization-wide files are visible throughout your tenant.</p>
+        </div>
         <div style="margin-bottom:14px">
           <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">File</label>
           <input type="file" id="uploadFile" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
@@ -507,6 +546,8 @@
 <script>
 var currentView='all', currentModule='', currentCategory='', currentStatus='', searchTimeout=null, entitySearchTimeout=null;
 var evFolder='',evFolderGroup='',evFolderPage=1,evFolderSearchTimer=null;
+var evCompanyScope='',evCompanyViews=null,evGroupSource=null,evGroupCursor=null,evGroupBack=[];
+var evEntityScope='',evEntityViews=null;
 var evPage=1, evPages=1;
 var evSavedViews=[], evUserId={{ user.id }};
 var evViewMode = localStorage.getItem('ev-view-mode') || 'table';
@@ -800,6 +841,7 @@ function evActiveChips(){
   if(evOwnerOnly)chips.push(['Mine',function(){evOwnerOnly=false;evPage=1;loadEvidence();}]);
   if(currentState)chips.push(['State: '+currentState.replace(/_/g,' '),function(){currentState='';evPage=1;loadEvidence();}]);
   if(currentWords)chips.push(['Words: '+currentWords,function(){currentWords='';evPage=1;loadEvidence();}]);
+  if(evCompanyScope)chips.push(['Filing scope: '+evCompanyLabel(evCompanyScope),function(){evChooseCompany('');}]);
   var q=document.getElementById('searchInput').value;
   if(q)chips.push(['Search: '+q,function(){document.getElementById('searchInput').value='';evPage=1;loadEvidence();}]);
   var box=document.getElementById('evChips');
@@ -815,7 +857,7 @@ function evActiveChips(){
   if(chips.length>1){
     var all=document.createElement('button');
     all.type='button';all.className='btn btn-secondary';all.style.fontSize='12px';all.textContent='Clear filters';
-    all.addEventListener('click',function(){currentModule='';currentCategory='';evOwnerOnly=false;currentState='';currentWords='';evFolder='';evCloseRecordFolders();document.getElementById('searchInput').value='';switchView('all',document.getElementById('nav-all'));});
+    all.addEventListener('click',function(){currentModule='';currentCategory='';evOwnerOnly=false;currentState='';currentWords='';evFolder='';evCompanyScope='';evRenderCompanyViews();evCloseRecordFolders();document.getElementById('searchInput').value='';switchView('all',document.getElementById('nav-all'));});
     box.appendChild(all);
   }
 }
@@ -831,6 +873,8 @@ async function loadEvidence(){
   if(currentStatus)params.set('status',currentStatus);
   if(currentModule)params.set('module',currentModule);
   if(evFolder)params.set('folder',evFolder);
+  if(evCompanyScope)params.set('filing_scope',evCompanyScope);
+  if(evEntityScope)params.set('company',evEntityScope);
   if(currentView&&currentView!=='all')params.set('view',currentView);
   if(evOwnerOnly)params.set('owner','me');
   if(currentState)params.set('state',currentState);
@@ -1012,6 +1056,11 @@ function evApplySavedView(rawId){
   currentModule=filters.module||'';
   currentStatus=filters.status||'';
   evFolder=filters.folder||'';
+  var requestedScope=filters.filing_scope||'';
+  evCompanyScope=requestedScope;
+  evEntityScope=filters.company||'';
+  evRenderCompanyViews();
+  evRenderEntityViews();
   evCloseRecordFolders();
   evMarkFolder();
   currentView=filters.view||'all';
@@ -1034,6 +1083,8 @@ async function evSaveCurrentView(){
   if(currentCategory)filters.category=currentCategory;
   if(currentModule)filters.module=currentModule;
   if(evFolder)filters.folder=evFolder;
+  if(evCompanyScope)filters.filing_scope=evCompanyScope;
+  if(evEntityScope)filters.company=evEntityScope;
   if(currentStatus)filters.status=currentStatus;
   if(currentView!=='all')filters.view=currentView;
   var query=document.getElementById('searchInput').value;
@@ -1880,6 +1931,141 @@ function evMarkFolder(){
   });
 }
 function evCloseRecordFolders(){document.getElementById('evRecordFolders').hidden=true;evFolderGroup='';}
+function evCompanyOption(scope){
+  if(!evCompanyViews)return null;
+  if(scope==='organization')return evCompanyViews.organization;
+  if(scope.startsWith('unit:'))return (evCompanyViews.units||[]).find(function(u){return scope==='unit:'+u.id;});
+  return null;
+}
+function evCompanyLabel(scope){var item=evCompanyOption(scope);return item?item.name:'Accessible documents';}
+function evChooseCompany(scope){evCompanyScope=scope;evPage=1;evRenderCompanyViews();loadEvidence();}
+function evRenderCompanyViews(){
+  var host=document.getElementById('evCompanyViews');host.replaceChildren();
+  if(!evCompanyViews||!evCompanyViews.organization){host.textContent='No organization is selected.';return;}
+  var org=evCompanyViews.organization;
+  var choices=[{scope:'',name:'All accessible documents',count:org.count},
+    {scope:'organization',name:org.name+' · organization-wide',count:org.organization_wide}];
+  (evCompanyViews.units||[]).forEach(function(unit){choices.push({scope:'unit:'+unit.id,name:unit.name,count:unit.count});});
+  choices.forEach(function(item){
+    var button=document.createElement('button');button.type='button';button.className='ev-company-card';
+    button.setAttribute('aria-pressed',evCompanyScope===item.scope?'true':'false');
+    var title=document.createElement('strong');title.textContent=item.name;
+    var count=document.createElement('small');count.textContent=item.count+' current documents';
+    button.append(title,count);button.addEventListener('click',function(){evChooseCompany(item.scope);});host.appendChild(button);
+  });
+}
+async function evLoadCompanyViews(){
+  try{
+    var response=await fetch('/evidence/api/company-views');if(!response.ok)throw new Error();
+    evCompanyViews=await response.json();
+    if(evCompanyScope&&!evCompanyOption(evCompanyScope)){evCompanyScope='';evPage=1;loadEvidence();}
+    evRenderCompanyViews();
+    var select=document.getElementById('uploadFilingScope');select.replaceChildren();
+    var blank=document.createElement('option');blank.value='';blank.textContent='Choose an authorized filing scope';select.appendChild(blank);
+    function add(scope,label){var option=document.createElement('option');option.value=scope;option.textContent=label;select.appendChild(option);}
+    (evCompanyViews.units||[]).forEach(function(unit){add('unit:'+unit.id,unit.name);});
+    if(evCompanyViews.can_file_org_wide)add('organization',evCompanyViews.organization.name+' · organization-wide');
+  }catch(_){document.getElementById('evCompanyViews').textContent='Filing scopes are unavailable. Reload before uploading.';}
+}
+function evRenderEntityViews(){
+  var host=document.getElementById('evEntityViews');if(!host)return;
+  host.replaceChildren();
+  if(!evEntityViews){host.textContent='Company views are unavailable.';return;}
+  var choices=[{id:'',name:'All accessible documents',count:null}];
+  (evEntityViews.companies||[]).forEach(function(item){choices.push({id:String(item.id),name:item.name,count:item.count});});
+  if(evEntityViews.unconfirmed)choices.push({id:'unconfirmed',name:'Ownership unconfirmed',count:evEntityViews.unconfirmed});
+  choices.forEach(function(item){
+    var button=document.createElement('button');button.type='button';button.className='ev-company-card';
+    button.setAttribute('aria-pressed',evEntityScope===item.id?'true':'false');
+    var title=document.createElement('strong');title.textContent=item.name;button.appendChild(title);
+    if(item.count!==null){var count=document.createElement('small');count.textContent=item.count+' accessible documents';button.appendChild(count);}
+    button.addEventListener('click',function(){evEntityScope=item.id;evPage=1;evRenderEntityViews();loadEvidence();});
+    host.appendChild(button);
+  });
+}
+async function evLoadEntityViews(){
+  try{
+    var response=await fetch('/evidence/api/companies');if(!response.ok)throw new Error();
+    evEntityViews=await response.json();
+    if(evEntityScope&&evEntityScope!=='unconfirmed'&&!evEntityViews.companies.some(function(item){return String(item.id)===evEntityScope;})){
+      evEntityScope='';evPage=1;loadEvidence();
+    }
+    evRenderEntityViews();
+  }catch(_){evEntityViews=null;evRenderEntityViews();}
+}
+async function evOpenGroupPublication(item){
+  var host=document.getElementById('evGroupDetail');host.hidden=false;host.replaceChildren();
+  host.textContent='Loading approved version…';
+  try{
+    var response=await fetch('/evidence/api/group/publications/'+encodeURIComponent(item.id));
+    if(!response.ok)throw new Error();
+    var detail=await response.json();host.replaceChildren();
+    var heading=document.createElement('h3');heading.textContent=detail.title;host.appendChild(heading);
+    var info=document.createElement('p');info.textContent=detail.source_name+' · version '+detail.version+' · '+detail.category+' · '+detail.classification;
+    host.appendChild(info);
+    var expiry=document.createElement('p');expiry.textContent='Access expires '+detail.expires_at;host.appendChild(expiry);
+    if(item.can_download){
+      var download=document.createElement('a');download.className='btn btn-secondary';
+      download.href='/evidence/api/group/publications/'+encodeURIComponent(item.id)+'/download';
+      download.textContent='Download approved version';host.appendChild(download);
+    }
+    var close=document.createElement('button');close.type='button';close.className='btn btn-secondary';
+    close.textContent='Close';close.addEventListener('click',function(){host.hidden=true;host.replaceChildren();});host.appendChild(close);
+    host.scrollIntoView({block:'nearest',behavior:'smooth'});
+  }catch(_){host.textContent='This version is no longer available to you.';evLoadGroupPublications();}
+}
+async function evLoadGroupPublications(){
+  var section=document.getElementById('evGroupSection'),host=document.getElementById('evGroupViews');
+  try{
+    var response=await fetch('/evidence/api/group/companies');
+    if(!response.ok)throw new Error();
+    var data=await response.json(),companies=data.companies||[];
+    section.hidden=!companies.length;host.replaceChildren();
+    if(evGroupSource&&!companies.some(function(c){return c.id===evGroupSource.id;})){
+      evGroupSource=null;document.getElementById('evGroupBrowse').hidden=true;
+      document.getElementById('evGroupDetail').hidden=true;
+    }
+    companies.forEach(function(item){
+      var button=document.createElement('button');button.type='button';button.className='ev-company-card';
+      button.setAttribute('aria-pressed',evGroupSource&&evGroupSource.id===item.id?'true':'false');
+      var title=document.createElement('strong');title.textContent=item.name;
+      var label=document.createElement('small');label.textContent='Browse approved releases';
+      button.append(title,label);button.addEventListener('click',function(){
+        evGroupSource=item;evGroupCursor=null;evGroupBack=[];
+        document.getElementById('evGroupBrowse').hidden=false;
+        document.getElementById('evGroupBrowseName').textContent=item.name+' · approved releases';
+        document.getElementById('evGroupDetail').hidden=true;
+        evLoadGroupPublications();
+      });host.appendChild(button);
+    });
+    if(evGroupSource)evLoadGroupCompanyItems();
+  }catch(_){section.hidden=true;host.replaceChildren();}
+}
+async function evLoadGroupCompanyItems(){
+  if(!evGroupSource)return;
+  var sourceId=evGroupSource.id,cursor=evGroupCursor;
+  var host=document.getElementById('evGroupItems'),pager=document.getElementById('evGroupPager');
+  host.textContent='Loading approved releases…';pager.replaceChildren();
+  try{
+    var url='/evidence/api/group/companies/'+encodeURIComponent(sourceId)+'/publications';
+    if(cursor)url+='?before='+encodeURIComponent(cursor);
+    var response=await fetch(url);if(!response.ok)throw new Error();
+    var data=await response.json();if(!evGroupSource||evGroupSource.id!==sourceId||evGroupCursor!==cursor)return;
+    host.replaceChildren();
+    if(!data.items.length)host.textContent='No current approved releases for this company.';
+    (data.items||[]).forEach(function(item){
+      var button=document.createElement('button');button.type='button';button.className='ev-company-card';
+      var title=document.createElement('strong');title.textContent=item.title;
+      var label=document.createElement('small');label.textContent='Version '+item.version+' · '+item.category;
+      button.append(title,label);button.addEventListener('click',function(){evOpenGroupPublication(item);});host.appendChild(button);
+    });
+    if(evGroupBack.length){var prev=document.createElement('button');prev.type='button';prev.className='btn btn-secondary';
+      prev.textContent='Previous';prev.addEventListener('click',function(){evGroupCursor=evGroupBack.pop();evLoadGroupCompanyItems();});pager.appendChild(prev);}
+    if(data.next_cursor){var next=document.createElement('button');next.type='button';next.className='btn btn-secondary';
+      next.textContent='Next';next.addEventListener('click',function(){evGroupBack.push(evGroupCursor);evGroupCursor=data.next_cursor;evLoadGroupCompanyItems();});pager.appendChild(next);}
+  }catch(_){host.textContent='Approved releases are unavailable. Try again.';}
+}
+document.getElementById('evGroupRefresh').addEventListener('click',evLoadGroupPublications);
 function evChooseFolder(key,openRecords){
   evFolder=key;evPage=1;currentModule='';currentCategory='';currentView='all';
   currentStatus='';currentState='';currentWords='';evOwnerOnly=false;
@@ -2043,6 +2229,7 @@ async function handleUpload(e){
   var fileEl=document.getElementById('uploadFile');
   if(!fileEl.files[0]){return;}
   form.append('file',fileEl.files[0]);
+  form.append('filing_scope',document.getElementById('uploadFilingScope').value);
   form.append('title',document.getElementById('uploadTitle').value);
   form.append('category',document.getElementById('uploadCategory').value);
   form.append('tags',document.getElementById('uploadTags').value);
@@ -2093,7 +2280,7 @@ async function handleUpload(e){
   document.getElementById('uploadLinkResults').replaceChildren();
   document.getElementById('uploadExpiry').value='';
   evPage=1;
-  loadEvidence();loadStats();loadCoverage();
+  loadEvidence();loadStats();loadCoverage();evLoadCompanyViews();evLoadEntityViews();evLoadGroupPublications();
   if(typeof showToast==='function')showToast('Evidence uploaded'+(form.has('link_module')?' and filed for link review':''),'success');
 }
 
@@ -2138,7 +2325,7 @@ async function handleUpload(e){
 
 document.addEventListener('DOMContentLoaded',function(){
   setViewMode(evViewMode);  // Apply saved view mode to toggle buttons
-  loadStats();loadEvidence();loadCoverage();loadChecks();evLoadSavedViews();
+  loadStats();loadEvidence();loadCoverage();loadChecks();evLoadSavedViews();evLoadCompanyViews();evLoadEntityViews();
 });
 
 

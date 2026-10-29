@@ -1,0 +1,51 @@
+{% extends "base_shell.html" %}
+{% block title %}Group cases · Evidence Vault · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Evidence Vault</div><div class="module-desc">Parent review of group proof</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Work</div>
+  <a class="nav-item" href="/evidence/">Evidence Vault</a>
+  <a class="nav-item" href="/evidence/group/">Group sharing</a>
+  <a class="nav-item" href="/evidence/group/requests/">Proof requests</a>
+  <a class="nav-item active" href="/evidence/group/cases/" aria-current="page">Group cases</a>
+  <a class="nav-item" href="/evidence/group/adoption/">Policy adoption</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.gc-page{max-width:1300px;padding:24px;margin:auto;color:var(--text)}
+.gc-hero{padding:30px 34px;border-radius:24px;background:linear-gradient(125deg,rgba(255,255,255,.89),rgba(215,226,228,.64));box-shadow:0 16px 32px rgba(28,44,50,.11),inset 0 1px rgba(255,255,255,.94)}
+.gc-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.gc-hero p{max-width:760px;color:var(--muted);line-height:1.55;margin:0}
+.gc-layout{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.5fr);gap:18px;margin-top:20px}
+.gc-panel{padding:24px;border-radius:20px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.07),inset 0 1px rgba(255,255,255,.8)}
+.gc-panel h2{font:600 22px/1.25 Georgia,serif;margin:0 0 12px}.gc-panel p{line-height:1.5;color:var(--muted)}
+.gc-form{display:grid;gap:11px;margin-bottom:20px}.gc-form[hidden],.gc-panel[hidden]{display:none}
+.gc-form label{display:grid;gap:5px;font-size:13px;font-weight:650}.gc-form input,.gc-form textarea{width:100%;min-width:0;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.gc-list{display:grid;gap:9px}.gc-card{background:var(--surface2);border-radius:14px;padding:15px;line-height:1.5}.gc-card strong{display:block}.gc-card small{color:var(--muted)}
+.gc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.gc-actions button{cursor:pointer}.gc-status{min-height:25px;margin:14px 0;font-weight:650}
+@media(max-width:850px){.gc-layout{grid-template-columns:1fr}.gc-page{padding:14px}.gc-hero{padding:23px}.gc-hero h1{font-size:29px}}
+[data-theme="dark"] .gc-hero{background:linear-gradient(125deg,rgba(72,86,91,.9),rgba(42,55,61,.82))}
+</style>
+<main class="gc-page" id="groupCases">
+  <header class="gc-hero"><h1>Group cases</h1><p>Record a parent position and connect the proof requests sent to subsidiaries. The subsidiaries see their own requests, while this case and its conclusion stay in the parent organization. An independent specialist closes the case after each request has a reviewed outcome.</p></header>
+  <p id="gcStatus" class="gc-status" role="status" aria-live="polite"></p>
+  <div class="gc-layout">
+    <section class="gc-panel"><h2>Cases</h2>
+      <form id="gcCreate" class="gc-form" hidden>
+        <label>Case reference<input name="reference" maxlength="100" required></label>
+        <label>Title<input name="title" maxlength="200" required></label>
+        <label>Parent position<textarea name="position" maxlength="2000" rows="4" required></textarea></label>
+        <button class="btn btn-primary" type="submit">Create case</button>
+      </form>
+      <div id="gcList" class="gc-list"></div>
+      <div class="gc-actions"><button id="gcMore" class="btn btn-secondary" type="button" hidden>Show more</button></div>
+    </section>
+    <section class="gc-panel" id="gcDetailPanel" hidden><h2>Case detail</h2><div id="gcDetail"></div>
+      <form id="gcLink" class="gc-form" hidden><label>Proof request ID<input name="request_id" type="number" min="1" required></label><p>Find the request ID in <a href="/evidence/group/requests/">Proof requests</a>. Only requests sent by this parent can be linked.</p><button class="btn btn-secondary" type="submit">Link request</button></form>
+      <form id="gcClose" class="gc-form" hidden><label>Independent conclusion<textarea name="reason" maxlength="2000" rows="3" required></textarea></label><button class="btn btn-primary" type="submit">Close reviewed case</button></form>
+      <h3>Linked proof requests</h3><div id="gcRequests" class="gc-list"></div>
+      <h3>Decision trail</h3><div id="gcEvents" class="gc-list"></div>
+    </section>
+  </div>
+</main>
+<script src="/static/js/evidence_group_cases.js?v=1" defer></script>
+{% endblock %}

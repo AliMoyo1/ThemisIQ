@@ -1,0 +1,37 @@
+{% extends "base_shell.html" %}
+{% block title %}Policy adoption · Evidence Vault · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Evidence Vault</div><div class="module-desc">Local group policy review</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Work</div>
+  <a class="nav-item" href="/evidence/">Evidence Vault</a>
+  <a class="nav-item" href="/evidence/group/">Group sharing</a>
+  <a class="nav-item" href="/evidence/group/requests/">Proof requests</a>
+  <a class="nav-item" href="/evidence/group/cases/">Group cases</a>
+  <a class="nav-item active" href="/evidence/group/adoption/" aria-current="page">Policy adoption</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.ga-page{max-width:1180px;margin:auto;padding:24px;color:var(--text)}
+.ga-hero,.ga-panel{background:var(--surface);border-radius:22px;padding:28px;box-shadow:0 12px 28px rgba(25,44,51,.08),inset 0 1px rgba(255,255,255,.8)}
+.ga-hero{background:linear-gradient(125deg,rgba(255,255,255,.9),rgba(219,228,230,.7))}
+.ga-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.ga-hero p{max-width:760px;line-height:1.55;color:var(--muted);margin:0}
+.ga-panel{margin-top:18px}.ga-panel h2{font:600 23px/1.2 Georgia,serif;margin:0 0 6px}
+.ga-card{padding:20px;border-radius:16px;background:var(--surface2);margin:14px 0}.ga-card h3{margin:0;font-size:18px}
+.ga-card p{margin:7px 0;line-height:1.55;color:var(--muted)}.ga-status{min-height:24px;font-weight:650;margin:14px 0}
+.ga-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.ga-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px;border-radius:13px;background:var(--surface)}
+.ga-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650}.ga-form input,.ga-form select,.ga-form textarea{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.ga-wide{grid-column:1/-1}.ga-form button{justify-self:start}.ga-form[hidden]{display:none}
+#gaMore[hidden],.ga-form label[hidden]{display:none}
+@media(max-width:700px){.ga-page{padding:14px}.ga-hero h1{font-size:29px}.ga-form{grid-template-columns:1fr}.ga-wide{grid-column:1}}
+[data-theme="dark"] .ga-hero{background:linear-gradient(125deg,rgba(73,88,92,.9),rgba(43,56,61,.83))}
+</style>
+<main class="ga-page" id="groupAdoption">
+ <header class="ga-hero"><h1>Policy adoption</h1><p>Review published parent policy versions for your company. Adoption, adaptation, an exception request or a decline is a separate local decision. A new parent version needs a new local review and does not prove that controls operate.</p></header>
+ <p class="ga-status" id="gaStatus" role="status" aria-live="polite"></p>
+ <section class="ga-panel"><h2>Parent policies available to you</h2><p>Only exact versions you have a named view grant for appear here.</p>
+  <div id="gaList"></div><button type="button" class="btn btn-secondary" id="gaMore" hidden>Show more</button>
+ </section>
+</main>
+<script src="/static/js/evidence_group_adoption.js?v=1" defer></script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base_shell.html" %}
+{% block title %}Proof requests · Evidence Vault · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Evidence Vault</div><div class="module-desc">Requirement-led group work</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Work</div>
+  <a class="nav-item" href="/evidence/">Evidence Vault</a>
+  <a class="nav-item" href="/evidence/group/">Group sharing</a>
+  <a class="nav-item active" href="/evidence/group/requests/" aria-current="page">Proof requests</a>
+  <a class="nav-item" href="/evidence/group/cases/">Group cases</a>
+  <a class="nav-item" href="/evidence/group/adoption/">Policy adoption</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.gr-page{padding:24px;max-width:1230px;margin:auto;color:var(--text)}
+.gr-hero{padding:30px 34px;border-radius:23px;background:linear-gradient(125deg,rgba(255,255,255,.92),rgba(219,228,230,.7));box-shadow:0 14px 30px rgba(25,44,51,.1),inset 0 1px rgba(255,255,255,.94)}
+.gr-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.gr-hero p{max-width:740px;line-height:1.55;color:var(--muted);margin:0}
+.gr-panel{margin-top:20px;padding:24px;border-radius:20px;background:var(--surface);box-shadow:0 12px 28px rgba(25,44,51,.07),inset 0 1px rgba(255,255,255,.8)}
+.gr-panel h2{font:600 22px/1.25 Georgia,serif;margin:0 0 10px}.gr-panel p{line-height:1.5;color:var(--muted)}
+.gr-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.gr-form[hidden]{display:none}
+.gr-form label,.gr-control{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650}
+.gr-form input,.gr-form select,.gr-form textarea,.gr-control input,.gr-control select,.gr-control textarea{min-width:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.gr-wide{grid-column:1/-1}.gr-form button{justify-self:start}.gr-list{display:grid;gap:13px}
+.gr-card{padding:18px;border-radius:15px;background:var(--surface2)}.gr-card strong{font-size:15px}.gr-card small{display:block;color:var(--muted);margin-top:5px}
+.gr-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:14px}.gr-actions button{font:inherit}
+.gr-detail{padding:14px;margin-top:10px;border-radius:12px;background:var(--surface);display:grid;gap:11px}.gr-detail[hidden]{display:none}
+.gr-history-item{padding:12px 14px;border-radius:11px;background:var(--surface2);display:grid;gap:7px}.gr-history-item p{margin:0}.gr-history-item a{justify-self:start}
+.gr-status{min-height:24px;font-weight:650;margin:14px 0}
+@media(max-width:760px){.gr-form{grid-template-columns:1fr}.gr-wide{grid-column:1}.gr-page{padding:14px}.gr-hero h1{font-size:29px}}
+[data-theme="dark"] .gr-hero{background:linear-gradient(125deg,rgba(73,88,92,.9),rgba(43,56,61,.83));box-shadow:0 14px 30px rgba(0,0,0,.2)}
+</style>
+<main class="gr-page" id="groupRequests">
+ <header class="gr-hero"><h1>Proof requests</h1><p>Ask a related company for evidence against your requirement. The request never searches its hidden documents. The source team maps its own record, reviews the request, and releases an approved version to a named recipient. A different specialist in the requesting company then accepts or returns that exact release for the requirement.</p></header>
+ <p id="grStatus" class="gr-status" role="status" aria-live="polite"></p>
+ <section class="gr-panel"><h2>New requirement request</h2>
+  <form class="gr-form" id="grCreate" hidden>
+    <label>Source company<select name="relationship_id" required></select></label>
+    <label>Your requirement reference<input name="requirement_ref" maxlength="200" required></label>
+    <label class="gr-wide">Why is this needed?<textarea name="purpose" maxlength="500" rows="2" required></textarea></label>
+    <label>Needed by<input name="needed_by" type="datetime-local" required></label>
+    <label>Period from<input name="period_start" type="date"></label>
+    <label>Period to<input name="period_end" type="date"></label>
+    <button class="btn btn-primary gr-wide" type="submit">Send to source team</button>
+  </form>
+  <p id="grNoRelationships" hidden>No active reviewed child relationship is available for a new request.</p>
+ </section>
+ <section class="gr-panel"><h2>Request work</h2><div id="grList" class="gr-list"></div>
+  <div class="gr-actions"><button id="grMore" class="btn btn-secondary" type="button" hidden>Show more</button></div>
+ </section>
+</main>
+<script src="/static/js/evidence_group_requests.js?v=3" defer></script>
+{% endblock %}

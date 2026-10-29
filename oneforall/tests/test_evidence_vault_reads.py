@@ -1,10 +1,13 @@
 """Evidence Vault read paths share one scope rule (design/evidence-vault/PHASE-1A.md, T2 to T5)."""
 import asyncio
+import hashlib
+import io
 import json
 import types
 from datetime import date, timedelta
 
 import pytest
+from starlette.datastructures import UploadFile
 
 import core.middleware as middleware
 import modules.bcm.data_service as bcm_ds
@@ -138,6 +141,100 @@ def test_list_is_an_envelope_and_obeys_scope(world, auth):
 def test_super_admin_sees_every_organization(world, auth):
     body = _get(ev.api_evidence_list(_req(auth, world.users.admin)))
     assert body["total"] == 4
+
+
+def test_batch_version_picker_requires_exact_filing_scope_and_hides_other_org(test_db, world, auth):
+    _item(test_db, "Access Review archived", world.org1, status="archived")
+    _item(test_db, "Access Review generated", world.org1, category="generated_record")
+    search = ev.api_evidence_batch_version_candidates
+    unit_user = {**world.users.unit_a, "roles": ["compliance_manager"]}
+    org_user = {**world.users.no_unit, "roles": ["compliance_manager"]}
+    unit = _get(search(_req(auth, unit_user, q="access review", filing_scope=f"unit:{world.bu_a}")))
+    assert {item["id"] for item in unit["items"]} == {world.ids["a"]}
+    assert set(unit["items"][0]) == {"id", "title", "version", "category", "review_due_date", "file_name"}
+    org = _get(search(_req(auth, org_user, q="access review", filing_scope="organization")))
+    assert {item["id"] for item in org["items"]} == {world.ids["wide"]}
+    with pytest.raises(ev.HTTPException) as hidden:
+        _get(search(_req(auth, unit_user, q="access review", filing_scope=f"unit:{world.bu_b}")))
+    assert hidden.value.status_code == 404
+    with pytest.raises(ev.HTTPException) as forbidden:
+        _get(search(_req(auth, unit_user, q="access review", filing_scope="organization")))
+    assert forbidden.value.status_code == 404
+
+
+def test_batch_version_picker_bounds_search_and_results(test_db, world, auth):
+    search = ev.api_evidence_batch_version_candidates
+    org_user = {**world.users.no_unit, "roles": ["compliance_manager"]}
+    for term in ("x", "x" * 101):
+        with pytest.raises(ev.HTTPException) as invalid:
+            _get(search(_req(auth, org_user, q=term, filing_scope="organization")))
+        assert invalid.value.status_code == 422
+    for index in range(30):
+        _item(test_db, f"Batch candidate {index:02d}", world.org1)
+    found = _get(search(_req(auth, org_user, q="Batch candidate", filing_scope="organization")))
+    assert len(found["items"]) == 15
+    assert all(item["title"].startswith("Batch candidate") for item in found["items"])
+
+
+def test_batch_duplicate_check_uses_exact_authorized_filing_scope(test_db, world, auth):
+    content = b"Synthetic exact Vault bytes for scope review"
+    digest = hashlib.sha256(content).hexdigest()
+    _item(test_db, "Wide copy", world.org1, file_hash=digest)
+    own = _item(test_db, "Unit A copy", world.org1, world.bu_a, file_hash=digest)
+    _item(test_db, "Unit B copy", world.org1, world.bu_b, file_hash=digest)
+    _item(test_db, "Other tenant copy", world.org2, file_hash=digest)
+    _item(test_db, "Archived copy", world.org1, world.bu_a, status="archived", file_hash=digest)
+    unit_user = {**world.users.unit_a, "roles": ["compliance_manager"]}
+    org_user = {**world.users.no_unit, "roles": ["compliance_manager"]}
+
+    def check(user, scope):
+        file = UploadFile(file=io.BytesIO(content), filename="candidate.txt")
+        return _get(ev.api_evidence_batch_duplicate_check(
+            _req(auth, user), file=file, filing_scope=scope))
+
+    result = check(unit_user, f"unit:{world.bu_a}")
+    assert result == {"items": [{"id": own, "title": "Unit A copy", "version": 1,
+                                  "status": "current"}]}
+    assert {row["title"] for row in check(org_user, "organization")["items"]} == {"Wide copy"}
+    for scope in ("organization", f"unit:{world.bu_b}"):
+        with pytest.raises(ev.HTTPException) as hidden:
+            check(unit_user, scope)
+        assert hidden.value.status_code == 404
+    assert check({**unit_user, "org_id": world.org2}, f"unit:{world.bu_a}")["items"] == []
+
+
+def test_batch_control_suggestions_require_filing_scope_and_aria_access(test_db, world, auth, monkeypatch):
+    import modules.aria.policy_intake as intake
+    import modules.governance.entity_scope as entity_scope
+
+    test_db.execute("INSERT INTO frameworks(name,is_active) VALUES('Synthetic Batch Framework',1)")
+    framework_id = test_db.execute("SELECT id FROM frameworks WHERE name='Synthetic Batch Framework'").fetchone()[0]
+    test_db.execute("INSERT INTO controls(framework_id,ref,name) VALUES(%s,'BATCH.9.1','Synthetic batch control')",
+                    (framework_id,))
+    test_db.commit()
+    monkeypatch.setattr(intake, "_extract_isolated", lambda *args: {
+        "metadata": {}, "parser": "test", "text_status": "extracted",
+        "spans": [{"anchor": "page 1", "text": "BATCH.9.1 controls this synthetic process."}],
+    })
+    user = {**world.users.unit_a, "roles": ["compliance_manager"]}
+
+    def suggest(scope):
+        file = UploadFile(file=io.BytesIO(b"%PDF-synthetic"), filename="test.pdf")
+        return _get(ev.api_evidence_batch_suggest(_req(auth, user), file=file, filing_scope=scope))
+
+    with pytest.raises(ev.HTTPException) as hidden:
+        suggest(f"unit:{world.bu_b}")
+    assert hidden.value.status_code == 404
+    result = suggest(f"unit:{world.bu_a}")
+    assert len(result["control_candidates"]) == 1
+    candidate = result["control_candidates"][0]
+    assert candidate["ref"] == "BATCH.9.1"
+    assert candidate["anchor"] == "page 1"
+    assert candidate["match_method"] == "exact_reference"
+    assert test_db.execute("SELECT COUNT(*) FROM evidence_links").fetchone()[0] == 0
+
+    monkeypatch.setattr(entity_scope, "may_view_kind", lambda *_: False)
+    assert suggest(f"unit:{world.bu_a}")["control_candidates"] == []
 
 
 def test_pages_cover_every_item_exactly_once_when_timestamps_tie(test_db, world, auth):
