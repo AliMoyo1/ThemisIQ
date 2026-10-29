@@ -116,6 +116,39 @@ _STMTS = [
     "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
     "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
 
+    # Group band: written only by the platform's own job (bypass). The parent reads everything; a subsidiary reads the
+    # publication of its own parent and only its own viewer row; the cohort and exact mean are parent-only.
+    "ALTER TABLE public.group_band_publications ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_band_publications FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_band_pub_read ON public.group_band_publications",
+    "CREATE POLICY group_band_pub_read ON public.group_band_publications FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.parent_org_id = group_band_publications.parent_org_id "
+    "AND r.child_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_band_pub_write ON public.group_band_publications",
+    "CREATE POLICY group_band_pub_write ON public.group_band_publications FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "ALTER TABLE public.group_band_internal ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_band_internal FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_band_internal_read ON public.group_band_internal",
+    f"CREATE POLICY group_band_internal_read ON public.group_band_internal FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_band_internal_write ON public.group_band_internal",
+    "CREATE POLICY group_band_internal_write ON public.group_band_internal FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "ALTER TABLE public.group_band_viewers ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_band_viewers FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_band_viewers_read ON public.group_band_viewers",
+    "CREATE POLICY group_band_viewers_read ON public.group_band_viewers FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR child_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)))",
+    "DROP POLICY IF EXISTS group_band_viewers_write ON public.group_band_viewers",
+    "CREATE POLICY group_band_viewers_write ON public.group_band_viewers FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+
     "ALTER TABLE public.group_figure_restatements ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_figure_restatements FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_restatements_source ON public.group_figure_restatements",

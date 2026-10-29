@@ -856,6 +856,36 @@ CREATE TABLE IF NOT EXISTS group_figure_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_group_figure_latest ON group_figure_snapshots(source_org_id, measure_key, id);
 
+-- The banded group score (plan 21, slice 4). The publication holds only what a subsidiary may see; the cohort and the
+-- exact mean are parent-only; a viewer row says, per subsidiary, whether it may see the band this period.
+CREATE TABLE IF NOT EXISTS group_band_publications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    period_key TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('published','withheld')),
+    band INTEGER,
+    scale INTEGER NOT NULL DEFAULT 3,
+    trend TEXT NOT NULL DEFAULT 'new',
+    computed_at TEXT NOT NULL,
+    UNIQUE(parent_org_id, period_key)
+);
+CREATE TABLE IF NOT EXISTS group_band_internal (
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    period_key TEXT NOT NULL,
+    cohort_hash TEXT NOT NULL,
+    cohort_size INTEGER NOT NULL,
+    mean_score REAL,
+    PRIMARY KEY(parent_org_id, period_key)
+);
+CREATE TABLE IF NOT EXISTS group_band_viewers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    period_key TEXT NOT NULL,
+    child_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    visible INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(parent_org_id, period_key, child_org_id)
+);
+
 -- A correction to a published figure: the source proposes, a different person approves, and approval publishes a NEW
 -- snapshot that points at the original. Pending proposals are visible to the source only.
 CREATE TABLE IF NOT EXISTS group_figure_restatements (

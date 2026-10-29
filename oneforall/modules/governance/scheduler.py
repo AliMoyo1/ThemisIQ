@@ -48,6 +48,8 @@ def _publish_group_figures() -> None:
         from modules.governance import group_figures
         done = group_figures.publish_all(only_due=True)
         log.info("Group figures: published for %d organization(s)", len(done))
+        from modules.governance import group_band
+        group_band.compute_all()
     except Exception as exc:
         log.warning("Group figures publish failed: %s", exc)
 

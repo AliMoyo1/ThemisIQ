@@ -137,6 +137,19 @@ async def api_group_figures(request: Request):
     return response
 
 
+@router.get("/api/group/band")
+@require_auth
+async def api_group_band(request: Request):
+    from modules.governance import group_band
+    db = get_db()
+    try:
+        response = JSONResponse(group_band.read(db, request.state.user))
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 @router.get("/api/group/figures/restatements")
 @require_auth
 async def api_group_figure_restatements(request: Request):

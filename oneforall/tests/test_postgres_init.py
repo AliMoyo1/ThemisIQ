@@ -5125,3 +5125,93 @@ def test_group_figures_publish_and_row_level_security_on_real_postgres(pg):
                              (child,)).fetchone()[0] == 0
     finally:
         check.close()
+
+
+def test_group_band_restatement_and_lineage_row_level_security_on_real_postgres(pg):
+    """The banded score is readable by the parent and by each subsidiary of an active relationship, but a subsidiary
+    reads only its own viewer row and never the exact mean or cohort. Lineage and restatements belong to their source."""
+    import psycopg2
+    from modules.governance import group_band as gb
+
+    pg.init_db()
+    parent = _make_org(pg, "band_parent_pg")
+    child = _make_org(pg, "band_child_pg")
+    child2 = _make_org(pg, "band_child2_pg")
+    outsider = _make_org(pg, "band_outsider_pg")
+    from core.timeutils import utcnow
+    now = utcnow().isoformat()
+    setup = pg.get_db_bypass_rls()
+    try:
+        for kid in (child, child2):
+            setup.execute(
+                "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,"
+                "privacy_review_by,legal_review_by,terms_json,review_due_at) "
+                "VALUES (%s,%s,'active','Group',1,2,3,'{}','2099-01-01T00:00:00')", (parent, kid))
+        setup.execute("INSERT INTO public.group_band_publications (parent_org_id,period_key,status,band,scale,trend,computed_at) "
+                      "VALUES (%s,'2026-W44','published',2,3,'new',%s)", (parent, now))
+        setup.execute("INSERT INTO public.group_band_internal (parent_org_id,period_key,cohort_hash,cohort_size,mean_score) "
+                      "VALUES (%s,'2026-W44','h',3,64.3)", (parent,))
+        setup.execute("INSERT INTO public.group_band_viewers (parent_org_id,period_key,child_org_id,visible) "
+                      "VALUES (%s,'2026-W44',%s,1)", (parent, child))
+        setup.execute("INSERT INTO public.group_band_viewers (parent_org_id,period_key,child_org_id,visible) "
+                      "VALUES (%s,'2026-W44',%s,0)", (parent, child2))
+        snapshot = setup.execute(
+            "INSERT INTO public.group_figure_snapshots (source_org_id,measure_key,state,value,method_version,as_of,content_hash) "
+            "VALUES (%s,'cc.open_breaches','measured',4,'x','x','band-pg') RETURNING id", (child,)).fetchone()["id"]
+        setup.execute(
+            "INSERT INTO public.group_figure_restatements (source_org_id,measure_key,original_snapshot_id,old_value,new_value,"
+            "reason,proposed_by) VALUES (%s,'cc.open_breaches',%s,4,5,'Corrected after review',1)", (child, snapshot))
+        setup.execute(
+            "INSERT INTO public.group_figure_lineage (run_id,source_org_id,measure_key,state,value,reconciliation,built_at) "
+            "VALUES ('run1',%s,'cc.open_breaches','measured',4,'ok','x')", (child,))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+
+    def count(org, table):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                _become_restricted(conn)
+                return conn.execute(f"SELECT COUNT(*) FROM public.{table}").fetchone()[0]
+            finally:
+                _release_role(conn)
+
+    for table, expected in (
+        ("group_band_publications", {parent: 1, child: 1, child2: 1, outsider: 0}),
+        ("group_band_internal", {parent: 1, child: 0, child2: 0, outsider: 0}),
+        ("group_band_viewers", {parent: 2, child: 1, child2: 1, outsider: 0}),
+        ("group_figure_restatements", {parent: 0, child: 1, child2: 0, outsider: 0}),
+        ("group_figure_lineage", {parent: 0, child: 1, child2: 0, outsider: 0}),
+    ):
+        assert {org: count(org, table) for org in expected} == expected, table
+
+    # A subsidiary cannot write a band, and the real read path works for an ordinary role.
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_band_publications (parent_org_id,period_key,status,band,scale,trend,"
+                             "computed_at) VALUES (%s,'2026-W45','published',3,3,'up','x')", (parent,))
+            conn.rollback()
+            actor = {"id": 1, "org_id": child, "roles": ["grc_officer"], "is_super_admin": False}
+            seen = gb.read(conn, actor)
+            assert seen["state"] == "shown" and (seen["band"], seen["of"]) == (2, 3)
+            assert set(seen) == {"state", "band", "of", "label", "trend", "period", "as_of"}
+        finally:
+            _release_role(conn)
+    with pg.tenant_context(child2, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            assert gb.read(conn, {"id": 1, "org_id": child2, "roles": ["grc_officer"], "is_super_admin": False}) == {
+                "state": "not_available"}
+        finally:
+            _release_role(conn)
