@@ -26,7 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
-from modules.evidence import company_views, find as finder, group_adoption, group_documents, group_requests, inspector, ownership, proof, vault_views
+from modules.evidence import company_views, find as finder, group_adoption, group_cases, group_documents, group_requests, inspector, ownership, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
@@ -390,6 +390,8 @@ async def evidence_page(request: Request):
     ctx["can_group_adoption"] = bool(request.state.user.get("org_id") and any(
         has_capability(request.state.user, cap) for cap in (
             "group.policy.propose", "group.policy.review")))
+    ctx["can_group_cases"] = bool(request.state.user.get("org_id") and any(
+        has_capability(request.state.user, cap) for cap in ("group.case.manage", "group.case.review")))
     return shell_templates.TemplateResponse(request, "evidence_index.html", ctx)
 
 
@@ -427,6 +429,18 @@ async def group_adoption_page(request: Request):
         db.close()
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
     return shell_templates.TemplateResponse(request, "group_adoption.html", ctx)
+
+
+@router.get("/group/cases/", response_class=HTMLResponse)
+@require_auth
+async def group_cases_page(request: Request):
+    db = get_db()
+    try:
+        group_cases.list_cases(db, request.state.user)
+    finally:
+        db.close()
+    ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    return shell_templates.TemplateResponse(request, "group_cases.html", ctx)
 
 
 @router.get("/batch/", response_class=HTMLResponse)
@@ -759,6 +773,60 @@ async def api_group_requests(request: Request):
         return JSONResponse(group_requests.list_requests(db, request.state.user, page=page))
     finally:
         db.close()
+
+
+@router.get("/api/group/cases")
+@require_auth
+async def api_group_cases(request: Request):
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except ValueError:
+        raise HTTPException(422, "Invalid case page") from None
+    db = get_db()
+    try:
+        return JSONResponse(group_cases.list_cases(db, request.state.user, page=page))
+    finally:
+        db.close()
+
+
+@router.post("/api/group/cases", status_code=201)
+@require_auth
+async def api_group_case_create(request: Request):
+    body = await _group_body(request)
+    case_id = _group_operation(lambda db: group_cases.create_case(
+        db, request.state.user, body.get("reference"), body.get("title"), body.get("position")))
+    return JSONResponse({"id": case_id, "status": "open"}, status_code=201)
+
+
+@router.get("/api/group/cases/{case_id}")
+@require_auth
+async def api_group_case_detail(request: Request, case_id: int):
+    db = get_db()
+    try:
+        return JSONResponse(group_cases.case_detail(db, request.state.user, case_id))
+    finally:
+        db.close()
+
+
+@router.post("/api/group/cases/{case_id}/requests")
+@require_auth
+async def api_group_case_link(request: Request, case_id: int):
+    body = await _group_body(request)
+    try:
+        request_id = int(body.get("request_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a proof request") from None
+    _group_operation(lambda db: group_cases.link_request(db, request.state.user, case_id, request_id))
+    return JSONResponse({"status": "linked"})
+
+
+@router.post("/api/group/cases/{case_id}/close")
+@require_auth
+async def api_group_case_close(request: Request, case_id: int):
+    body = await _group_body(request)
+    status = _group_operation(lambda db: group_cases.close_case(
+        db, request.state.user, case_id, body.get("reason")))
+    return JSONResponse({"status": status})
 
 
 @router.get("/api/group/adoptions")

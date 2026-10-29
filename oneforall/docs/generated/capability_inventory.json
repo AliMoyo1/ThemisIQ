@@ -1,5 +1,5 @@
 {
-  "route_count": 1233,
+  "route_count": 1239,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13565,6 +13565,76 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/group/cases",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_cases",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/cases",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_case_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/cases/{case_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_case_detail",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/cases/{case_id}/close",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_case_close",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/cases/{case_id}/requests",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_case_link",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/group/companies",
       "methods": [
         "GET"
@@ -14527,6 +14597,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "group_adoption_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/group/cases/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "group_cases_page",
       "maturity": "",
       "notes": ""
     },

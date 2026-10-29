@@ -905,6 +905,44 @@ CREATE TABLE IF NOT EXISTS group_request_mappings (
     mapped_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- A parent-only coordination record. Children see only their own proof
+-- requests, never a case title or another child's participation.
+CREATE TABLE IF NOT EXISTS group_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    reference TEXT NOT NULL,
+    title TEXT NOT NULL,
+    position TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','closed','closed_with_gaps')),
+    created_by INTEGER NOT NULL,
+    closed_by INTEGER,
+    closed_at TEXT,
+    close_reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(parent_org_id,reference)
+);
+CREATE INDEX IF NOT EXISTS idx_group_cases_parent ON group_cases(parent_org_id,status,id);
+CREATE TABLE IF NOT EXISTS group_case_requests (
+    case_id INTEGER NOT NULL REFERENCES group_cases(id),
+    request_id INTEGER NOT NULL REFERENCES group_evidence_requests(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    linked_by INTEGER NOT NULL,
+    linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY(case_id,request_id),
+    UNIQUE(request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_case_requests_parent ON group_case_requests(parent_org_id,case_id);
+CREATE TABLE IF NOT EXISTS group_case_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id INTEGER NOT NULL REFERENCES group_cases(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    actor_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_case_events_parent ON group_case_events(parent_org_id,case_id,id);
+
 CREATE TABLE IF NOT EXISTS licenses (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

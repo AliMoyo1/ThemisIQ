@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from modules.evidence import group_documents as group
 from modules.evidence import group_requests as requests
 from modules.evidence import group_adoption as adoption
+from modules.evidence import group_cases as cases
 from modules.launcher.my_work_service import _collect, _group_proof_requests, _group_grant_reviews
 
 
@@ -69,6 +70,126 @@ def _activate(db, parent, child, users):
         group.record_relationship_decision(db, users[who], relation, kind)
         db.commit()
     return relation
+
+
+def test_group_cases_are_parent_only_and_require_independent_resolution(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    reviewer = _actor(db, parent, "case_independent_reviewer", "compliance_manager")
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "GROUP-REQ-1", "Check parent group requirement", _future(7))
+    case_id = cases.create_case(db, users["viewer"], "CASE-1", "Group assurance",
+                                "The parent needs independently reviewed proof.")
+    cases.link_request(db, users["viewer"], case_id, request_id)
+    db.commit()
+
+    assert cases.case_detail(db, reviewer, case_id)["requests"][0]["id"] == request_id
+    assert [row["id"] for row in cases.list_cases(db, reviewer)["items"]] == [case_id]
+    with pytest.raises(HTTPException) as child_hidden:
+        cases.case_detail(db, users["privacy"], case_id)
+    assert child_hidden.value.status_code == 404
+    with pytest.raises(HTTPException) as sibling_hidden:
+        cases.case_detail(db, users["sibling"], case_id)
+    assert sibling_hidden.value.status_code == 404
+    with pytest.raises(HTTPException) as child_link:
+        cases.link_request(db, users["publisher"], case_id, request_id)
+    assert child_link.value.status_code in (403, 404)
+    with pytest.raises(HTTPException) as premature:
+        cases.close_case(db, reviewer, case_id, "The requirement is complete")
+    assert premature.value.status_code == 409
+    with pytest.raises(HTTPException) as self_review:
+        cases.close_case(db, {**users["viewer"], "roles": ["compliance_manager"]},
+                         case_id, "Self approval is forbidden")
+    assert self_review.value.status_code == 409
+    requests.review_request(db, users["privacy"], request_id, "no_proof", "No proof available")
+    db.commit()
+    assert cases.close_case(db, reviewer, case_id, "One subsidiary has no proof") == "closed_with_gaps"
+    db.commit()
+    detail = cases.case_detail(db, reviewer, case_id)
+    assert detail["case"]["close_reason"] == "One subsidiary has no proof"
+    assert [event["action"] for event in detail["events"]] == [
+        "closed_with_gaps", "request_linked", "created"]
+    with pytest.raises(HTTPException) as closed:
+        cases.link_request(db, users["viewer"], case_id, request_id)
+    assert closed.value.status_code == 409
+
+
+def test_group_case_cannot_link_foreign_request_or_duplicate(group_world):
+    db, parent, child, sibling, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "GROUP-REQ-2", "Parent requirement", _future(7))
+    case_id = cases.create_case(db, users["viewer"], "CASE-2", "Group controls",
+                                "We need a documented position.")
+    with pytest.raises(HTTPException) as foreign:
+        cases.link_request(db, users["viewer"], case_id, request_id + 100000)
+    assert foreign.value.status_code == 404
+    cases.link_request(db, users["viewer"], case_id, request_id)
+    with pytest.raises(HTTPException) as duplicate:
+        cases.link_request(db, users["viewer"], case_id, request_id)
+    assert duplicate.value.status_code == 409
+    own_case = cases.create_case(db, users["sibling"], "CASE-2", "Sibling controls",
+                                 "The sibling has a separate position.")
+    assert [row["id"] for row in cases.list_cases(db, users["sibling"])["items"]] == [own_case]
+    with pytest.raises(HTTPException) as wrong_parent:
+        cases.link_request(db, users["sibling"], own_case, request_id)
+    assert wrong_parent.value.status_code == 404
+
+
+def test_group_case_closes_only_with_current_accepted_version(group_world):
+    db, parent, child, _, users, evidence = group_world
+    relation = _activate(db, parent, child, users)
+    reviewer = _actor(db, parent, "case_proof_reviewer", "compliance_manager")
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "GROUP-REQ-3", "Need current approved proof", _future(7))
+    case_id = cases.create_case(db, users["viewer"], "CASE-3", "Proof review",
+                                "The current published version must support this claim.")
+    cases.link_request(db, users["viewer"], case_id, request_id)
+    source_doc = _id(db, "aria_documents", doc_id="SOURCE-CASE-3", framework="ISO 27001",
+                     title="Source case mapping", org_id=child)
+    requests.map_request(db, users["legal"], request_id, "aria", "document", source_doc)
+    requests.review_request(db, users["legal"], request_id, "approved", "Source proof checked")
+    group.reviewed_rights(db, users["privacy"], evidence, "owned", True, False, "Owned report")
+    publication = group.publish(db, users["publisher"], relation, evidence,
+                                "internal", "Group governance", _future(20))
+    for actor in (users["viewer"], users["ungranted"], reviewer):
+        group.grant_view(db, users["parent_admin"], relation, actor["id"],
+                         "document.view", _future(25), _future(7))
+    db.commit()
+    requests.fulfill_request(db, users["publisher"], request_id, publication)
+    requests.review_release(db, users["ungranted"], request_id, "accepted", "Sufficient for this claim")
+    db.commit()
+    assert cases.close_case(db, reviewer, case_id, "Current proof accepted for the group claim") == "closed"
+    db.commit()
+    assert cases.case_detail(db, reviewer, case_id)["case"]["status"] == "closed"
+
+
+def test_group_case_links_two_children_without_sibling_case_or_request_leak(group_world):
+    db, parent, first_child, _, users, _ = group_world
+    first_edge = _activate(db, parent, first_child, users)
+    second_child = _id(db, "organizations", name="Second Child", slug="group_child_two", status="active")
+    second_users = {
+        "ack": _actor(db, second_child, "second_ack", "org_admin"),
+        "privacy": _actor(db, second_child, "second_privacy", "dpo"),
+        "legal": _actor(db, second_child, "second_legal", "compliance_manager"),
+    }
+    second_edge = _activate(db, parent, second_child, {"platform": users["platform"], **second_users})
+    first_request = requests.create_request(db, users["viewer"], first_edge,
+        "FIRST-REQ", "First source proof", _future(7))
+    second_request = requests.create_request(db, users["viewer"], second_edge,
+        "SECOND-REQ", "Second source proof", _future(7))
+    case_id = cases.create_case(db, users["viewer"], "TWO-CHILDREN", "Group position",
+                                "Coordinate two distinct source conclusions.")
+    cases.link_request(db, users["viewer"], case_id, first_request)
+    cases.link_request(db, users["viewer"], case_id, second_request)
+    db.commit()
+    assert {item["id"] for item in cases.case_detail(db, users["viewer"], case_id)["requests"]} == {
+        first_request, second_request}
+    assert [row["id"] for row in requests.list_requests(db, users["privacy"])["items"]] == [first_request]
+    assert [row["id"] for row in requests.list_requests(db, second_users["privacy"])["items"]] == [second_request]
+    with pytest.raises(HTTPException) as hidden:
+        cases.case_detail(db, second_users["legal"], case_id)
+    assert hidden.value.status_code == 404
 
 
 def test_grant_review_queue_pages_old_grants_and_stays_in_viewer_tenant(group_world):

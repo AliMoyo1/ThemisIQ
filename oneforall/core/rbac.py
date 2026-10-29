@@ -238,6 +238,8 @@ CAPABILITIES: dict[str, set[str]] = {
     "group.request.manage":      {ORG_ADMIN, GRC_OFFICER},
     "group.request.review":      {COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.request.fulfill":     {GRC_OFFICER, COMPLIANCE_MGR},
+    "group.case.manage":         {GRC_OFFICER, COMPLIANCE_MGR},
+    "group.case.review":         {COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.policy.propose":      {GRC_OFFICER, COMPLIANCE_MGR},
     "group.policy.review":       {COMPLIANCE_MGR, DPO},
     # Saying that a version of an item supports a claim. The person who attached the file never reviews it, and the

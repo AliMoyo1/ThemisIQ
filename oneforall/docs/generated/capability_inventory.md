@@ -592,6 +592,11 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/folders/{group}/records` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/adoptions` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/adoptions/{adoption_id}/review` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/cases` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/cases` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/cases/{case_id}` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/cases/{case_id}/close` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/cases/{case_id}/requests` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/companies` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/companies/{source_org_id}/publications` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/grants` | authenticated | - | - | - |  |
@@ -661,6 +666,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/companies/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/adoption/` | authenticated | - | - | - |  |
+| GET | `/evidence/group/cases/` | authenticated | - | - | - |  |
 | GET | `/evidence/group/requests/` | authenticated | - | - | - |  |
 
 ## `modules.evidence_campaigns.routes`

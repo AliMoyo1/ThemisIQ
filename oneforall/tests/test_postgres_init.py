@@ -2167,6 +2167,7 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
     from datetime import datetime, timedelta, timezone
     from modules.evidence import group_documents as group
     from modules.evidence import group_requests as requests
+    from modules.evidence import group_cases as cases
 
     pg.init_db()
     parent_slug, child_slug = "group_parent_catalogue", "group_child_catalogue"
@@ -2235,12 +2236,16 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
             assert queue["items"][0]["source_name"] == child_slug
             request_id = requests.create_request(db, users["viewer"], relation,
                 "Parent requirement 1", "Need current proof", future(10))
+            case_id = cases.create_case(db, users["viewer"], "PG-CASE-1", "Group review",
+                                        "Parent position pending reviewed proof")
+            cases.link_request(db, users["viewer"], case_id, request_id)
             db.commit()
             assert [r["title"] for r in group.catalogue(db, users["viewer"])] == ["Child reviewed report"]
             assert group.source_companies(db, users["viewer"]) == [{"id": child, "name": child_slug}]
             assert [r["id"] for r in group.catalogue_cursor(db, users["viewer"], source_org_id=child)["items"]] == [publication]
             assert group.released_item(db, users["viewer"], publication)[1]["id"] == item
             assert [r["id"] for r in requests.list_requests(db, users["viewer"])["items"]] == [request_id]
+            assert cases.case_detail(db, users["viewer"], case_id)["requests"][0]["id"] == request_id
             from modules.launcher.my_work_service import _group_proof_requests
             assert _group_proof_requests(db, users["parent_admin"])[0]["entity_id"] == request_id
         finally:
@@ -2249,6 +2254,10 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
         db = pg.get_db()
         try:
             assert [r["id"] for r in requests.list_requests(db, users["legal"])["items"]] == [request_id]
+            assert db.execute("SELECT COUNT(*) FROM public.group_cases").fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM public.group_case_requests").fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM public.group_case_events").fetchone()[0] == 0
+            assert cases.list_cases(db, users["legal"])["items"] == []
             assert group.grant_review_queue(db, users["ack"])["items"] == []
             assert db.execute("SELECT action FROM public.group_access_events "
                               "WHERE action='request_created' AND detail=%s",

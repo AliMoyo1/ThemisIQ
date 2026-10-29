@@ -45,6 +45,11 @@ _GROUP_SOURCE_USING = """(
     OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
         AND source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
 )"""
+_GROUP_PARENT_USING = """(
+    COALESCE(current_setting('app.bypass_rls', true), '') = 'true'
+    OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
+        AND parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
+)"""
 
 _STMTS = [
     "ALTER TABLE public.org_relationships ENABLE ROW LEVEL SECURITY",
@@ -141,6 +146,30 @@ _STMTS = [
     "ALTER TABLE public.group_request_mappings FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_request_mappings_source ON public.group_request_mappings",
     f"CREATE POLICY group_request_mappings_source ON public.group_request_mappings USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
+    "ALTER TABLE public.group_cases ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_cases FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_cases_parent ON public.group_cases",
+    f"CREATE POLICY group_cases_parent ON public.group_cases FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_cases_parent_create ON public.group_cases",
+    f"CREATE POLICY group_cases_parent_create ON public.group_cases FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_cases_parent_close ON public.group_cases",
+    f"CREATE POLICY group_cases_parent_close ON public.group_cases FOR UPDATE USING {_GROUP_PARENT_USING} WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_case_requests ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_case_requests FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_case_requests_parent ON public.group_case_requests",
+    f"CREATE POLICY group_case_requests_parent ON public.group_case_requests FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_case_requests_parent_insert ON public.group_case_requests",
+    "CREATE POLICY group_case_requests_parent_insert ON public.group_case_requests FOR INSERT "
+    f"WITH CHECK ({_GROUP_PARENT_USING} AND "
+    "EXISTS (SELECT 1 FROM public.group_cases c WHERE c.id=case_id AND c.parent_org_id=group_case_requests.parent_org_id) "
+    "AND EXISTS (SELECT 1 FROM public.group_evidence_requests r WHERE r.id=request_id "
+    "AND r.requester_org_id=group_case_requests.parent_org_id))",
+    "ALTER TABLE public.group_case_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_case_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_case_events_parent ON public.group_case_events",
+    f"CREATE POLICY group_case_events_parent ON public.group_case_events FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_case_events_parent_insert ON public.group_case_events",
+    f"CREATE POLICY group_case_events_parent_insert ON public.group_case_events FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
     "ALTER TABLE public.group_policy_adoptions ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_policy_adoptions FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_policy_adoptions_child ON public.group_policy_adoptions",
