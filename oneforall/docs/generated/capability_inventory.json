@@ -1,5 +1,5 @@
 {
-  "route_count": 1232,
+  "route_count": 1233,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13589,6 +13589,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_company_publications",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/grants",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_grant_review_queue",
       "maturity": "",
       "notes": ""
     },

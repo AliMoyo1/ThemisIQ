@@ -138,14 +138,6 @@ def management_workspace(db, actor: dict) -> dict:
             "SELECT e.id,e.title,e.category,e.version FROM evidence_items e "
             f"WHERE e.org_id=%s AND e.status='current' AND e.file_hash IS NOT NULL AND {scope} "
             "ORDER BY e.updated_at DESC,e.id DESC LIMIT 250", [org_id, *params]).fetchall()]
-    grants = []
-    if caps["group.grant.manage"]:
-        grants = [dict(row) for row in db.execute(
-            f"SELECT g.id,g.relationship_id,g.user_id,g.capability,g.expires_at,g.review_due_at,g.granted_by "
-            f"FROM {_table('group_view_grants')} g WHERE g.viewer_org_id=%s "
-            "AND g.revoked_at IS NULL ORDER BY g.id DESC LIMIT 100", (org_id,)).fetchall()]
-        for grant in grants:
-            grant["can_review"] = grant["granted_by"] != actor["id"] and grant["user_id"] != actor["id"]
     publications = []
     if caps["group.document.publish"]:
         publications = [dict(row) for row in db.execute(
@@ -154,7 +146,41 @@ def management_workspace(db, actor: dict) -> dict:
             "AND revoked_at IS NULL ORDER BY id DESC LIMIT 100", (org_id,)).fetchall()]
     return {"capabilities": caps, "organizations": organizations,
             "relationships": relations, "recipients": recipients,
-            "evidence": evidence, "grants": grants, "publications": publications}
+            "evidence": evidence, "publications": publications}
+
+
+def grant_review_queue(db, actor: dict, *, page: int = 1) -> dict:
+    """Page every active grant in the caller's organization for access review."""
+    org_id = actor.get("org_id")
+    if not org_id or not has_capability(actor, "group.grant.manage"):
+        raise HTTPException(403, "Grant management required")
+    if not isinstance(page, int) or not 1 <= page <= 10000:
+        raise HTTPException(422, "Invalid grant page")
+    rows = db.execute(
+        f"SELECT g.id,g.relationship_id,g.source_org_id,g.user_id,g.capability,"
+        "g.expires_at,g.review_due_at,g.granted_by,u.full_name AS recipient_name,"
+        "o.name AS source_name,"
+        f"(SELECT MAX(a.created_at) FROM {_table('group_access_events')} a "
+        "WHERE a.relationship_id=g.relationship_id AND a.source_org_id=g.source_org_id "
+        "AND a.viewer_org_id=g.viewer_org_id AND a.actor_id=g.user_id "
+        "AND a.action=CASE WHEN g.capability='document.download' THEN 'download' ELSE 'open' END "
+        "AND a.created_at>=g.created_at) AS last_matching_access_at "
+        f"FROM {_table('group_view_grants')} g "
+        "LEFT JOIN users u ON u.id=g.user_id AND u.org_id=g.viewer_org_id "
+        "JOIN organizations o ON o.id=g.source_org_id "
+        "WHERE g.viewer_org_id=%s AND g.revoked_at IS NULL "
+        "ORDER BY g.review_due_at ASC,g.id DESC LIMIT %s OFFSET %s",
+        (org_id, 51, (page - 1) * 50),
+    ).fetchall()
+    items = [dict(row) for row in rows[:50]]
+    now = _now()
+    for item in items:
+        item["can_review"] = item["granted_by"] != actor["id"] and item["user_id"] != actor["id"]
+        item["review_overdue"] = item["review_due_at"] <= now
+        # Several grants for the same person and edge can overlap. The event
+        # is a matching observed action, not proof that this exact grant was used.
+        item.pop("granted_by")
+    return {"items": items, "page": page, "has_more": len(rows) > 50}
 
 
 def source_candidates(db, actor: dict, query: str, page: int = 1) -> dict:

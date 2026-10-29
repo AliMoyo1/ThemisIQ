@@ -58,6 +58,8 @@
       <label>Expires<input type="datetime-local" name="expires_at" required></label>
       <button class="btn btn-primary gs-wide" type="submit">Grant named access</button>
     </form><div id="gsGrantRows" class="gs-list"></div>
+    <button class="btn btn-secondary" type="button" id="gsGrantMore" hidden>Show more access grants</button>
+    <span id="gsGrantResult" class="gs-note" role="status" aria-live="polite"></span>
     <form id="gsReviewGrant" class="gs-form" hidden aria-label="Review named access">
       <input type="hidden" name="grant_id">
       <p id="gsReviewTarget" class="gs-wide"></p>

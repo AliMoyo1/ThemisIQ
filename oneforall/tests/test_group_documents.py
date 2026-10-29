@@ -70,6 +70,39 @@ def _activate(db, parent, child, users):
     return relation
 
 
+def test_grant_review_queue_pages_old_grants_and_stays_in_viewer_tenant(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    for _ in range(52):
+        db.execute("INSERT INTO group_view_grants "
+                   "(relationship_id,source_org_id,viewer_org_id,user_id,capability,expires_at,review_due_at,granted_by) "
+                   "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                   (relation, child, parent, users["viewer"]["id"], "document.view",
+                    _future(30), _future(7), users["parent_admin"]["id"]))
+    db.execute("INSERT INTO group_access_events "
+               "(relationship_id,source_org_id,viewer_org_id,actor_id,action) "
+               "VALUES (%s,%s,%s,%s,%s)",
+               (relation, child, parent, users["viewer"]["id"], "open"))
+    db.commit()
+    reviewer = _actor(db, parent, "queue_reviewer", "org_admin")
+    first = group.grant_review_queue(db, reviewer)
+    second = group.grant_review_queue(db, reviewer, page=2)
+    assert len(first["items"]) == 50 and first["has_more"]
+    assert len(second["items"]) == 2 and not second["has_more"]
+    assert set(row["id"] for row in first["items"]).isdisjoint(
+        row["id"] for row in second["items"])
+    assert all(row["source_name"] == "Child Co" and row["recipient_name"] == "parent_viewer"
+               and row["can_review"] for row in second["items"])
+    assert second["items"][0]["last_matching_access_at"]
+    assert group.grant_review_queue(db, {**users["sibling"], "roles": ["org_admin"]})["items"] == []
+    with pytest.raises(HTTPException) as denied:
+        group.grant_review_queue(db, {**users["viewer"], "roles": ["employee"]})
+    assert denied.value.status_code == 403
+    with pytest.raises(HTTPException) as invalid:
+        group.grant_review_queue(db, reviewer, page=0)
+    assert invalid.value.status_code == 422
+
+
 def test_grant_recertification_is_independent_audited_and_cannot_widen(group_world):
     db, parent, child, _, users, evidence = group_world
     relation = _activate(db, parent, child, users)

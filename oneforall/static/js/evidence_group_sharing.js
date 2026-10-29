@@ -5,6 +5,9 @@
   let workspace;
   let evidenceMatches = [];
   let evidencePage = 1;
+  let grantRows = [];
+  let grantPage = 0;
+  let grantLoading = false;
   let searchSequence = 0;
   const status = document.getElementById('gsStatus');
   const byId = id => document.getElementById(id);
@@ -81,11 +84,12 @@
       select(form, 'user_id', workspace.recipients.map(row => ({id: row.id, label: row.full_name})), 'Choose person');
     }
     const target = byId('gsGrantRows'); target.replaceChildren();
-    const people = new Map(workspace.recipients.map(row => [row.id, row.full_name]));
-    workspace.grants.forEach(row => {
+    grantRows.forEach(row => {
       const box = text('article', '', 'gs-row');
-      box.appendChild(text('strong', `${people.get(row.user_id) || 'Named person'} · ${row.capability}`));
-      box.appendChild(text('small', `Review ${row.review_due_at} · expires ${row.expires_at}`));
+      box.appendChild(text('strong', `${row.recipient_name || 'Former user'} · ${row.capability}`));
+      box.appendChild(text('small', `${row.source_name} · review ${row.review_due_at} · expires ${row.expires_at}`));
+      if (row.review_overdue) box.appendChild(text('small', 'Review overdue · access is paused'));
+      box.appendChild(text('small', `Last matching action: ${row.last_matching_access_at || 'none recorded'} (may match another grant)`));
       const actions = text('div', '', 'gs-actions');
       if (row.can_review) actions.appendChild(button('Review access', 'review-grant', row.id));
       actions.appendChild(button('Revoke access', 'revoke-grant', row.id));
@@ -119,8 +123,28 @@
     evidenceMatches = workspace.evidence;
     byId('gsEvidenceSearch').hidden = !(workspace.capabilities['group.rights.review'] ||
       workspace.capabilities['group.document.publish']);
-    renderRelationships(); renderGrants(); renderDocuments();
+    renderRelationships(); renderDocuments();
+    if (workspace.capabilities['group.grant.manage']) await loadGrants(1);
+    else { grantRows = []; grantPage = 0; renderGrants(); byId('gsGrantMore').hidden = true; }
   }
+  async function loadGrants(page) {
+    if (grantLoading) return;
+    grantLoading = true;
+    const more = byId('gsGrantMore');
+    const result = byId('gsGrantResult');
+    more.disabled = true;
+    result.textContent = 'Loading access grants…';
+    try {
+      const data = await ApiClient.request(`/evidence/api/group/grants?page=${page}`, {actionId: 'group.grant_review_queue'});
+      grantRows = page === 1 ? data.items : grantRows.concat(data.items);
+      grantPage = page;
+      more.hidden = !data.has_more;
+      result.textContent = `${grantRows.length} active grants shown`;
+      renderGrants();
+    } catch (error) { result.textContent = error.detail || 'Access grants are unavailable.'; }
+    finally { grantLoading = false; more.disabled = false; }
+  }
+  byId('gsGrantMore').addEventListener('click', () => loadGrants(grantPage + 1));
   async function searchEvidence(page) {
     const sequence = ++searchSequence;
     const query = byId('gsEvidenceSearch').value.trim();
@@ -163,14 +187,14 @@
     if (action.startsWith('decide:')) {
       act('POST', `/evidence/api/group/relationships/${id}/decisions`, {kind: action.slice(7)}, 'Decision recorded.');
     } else if (action === 'review-grant') {
-      const grant = workspace.grants.find(row => String(row.id) === String(control.dataset.id));
+      const grant = grantRows.find(row => String(row.id) === String(control.dataset.id));
       if (!grant || !grant.can_review) return;
       const form = byId('gsReviewGrant');
       form.reset(); form.elements.grant_id.value = String(grant.id);
       form.elements.decision.querySelector('option[value="narrow"]').disabled = grant.capability !== 'document.download';
       reviewDates();
       byId('gsReviewTarget').textContent = `Review ${grant.capability} for ${
-        workspace.recipients.find(person => person.id === grant.user_id)?.full_name || 'named person'}. ` +
+        grant.recipient_name || 'former user'}. ` +
         'Access stops on its review date until independently renewed.';
       form.hidden = false; form.scrollIntoView({block: 'nearest'});
     } else if (action === 'revoke-grant') {
