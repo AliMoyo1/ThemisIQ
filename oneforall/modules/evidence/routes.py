@@ -438,7 +438,9 @@ async def evidence_batch_page(request: Request):
 
 @router.post("/api/batch/suggest")
 @require_auth
-async def api_evidence_batch_suggest(request: Request, file: UploadFile = File(...)):
+async def api_evidence_batch_suggest(
+    request: Request, file: UploadFile = File(...), filing_scope: str = Form(""),
+):
     """Parse a selected file in the existing isolated worker; return hints only."""
     from tempfile import TemporaryDirectory
     from modules.aria.policy_intake import MAX_FILE, IntakeError, _extract_isolated
@@ -446,6 +448,11 @@ async def api_evidence_batch_suggest(request: Request, file: UploadFile = File(.
 
     if not request.state.user.get("org_id"):
         raise HTTPException(403, "Select an organization")
+    db = get_db()
+    try:
+        company_views.selected_unit(db, request.state.user, filing_scope.strip(), for_filing=True)
+    finally:
+        db.close()
     name = Path(file.filename or "").name[:180]
     extension = Path(name).suffix.lower()
     if extension not in (".docx", ".pdf"):

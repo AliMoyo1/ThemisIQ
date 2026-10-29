@@ -81,6 +81,10 @@ def test_batch_extracts_reviewable_source_anchored_docx_suggestions(login_as, li
         "name": "old_template.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "buffer": content.getvalue()
     })
+    page.get_by_label("Filing scope").select_option("")
+    page.get_by_role("button", name="Extract suggestions").click()
+    expect(page.locator("#ebQueue .eb-state")).to_contain_text("Choose a filing scope first")
+    page.get_by_label("Filing scope").select_option(index=1)
     page.get_by_role("button", name="Extract suggestions").click()
     expect(page.locator("#ebQueue .eb-row input[type=text]").first).to_have_value("Data Retention Policy")
     expect(page.locator("#ebQueue .eb-row input[type=date]")).to_have_value("2027-06-01")
@@ -96,10 +100,20 @@ def test_batch_rejects_invalid_pdf_without_claiming_extraction(login_as, live_ap
     page.locator("#ebFiles").set_input_files({
         "name": "fake.pdf", "mimeType": "application/pdf", "buffer": b"not a PDF"
     })
+    page.get_by_label("Filing scope").select_option(index=1)
     page.get_by_role("button", name="Extract suggestions").click()
     expect(page.locator("#ebQueue .eb-state")).to_contain_text("PDF file signature is invalid")
     expect(page.locator("#ebQueue input[type=text]").first).to_have_value("fake")
     expect(page.locator("#ebUpload")).to_be_disabled()
+
+
+def test_batch_extract_rejects_foreign_filing_scope_before_parsing(login_as, live_app):
+    page = login_as("compliance_manager")
+    response = page.request.post(f"{live_app}/evidence/api/batch/suggest", multipart={
+        "file": {"name": "invalid.pdf", "mimeType": "application/pdf", "buffer": b"not a PDF"},
+        "filing_scope": "unit:999999",
+    })
+    assert response.status == 404
 
 
 def test_batch_new_version_requires_current_record_check_and_keeps_scope(login_as, live_app):

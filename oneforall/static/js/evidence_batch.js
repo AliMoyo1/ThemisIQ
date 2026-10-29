@@ -112,12 +112,15 @@
     }
   }
   async function suggest(row) {
+    if (!row.scope) { row.message = 'Choose a filing scope first.'; refresh(); return; }
+    const scope = row.scope;
     row.reviewed = false; row.state = 'extracting'; row.message = 'Extracting locally for review…'; refresh();
-    const body = new FormData(); body.append('file', row.file);
+    const body = new FormData(); body.append('file', row.file); body.append('filing_scope', scope);
     try {
       const result = await ApiClient.request('/evidence/api/batch/suggest', {
         method: 'POST', body, timeoutMs: 60000, actionId: 'evidence.batch_suggest'
       });
+      if (!rows.includes(row) || scope !== row.scope) return;
       const hints = result.suggestions || {};
       row.suggestions = hints;
       if (hints.title && !row.titleEdited) row.title = hints.title.value;
@@ -128,9 +131,12 @@
       row.reviewed = false; row.state = 'staged';
       row.message = 'Suggestions extracted. Check each value against the original before filing.';
     } catch (error) {
+      if (!rows.includes(row) || scope !== row.scope) return;
       row.state = 'staged'; row.message = error.detail || 'Suggestions unavailable. Review the original manually.';
+    } finally {
+      if (row.state === 'extracting') row.state = 'staged';
+      refresh();
     }
-    refresh();
   }
   async function checkDuplicate(row) {
     if (!row.scope) { row.message = 'Choose a filing scope first.'; refresh(); return; }
