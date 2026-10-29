@@ -283,4 +283,3 @@ Not changed, recorded for the owner:
 1. **Figures and the group score (stage 2) are not built.** Mandatory oversight of figures depends on it; the subsidiary band stays withheld until the inference tests in section 10 pass, which is stricter than the earlier plan and is kept.
 2. **Group cases are parent-only.** The earlier plan allowed inviting a subsidiary participant; the built version does not. Safe as a first step.
 3. **Subsidiary senior roles see group-published documents only through a named grant from their own grant manager.** This matches "may see" but adds a step; a default grant for the four senior roles could be considered later.
-
