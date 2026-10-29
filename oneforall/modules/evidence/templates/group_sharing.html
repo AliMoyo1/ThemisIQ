@@ -54,7 +54,7 @@
     <form id="gsGrant" class="gs-form" hidden>
       <label>Relationship<select name="relationship_id" required></select></label>
       <label>Recipient<select name="user_id" required></select></label>
-      <label>Access<select name="capability"><option value="document.view">View</option><option value="document.download">Download</option></select></label>
+      <label>Access<select name="capability"><option value="document.view">View documents</option><option value="document.download">Download documents</option><option value="figure.view">View group figures</option></select></label>
       <label>Review due<input type="datetime-local" name="review_due_at" required></label>
       <label>Expires<input type="datetime-local" name="expires_at" required></label>
       <button class="btn btn-primary gs-wide" type="submit">Grant named access</button>

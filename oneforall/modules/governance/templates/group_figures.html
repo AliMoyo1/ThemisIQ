@@ -1,0 +1,36 @@
+{% extends "base_shell.html" %}
+{% block title %}Group figures · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Governance</div><div class="module-desc">Group oversight</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Group</div>
+  <a class="nav-item active" href="/governance/group/figures/" aria-current="page">Group figures</a>
+  <a class="nav-item" href="/evidence/group/">Group sharing</a>
+  <a class="nav-item" href="/evidence/group/requests/">Proof requests</a>
+  <a class="nav-item" href="/evidence/group/cases/">Group cases</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.gf-page{max-width:1300px;padding:24px;margin:auto;color:var(--text)}
+.gf-hero{padding:28px 32px;border-radius:24px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
+.gf-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.gf-hero p{max-width:780px;color:var(--muted);line-height:1.55;margin:0}
+.gf-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.gf-tabs button{cursor:pointer}
+.gf-tabs button[aria-pressed=true]{outline:2px solid var(--accent)}
+.gf-status{min-height:24px;font-weight:650;margin:10px 0}
+.gf-entity{padding:20px;border-radius:18px;background:var(--surface);box-shadow:0 10px 24px rgba(28,44,50,.06);margin-bottom:16px}
+.gf-entity h2{font:600 20px/1.25 Georgia,serif;margin:0 0 4px}.gf-entity small{color:var(--muted)}
+.gf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.gf-card{background:var(--surface2);border-radius:14px;padding:14px}.gf-card b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.gf-card span{display:block;font-size:12px;color:var(--muted)}
+.gf-table{width:100%;border-collapse:collapse;font-size:13px}.gf-table th,.gf-table td{text-align:left;padding:8px;border-bottom:1px solid var(--border)}
+@media(max-width:700px){.gf-page{padding:14px}.gf-hero{padding:20px}.gf-hero h1{font-size:27px}}
+</style>
+<main class="gf-page" id="groupFigures">
+  <header class="gf-hero"><h1>Group figures</h1><p>Frozen figures each organization publishes about itself, as of the time shown. A subsidiary that has not published recently shows as not reporting. It is never counted as zero. Counts are added up for the group; shares and levels are shown per organization because they cannot be added.</p></header>
+  <div class="gf-tabs" id="gfTabs" role="group" aria-label="View"></div>
+  <p id="gfStatus" class="gf-status" role="status" aria-live="polite"></p>
+  <div id="gfTotals"></div>
+  <div id="gfEntities"></div>
+</main>
+<script src="/static/js/group_figures.js?v=1" defer></script>
+{% endblock %}

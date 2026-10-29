@@ -1,5 +1,5 @@
 {
-  "route_count": 1240,
+  "route_count": 1244,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -15710,6 +15710,48 @@
       "notes": ""
     },
     {
+      "path": "/governance/api/group/figures",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_figures",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/figures/publish",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_figures_publish",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/figures/views",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_figure_views",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/governance/api/regulatory-frameworks",
       "methods": [
         "GET"
@@ -16104,6 +16146,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "connected_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/group/figures/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "group_figures_page",
       "maturity": "",
       "notes": ""
     },

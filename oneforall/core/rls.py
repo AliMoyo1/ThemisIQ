@@ -100,6 +100,22 @@ _STMTS = [
     "DROP POLICY IF EXISTS group_publications_source_revoke ON public.group_document_publications",
     f"CREATE POLICY group_publications_source_revoke ON public.group_document_publications FOR UPDATE USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
 
+    # Figures: the source organization reads its own; the parent of an active relationship reads its children's.
+    # Nothing here can be updated or deleted by a tenant, and a child never reads its parent's.
+    "ALTER TABLE public.group_figure_snapshots ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_figure_snapshots FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_figures_read ON public.group_figure_snapshots",
+    "CREATE POLICY group_figures_read ON public.group_figure_snapshots FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.child_org_id = group_figure_snapshots.source_org_id "
+    "AND r.parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_figures_insert ON public.group_figure_snapshots",
+    "CREATE POLICY group_figures_insert ON public.group_figure_snapshots FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
+
     "ALTER TABLE public.group_access_events ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_access_events FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_events_orgs ON public.group_access_events",

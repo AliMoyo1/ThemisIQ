@@ -329,7 +329,8 @@ def grant_view(db, actor: dict, relation_id: int, user_id: int, capability: str,
     row = _relationship(db, relation_id)
     if actor.get("org_id") not in (row["parent_org_id"], row["child_org_id"]):
         raise HTTPException(404, "Relationship not found")
-    if not has_capability(actor, "group.grant.manage") or capability not in ("document.view", "document.download"):
+    if not has_capability(actor, "group.grant.manage") or capability not in (
+            "document.view", "document.download", "figure.view"):
         raise HTTPException(403, "Grant management required")
     _assert_edge(db, row)
     target = db.execute("SELECT org_id FROM users WHERE id=%s AND is_active=1 AND deleted_at IS NULL",

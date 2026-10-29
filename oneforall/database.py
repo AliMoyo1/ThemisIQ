@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS group_view_grants (
     source_org_id INTEGER NOT NULL REFERENCES organizations(id),
     viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
     user_id INTEGER NOT NULL,
-    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download')),
+    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download','figure.view')),
     expires_at TEXT NOT NULL,
     review_due_at TEXT NOT NULL,
     revoked_at TEXT,
@@ -814,6 +814,25 @@ CREATE TABLE IF NOT EXISTS group_document_publications (
 );
 CREATE INDEX IF NOT EXISTS idx_group_document_publications_viewer
     ON group_document_publications(viewer_org_id, relationship_id, revoked_at);
+
+-- Frozen figures a tenant publishes about itself for its parent (plan 21). Append only: a newer snapshot replaces
+-- nothing, the reader takes the latest per measure and the earlier ones stay as the trend and the audit trail.
+CREATE TABLE IF NOT EXISTS group_figure_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    measure_key TEXT NOT NULL,
+    module TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL CHECK(state IN ('measured','partial','not_measured','unavailable','stale')),
+    value REAL,
+    window_text TEXT,
+    detail_json TEXT NOT NULL DEFAULT '{}',
+    method_version TEXT NOT NULL,
+    as_of TEXT NOT NULL,
+    publication_version INTEGER NOT NULL DEFAULT 1,
+    content_hash TEXT NOT NULL,
+    published_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_group_figure_latest ON group_figure_snapshots(source_org_id, measure_key, id);
 
 CREATE TABLE IF NOT EXISTS group_access_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -8691,6 +8710,14 @@ def _run_pg_alters(conn) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
         except Exception:
             pass
+    # A group grant may now be for figures as well as documents (plan 21). The check was created with two values.
+    try:
+        conn.execute("ALTER TABLE public.group_view_grants DROP CONSTRAINT IF EXISTS group_view_grants_capability_check")
+        conn.execute("ALTER TABLE public.group_view_grants ADD CONSTRAINT group_view_grants_capability_check "
+                     "CHECK(capability IN ('document.view','document.download','figure.view'))")
+        conn.commit()
+    except Exception:
+        conn.rollback()
     conn.execute(
         "UPDATE workflow_instances SET org_id=(SELECT org_id FROM users WHERE id=started_by) "
         "WHERE org_id IS NULL AND started_by IS NOT NULL"

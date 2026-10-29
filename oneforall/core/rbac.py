@@ -234,6 +234,9 @@ CAPABILITIES: dict[str, set[str]] = {
     "group.document.publish":    {GRC_OFFICER, COMPLIANCE_MGR},
     "group.document.view":       {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.document.download":   {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
+    # Exact figures of the subsidiaries a named, unexpired figure.view grant covers (plan 21). The role never grants
+    # access by itself, and the modules a role sees are limited in modules/governance/group_figures.py.
+    "group.figure.view_exact":   {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.request.create":      {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     # Accepting or returning released proof is a compliance judgement, not user administration.
     "group.request.manage":      {GRC_OFFICER, COMPLIANCE_MGR, DPO},

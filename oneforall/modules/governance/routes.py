@@ -94,6 +94,72 @@ async def api_connected(request: Request, module: str, entity_type: str, entity_
     return response
 
 
+@router.get("/group/figures/", response_class=HTMLResponse)
+@require_auth
+async def group_figures_page(request: Request):
+    if not has_capability(request.state.user, "group.figure.view_exact"):
+        raise HTTPException(404, "Not found")
+    return templates.TemplateResponse(request, "group_figures.html", {
+        "user": request.state.user, **shell_ctx(request, active_module="governance")})
+
+
+@router.get("/api/group/figures/views")
+@require_auth
+async def api_group_figure_views(request: Request):
+    from modules.governance import group_figures
+    db = get_db()
+    try:
+        response = JSONResponse(group_figures.views(db, request.state.user))
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/figures")
+@require_auth
+async def api_group_figures(request: Request):
+    from modules.governance import group_figures
+    which = request.query_params.get("view", "own")
+    raw = request.query_params.get("org_id")
+    try:
+        org_id = int(raw) if raw not in (None, "") else None
+    except ValueError:
+        raise HTTPException(422, "Choose a company")
+    db = get_db()
+    try:
+        data = group_figures.view(db, request.state.user, which, org_id)
+        db.commit()  # the read is recorded in the shared access log
+    finally:
+        db.close()
+    response = JSONResponse(data)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/figures/publish")
+@require_auth
+async def api_group_figures_publish(request: Request):
+    """Platform operator: freeze one organization's figures now (the schedule does the same for every party)."""
+    from database import get_db_bypass_rls
+    from modules.governance import group_figures
+    if not has_capability(request.state.user, "group.relationship.manage"):
+        raise HTTPException(404, "Not found")
+    body = await _json_body(request)
+    try:
+        org_id = int(body.get("org_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose an organization")
+    db = get_db_bypass_rls()
+    try:
+        org = db.execute("SELECT id, slug FROM organizations WHERE id=%s AND status='active'", (org_id,)).fetchone()
+    finally:
+        db.close()
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    return JSONResponse({"written": group_figures.publish_tenant(org["id"], org["slug"])})
+
+
 @router.get("/changes", response_class=HTMLResponse)
 @require_auth
 async def changes_page(request: Request):
