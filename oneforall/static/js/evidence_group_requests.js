@@ -101,6 +101,7 @@
     if (row.can_fulfill && (row.status === 'approved' || row.can_refulfill))
       actions.append(action(row.can_refulfill ? 'Submit a different release' : 'Fulfill with released document', 'fulfill'));
     if (row.can_review_verdict) actions.append(action('Review released proof', 'verdict'));
+    if (row.status === 'fulfilled') actions.append(action('Decision history', 'history'));
     card.append(actions);
     const detail = node('div', '', 'gr-detail');
     detail.hidden = true;
@@ -115,6 +116,7 @@
       if (control.dataset.action === 'review') reviewForm(row, detail);
       if (control.dataset.action === 'fulfill') fulfillForm(row, detail);
       if (control.dataset.action === 'verdict') verdictForm(row, detail);
+      if (control.dataset.action === 'history') historyView(row, detail);
     });
     return card;
   }
@@ -220,6 +222,34 @@
         {outcome: select.value, reason: form.elements.reason.value}, 'Claim verdict recorded.');
     });
     detail.append(form);
+  }
+  async function historyView(row, detail) {
+    detail.append(node('p', 'Loading decisions…'));
+    try {
+      const result = await ApiClient.request(`/evidence/api/group/requests/${row.id}/verdict-history`, {
+        actionId: 'group.request_history'
+      });
+      detail.replaceChildren();
+      if (!result.items?.length) {
+        detail.append(node('p', 'No independent decision has been recorded yet.'));
+        return;
+      }
+      result.items.forEach(entry => {
+        const item = node('div', '', 'gr-history-item');
+        item.append(node('strong', `${entry.outcome} · ${entry.reviewed_at}`));
+        if (entry.reason) item.append(node('p', entry.reason));
+        if (entry.released_publication_id) {
+          const link = node('a', entry.title || 'Open release', 'btn btn-secondary');
+          link.href = `/evidence/api/group/publications/${encodeURIComponent(entry.released_publication_id)}`;
+          item.append(link);
+        } else if (!row.is_source) {
+          item.append(node('small', 'This release is no longer available to you. The decision remains on record.'));
+        }
+        detail.append(item);
+      });
+    } catch (error) {
+      detail.replaceChildren(node('p', error.detail || 'Decision history is unavailable.'));
+    }
   }
   async function fulfillForm(row, detail) {
     detail.append(node('p', 'Loading eligible releases…'));

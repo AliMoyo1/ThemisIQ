@@ -773,6 +773,16 @@ async def api_group_request_release_candidates(request: Request, request_id: int
         db.close()
 
 
+@router.get("/api/group/requests/{request_id}/verdict-history")
+@require_auth
+async def api_group_request_verdict_history(request: Request, request_id: int):
+    db = get_db()
+    try:
+        return JSONResponse(group_requests.verdict_history(db, request.state.user, request_id))
+    finally:
+        db.close()
+
+
 @router.post("/api/group/relationships/{relation_id}/requests", status_code=201)
 @require_auth
 async def api_group_request_create(request: Request, relation_id: int):

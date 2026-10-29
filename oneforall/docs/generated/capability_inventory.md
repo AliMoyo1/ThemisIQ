@@ -615,6 +615,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/api/group/requests/{request_id}/release-candidates` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/requests/{request_id}/revision` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/requests/{request_id}/verdict` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/requests/{request_id}/verdict-history` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/rights/{eid}` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/source-candidates` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/workspace` | authenticated | - | - | - |  |

@@ -357,6 +357,22 @@ def test_parent_verdict_is_independent_version_bound_and_return_allows_new_relea
                          "WHERE request_id=%s ORDER BY id", (request_id,)).fetchall()
     assert [(r["publication_id"], r["outcome"]) for r in history] == [
         (first, "returned"), (second, "accepted")]
+    visible_history = requests.verdict_history(db, users["viewer"], request_id)["items"]
+    assert [item["outcome"] for item in visible_history] == ["accepted", "returned"]
+    assert visible_history[0]["released_publication_id"] == second
+    assert visible_history[1]["released_publication_id"] == first
+    source_history = requests.verdict_history(db, users["publisher"], request_id)["items"]
+    assert source_history[0]["reason"] is None
+    assert source_history[1]["reason"] == "The period is missing"
+    with pytest.raises(HTTPException) as sibling_history:
+        requests.verdict_history(db, users["sibling"], request_id)
+    assert sibling_history.value.status_code == 404
+    group.revoke_publication(db, users["publisher"], first)
+    db.commit()
+    after_revoke = requests.verdict_history(db, users["viewer"], request_id)["items"]
+    assert after_revoke[0]["released_publication_id"] == second
+    assert after_revoke[1]["released_publication_id"] is None
+    assert after_revoke[1]["title"] is None
 
 
 def test_requirement_clarification_resends_without_source_mapping(group_world):

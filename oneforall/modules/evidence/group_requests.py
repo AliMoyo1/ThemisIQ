@@ -321,3 +321,40 @@ def review_release(db, actor, request_id, outcome, reason):
         (request_id, actor["org_id"], row["publication_id"], outcome, explanation, actor["id"]))
     _event(db, row, actor, "request_proof_" + outcome)
     return outcome
+
+
+def verdict_history(db, actor, request_id):
+    """Show prior decisions, resolving old release names only through live grants."""
+    source = has_capability(actor, "group.request.review") or has_capability(actor, "group.request.fulfill")
+    parent = has_capability(actor, "group.request.manage")
+    own = has_capability(actor, "group.request.create")
+    if not (source or parent or own):
+        raise HTTPException(403, "Group request access required")
+    if source:
+        try:
+            row = _request(db, actor, request_id, source=True)
+        except HTTPException:
+            row = _request(db, actor, request_id)
+    else:
+        row = _request(db, actor, request_id)
+    is_source = row["source_org_id"] == actor["org_id"]
+    if not is_source and not parent and (not own or row["requested_by"] != actor["id"]):
+        raise HTTPException(404, "Request not found")
+    entries = db.execute(
+        f"SELECT publication_id,outcome,reason,reviewed_at FROM {_table('group_request_verdicts')} "
+        "WHERE request_id=%s AND requester_org_id=%s ORDER BY id DESC LIMIT 100",
+        (request_id, row["requester_org_id"])).fetchall()
+    items = []
+    for entry in entries:
+        item = {"outcome": entry["outcome"], "reviewed_at": entry["reviewed_at"],
+                "reason": entry["reason"] if not is_source or entry["outcome"] == "returned" else None,
+                "released_publication_id": None, "title": None}
+        if not is_source:
+            try:
+                publication, _ = group_documents.released_item(db, actor, entry["publication_id"])
+                item["released_publication_id"] = publication["id"]
+                item["title"] = publication["title"]
+            except HTTPException:
+                pass
+        items.append(item)
+    return {"items": items}
