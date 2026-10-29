@@ -9,7 +9,7 @@ from modules.evidence import group_documents as group
 from modules.evidence import group_requests as requests
 from modules.evidence import group_adoption as adoption
 from modules.evidence import group_cases as cases
-from modules.launcher.my_work_service import _collect, _group_proof_requests, _group_grant_reviews
+from modules.launcher.my_work_service import _collect, _group_proof_requests, _group_grant_reviews, _group_case_reviews
 
 
 def _id(db, table, **fields):
@@ -97,14 +97,20 @@ def test_group_cases_are_parent_only_and_require_independent_resolution(group_wo
     with pytest.raises(HTTPException) as premature:
         cases.close_case(db, reviewer, case_id, "The requirement is complete")
     assert premature.value.status_code == 409
+    assert _group_case_reviews(db, reviewer)[0]["section"] == "waiting_on_others"
+    assert _group_case_reviews(db, users["sibling"]) == []
     with pytest.raises(HTTPException) as self_review:
         cases.close_case(db, {**users["viewer"], "roles": ["compliance_manager"]},
                          case_id, "Self approval is forbidden")
     assert self_review.value.status_code == 409
     requests.review_request(db, users["privacy"], request_id, "no_proof", "No proof available")
     db.commit()
+    assert _group_case_reviews(db, reviewer)[0]["action"] == "review_group_case"
+    feed, states = _collect(db, reviewer, None, only={"group_case_reviews"})
+    assert feed[0]["entity_id"] == case_id and states[0]["count"] == 1
     assert cases.close_case(db, reviewer, case_id, "One subsidiary has no proof") == "closed_with_gaps"
     db.commit()
+    assert _group_case_reviews(db, reviewer) == []
     detail = cases.case_detail(db, reviewer, case_id)
     assert detail["case"]["close_reason"] == "One subsidiary has no proof"
     assert [event["action"] for event in detail["events"]] == [

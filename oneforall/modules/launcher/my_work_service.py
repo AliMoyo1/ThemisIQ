@@ -171,6 +171,36 @@ def _group_grant_reviews(db, user: dict) -> list[dict]:
     return items
 
 
+def _group_case_reviews(db, user: dict) -> list[dict]:
+    """Project parent-only case decisions; closure still rechecks live releases."""
+    if not has_capability(user, "group.case.review") or not user.get("org_id"):
+        return []
+    prefix = "public." if settings.is_postgres() else ""
+    rows = db.execute(
+        f"SELECT c.id,c.title,COUNT(r.id) AS request_count,"
+        "SUM(CASE WHEN r.id IS NULL THEN 0 "
+        "WHEN r.status IN ('no_proof','declined') THEN 0 "
+        "WHEN r.status='fulfilled' AND v.outcome='accepted' THEN 0 ELSE 1 END) AS unresolved "
+        f"FROM {prefix}group_cases c "
+        f"LEFT JOIN {prefix}group_case_requests cr ON cr.case_id=c.id AND cr.parent_org_id=c.parent_org_id "
+        f"LEFT JOIN {prefix}group_evidence_requests r ON r.id=cr.request_id "
+        "AND r.requester_org_id=c.parent_org_id "
+        f"LEFT JOIN {prefix}group_request_verdicts v ON v.request_id=r.id "
+        "AND v.publication_id=r.publication_id AND v.outcome='accepted' "
+        "WHERE c.parent_org_id=%s AND c.status='open' AND c.created_by<>%s "
+        "GROUP BY c.id,c.title ORDER BY c.id DESC LIMIT 100",
+        (user["org_id"], user["id"]),
+    ).fetchall()
+    return [{
+        "source_module": "evidence", "entity_type": "group_case", "entity_id": row["id"],
+        "action": "review_group_case" if not row["unresolved"] else "await_group_case_proof",
+        "title": f"Group case: {row['title']}", "due_date": None, "priority": "high",
+        "org_id": user["org_id"], "business_unit_id": None,
+        "link": f"/evidence/group/cases/?case={row['id']}",
+        "section": "needs_my_action" if not row["unresolved"] else "waiting_on_others",
+    } for row in rows if row["request_count"]]
+
+
 def _my_tasks(db, user: dict) -> list[dict]:
     """Restrict to personal tasks and the same BU visibility as Task Board."""
     bu_where, bu_params = _bu_filter("business_unit_id", bu_scope_ids(user))
@@ -884,6 +914,7 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
         ("evidence_expiry", None, lambda: _evidence_expiring(db, user)),
         ("group_proof_requests", None, lambda: _group_proof_requests(db, user)),
         ("group_grant_reviews", None, lambda: _group_grant_reviews(db, user)),
+        ("group_case_reviews", None, lambda: _group_case_reviews(db, user)),
         ("task_board", None, lambda: _my_tasks(db, user)),
         ("notifications", None, lambda: _unread_notifications(db, user)),
         ("workflow_actions", None, lambda: _workflow_actions(db, user)),

@@ -93,5 +93,8 @@
       {reason: new FormData(event.currentTarget).get('reason')}, 'Case closed.');
   });
   get('gcMore').addEventListener('click', () => load(page + 1));
-  load(1);
+  load(1).then(() => {
+    const requested = Number(new URLSearchParams(location.search).get('case'));
+    if (Number.isSafeInteger(requested) && requested > 0) openCase(requested);
+  });
 })();
