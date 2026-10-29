@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from modules.evidence import group_documents as group
 from modules.evidence import group_requests as requests
 from modules.evidence import group_adoption as adoption
+from modules.launcher.my_work_service import _collect, _group_proof_requests
 
 
 def _id(db, table, **fields):
@@ -101,6 +102,27 @@ def test_grant_review_queue_pages_old_grants_and_stays_in_viewer_tenant(group_wo
     with pytest.raises(HTTPException) as invalid:
         group.grant_review_queue(db, reviewer, page=0)
     assert invalid.value.status_code == 422
+
+
+def test_group_proof_requests_flow_to_my_work_without_sibling_titles(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "PARENT-REQ-42", "Proof for group review", _future(3))
+    db.commit()
+    source_items = _group_proof_requests(db, users["privacy"])
+    assert [(item["entity_id"], item["action"]) for item in source_items] == [
+        (request_id, "review_group_request")]
+    assert _group_proof_requests(db, users["parent_admin"])[0]["section"] == "waiting_on_others"
+    assert _group_proof_requests(db, users["sibling"]) == []
+    feed, states = _collect(db, users["privacy"], None, only={"group_proof_requests"})
+    assert feed[0]["entity_id"] == request_id
+    assert states == [{"source": "group_proof_requests", "state": "available", "count": 1,
+                       "truncated": False}]
+    requests.review_request(db, users["privacy"], request_id, "no_proof", "No suitable proof exists")
+    db.commit()
+    assert _group_proof_requests(db, users["privacy"]) == []
+    assert _group_proof_requests(db, users["parent_admin"]) == []
 
 
 def test_grant_recertification_is_independent_audited_and_cannot_widen(group_world):
