@@ -64,6 +64,11 @@ _STMTS = [
     "CREATE POLICY group_edge_child_review ON public.org_relationships FOR UPDATE "
     "USING (child_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int) "
     "WITH CHECK (child_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int)",
+    # The group DPO records the privacy and legal reviews from the parent side (legal sits with the DPO).
+    "DROP POLICY IF EXISTS group_edge_parent_review ON public.org_relationships",
+    "CREATE POLICY group_edge_parent_review ON public.org_relationships FOR UPDATE "
+    "USING (parent_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int) "
+    "WITH CHECK (parent_org_id = NULLIF(current_setting('app.current_org_id', true),'')::int)",
     "DROP POLICY IF EXISTS group_edge_platform_end ON public.org_relationships",
     "CREATE POLICY group_edge_platform_end ON public.org_relationships FOR UPDATE "
     "USING (COALESCE(current_setting('app.is_super_admin', true),'')='true') "

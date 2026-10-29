@@ -240,7 +240,10 @@ def test_group_proof_requests_flow_to_my_work_without_sibling_titles(group_world
     source_items = _group_proof_requests(db, users["privacy"])
     assert [(item["entity_id"], item["action"]) for item in source_items] == [
         (request_id, "review_group_request")]
-    assert _group_proof_requests(db, users["parent_admin"])[0]["section"] == "waiting_on_others"
+    compliance = _actor(db, parent, "parent_compliance", "compliance_manager")
+    assert _group_proof_requests(db, compliance)[0]["section"] == "waiting_on_others"
+    # A user administrator manages access, not proof: it no longer sees or judges proof requests.
+    assert _group_proof_requests(db, users["parent_admin"]) == []
     assert _group_proof_requests(db, users["sibling"]) == []
     feed, states = _collect(db, users["privacy"], None, only={"group_proof_requests"})
     assert feed[0]["entity_id"] == request_id
@@ -249,7 +252,7 @@ def test_group_proof_requests_flow_to_my_work_without_sibling_titles(group_world
     requests.review_request(db, users["privacy"], request_id, "no_proof", "No suitable proof exists")
     db.commit()
     assert _group_proof_requests(db, users["privacy"]) == []
-    assert _group_proof_requests(db, users["parent_admin"]) == []
+    assert _group_proof_requests(db, compliance) == []
 
 
 def test_group_grant_reviews_are_independent_due_and_org_scoped(group_world):
@@ -742,3 +745,104 @@ def test_child_policy_adoption_is_independent_and_exact_version_bound(group_worl
     group.revoke_publication(db, parent_publisher, first)
     db.commit()
     assert [p["id"] for p in adoption.list_policies(db, users["publisher"])["items"]] == [second]
+
+
+# ── Alignment with the owner's decisions (2026-10-28) and review hardening ──
+
+def _age_proposal(db, relation, days):
+    db.execute("UPDATE org_relationships SET created_at=%s WHERE id=%s",
+               ((datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S"), relation))
+    db.commit()
+
+
+def test_a_group_dpo_records_privacy_and_legal_and_notice_is_deemed_after_the_period(group_world):
+    """Oversight is mandatory: the child is notified, not asked. Legal review sits with the DPO."""
+    db, parent, child, _, users, _ = group_world
+    group_dpo = _actor(db, parent, "group_dpo", "dpo")
+    relation = group.propose_relationship(db, users["platform"], parent, child,
+        "Group governance", _terms("document_bytes"), _future(90))
+    db.commit()
+    # The same DPO may record both reviews, from the parent side.
+    assert group.record_relationship_decision(db, group_dpo, relation, "privacy")["status"] == "proposed"
+    assert group.record_relationship_decision(db, group_dpo, relation, "legal")["status"] == "proposed"
+    db.commit()
+    # Only the child acknowledges; the parent cannot do it for the child.
+    with pytest.raises(HTTPException) as parent_ack:
+        group.record_relationship_decision(db, {**group_dpo, "roles": ["org_admin"]}, relation, "ack")
+    assert parent_ack.value.status_code == 404
+    # The notice cannot be deemed before the period, nor by anyone but the platform operator.
+    with pytest.raises(HTTPException) as early:
+        group.deem_notice(db, users["platform"], relation)
+    assert early.value.status_code == 409
+    _age_proposal(db, relation, group.NOTICE_DAYS + 1)
+    with pytest.raises(HTTPException) as not_operator:
+        group.deem_notice(db, users["ack"], relation)
+    assert not_operator.value.status_code == 404
+    assert group.deem_notice(db, users["platform"], relation)["status"] == "active"
+    db.commit()
+    row = db.execute("SELECT status, child_ack_by, notice_deemed_at FROM org_relationships WHERE id=%s",
+                     (relation,)).fetchone()
+    assert row["status"] == "active" and row["child_ack_by"] is None and row["notice_deemed_at"]
+
+
+def test_reviews_are_still_required_after_a_deemed_notice(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = group.propose_relationship(db, users["platform"], parent, child,
+        "Group governance", _terms("document_bytes"), _future(90))
+    db.commit()
+    _age_proposal(db, relation, group.NOTICE_DAYS + 1)
+    assert group.deem_notice(db, users["platform"], relation)["status"] == "proposed"
+    db.commit()
+    with pytest.raises(HTTPException):
+        group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"], "document.view",
+                         _future(30), _future(7))
+    group.record_relationship_decision(db, users["privacy"], relation, "privacy")
+    assert group.record_relationship_decision(db, users["privacy"], relation, "legal")["status"] == "active"
+
+
+def test_the_acknowledging_administrator_is_never_a_reviewer_and_only_a_dpo_may_do_both_reviews(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = group.propose_relationship(db, users["platform"], parent, child,
+        "Group governance", _terms("document_bytes"), _future(90))
+    db.commit()
+    group.record_relationship_decision(db, users["legal"], relation, "legal")
+    db.commit()
+    # A compliance manager who recorded legal cannot also record privacy (not a DPO, and no privacy right).
+    with pytest.raises(HTTPException):
+        group.record_relationship_decision(db, users["legal"], relation, "privacy")
+    hybrid = {**users["ack"], "roles": ["org_admin", "dpo"]}
+    group.record_relationship_decision(db, hybrid, relation, "ack")
+    db.commit()
+    with pytest.raises(HTTPException) as same_person:
+        group.record_relationship_decision(db, hybrid, relation, "privacy")
+    assert same_person.value.status_code == 409
+
+
+def test_a_user_administrator_cannot_judge_released_proof(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation, "REQ-1", "Proof", _future(5))
+    db.commit()
+    with pytest.raises(HTTPException) as denied:
+        requests.review_release(db, users["parent_admin"], request_id, "accepted", "Looks right")
+    assert denied.value.status_code == 403
+
+
+def test_a_dpo_can_raise_requests_and_run_group_cases(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    group_dpo = _actor(db, parent, "group_dpo_cases", "dpo")
+    request_id = requests.create_request(db, group_dpo, relation, "DPO-REQ-1", "Breach evidence", _future(5))
+    case_id = cases.create_case(db, group_dpo, "DPO-CASE-1", "Cross entity breach", "Position pending")
+    cases.link_request(db, group_dpo, case_id, request_id)
+    db.commit()
+    assert cases.case_detail(db, group_dpo, case_id)["requests"][0]["id"] == request_id
+
+
+def test_grants_and_releases_cannot_outlive_a_year(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    with pytest.raises(HTTPException) as too_long:
+        group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"], "document.view",
+                         _future(group.MAX_GRANT_DAYS + 5), _future(7))
+    assert too_long.value.status_code == 422

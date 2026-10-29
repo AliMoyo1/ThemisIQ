@@ -746,6 +746,7 @@ CREATE TABLE IF NOT EXISTS org_relationships (
     status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','active','ended')),
     purpose TEXT NOT NULL,
     child_ack_by INTEGER,
+    notice_deemed_at TEXT,
     privacy_review_by INTEGER,
     legal_review_by INTEGER,
     terms_json TEXT NOT NULL DEFAULT '{}',

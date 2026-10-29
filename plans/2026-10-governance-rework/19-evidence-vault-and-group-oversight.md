@@ -261,3 +261,26 @@ The chosen design reuses ThemisIQ's Vault, RBAC, tenant checks and report kit. B
 - Parent document navigation now has an explicit controlled publication path for routine versions and a separate request path for restricted material. No parent gets unrestricted child Vault access.
 - Customer names are examples only. Relationship IDs, roles, source-tenant decisions and licenses govern every group; there is no Econet-specific branch or fixed number of subsidiaries.
 - A subsequent gap review added requirement-led discovery without hidden titles, local adoption/exception of group policies, group onboarding and exit, restatable metrics with source lineage, periodic grant review, per-version distribution rights, a scoped auditor room and measured specialist usability. Each has a data/authority rule and a delivery-stage acceptance check above; none is claimed built by updating this plan.
+
+## 15. Review and alignment, 2026-10-29
+
+A review of the branch against the owner's recorded decisions (chat, 2026-10-28; confirmations, not sign-off) and a security read of `group_documents.py`, `group_requests.py`, `group_cases.py`, `group_adoption.py`, the group routes and the new row level security. Changes made on the branch:
+
+| Finding | Kind | Change |
+| --- | --- | --- |
+| The child could block group oversight by never acknowledging: activation needed the child's acknowledgement. The owner's decision is that subsidiaries do not opt in. | Alignment | The child still acknowledges, as notice. After `NOTICE_DAYS` (14) the platform operator may record the notice as given (`notice_deemed_at`, route `POST /evidence/api/group/relationships/{id}/notice`). Privacy and legal review remain required before the edge becomes active, so mandatory visibility never skips the privacy gate. |
+| Legal review was a Compliance Manager right only, and privacy and legal had to be different people. The owner's decision is that legal falls under the DPO. | Alignment | `group.terms.legal` is held by the DPO and the Compliance Manager. One DPO may record both privacy and legal; the acknowledging administrator is never a reviewer. The group DPO can record both reviews from the parent side (new parent update policy on `org_relationships`; the child still alone acknowledges). |
+| The group DPO could not raise proof requests or run group cases. | Alignment | `group.request.create` and `group.case.manage` include the DPO. |
+| A user administrator (`org_admin`) held `group.request.manage`: it listed every parent request and could accept or return released proof. | Security (authorization) | `group.request.manage` is now the Chief GRC Officer, Compliance Manager and DPO. Proof verdicts are a compliance judgement, not user administration. `org_admin` keeps grant management and acknowledgement. |
+| Grants and releases accepted any future expiry, so the review date was the only lifetime limit. | Security (hardening) | Grant expiry, grant review date and release expiry are capped at `MAX_GRANT_DAYS` (366). |
+| Paging a company's catalogue rechecked every candidate in the source tenant, opening a connection each time, with no upper bound when many releases had become invalid. | Reliability (resource bound) | A page scans at most ten batches of 100; when the bound is reached first the page is shorter and the cursor continues from where the scan stopped. |
+| The PostgreSQL lane runs as a superuser, so a raw-table check of the parent-only case tables from a child tenant passed or failed for the wrong reason. | Test correctness | Those counts run as the non-bypass probe role. |
+
+Read and found sound: masked 404s for foreign IDs, source-tenant rechecks of the exact version, hash and rights before every open or download, path containment and attachment disposition on download, access logging, separation between grantor and grant reviewer, and the parent-only case tables under forced row level security.
+
+Not changed, recorded for the owner:
+
+1. **Figures and the group score (stage 2) are not built.** Mandatory oversight of figures depends on it; the subsidiary band stays withheld until the inference tests in section 10 pass, which is stricter than the earlier plan and is kept.
+2. **Group cases are parent-only.** The earlier plan allowed inviting a subsidiary participant; the built version does not. Safe as a first step.
+3. **Subsidiary senior roles see group-published documents only through a named grant from their own grant manager.** This matches "may see" but adds a step; a default grant for the four senior roles could be considered later.
+

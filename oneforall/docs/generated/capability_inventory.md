@@ -612,6 +612,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/evidence/api/group/relationships/{relation_id}/decisions` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/relationships/{relation_id}/exit-impact` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/grants` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/relationships/{relation_id}/notice` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/publications` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/relationships/{relation_id}/requests` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/requests` | authenticated | - | - | - |  |

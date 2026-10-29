@@ -984,6 +984,13 @@ async def api_group_relationship_decision(request: Request, relation_id: int):
     return JSONResponse(result)
 
 
+@router.post("/api/group/relationships/{relation_id}/notice")
+@require_auth
+async def api_group_relationship_notice(request: Request, relation_id: int):
+    result = _group_operation(lambda db: group_documents.deem_notice(db, request.state.user, relation_id))
+    return JSONResponse(result)
+
+
 @router.post("/api/group/relationships/{relation_id}/grants", status_code=201)
 @require_auth
 async def api_group_grant(request: Request, relation_id: int):

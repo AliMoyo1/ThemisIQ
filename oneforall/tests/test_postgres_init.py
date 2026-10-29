@@ -2247,7 +2247,8 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
             assert [r["id"] for r in requests.list_requests(db, users["viewer"])["items"]] == [request_id]
             assert cases.case_detail(db, users["viewer"], case_id)["requests"][0]["id"] == request_id
             from modules.launcher.my_work_service import _group_proof_requests
-            assert _group_proof_requests(db, users["parent_admin"])[0]["entity_id"] == request_id
+            assert _group_proof_requests(db, users["viewer"])[0]["entity_id"] == request_id
+            assert _group_proof_requests(db, users["parent_admin"]) == []  # user administration, not proof review
         finally:
             db.close()
     # The lane's own user is a superuser, which bypasses row level security: the raw table counts below are only
@@ -4995,3 +4996,66 @@ def test_the_dpia_form_fields_and_the_due_date_column_run_on_real_postgres(pg):
                 f"SELECT due_date, title, status, owner, mitigations FROM {schema}.sentinel_dpias WHERE id = %s",
                 (row_id,)) == [(None, "Old DPIA", "in_progress", "Legal", "Existing measures")], schema
     assert _raw_rows("SELECT count(*) FROM tenant_dpiaform.sentinel_dpias") == [(1,)]
+
+
+def test_a_group_dpo_reviews_from_the_parent_and_notice_is_deemed_on_real_postgres(pg):
+    """The parent-side review update passes row level security as an ordinary role; a sibling cannot touch the edge."""
+    from modules.evidence import group_documents as group
+
+    pg.init_db()
+    parent = _make_org(pg, "group_parent_notice", provision=False)
+    child = _make_org(pg, "group_child_notice", provision=False)
+    sibling = _make_org(pg, "group_sibling_notice", provision=False)
+    setup = pg.get_db_bypass_rls()
+    try:
+        relation = setup.execute(
+            "INSERT INTO public.org_relationships (parent_org_id,child_org_id,purpose,review_due_at,created_at) "
+            "VALUES (%s,%s,'Group review','2099-01-01T00:00:00','2020-01-01 00:00:00') RETURNING id",
+            (parent, child)).fetchone()["id"]
+        dpo = pg.insert_returning_id(setup,
+            "INSERT INTO public.users (org_id,username,email,full_name,password_hash,is_active) "
+            "VALUES (%s,'group_dpo_pg','group_dpo_pg@example.invalid','Group DPO','x',1)", (parent,))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+    actor = {"id": dpo, "org_id": parent, "roles": ["dpo"], "is_super_admin": False, "business_unit_id": None}
+    with pg.tenant_context(parent, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            group.record_relationship_decision(conn, actor, relation, "privacy")
+            group.record_relationship_decision(conn, actor, relation, "legal")
+            conn.commit()
+        finally:
+            _release_role(conn)
+    with pg.tenant_context(sibling, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            assert conn.execute("UPDATE public.org_relationships SET notice_deemed_at='x' WHERE id=%s RETURNING id",
+                                (relation,)).fetchone() is None
+            conn.commit()
+        finally:
+            _release_role(conn)
+    with pg.tenant_context(parent, "public", is_super_admin=True):
+        conn = pg.get_db()
+        try:
+            platform = {"id": dpo, "org_id": parent, "roles": ["super_admin"], "is_super_admin": True}
+            assert group.deem_notice(conn, platform, relation)["status"] == "active"
+            conn.commit()
+        finally:
+            conn.close()
+    check = pg.get_db_bypass_rls()
+    try:
+        row = check.execute("SELECT status, child_ack_by, notice_deemed_at, privacy_review_by, legal_review_by "
+                            "FROM public.org_relationships WHERE id=%s", (relation,)).fetchone()
+    finally:
+        check.close()
+    assert (row["status"], row["child_ack_by"], row["privacy_review_by"], row["legal_review_by"]) == ("active", None, dpo, dpo)
+    assert row["notice_deemed_at"]

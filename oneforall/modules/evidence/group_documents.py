@@ -5,7 +5,7 @@ acquires the source tenant's user identity or a general cross-tenant query.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
@@ -55,7 +55,13 @@ def _now() -> str:
     return utcnow().isoformat()
 
 
-def _deadline(raw: str) -> str:
+# Grants and releases are reviewed at least yearly: a far-future expiry would make the review date the only gate.
+MAX_GRANT_DAYS = 366
+# Group oversight is mandatory: a child acknowledges as notice, and an unanswered notice is deemed given after this.
+NOTICE_DAYS = 14
+
+
+def _deadline(raw: str, max_days: int | None = None) -> str:
     try:
         value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if value.tzinfo is None:
@@ -63,6 +69,8 @@ def _deadline(raw: str) -> str:
         normalized = value.astimezone(timezone.utc).replace(tzinfo=None)
         if normalized <= utcnow():
             raise ValueError
+        if max_days is not None and normalized > utcnow() + timedelta(days=max_days):
+            raise HTTPException(422, f"Choose a date within {max_days} days")
         return normalized.isoformat()
     except (TypeError, AttributeError, ValueError):
         raise HTTPException(422, "Choose a future UTC date and time with a timezone") from None
@@ -83,8 +91,17 @@ def _relationship(db, relation_id: int):
     return row
 
 
+def _notified(row) -> bool:
+    """The child acknowledged, or the notice period passed and the platform recorded the notice as given."""
+    return bool(row["child_ack_by"] or row["notice_deemed_at"])
+
+
+def _reviewed(row) -> bool:
+    return _notified(row) and bool(row["privacy_review_by"] and row["legal_review_by"])
+
+
 def _assert_edge(db, row):
-    if row["status"] != "active" or not all(row[k] for k in ("child_ack_by", "privacy_review_by", "legal_review_by")):
+    if row["status"] != "active" or not _reviewed(row):
         raise HTTPException(404, "Relationship not active")
     if row["review_due_at"] and row["review_due_at"] <= _now():
         raise HTTPException(404, "Relationship review overdue")
@@ -122,7 +139,10 @@ def management_workspace(db, actor: dict) -> dict:
         f"{where} ORDER BY r.created_at DESC,r.id DESC LIMIT 100", args).fetchall()]
     for row in relations:
         row["terms"] = json.loads(row.pop("terms_json"))
-        row["can_decide"] = row["child_org_id"] == org_id and row["status"] == "proposed"
+        row["is_child"] = row["child_org_id"] == org_id
+        row["can_decide"] = row["status"] == "proposed" and org_id in (row["parent_org_id"], row["child_org_id"])
+        row["can_deem_notice"] = (caps["group.relationship.manage"] and row["status"] == "proposed"
+                                  and not _notified(row) and _notice_elapsed(row))
         row["can_grant"] = (row["status"] == "active" and org_id in
                             (row["parent_org_id"], row["child_org_id"]))
         row["can_publish"] = row["can_grant"]
@@ -234,9 +254,51 @@ def propose_relationship(db, actor: dict, parent_id: int, child_id: int, purpose
                                 _deadline(review_due), actor["id"]))
 
 
+def _notice_elapsed(row) -> bool:
+    created = str(row["created_at"] or "")[:19].replace(" ", "T")
+    try:
+        return datetime.fromisoformat(created) <= utcnow() - timedelta(days=NOTICE_DAYS)
+    except ValueError:
+        return False
+
+
+def _activate_if_ready(db, relation_id: int, child_org_id: int) -> bool:
+    reviewed = db.execute(f"SELECT * FROM {_table('org_relationships')} WHERE id=%s", (relation_id,)).fetchone()
+    if not _reviewed(reviewed):
+        return False
+    # One active parent is also enforced by a partial unique index. The
+    # app-level check gives a legible result before that index rejects it.
+    other = db.execute(f"SELECT id FROM {_table('org_relationships')} "
+                       "WHERE child_org_id=%s AND status='active'", (child_org_id,)).fetchone()
+    if other:
+        raise HTTPException(409, "Child already has an active parent")
+    db.execute(f"UPDATE {_table('org_relationships')} SET status='active',effective_at=%s "
+               "WHERE id=%s AND status='proposed'", (_now(), relation_id))
+    return True
+
+
+def deem_notice(db, actor: dict, relation_id: int) -> dict:
+    """Group oversight is not an opt-in: after the notice period an unanswered acknowledgement is recorded as given.
+
+    Privacy and legal review are still required before the relationship becomes active."""
+    if not has_capability(actor, "group.relationship.manage"):
+        raise HTTPException(404, "Relationship not found")
+    row = _relationship(db, relation_id)
+    if row["status"] != "proposed" or _notified(row):
+        raise HTTPException(409, "Notice is already recorded")
+    if not _notice_elapsed(row):
+        raise HTTPException(409, f"The child has {NOTICE_DAYS} days to acknowledge")
+    db.execute(f"UPDATE {_table('org_relationships')} SET notice_deemed_at=%s WHERE id=%s AND status='proposed'",
+               (_now(), relation_id))
+    active = _activate_if_ready(db, relation_id, row["child_org_id"])
+    return {"id": relation_id, "status": "active" if active else "proposed"}
+
+
 def record_relationship_decision(db, actor: dict, relation_id: int, kind: str) -> dict:
     row = _relationship(db, relation_id)
-    if actor.get("org_id") != row["child_org_id"] or row["status"] != "proposed":
+    if actor.get("org_id") not in (row["parent_org_id"], row["child_org_id"]) or row["status"] != "proposed":
+        raise HTTPException(404, "Relationship not found")
+    if kind == "ack" and actor.get("org_id") != row["child_org_id"]:
         raise HTTPException(404, "Relationship not found")
     cols = {"ack": ("child_ack_by", "group.relationship.ack"),
             "privacy": ("privacy_review_by", "group.terms.privacy"),
@@ -248,23 +310,18 @@ def record_relationship_decision(db, actor: dict, relation_id: int, kind: str) -
         raise HTTPException(403, "Reviewer capability required")
     if row[col] and row[col] != actor["id"]:
         raise HTTPException(409, "Decision already recorded")
-    if actor["id"] in (row["child_ack_by"], row["privacy_review_by"], row["legal_review_by"]):
-        if row[col] != actor["id"]:
-            raise HTTPException(409, "Acknowledgement, privacy and legal decisions need separate reviewers")
+    # The acknowledging administrator is never also a reviewer. Privacy and legal may be the same person only when
+    # that person is a Data Protection Officer, because legal review sits with the DPO.
+    others = {"ack": ("privacy_review_by", "legal_review_by"), "privacy": ("child_ack_by", "legal_review_by"),
+              "legal": ("child_ack_by", "privacy_review_by")}[kind]
+    shared_dpo = "dpo" in (actor.get("roles") or []) and kind in ("privacy", "legal")
+    for other in others:
+        if row[other] == actor["id"] and not (shared_dpo and other in ("privacy_review_by", "legal_review_by")):
+            raise HTTPException(409, "Acknowledgement and the reviews need separate people")
     db.execute(f"UPDATE {_table('org_relationships')} SET {col}=%s WHERE id=%s AND status='proposed'",
                (actor["id"], relation_id))
-    reviewed = db.execute(f"SELECT * FROM {_table('org_relationships')} WHERE id=%s", (relation_id,)).fetchone()
-    if all(reviewed[k] for k in ("child_ack_by", "privacy_review_by", "legal_review_by")):
-        # One active parent is also enforced by a partial unique index. The
-        # app-level check gives a legible result before that index rejects it.
-        other = db.execute(f"SELECT id FROM {_table('org_relationships')} "
-                           "WHERE child_org_id=%s AND status='active'", (row["child_org_id"],)).fetchone()
-        if other:
-            raise HTTPException(409, "Child already has an active parent")
-        db.execute(f"UPDATE {_table('org_relationships')} SET status='active',effective_at=%s "
-                   "WHERE id=%s AND status='proposed'", (_now(), relation_id))
-    return {"id": relation_id, "status": "active" if all(reviewed[k] for k in
-            ("child_ack_by", "privacy_review_by", "legal_review_by")) else "proposed"}
+    active = _activate_if_ready(db, relation_id, row["child_org_id"])
+    return {"id": relation_id, "status": "active" if active else "proposed"}
 
 
 def grant_view(db, actor: dict, relation_id: int, user_id: int, capability: str,
@@ -280,8 +337,8 @@ def grant_view(db, actor: dict, relation_id: int, user_id: int, capability: str,
     if not target or target["org_id"] != actor["org_id"]:
         raise HTTPException(404, "Recipient not found")
     source = row["child_org_id"] if actor["org_id"] == row["parent_org_id"] else row["parent_org_id"]
-    expiry = _deadline(expires_at)
-    review = _deadline(review_due_at)
+    expiry = _deadline(expires_at, MAX_GRANT_DAYS)
+    review = _deadline(review_due_at, MAX_GRANT_DAYS)
     if review > expiry:
         raise HTTPException(422, "Review date cannot follow expiry")
     return insert_returning_id(db, f"INSERT INTO {_table('group_view_grants')} "
@@ -365,7 +422,7 @@ def publish(db, actor: dict, relation_id: int, evidence_id: int,
                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                                (relation_id, actor["org_id"], target, evidence_id, item["version"],
                                 item["file_hash"], item["title"], item["category"], classification,
-                                purpose.strip(), rights["id"], _deadline(expires_at), actor["id"]))
+                                purpose.strip(), rights["id"], _deadline(expires_at, MAX_GRANT_DAYS), actor["id"]))
 
 
 def _source_current(row, *, download: bool = False):
@@ -445,7 +502,8 @@ def _granted_rows(db, actor: dict, *, publication_id: int | None = None,
         "AND g.capability='document.view' AND g.revoked_at IS NULL "
         "AND g.expires_at>%s AND g.review_due_at>%s) "
         "AND p.viewer_org_id=%s AND p.revoked_at IS NULL AND p.expires_at>%s "
-        "AND r.status='active' AND r.child_ack_by IS NOT NULL AND r.privacy_review_by IS NOT NULL "
+        "AND r.status='active' AND (r.child_ack_by IS NOT NULL OR r.notice_deemed_at IS NOT NULL) "
+        "AND r.privacy_review_by IS NOT NULL "
         "AND r.legal_review_by IS NOT NULL AND r.review_due_at>%s "
         "AND r.parent_org_id IN (p.source_org_id,p.viewer_org_id) "
         "AND r.child_org_id IN (p.source_org_id,p.viewer_org_id) " + category_sql + source_sql + cursor_sql + exact +
@@ -499,7 +557,7 @@ def source_companies(db, actor: dict) -> list[dict]:
         "JOIN organizations o ON o.id=g.source_org_id AND o.status='active' "
         "WHERE g.viewer_org_id=%s AND g.user_id=%s AND g.capability='document.view' "
         "AND g.revoked_at IS NULL AND g.expires_at>%s AND g.review_due_at>%s "
-        "AND r.status='active' AND r.child_ack_by IS NOT NULL "
+        "AND r.status='active' AND (r.child_ack_by IS NOT NULL OR r.notice_deemed_at IS NOT NULL) "
         "AND r.privacy_review_by IS NOT NULL AND r.legal_review_by IS NOT NULL "
         "AND r.review_due_at>%s AND r.parent_org_id IN (g.source_org_id,g.viewer_org_id) "
         "AND r.child_org_id IN (g.source_org_id,g.viewer_org_id) ORDER BY o.name,o.id",
@@ -522,10 +580,16 @@ def catalogue_cursor(db, actor: dict, *, source_org_id: int, before_id: int | No
         raise HTTPException(404, "Company not found")
     found = []
     cursor = before_id
-    while len(found) <= page_size:
+    exhausted = False
+    # Each candidate is rechecked in the source tenant, so bound the work of one page: at most ten batches of 100.
+    # When the bound is reached first, the page is shorter and the cursor continues from where the scan stopped.
+    for _batch in range(10):
+        if len(found) > page_size:
+            break
         rows = _granted_rows(db, actor, page_size=100, source_org_id=source_org_id,
                              before_id=cursor if cursor is not None else 2**63 - 1)
         if not rows:
+            exhausted = True
             break
         for row in rows:
             cursor = row["id"]
@@ -534,10 +598,15 @@ def catalogue_cursor(db, actor: dict, *, source_org_id: int, before_id: int | No
                 found.append(entry)
             if len(found) > page_size:
                 break
-        if len(rows) < 100:
+        if len(rows) < 100 and len(found) <= page_size:
+            exhausted = True
             break
     items = found[:page_size]
-    return {"items": items, "next_cursor": items[-1]["id"] if len(found) > page_size else None}
+    if len(found) > page_size:
+        next_cursor = items[-1]["id"]
+    else:
+        next_cursor = None if exhausted else cursor
+    return {"items": items, "next_cursor": next_cursor}
 
 
 def released_item(db, actor: dict, publication_id: int, *, download: bool = False):

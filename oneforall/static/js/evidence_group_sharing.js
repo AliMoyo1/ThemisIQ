@@ -56,8 +56,9 @@
         const actions = text('div', '', 'gs-actions');
         decisions.forEach(([kind, label, field, cap]) => {
           if (row[field]) actions.appendChild(text('small', `${label} recorded`));
-          else if (row.can_decide && caps[cap]) actions.appendChild(button(label, `decide:${kind}`, row.id));
+          else if (row.can_decide && caps[cap] && (kind !== 'ack' || row.is_child)) actions.appendChild(button(label, `decide:${kind}`, row.id));
         });
+        if (row.can_deem_notice) actions.appendChild(button('Record notice as given', 'deem', row.id));
         box.appendChild(actions);
       }
       if (row.status === 'active' && caps['group.relationship.manage']) {
@@ -186,6 +187,8 @@
     const action = control.dataset.action;
     if (action.startsWith('decide:')) {
       act('POST', `/evidence/api/group/relationships/${id}/decisions`, {kind: action.slice(7)}, 'Decision recorded.');
+    } else if (action === 'deem') {
+      act('POST', `/evidence/api/group/relationships/${id}/notice`, {}, 'Notice recorded as given.');
     } else if (action === 'review-grant') {
       const grant = grantRows.find(row => String(row.id) === String(control.dataset.id));
       if (!grant || !grant.can_review) return;
