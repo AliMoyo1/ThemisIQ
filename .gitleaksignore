@@ -1,0 +1,6 @@
+# Four false positives in the synthetic Vault scope tests added by 0e507b94.
+# The matches are request arguments and fixed labels; no credential is present.
+0e507b940e35c0f022c478470de38ca884ffee3e:oneforall/tests/test_evidence_vault_reads.py:generic-api-key:149
+0e507b940e35c0f022c478470de38ca884ffee3e:oneforall/tests/test_evidence_vault_reads.py:generic-api-key:152
+0e507b940e35c0f022c478470de38ca884ffee3e:oneforall/tests/test_evidence_vault_reads.py:generic-api-key:155
+0e507b940e35c0f022c478470de38ca884ffee3e:oneforall/tests/test_evidence_vault_reads.py:generic-api-key:158
