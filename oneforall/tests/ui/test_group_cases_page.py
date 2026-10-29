@@ -18,3 +18,12 @@ def test_group_case_page_creates_parent_case_without_inline_script(login_as, liv
     page.get_by_role("button", name="Open case").first.click()
     expect(page.locator("#gcDetail")).to_contain_text("The parent is reviewing evidence")
     expect(page.locator("#gcRequests")).to_contain_text("Link a proof request")
+
+
+def test_group_case_api_denies_employee(login_as, live_app):
+    page = login_as("employee")
+    result = page.evaluate("""async () => {
+      const r = await fetch('/evidence/api/group/cases');
+      return r.status;
+    }""")
+    assert result == 403
