@@ -203,6 +203,40 @@ def test_batch_duplicate_check_uses_exact_authorized_filing_scope(test_db, world
     assert check({**unit_user, "org_id": world.org2}, f"unit:{world.bu_a}")["items"] == []
 
 
+def test_batch_control_suggestions_require_filing_scope_and_aria_access(test_db, world, auth, monkeypatch):
+    import modules.aria.policy_intake as intake
+    import modules.governance.entity_scope as entity_scope
+
+    test_db.execute("INSERT INTO frameworks(name,is_active) VALUES('Synthetic Batch Framework',1)")
+    framework_id = test_db.execute("SELECT id FROM frameworks WHERE name='Synthetic Batch Framework'").fetchone()[0]
+    test_db.execute("INSERT INTO controls(framework_id,ref,name) VALUES(%s,'BATCH.9.1','Synthetic batch control')",
+                    (framework_id,))
+    test_db.commit()
+    monkeypatch.setattr(intake, "_extract_isolated", lambda *args: {
+        "metadata": {}, "parser": "test", "text_status": "extracted",
+        "spans": [{"anchor": "page 1", "text": "BATCH.9.1 controls this synthetic process."}],
+    })
+    user = {**world.users.unit_a, "roles": ["compliance_manager"]}
+
+    def suggest(scope):
+        file = UploadFile(file=io.BytesIO(b"%PDF-synthetic"), filename="test.pdf")
+        return _get(ev.api_evidence_batch_suggest(_req(auth, user), file=file, filing_scope=scope))
+
+    with pytest.raises(ev.HTTPException) as hidden:
+        suggest(f"unit:{world.bu_b}")
+    assert hidden.value.status_code == 404
+    result = suggest(f"unit:{world.bu_a}")
+    assert len(result["control_candidates"]) == 1
+    candidate = result["control_candidates"][0]
+    assert candidate["ref"] == "BATCH.9.1"
+    assert candidate["anchor"] == "page 1"
+    assert candidate["match_method"] == "exact_reference"
+    assert test_db.execute("SELECT COUNT(*) FROM evidence_links").fetchone()[0] == 0
+
+    monkeypatch.setattr(entity_scope, "may_view_kind", lambda *_: False)
+    assert suggest(f"unit:{world.bu_a}")["control_candidates"] == []
+
+
 def test_pages_cover_every_item_exactly_once_when_timestamps_tie(test_db, world, auth):
     for i in range(60):
         _item(test_db, f"bulk {i:03d}", world.org1, updated_at="2026-01-01 00:00:00")

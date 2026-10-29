@@ -93,6 +93,60 @@ def test_batch_extracts_reviewable_source_anchored_docx_suggestions(login_as, li
     expect(page.locator("#ebUpload")).to_be_disabled()
 
 
+def test_batch_control_suggestion_is_selected_and_linked_pending(login_as, live_app):
+    import database
+
+    db = database.get_db()
+    try:
+        db.execute("INSERT INTO frameworks(name,is_active) VALUES('Synthetic Browser Batch Framework',1)")
+        framework_id = db.execute("SELECT id FROM frameworks WHERE name='Synthetic Browser Batch Framework'").fetchone()[0]
+        db.execute("INSERT INTO controls(framework_id,ref,name) VALUES(%s,'BATCH.9.2','Synthetic browser review')",
+                   (framework_id,))
+        control_id = db.execute("SELECT id FROM controls WHERE ref='BATCH.9.2'").fetchone()[0]
+        db.commit()
+    finally:
+        db.close()
+    document = Document()
+    document.add_paragraph("BATCH.9.2 is referenced for a synthetic browser test.")
+    content = io.BytesIO(); document.save(content)
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence/batch/")
+    expect(page.locator("#ebSummary")).to_contain_text("Choose files")
+    page.locator("#ebFiles").set_input_files({
+        "name": "synthetic_batch.docx",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "buffer": content.getvalue(),
+    })
+    row = page.locator("#ebQueue .eb-row").first
+    row.get_by_label("Filing scope").select_option(index=1)
+    row.get_by_role("button", name="Extract suggestions").click()
+    expect(row.locator(".eb-compare")).to_contain_text("BATCH.9.2")
+    expect(page.locator("#ebUpload")).to_be_disabled()
+    row.get_by_label("Filing scope").select_option("")
+    expect(row.locator(".eb-compare")).to_have_count(0)
+    row.get_by_label("Filing scope").select_option(index=1)
+    row.get_by_role("button", name="Extract suggestions").click()
+    expect(row.locator(".eb-compare")).to_contain_text("BATCH.9.2")
+    row.get_by_label("Synthetic Browser Batch Framework · BATCH.9.2 · Synthetic browser review").check()
+    row.get_by_label("Checked for filing").check()
+    with page.expect_response(lambda response: response.url.endswith("/evidence/api/items") and
+                              response.request.method == "POST") as uploaded:
+        page.locator("#ebUpload").click()
+    evidence_id = uploaded.value.json()["id"]
+    expect(row.locator(".eb-state")).to_contain_text("1 of 1 selected control links created as pending")
+    expect(row.get_by_role("link", name="Review the filed item and pending links")).to_have_attribute(
+        "href", f"/evidence/?open=item:{evidence_id}")
+    db = database.get_db()
+    try:
+        link = db.execute("SELECT review_status FROM evidence_links WHERE evidence_id=%s AND module='aria' "
+                          "AND entity_type='control' AND entity_id=%s AND deleted_at IS NULL",
+                          (evidence_id, control_id)).fetchone()
+        assert link is not None
+        assert link["review_status"] in (None, "pending")
+    finally:
+        db.close()
+
+
 def test_batch_rejects_invalid_pdf_without_claiming_extraction(login_as, live_app):
     page = login_as("compliance_manager")
     page.goto(f"{live_app}/evidence/batch/")

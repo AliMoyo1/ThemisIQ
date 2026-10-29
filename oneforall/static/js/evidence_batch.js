@@ -50,6 +50,9 @@
       row.replaceVerified = null;
       row.versionResults = [];
       row.existingId = null;
+      row.suggestions = null;
+      row.controlCandidates = [];
+      row.controlSelections = [];
       if (row.state === 'duplicate') row.state = 'staged';
     }
     row.reviewed = false;
@@ -123,6 +126,8 @@
       if (!rows.includes(row) || scope !== row.scope) return;
       const hints = result.suggestions || {};
       row.suggestions = hints;
+      row.controlCandidates = Array.isArray(result.control_candidates) ? result.control_candidates : [];
+      row.controlSelections = [];
       if (hints.title && !row.titleEdited) row.title = hints.title.value;
       const types = {Policy:'policy', Procedure:'procedure', Record:'general'};
       if (hints.doc_type && !row.categoryEdited && types[hints.doc_type.value])
@@ -236,12 +241,39 @@
         });
         card.appendChild(hints);
       }
+      if (row.controlCandidates?.length) {
+        const matches = element('div', '', 'eb-compare');
+        matches.appendChild(element('strong', 'Possible ARIA control links'));
+        matches.appendChild(element('small', 'Select only controls this file may support. Links will be pending until an independent claim review. A text match is not proof of compliance.'));
+        row.controlCandidates.forEach(candidate => {
+          const choice = element('label', '');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
+          checkbox.checked = row.controlSelections?.includes(candidate.control_id) || false;
+          checkbox.addEventListener('change', () => {
+            row.controlSelections = checkbox.checked ? [...row.controlSelections, candidate.control_id] :
+              row.controlSelections.filter(id => id !== candidate.control_id);
+            row.reviewed = false;
+            refresh();
+          });
+          choice.appendChild(checkbox);
+          choice.appendChild(element('span', `${candidate.framework} · ${candidate.ref} · ${candidate.name}`));
+          matches.appendChild(choice);
+          matches.appendChild(element('small', `${candidate.match_method === 'exact_reference' ? 'Exact reference' : 'Keyword overlap'} · ${candidate.anchor}: ${candidate.excerpt.slice(0, 180)}`));
+        });
+        card.appendChild(matches);
+      }
       const state = element('p', row.message || 'Waiting for review', 'eb-state');
       state.dataset.state = row.state;
       card.appendChild(state);
       if (row.state === 'duplicate' && Number.isSafeInteger(row.existingId) && row.existingId > 0) {
         const link = element('a', 'Review the existing Vault file', 'btn btn-secondary');
         link.href = `/evidence/?open=item:${row.existingId}`;
+        card.appendChild(link);
+      }
+      if (row.state === 'uploaded' && Number.isSafeInteger(row.evidenceId) && row.evidenceId > 0) {
+        const link = element('a', 'Review the filed item and pending links', 'btn btn-secondary');
+        link.href = `/evidence/?open=item:${row.evidenceId}`;
         card.appendChild(link);
       }
       if (row.state !== 'uploaded' && !['extracting', 'checking', 'searching'].includes(row.state) && !busy) {
@@ -288,6 +320,7 @@
       rows.push({file, title: file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim(),
         scope: scopes.length === 1 ? scopes[0][0] : '', category: 'general', reviewDue: '',
         versionMode: 'new', replaceId: '', replaceVerified: null, versionSearch: '', versionResults: [],
+        controlCandidates: [], controlSelections: [],
         reviewed: false, state: oversized ? 'failed' : 'staged',
         message: oversized ? 'File exceeds the 100 MB limit' : 'Waiting for review'});
     });
@@ -307,11 +340,28 @@
       if (row.versionMode === 'replace') body.append('replace_id', row.replaceId);
       if (row.reviewDue) body.append('review_due_date', row.reviewDue);
       try {
-        await ApiClient.request('/evidence/api/items', {method: 'POST', body, timeoutMs: 120000,
+        const filed = await ApiClient.request('/evidence/api/items', {method: 'POST', body, timeoutMs: 120000,
           actionId: 'evidence.batch_upload'});
+        row.evidenceId = Number(filed.id);
         row.state = 'uploaded'; row.message = row.versionMode === 'replace' ?
           'New version filed. Review the carried links and supported claims.' :
           'Filed in the Vault. Link it to the supported claim for independent review.';
+        if (row.controlSelections.length && Number.isSafeInteger(row.evidenceId) && row.evidenceId > 0) {
+          let linked = 0;
+          for (const controlId of row.controlSelections) {
+            try {
+              await ApiClient.request(`/evidence/api/items/${row.evidenceId}/links`, {
+                method: 'POST', actionId: 'evidence.batch_link_control',
+                body: {module: 'aria', entity_type: 'control', entity_id: controlId}
+              });
+              linked += 1;
+            } catch (error) {
+              // The file is already safely stored. A failed link is a separate
+              // review task; never present the whole upload as failed or retry it.
+            }
+          }
+          row.message = `${row.message} ${linked} of ${row.controlSelections.length} selected control links created as pending.${linked < row.controlSelections.length ? ' Open the filed item to finish linking.' : ''}`;
+        }
       } catch (error) {
         row.state = error.status === 409 ? 'duplicate' : 'failed';
         if (error.status === 409) {

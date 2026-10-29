@@ -443,8 +443,9 @@ async def api_evidence_batch_suggest(
 ):
     """Parse a selected file in the existing isolated worker; return hints only."""
     from tempfile import TemporaryDirectory
-    from modules.aria.policy_intake import MAX_FILE, IntakeError, _extract_isolated
+    from modules.aria.policy_intake import MAX_FILE, IntakeError, _candidates, _extract_isolated
     from modules.aria.policy_storage import DocxValidationError, validate_docx
+    from modules.governance.entity_scope import may_view_kind
 
     if not request.state.user.get("org_id"):
         raise HTTPException(403, "Select an organization")
@@ -474,8 +475,19 @@ async def api_evidence_batch_suggest(
     metadata = extracted.get("metadata", {})
     allowed = ("title", "doc_type", "version", "owner", "approver", "effective_date", "review_date")
     suggestions = {field: metadata[field] for field in allowed if field in metadata}
+    # Controls are an ARIA catalogue, not Vault metadata. Do not reveal their
+    # names or references to a user who cannot open that module. Matching only
+    # proposes pending links; a control reviewer still decides sufficiency.
+    candidates = []
+    if may_view_kind(request.state.user, ("aria", "control")):
+        db = get_db()
+        try:
+            candidates = _candidates(db, extracted.get("spans", [])[:100])[:8]
+        finally:
+            db.close()
     return JSONResponse({"suggestions": suggestions, "parser": extracted.get("parser"),
-                         "text_status": extracted.get("text_status")})
+                         "text_status": extracted.get("text_status"),
+                         "control_candidates": candidates})
 
 
 @router.get("/api/batch/version-candidates")

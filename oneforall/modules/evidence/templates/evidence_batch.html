@@ -22,6 +22,7 @@
 .eb-compare{margin-top:12px;padding:14px 16px;border-radius:12px;background:var(--surface);box-shadow:inset 0 1px rgba(255,255,255,.65)}
 .eb-compare strong{display:block;margin-bottom:6px}.eb-compare p{margin:4px 0;overflow-wrap:anywhere}.eb-compare .is-changed{font-weight:650;color:var(--text)}
 .eb-compare small{display:block;margin-top:8px;color:var(--muted);line-height:1.45}
+.eb-compare label{display:flex;flex-direction:row;align-items:center;gap:9px;margin-top:13px;line-height:1.4}.eb-compare label input[type=checkbox]{width:auto;flex:none}
 .eb-name{font-size:12px;color:var(--muted);word-break:break-all;margin-bottom:10px}
 .eb-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:15px}.eb-actions button{font:inherit}
 .eb-state{font-weight:650;margin:10px 0 0}.eb-state[data-state="failed"],.eb-state[data-state="duplicate"]{color:#a33b22}.eb-state[data-state="uploaded"]{color:#17744a}
@@ -34,7 +35,7 @@
  <header class="eb-hero"><h1>Batch upload</h1><p>Stage up to 50 documents, check each title and filing scope, then upload. Check identical files in the chosen scope before filing. For a new version, search and select the exact current Vault document in the same scope. Each file is handled separately; a duplicate or failed file stays in the queue for review.</p></header>
  <section class="eb-panel" aria-labelledby="ebChooseHeading">
   <h2 id="ebChooseHeading">Choose files</h2>
-  <p>For DOCX and PDF files, extract local, source-anchored suggestions for title, type and review date. Version, author and approver hints remain visible for comparison. Every value needs your review; a document author is not automatically its owner. Choose a scope that you are authorized to file into.</p>
+  <p>For DOCX and PDF files, extract local, source-anchored suggestions for title, type, review date and possible ARIA control links. Version, author and approver hints remain visible for comparison. Every value needs your review; a document author is not automatically its owner. Choose a scope that you are authorized to file into.</p>
   <label for="ebFiles">Files to stage</label><input id="ebFiles" type="file" multiple disabled aria-describedby="ebLimit">
   <p id="ebLimit" class="eb-note">At most 50 files per queue; each file must pass the Vault's size and content checks. Files remain on this device until you start upload.</p>
   <div class="eb-actions"><button type="button" id="ebUpload" class="btn btn-primary" disabled>Upload reviewed files</button>
@@ -46,5 +47,5 @@
   <div id="ebQueue"></div>
  </section>
 </main>
-<script src="/static/js/evidence_batch.js?v=7" defer></script>
+<script src="/static/js/evidence_batch.js?v=8" defer></script>
 {% endblock %}
