@@ -815,6 +815,26 @@ CREATE TABLE IF NOT EXISTS group_document_publications (
 CREATE INDEX IF NOT EXISTS idx_group_document_publications_viewer
     ON group_document_publications(viewer_org_id, relationship_id, revoked_at);
 
+-- How each published figure was made and whether it reconciled (plan 21). Readable only by the organization that
+-- published it: the parent receives the figure and the approved explanation, never the lineage.
+CREATE TABLE IF NOT EXISTS group_figure_lineage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    measure_key TEXT NOT NULL,
+    state TEXT NOT NULL,
+    value REAL,
+    definition_text TEXT NOT NULL DEFAULT '',
+    eligibility_text TEXT NOT NULL DEFAULT '',
+    denominator_text TEXT,
+    window_text TEXT,
+    reconciliation TEXT NOT NULL CHECK(reconciliation IN ('ok','failed')),
+    reason TEXT NOT NULL DEFAULT '',
+    built_at TEXT NOT NULL,
+    snapshot_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_group_figure_lineage_run ON group_figure_lineage(source_org_id, run_id);
+
 -- Frozen figures a tenant publishes about itself for its parent (plan 21). Append only: a newer snapshot replaces
 -- nothing, the reader takes the latest per measure and the earlier ones stay as the trend and the audit trail.
 CREATE TABLE IF NOT EXISTS group_figure_snapshots (
@@ -830,9 +850,32 @@ CREATE TABLE IF NOT EXISTS group_figure_snapshots (
     as_of TEXT NOT NULL,
     publication_version INTEGER NOT NULL DEFAULT 1,
     content_hash TEXT NOT NULL,
+    restates_snapshot_id INTEGER,
+    restatement_reason TEXT,
     published_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_group_figure_latest ON group_figure_snapshots(source_org_id, measure_key, id);
+
+-- A correction to a published figure: the source proposes, a different person approves, and approval publishes a NEW
+-- snapshot that points at the original. Pending proposals are visible to the source only.
+CREATE TABLE IF NOT EXISTS group_figure_restatements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    measure_key TEXT NOT NULL,
+    original_snapshot_id INTEGER NOT NULL REFERENCES group_figure_snapshots(id),
+    old_value REAL,
+    new_value REAL NOT NULL,
+    period_text TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','rejected')),
+    proposed_by INTEGER NOT NULL,
+    reviewed_by INTEGER,
+    review_reason TEXT,
+    replacement_snapshot_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_figure_restatements_source ON group_figure_restatements(source_org_id, status, id);
 
 CREATE TABLE IF NOT EXISTS group_access_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

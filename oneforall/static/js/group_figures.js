@@ -29,7 +29,7 @@
       const state = figure.state === 'measured' ? '' : ` (${figure.state.replaceAll('_', ' ')})`;
       card.append(el('b', figure.value == null ? 'n/a' : number(figure.value)));
       card.append(el('span', figure.label + state));
-      const note = [figure.window, trend(figure)].filter(Boolean).join(' · ');
+      const note = [figure.window, trend(figure), figure.restated ? 'restated: ' + (figure.restatement_reason || '') : ''].filter(Boolean).join(' · ');
       if (note) card.append(el('span', note));
       grid.append(card);
     });
@@ -70,9 +70,67 @@
       get('gfStatus').textContent = message(error);
     }
   }
+  async function loadCorrections(views) {
+    const panel = get('gfCorrections');
+    if (!views.can_restate && !views.can_review_restatement) return;
+    panel.hidden = false;
+    const form = get('gfPropose');
+    form.hidden = !views.can_restate;
+    try {
+      if (views.can_restate && !form.measure_key.options.length) {
+        const own = await ApiClient.request('/governance/api/group/figures?view=own');
+        own.entities[0].figures.forEach(figure => {
+          const option = document.createElement('option');
+          option.value = figure.key; option.textContent = `${figure.label} (now ${figure.value == null ? 'n/a' : figure.value})`;
+          form.measure_key.append(option);
+        });
+      }
+      const data = await ApiClient.request('/governance/api/group/figures/restatements');
+      const rows = get('gfCorrectionRows');
+      rows.replaceChildren();
+      data.items.forEach(item => {
+        const row = el('div', '', 'gf-card');
+        row.append(el('b', `${item.label}: ${number(item.old_value)} to ${number(item.new_value)}`));
+        row.append(el('span', `${item.status}${item.period_text ? ' · ' + item.period_text : ''} · ${item.reason}`));
+        if (item.review_reason) row.append(el('span', `Decision: ${item.review_reason}`));
+        if (item.can_review) {
+          ['approved', 'rejected'].forEach(decision => {
+            const button = el('button', decision === 'approved' ? 'Approve' : 'Reject', 'btn btn-secondary');
+            button.type = 'button';
+            button.addEventListener('click', async () => {
+              const reason = window.prompt('Reason for this decision (10 to 500 characters)');
+              if (!reason) return;
+              try {
+                await ApiClient.request(`/governance/api/group/figures/restatements/${item.id}/review`, {method: 'POST', body: {decision, reason}});
+                loadCorrections(views);
+              } catch (error) { get('gfStatus').textContent = message(error); }
+            });
+            row.append(button);
+          });
+        }
+        rows.append(row);
+      });
+      if (!data.items.length) rows.append(el('p', 'No corrections yet.'));
+    } catch (error) { get('gfStatus').textContent = message(error); }
+    if (!form.dataset.bound) {
+      form.dataset.bound = '1';
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const data = new FormData(form);
+        try {
+          await ApiClient.request('/governance/api/group/figures/restatements', {method: 'POST', body: {
+            measure_key: data.get('measure_key'), new_value: Number(data.get('new_value')),
+            period: data.get('period'), reason: data.get('reason')}});
+          form.reset(); get('gfStatus').textContent = 'Correction proposed for review.';
+          loadCorrections(views);
+        } catch (error) { get('gfStatus').textContent = message(error); }
+      });
+    }
+  }
   async function init() {
     try {
       const views = await ApiClient.request('/governance/api/group/figures/views');
+      loadCorrections(views);
       const tabs = get('gfTabs');
       const entries = [['own', `${views.own.name} alone`, null]];
       if (views.group) entries.push(['group', 'Whole group', null]);

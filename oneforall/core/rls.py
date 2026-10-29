@@ -116,6 +116,18 @@ _STMTS = [
     "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
     "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
 
+    "ALTER TABLE public.group_figure_restatements ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_figure_restatements FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_restatements_source ON public.group_figure_restatements",
+    f"CREATE POLICY group_restatements_source ON public.group_figure_restatements USING {_GROUP_SOURCE_USING} WITH CHECK {_GROUP_SOURCE_USING}",
+
+    "ALTER TABLE public.group_figure_lineage ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_figure_lineage FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_lineage_source ON public.group_figure_lineage",
+    f"CREATE POLICY group_lineage_source ON public.group_figure_lineage FOR SELECT USING {_GROUP_SOURCE_USING}",
+    "DROP POLICY IF EXISTS group_lineage_insert ON public.group_figure_lineage",
+    f"CREATE POLICY group_lineage_insert ON public.group_figure_lineage FOR INSERT WITH CHECK {_GROUP_SOURCE_USING}",
+
     "ALTER TABLE public.group_access_events ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_access_events FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_events_orgs ON public.group_access_events",

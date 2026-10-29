@@ -114,3 +114,18 @@ def test_an_ungranted_subsidiary_id_is_masked(login_as, live_app, synthetic_tena
     assert status == 404
     status = page.evaluate("async () => (await fetch('/governance/api/group/figures?view=subsidiary&org_id=abc')).status")
     assert status == 422
+
+
+def test_a_correction_is_proposed_by_one_person_and_the_figure_shows_as_restated(login_as, live_app, synthetic_tenant):
+    _seed(synthetic_tenant, "compliance_manager")
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/governance/group/figures/")
+    expect(page.locator("#gfCorrections")).to_be_visible()
+    page.locator("#gfPropose select[name=measure_key]").select_option("cc.open_breaches")
+    page.locator("#gfPropose input[name=new_value]").fill("1")
+    page.locator("#gfPropose textarea[name=reason]").fill("Duplicate records were merged on review")
+    page.locator("#gfPropose button[type=submit]").click()
+    expect(page.locator("#gfCorrectionRows")).to_contain_text("proposed")
+    expect(page.locator("#gfCorrectionRows")).to_contain_text("Duplicate records were merged")
+    # the proposer cannot approve their own correction
+    assert page.locator("#gfCorrectionRows button").count() == 0

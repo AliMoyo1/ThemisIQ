@@ -725,6 +725,9 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/governance/api/departments/{dept_id}` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/governance/api/group/figures` | authenticated | - | - | - |  |
 | POST | `/governance/api/group/figures/publish` | authenticated | - | - | - |  |
+| GET | `/governance/api/group/figures/restatements` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/figures/restatements` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/figures/restatements/{restatement_id}/review` | authenticated | - | - | - |  |
 | GET | `/governance/api/group/figures/views` | authenticated | - | - | - |  |
 | GET | `/governance/api/regulatory-frameworks` | capability | governance.entities.view | governance.entities.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/governance/api/regulatory-source-candidates` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |

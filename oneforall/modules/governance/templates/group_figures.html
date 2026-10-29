@@ -23,6 +23,7 @@
 .gf-card{background:var(--surface2);border-radius:14px;padding:14px}.gf-card b{display:block;font-size:26px;font-variant-numeric:tabular-nums}
 .gf-card span{display:block;font-size:12px;color:var(--muted)}
 .gf-table{width:100%;border-collapse:collapse;font-size:13px}.gf-table th,.gf-table td{text-align:left;padding:8px;border-bottom:1px solid var(--border)}
+.gf-form{display:grid;gap:8px;max-width:520px;margin-top:12px}.gf-form[hidden]{display:none}.gf-form label{display:grid;gap:4px;font-size:13px;font-weight:650}
 @media(max-width:700px){.gf-page{padding:14px}.gf-hero{padding:20px}.gf-hero h1{font-size:27px}}
 </style>
 <main class="gf-page" id="groupFigures">
@@ -31,6 +32,18 @@
   <p id="gfStatus" class="gf-status" role="status" aria-live="polite"></p>
   <div id="gfTotals"></div>
   <div id="gfEntities"></div>
+  <section class="gf-entity" id="gfCorrections" hidden>
+    <h2>Corrections to your published figures</h2>
+    <small>A correction is proposed by one person and approved by another. Approval publishes a new figure marked as restated; the original stays on record.</small>
+    <form id="gfPropose" class="gf-form" hidden>
+      <label>Figure<select name="measure_key" required></select></label>
+      <label>Corrected value<input name="new_value" type="number" min="0" step="any" required></label>
+      <label>Period affected<input name="period" maxlength="80"></label>
+      <label>Reason<textarea name="reason" maxlength="500" rows="3" required></textarea></label>
+      <button class="btn btn-primary" type="submit">Propose correction</button>
+    </form>
+    <div id="gfCorrectionRows" style="margin-top:12px"></div>
+  </section>
 </main>
 <script src="/static/js/group_figures.js?v=1" defer></script>
 {% endblock %}

@@ -333,3 +333,139 @@ def test_the_cadence_setting_decides_which_tenants_are_due(world):
     fresh = (datetime.now(timezone.utc) - timedelta(hours=1)).replace(tzinfo=None).isoformat()
     _snapshot(db, child, "cc.open_breaches", 1, module="sentinel", as_of=fresh)
     assert gf._due(db, child, 24) is False and gf._due(db, child, 1) is True and gf._due(db, other, 24) is True
+
+
+# ── reconciliation and lineage ──────────────────────────────────────────────
+
+def test_a_figure_that_changes_between_two_reads_is_published_as_unavailable_never_as_a_number(world, monkeypatch):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    real = gf._build
+    calls = {"n": 0}
+
+    def flaky(org_id, slug):
+        calls["n"] += 1
+        rows = real(org_id, slug)
+        if calls["n"] == 2 and "cc.open_breaches" in rows:  # the second read disagrees
+            rows["cc.open_breaches"] = {**rows["cc.open_breaches"], "value": 99.0}
+        return rows
+    monkeypatch.setattr(gf, "_build", flaky)
+    gf.publish_tenant(child, "fig_child")
+    row = db.execute("SELECT state, value FROM group_figure_snapshots WHERE source_org_id=%s AND measure_key='cc.open_breaches'",
+                     (child,)).fetchone()
+    assert (row["state"], row["value"]) == ("unavailable", None)
+    lineage = db.execute("SELECT reconciliation, reason FROM group_figure_lineage WHERE source_org_id=%s "
+                         "AND measure_key='cc.open_breaches'", (child,)).fetchone()
+    assert lineage["reconciliation"] == "failed" and "changed" in lineage["reason"]
+    others = db.execute("SELECT DISTINCT reconciliation FROM group_figure_lineage WHERE source_org_id=%s "
+                        "AND measure_key<>'cc.open_breaches'", (child,)).fetchall()
+    assert [r["reconciliation"] for r in others] == ["ok"]
+
+
+def test_impossible_figures_do_not_reconcile():
+    base = {"measure_key": "cc.open_breaches", "state": "measured", "value": 3.0}
+    assert gf.reconcile(base, dict(base)) == ""
+    assert gf.reconcile({**base, "value": -1.0}, {**base, "value": -1.0})
+    assert gf.reconcile({**base, "value": float("nan")}, {**base, "value": float("nan")})
+    assert gf.reconcile({**base, "measure_key": "cc.module_health:aria", "value": 140.0},
+                        {**base, "measure_key": "cc.module_health:aria", "value": 140.0})
+    assert gf.reconcile(base, None)
+    assert gf.reconcile({**base, "state": "measured", "value": None}, {**base, "value": None})
+
+
+def test_every_published_figure_has_lineage_that_only_its_own_organization_holds(world):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    written = gf.publish_tenant(child, "fig_child")
+    lineage = db.execute("SELECT run_id, definition_text, reconciliation, snapshot_id FROM group_figure_lineage "
+                         "WHERE source_org_id=%s", (child,)).fetchall()
+    assert len(lineage) == written and len({r["run_id"] for r in lineage}) == 1
+    assert all(r["definition_text"] and r["reconciliation"] == "ok" and r["snapshot_id"] for r in lineage)
+    # the view never returns lineage, only the figure
+    _grant(db, relation, parent, child, users["grc"])
+    figure = gf.view(db, users["grc"], "subsidiary", child)["entities"][0]["figures"][0]
+    assert "definition_text" not in json.dumps(figure) and "run_id" not in figure
+
+
+# ── restatement ─────────────────────────────────────────────────────────────
+
+def _restate_world(world):
+    db, parent, child, other, sibling, relation, relation_other, users = world
+    proposer = _actor(db, child, "fig_child_proposer", "grc_officer")
+    reviewer = _actor(db, child, "fig_child_reviewer", "compliance_manager")
+    _grant(db, relation, parent, child, users["grc"])
+    original = _snapshot(db, child, "cc.open_breaches", 5, module="sentinel")
+    return db, parent, child, relation, users, proposer, reviewer, original
+
+
+def test_a_correction_needs_a_second_person_and_publishes_a_new_snapshot_that_points_at_the_original(world):
+    db, parent, child, relation, users, proposer, reviewer, original = _restate_world(world)
+    rid = gf.propose_restatement(db, proposer, "cc.open_breaches", 3, "Two duplicate breach records were merged", "2026-10")
+    db.commit()
+    with pytest.raises(HTTPException) as same:
+        gf.review_restatement(db, proposer, rid, "approved", "I agree with myself entirely")
+    assert same.value.status_code == 403 or same.value.status_code == 409
+    with pytest.raises(HTTPException) as same_person:
+        gf.review_restatement(db, {**proposer, "roles": ["compliance_manager"]}, rid, "approved", "I agree with myself entirely")
+    assert same_person.value.status_code == 409
+    done = gf.review_restatement(db, reviewer, rid, "approved", "Checked against the breach register")
+    db.commit()
+    assert done["status"] == "approved" and done["replacement_snapshot_id"] > original
+    old = db.execute("SELECT value FROM group_figure_snapshots WHERE id=%s", (original,)).fetchone()
+    assert old["value"] == 5.0, "the original is never edited"
+    figure = gf.view(db, users["grc"], "subsidiary", child)["entities"][0]["figures"][0]
+    assert (figure["value"], figure["restated"], figure["previous"]) == (3.0, True, 5.0)
+    assert figure["restatement_reason"] == "Two duplicate breach records were merged"
+    row = db.execute("SELECT restates_snapshot_id, publication_version FROM group_figure_snapshots WHERE id=%s",
+                     (done["replacement_snapshot_id"],)).fetchone()
+    assert row["restates_snapshot_id"] == original and row["publication_version"] == 2
+
+
+def test_a_rejected_correction_changes_nothing_and_a_pending_one_blocks_another(world):
+    db, parent, child, relation, users, proposer, reviewer, original = _restate_world(world)
+    rid = gf.propose_restatement(db, proposer, "cc.open_breaches", 1, "Believed to be too high at the time", "")
+    db.commit()
+    with pytest.raises(HTTPException) as pending:
+        gf.propose_restatement(db, proposer, "cc.open_breaches", 2, "Another reason entirely, recorded", "")
+    assert pending.value.status_code == 409
+    assert gf.review_restatement(db, reviewer, rid, "rejected", "The register does not support it")["status"] == "rejected"
+    db.commit()
+    figure = gf.view(db, users["grc"], "subsidiary", child)["entities"][0]["figures"][0]
+    assert (figure["value"], figure["restated"]) == (5.0, False)
+    with pytest.raises(HTTPException) as again:
+        gf.review_restatement(db, reviewer, rid, "approved", "Deciding twice should not work")
+    assert again.value.status_code == 404
+
+
+def test_corrections_must_be_possible_and_belong_to_the_proposers_own_figures(world):
+    db, parent, child, relation, users, proposer, reviewer, original = _restate_world(world)
+    for bad in (-1, float("nan"), "3", True, None):
+        with pytest.raises(HTTPException) as impossible:
+            gf.propose_restatement(db, proposer, "cc.open_breaches", bad, "A sufficiently long reason", "")
+        assert impossible.value.status_code == 422
+    with pytest.raises(HTTPException):
+        gf.propose_restatement(db, proposer, "cc.module_health:aria", 150, "A sufficiently long reason", "")
+    with pytest.raises(HTTPException):
+        gf.propose_restatement(db, proposer, "cc.open_breaches", 2, "short", "")
+    with pytest.raises(HTTPException):
+        gf.propose_restatement(db, proposer, "cc.not_a_figure", 2, "A sufficiently long reason", "")
+    parent_proposer = _actor(db, parent, "fig_parent_proposer", "grc_officer")
+    with pytest.raises(HTTPException) as none:
+        gf.propose_restatement(db, parent_proposer, "cc.open_breaches", 2, "A sufficiently long reason", "")
+    assert none.value.status_code == 404, "the parent has published nothing to correct and cannot correct the child's figure"
+
+
+def test_only_the_source_sees_or_reviews_its_corrections_and_roles_are_limited(world):
+    db, parent, child, relation, users, proposer, reviewer, original = _restate_world(world)
+    rid = gf.propose_restatement(db, proposer, "cc.open_breaches", 4, "Reclassified after the review", "")
+    db.commit()
+    assert [r["id"] for r in gf.list_restatements(db, reviewer)] == [rid]
+    assert gf.list_restatements(db, reviewer)[0]["can_review"] is True
+    assert gf.list_restatements(db, proposer)[0]["can_review"] is False
+    assert gf.list_restatements(db, users["sibling_grc"]) == []
+    assert gf.list_restatements(db, users["grc"]) == [], "the parent never lists a child's corrections"
+    with pytest.raises(HTTPException) as outsider:
+        gf.review_restatement(db, {**users["grc"], "roles": ["compliance_manager"]}, rid, "approved", "Not my figure at all")
+    assert outsider.value.status_code == 404
+    for who in ("employee",):
+        with pytest.raises(HTTPException) as denied:
+            gf.propose_restatement(db, users[who], "cc.open_breaches", 4, "A sufficiently long reason", "")
+        assert denied.value.status_code == 403

@@ -137,6 +137,49 @@ async def api_group_figures(request: Request):
     return response
 
 
+@router.get("/api/group/figures/restatements")
+@require_auth
+async def api_group_figure_restatements(request: Request):
+    from modules.governance import group_figures
+    db = get_db()
+    try:
+        response = JSONResponse({"items": group_figures.list_restatements(db, request.state.user)})
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/figures/restatements", status_code=201)
+@require_auth
+async def api_group_figure_restatement_propose(request: Request):
+    from modules.governance import group_figures
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        new_id = group_figures.propose_restatement(db, request.state.user, body.get("measure_key"),
+                                                   body.get("new_value"), body.get("reason"), body.get("period") or "")
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.post("/api/group/figures/restatements/{restatement_id}/review")
+@require_auth
+async def api_group_figure_restatement_review(request: Request, restatement_id: int):
+    from modules.governance import group_figures
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        result = group_figures.review_restatement(db, request.state.user, restatement_id,
+                                                  body.get("decision"), body.get("reason"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(result)
+
+
 @router.post("/api/group/figures/publish")
 @require_auth
 async def api_group_figures_publish(request: Request):

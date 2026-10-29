@@ -8,7 +8,9 @@ reporting** and never counts as zero.
 import hashlib
 import json
 import logging
+import math
 import re
+import uuid
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException
@@ -140,8 +142,7 @@ def _hash(source_org_id: int, row: dict, as_of: str, version: int) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def collect(org_id: int, slug: str) -> "list[dict]":
-    """The publishable figures of one tenant, built inside that tenant for the whole organization."""
+def _build(org_id: int, slug: str):
     from core.auth import licensed_modules_for
     from modules.launcher import command_metrics
     actor = {"id": 0, "org_id": org_id, "is_super_admin": True, "roles": ["super_admin"], "business_unit_id": None}
@@ -152,23 +153,65 @@ def collect(org_id: int, slug: str) -> "list[dict]":
             licensed = licensed_modules_for(db, org_id)
         finally:
             db.close()
-    metrics = list(built["metrics"].values()) + list(built["health"])
-    rows = []
-    for metric in metrics:
+    rows = {}
+    for metric in list(built["metrics"].values()) + list(built["health"]):
         row = sanitize(metric)
         if row is None:
             continue
         # A module the organization is not licensed for contributes nothing, not a row of zeros.
         if licensed is not None and row["module"] and row["module"] not in licensed:
             continue
-        rows.append(row)
+        rows[row["measure_key"]] = row
     return rows
+
+
+def reconcile(row: dict, again: "dict | None") -> str:
+    """'' when the figure reconciles, otherwise the reason it does not. A figure is only published as a number when
+    two independent builds in the tenant agree and the number is possible for what it measures."""
+    if again is None:
+        return "the figure could not be read a second time"
+    if row["state"] != again["state"] or row["value"] != again["value"]:
+        return "the figure changed between two reads"
+    value = row["value"]
+    if row["state"] in ("measured", "partial", "stale"):
+        if value is None or not math.isfinite(value):
+            return "the figure has no valid number"
+        if value < 0:
+            return "a count or share cannot be negative"
+        if _base(row["measure_key"]) == "cc.module_health" and value > 100:
+            return "a share cannot exceed 100 percent"
+    return ""
+
+
+def collect_with_lineage(org_id: int, slug: str) -> "tuple[list[dict], list[dict]]":
+    """(figures to publish, how each was made). A figure that does not reconcile is published as unavailable, never as
+    the last value relabelled as current."""
+    first, second = _build(org_id, slug), _build(org_id, slug)
+    rows, lineage = [], []
+    for key, row in first.items():
+        reason = reconcile(row, second.get(key))
+        definition = registry.REGISTRY[_base(key)]
+        if reason:
+            row = {**row, "state": "unavailable", "value": None, "detail": {}}
+        rows.append(row)
+        lineage.append({"measure_key": key, "state": row["state"], "value": row["value"],
+                        "definition": definition.definition, "eligibility": definition.eligibility,
+                        "denominator": definition.denominator, "window": definition.window,
+                        "reconciliation": "failed" if reason else "ok", "reason": reason})
+    return rows, lineage
+
+
+def collect(org_id: int, slug: str) -> "list[dict]":
+    """The publishable figures of one tenant, built inside that tenant for the whole organization."""
+    return collect_with_lineage(org_id, slug)[0]
 
 
 def publish_tenant(org_id: int, slug: str) -> int:
     """Freeze the tenant's current figures. Returns how many rows were written."""
-    rows = collect(org_id, slug)
+    rows, lineage = collect_with_lineage(org_id, slug)
+    by_key = {entry["measure_key"]: entry for entry in lineage}
     as_of = _now().isoformat()
+    run_id = uuid.uuid4().hex
     db = get_db_bypass_rls()
     try:
         allowed = approved_for_child(db, org_id)
@@ -187,6 +230,17 @@ def publish_tenant(org_id: int, slug: str) -> int:
                 (org_id, row["measure_key"], row["module"], row["state"], row["value"], row["window"],
                  json.dumps(row["detail"], sort_keys=True), METHOD_VERSION, as_of, version,
                  _hash(org_id, row, as_of, version)))
+            entry = by_key[row["measure_key"]]
+            snapshot_id = db.execute(
+                f"SELECT MAX(id) AS i FROM {_table('group_figure_snapshots')} WHERE source_org_id=%s AND measure_key=%s",
+                (org_id, row["measure_key"])).fetchone()["i"]
+            db.execute(
+                f"INSERT INTO {_table('group_figure_lineage')} (run_id,source_org_id,measure_key,state,value,"
+                "definition_text,eligibility_text,denominator_text,window_text,reconciliation,reason,built_at,snapshot_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (run_id, org_id, row["measure_key"], row["state"], row["value"], entry["definition"],
+                 entry["eligibility"], entry["denominator"], entry["window"], entry["reconciliation"],
+                 entry["reason"], as_of, snapshot_id))
             written += 1
         db.commit()
         return written
@@ -319,6 +373,7 @@ def _figure(entry: dict) -> dict:
     return {"key": row["measure_key"], "label": definition.label if definition else row["measure_key"],
             "module": row["module"], "state": row["state"], "value": row["value"], "window": row["window_text"],
             "as_of": row["as_of"], "method": row["method_version"], "previous": entry["previous"],
+            "restated": bool(row.get("restates_snapshot_id")), "restatement_reason": row.get("restatement_reason"),
             "detail": detail, "additive": bool(definition and definition.denominator is None
                                                 and not row["measure_key"].startswith("cc.module_health"))}
 
@@ -331,6 +386,104 @@ def _entity(db, org_id: int, name: str, families, approved=None) -> dict:
     figures = [_figure(v) for v in latest.values()] if reporting else []
     return {"org_id": org_id, "name": name, "state": "reporting" if reporting else "not_reporting",
             "last_reported": last, "figures": figures}
+
+
+# ── correcting a published figure ───────────────────────────────────────────
+
+def _possible(key: str, value) -> None:
+    if not _num(value) or not math.isfinite(value) or value < 0:
+        raise HTTPException(422, "Enter a number that is possible for this figure")
+    if _base(key) == "cc.module_health" and value > 100:
+        raise HTTPException(422, "A share cannot exceed 100 percent")
+
+
+def propose_restatement(db, actor: dict, measure_key: str, new_value, reason: str, period: str = "") -> int:
+    """The source organization proposes a corrected value for its own latest published figure."""
+    if not actor.get("org_id") or not has_capability(actor, "group.figure.restate"):
+        raise HTTPException(403, "Figure correction access required")
+    if not isinstance(measure_key, str) or _base(measure_key) not in registry.REGISTRY:
+        raise HTTPException(422, "Choose a published figure")
+    _possible(measure_key, new_value)
+    if not isinstance(reason, str) or not 10 <= len(reason.strip()) <= 500:
+        raise HTTPException(422, "Record the reason for the correction")
+    if not isinstance(period, str) or len(period) > 80:
+        raise HTTPException(422, "Describe the period briefly")
+    latest = db.execute(
+        f"SELECT id, value FROM {_table('group_figure_snapshots')} WHERE source_org_id=%s AND measure_key=%s "
+        "ORDER BY id DESC LIMIT 1", (actor["org_id"], measure_key)).fetchone()
+    if not latest:
+        raise HTTPException(404, "No published figure to correct")
+    pending = db.execute(
+        f"SELECT id FROM {_table('group_figure_restatements')} WHERE source_org_id=%s AND measure_key=%s AND status='proposed'",
+        (actor["org_id"], measure_key)).fetchone()
+    if pending:
+        raise HTTPException(409, "A correction for this figure is already waiting for review")
+    from database import insert_returning_id
+    return insert_returning_id(
+        db, f"INSERT INTO {_table('group_figure_restatements')} (source_org_id,measure_key,original_snapshot_id,"
+        "old_value,new_value,period_text,reason,proposed_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        (actor["org_id"], measure_key, latest["id"], latest["value"], float(new_value), period.strip(),
+         reason.strip(), actor["id"]))
+
+
+def list_restatements(db, actor: dict) -> "list[dict]":
+    if not actor.get("org_id") or not (has_capability(actor, "group.figure.restate")
+                                       or has_capability(actor, "group.figure.restate_review")):
+        raise HTTPException(403, "Figure correction access required")
+    rows = db.execute(
+        f"SELECT id,measure_key,old_value,new_value,period_text,reason,status,proposed_by,reviewed_at,review_reason "
+        f"FROM {_table('group_figure_restatements')} WHERE source_org_id=%s ORDER BY id DESC LIMIT 100",
+        (actor["org_id"],)).fetchall()
+    out = []
+    for row in rows:
+        item = dict(row)
+        definition = registry.REGISTRY.get(_base(item["measure_key"]))
+        item["label"] = definition.label if definition else item["measure_key"]
+        item["can_review"] = (item["status"] == "proposed" and item.pop("proposed_by") != actor["id"]
+                              and has_capability(actor, "group.figure.restate_review"))
+        item.pop("proposed_by", None)
+        out.append(item)
+    return out
+
+
+def review_restatement(db, actor: dict, restatement_id: int, decision: str, reason: str) -> dict:
+    """A different person decides. Approval publishes a new snapshot that points at the original; nothing is edited."""
+    if not actor.get("org_id") or not has_capability(actor, "group.figure.restate_review"):
+        raise HTTPException(403, "Figure correction review required")
+    if decision not in ("approved", "rejected") or not isinstance(reason, str) or not 10 <= len(reason.strip()) <= 500:
+        raise HTTPException(422, "Choose a decision and record the reason")
+    row = db.execute(f"SELECT * FROM {_table('group_figure_restatements')} WHERE id=%s AND source_org_id=%s",
+                     (restatement_id, actor["org_id"])).fetchone()
+    if not row or row["status"] != "proposed":
+        raise HTTPException(404, "Correction not found")
+    if row["proposed_by"] == actor["id"]:
+        raise HTTPException(409, "A different person must review this correction")
+    now = _now().isoformat()
+    replacement = None
+    if decision == "approved":
+        original = db.execute(f"SELECT * FROM {_table('group_figure_snapshots')} WHERE id=%s AND source_org_id=%s",
+                              (row["original_snapshot_id"], actor["org_id"])).fetchone()
+        newest = db.execute(
+            f"SELECT MAX(publication_version) AS v FROM {_table('group_figure_snapshots')} "
+            "WHERE source_org_id=%s AND measure_key=%s", (actor["org_id"], row["measure_key"])).fetchone()
+        version = int(newest["v"] or 0) + 1
+        corrected = {"measure_key": row["measure_key"], "state": "measured", "value": float(row["new_value"]),
+                     "window": original["window_text"] or "", "detail": {}}
+        db.execute(
+            f"INSERT INTO {_table('group_figure_snapshots')} (source_org_id,measure_key,module,state,value,window_text,"
+            "detail_json,method_version,as_of,publication_version,content_hash,restates_snapshot_id,restatement_reason) "
+            "VALUES (%s,%s,%s,'measured',%s,%s,'{}',%s,%s,%s,%s,%s,%s)",
+            (actor["org_id"], row["measure_key"], original["module"], corrected["value"], corrected["window"],
+             original["method_version"], now, version, _hash(actor["org_id"], corrected, now, version),
+             row["original_snapshot_id"], row["reason"]))
+        replacement = db.execute(
+            f"SELECT MAX(id) AS i FROM {_table('group_figure_snapshots')} WHERE source_org_id=%s AND measure_key=%s",
+            (actor["org_id"], row["measure_key"])).fetchone()["i"]
+    db.execute(
+        f"UPDATE {_table('group_figure_restatements')} SET status=%s,reviewed_by=%s,review_reason=%s,reviewed_at=%s,"
+        "replacement_snapshot_id=%s WHERE id=%s AND status='proposed'",
+        (decision, actor["id"], reason.strip(), now, replacement, restatement_id))
+    return {"id": restatement_id, "status": decision, "replacement_snapshot_id": replacement}
 
 
 def _log(db, actor: dict, relationship_id: int, source_org_id: int, action: str) -> None:
@@ -348,7 +501,9 @@ def views(db, actor: dict) -> dict:
     children = _children(db, actor)
     return {"own": {"org_id": org["id"], "name": org["name"]},
             "subsidiaries": [{"org_id": c["org_id"], "name": c["name"]} for c in children],
-            "group": bool(children)}
+            "group": bool(children),
+            "can_restate": has_capability(actor, "group.figure.restate"),
+            "can_review_restatement": has_capability(actor, "group.figure.restate_review")}
 
 
 def view(db, actor: dict, which: str, org_id: "int | None" = None) -> dict:

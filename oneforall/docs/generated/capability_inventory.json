@@ -1,5 +1,5 @@
 {
-  "route_count": 1244,
+  "route_count": 1247,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -15734,6 +15734,48 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_figures_publish",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/figures/restatements",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_figure_restatements",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/figures/restatements",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_figure_restatement_propose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/figures/restatements/{restatement_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_figure_restatement_review",
       "maturity": "",
       "notes": ""
     },
