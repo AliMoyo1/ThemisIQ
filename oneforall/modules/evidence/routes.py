@@ -828,6 +828,15 @@ async def api_group_request_fulfill(request: Request, request_id: int):
     return JSONResponse({"status": "fulfilled"})
 
 
+@router.post("/api/group/requests/{request_id}/verdict")
+@require_auth
+async def api_group_request_verdict(request: Request, request_id: int):
+    body = await _group_body(request)
+    outcome = _group_operation(lambda db: group_requests.review_release(
+        db, request.state.user, request_id, body.get("outcome"), body.get("reason")))
+    return JSONResponse({"status": outcome})
+
+
 def _group_operation(work):
     db = get_db()
     try:

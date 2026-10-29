@@ -853,6 +853,22 @@ CREATE TABLE IF NOT EXISTS group_evidence_requests (
 CREATE INDEX IF NOT EXISTS idx_group_requests_source ON group_evidence_requests(source_org_id,status,id);
 CREATE INDEX IF NOT EXISTS idx_group_requests_requester ON group_evidence_requests(requester_org_id,requested_by,id);
 
+-- The requesting tenant judges the exact release against its own claim.
+-- Returning proof does not edit a source-tenant review or erase its history.
+CREATE TABLE IF NOT EXISTS group_request_verdicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id INTEGER NOT NULL REFERENCES group_evidence_requests(id),
+    requester_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    publication_id INTEGER NOT NULL REFERENCES group_document_publications(id),
+    outcome TEXT NOT NULL CHECK(outcome IN ('accepted','returned')),
+    reason TEXT NOT NULL,
+    reviewed_by INTEGER NOT NULL,
+    reviewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(request_id,publication_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_request_verdicts_request
+    ON group_request_verdicts(request_id,requester_org_id,id);
+
 -- A subsidiary's independent decision about an exact published parent policy.
 -- A new publication/version needs a new local review; it cannot inherit this one.
 CREATE TABLE IF NOT EXISTS group_policy_adoptions (

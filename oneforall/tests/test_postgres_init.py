@@ -2082,9 +2082,11 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
             (publication_id, child, parent)).fetchone()["id"]
         request_id = setup.execute(
             "INSERT INTO public.group_evidence_requests "
-            "(relationship_id,requester_org_id,source_org_id,requested_by,requirement_ref,purpose,needed_by) "
-            "VALUES (%s,%s,%s,1,'Parent control','Need scoped proof','2099-01-01') RETURNING id",
-            (relation, parent, child)).fetchone()["id"]
+            "(relationship_id,requester_org_id,source_org_id,requested_by,requirement_ref,purpose,"
+            "needed_by,status,publication_id) "
+            "VALUES (%s,%s,%s,1,'Parent control','Need scoped proof','2099-01-01',"
+            "'fulfilled',%s) RETURNING id",
+            (relation, parent, child, publication_id)).fetchone()["id"]
         setup.execute(
             "INSERT INTO public.group_request_mappings "
             "(request_id,source_org_id,module,entity_type,entity_id,mapped_by) "
@@ -2098,6 +2100,18 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
         setup.commit()
     finally:
         setup.close()
+    with pg.tenant_context(parent, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            verdict_id = conn.execute(
+                "INSERT INTO public.group_request_verdicts "
+                "(request_id,requester_org_id,publication_id,outcome,reason,reviewed_by) "
+                "VALUES (%s,%s,%s,'returned','Different period needed',1) RETURNING id",
+                (request_id, parent, publication_id)).fetchone()["id"]
+            conn.commit()
+        finally:
+            _release_role(conn)
     for org, visible_edge, visible_rights in ((parent, True, False), (child, True, True),
                                                (sibling, False, False)):
         with pg.tenant_context(org, "public", is_super_admin=False):
@@ -2109,6 +2123,8 @@ def test_group_registry_rls_masks_sibling_and_viewer_writes_on_real_postgres(pg)
                 assert bool(conn.execute("SELECT id FROM public.group_document_rights").fetchone()) is visible_rights
                 assert bool(conn.execute("SELECT id FROM public.group_evidence_requests WHERE id=%s",
                                          (request_id,)).fetchone()) is visible_edge
+                assert bool(conn.execute("SELECT id FROM public.group_request_verdicts WHERE id=%s",
+                                         (verdict_id,)).fetchone()) is visible_edge
                 assert bool(conn.execute("SELECT request_id FROM public.group_request_mappings WHERE request_id=%s",
                                          (request_id,)).fetchone()) is (org == child)
                 assert bool(conn.execute("SELECT id FROM public.group_policy_adoptions WHERE id=%s",

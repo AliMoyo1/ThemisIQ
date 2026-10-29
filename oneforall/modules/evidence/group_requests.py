@@ -58,6 +58,14 @@ def _event(db, row, actor, action):
                 actor["id"], action, str(row["id"])))
 
 
+def _verdict(db, row):
+    if not row["publication_id"]:
+        return None
+    return db.execute(f"SELECT outcome,reason,reviewed_by,reviewed_at FROM {_table('group_request_verdicts')} "
+                      "WHERE request_id=%s AND requester_org_id=%s AND publication_id=%s",
+                      (row["id"], row["requester_org_id"], row["publication_id"])).fetchone()
+
+
 def create_request(db, actor, relation_id, requirement_ref, purpose, needed_by,
                    period_start=None, period_end=None):
     if not has_capability(actor, "group.request.create"):
@@ -115,6 +123,17 @@ def list_requests(db, actor, *, page=1):
         item["can_map"] = item["is_source"] and has_capability(actor, "group.request.review")
         item["can_fulfill"] = item["is_source"] and has_capability(actor, "group.request.fulfill")
         item["can_revise"] = row["requested_by"] == actor["id"] and item["status"] == "clarification"
+        verdict = _verdict(db, row)
+        item["verdict"] = verdict["outcome"] if verdict else None
+        # A returned release needs an actionable explanation for the source
+        # team. Accepted-claim reasoning belongs to the requesting tenant.
+        item["verdict_reason"] = (verdict["reason"] if verdict and
+            (not item["is_source"] or verdict["outcome"] == "returned") else None)
+        item["can_review_verdict"] = (not item["is_source"] and parent and
+            row["requested_by"] != actor["id"] and row["status"] == "fulfilled" and not verdict)
+        item["can_refulfill"] = bool(item["is_source"] and item["status"] == "fulfilled" and
+                                      verdict and verdict["outcome"] == "returned" and
+                                      has_capability(actor, "group.request.fulfill"))
         item["released_publication_id"] = None
         if publication_id and not item["is_source"]:
             try:
@@ -205,7 +224,8 @@ def release_candidates(db, actor, request_id):
     if not has_capability(actor, "group.request.fulfill"):
         raise HTTPException(403, "Source fulfillment required")
     row = _request(db, actor, request_id, source=True)
-    if row["status"] != "approved":
+    if row["status"] != "approved" and not (row["status"] == "fulfilled" and
+            (verdict := _verdict(db, row)) and verdict["outcome"] == "returned"):
         raise HTTPException(409, "Request is not approved for fulfillment")
     scope, params = evidence_scope_sql({**actor, "is_super_admin": False})
     rows = db.execute(
@@ -214,9 +234,11 @@ def release_candidates(db, actor, request_id):
         "AND e.file_hash=p.file_hash AND e.status='current' "
         "WHERE p.relationship_id=%s AND p.source_org_id=%s AND p.viewer_org_id=%s "
         f"AND p.revoked_at IS NULL AND p.expires_at>%s AND {scope} "
+        f"AND NOT EXISTS (SELECT 1 FROM {_table('group_request_verdicts')} v "
+        "WHERE v.request_id=%s AND v.publication_id=p.id) "
         "ORDER BY p.id DESC LIMIT 100",
         [row["relationship_id"], actor["org_id"], row["requester_org_id"],
-         utcnow().isoformat(), *params]).fetchall()
+         utcnow().isoformat(), *params, request_id]).fetchall()
     return [dict(item) for item in rows]
 
 
@@ -224,8 +246,15 @@ def fulfill_request(db, actor, request_id, publication_id):
     if not has_capability(actor, "group.request.fulfill"):
         raise HTTPException(403, "Source fulfillment required")
     row = _request(db, actor, request_id, source=True)
-    if row["status"] != "approved" or row["reviewed_by"] == actor["id"]:
+    returned = row["status"] == "fulfilled" and (verdict := _verdict(db, row)) and verdict["outcome"] == "returned"
+    if (row["status"] != "approved" and not returned) or row["reviewed_by"] == actor["id"]:
         raise HTTPException(409, "A different authorized fulfiller is required")
+    if returned and publication_id == row["publication_id"]:
+        raise HTTPException(409, "Choose a different released version after a return")
+    if db.execute(f"SELECT id FROM {_table('group_request_verdicts')} "
+                  "WHERE request_id=%s AND publication_id=%s",
+                  (request_id, publication_id)).fetchone():
+        raise HTTPException(409, "This release was already reviewed for this request")
     group_documents._assert_edge(db, group_documents._relationship(db, row["relationship_id"]))
     publication = db.execute(
         f"SELECT * FROM {_table('group_document_publications')} "
@@ -257,7 +286,38 @@ def fulfill_request(db, actor, request_id, publication_id):
             raise HTTPException(409, "Grant the named requester access to this release first") from None
         finally:
             target_db.close()
-    db.execute(f"UPDATE {_table('group_evidence_requests')} SET status='fulfilled',publication_id=%s,"
-               "fulfilled_by=%s,fulfilled_at=%s WHERE id=%s AND source_org_id=%s AND status='approved'",
-               (publication_id, actor["id"], utcnow().isoformat(), request_id, actor["org_id"]))
-    _event(db, row, actor, "request_fulfilled")
+    changed = db.execute(f"UPDATE {_table('group_evidence_requests')} SET status='fulfilled',publication_id=%s,"
+               "fulfilled_by=%s,fulfilled_at=%s WHERE id=%s AND source_org_id=%s "
+               "AND ((status='approved' AND publication_id IS NULL) OR "
+               f"(status='fulfilled' AND publication_id=%s AND EXISTS "
+               f"(SELECT 1 FROM {_table('group_request_verdicts')} v WHERE v.request_id=%s "
+               "AND v.publication_id=%s AND v.outcome='returned')))",
+               (publication_id, actor["id"], utcnow().isoformat(), request_id,
+                actor["org_id"], row["publication_id"], request_id, row["publication_id"]))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "The request changed; review it again")
+    _event(db, row, actor, "request_refulfilled" if returned else "request_fulfilled")
+
+
+def review_release(db, actor, request_id, outcome, reason):
+    """Independent decision on this exact published version for the parent's claim."""
+    if not has_capability(actor, "group.request.manage"):
+        raise HTTPException(403, "Independent parent review required")
+    row = _request(db, actor, request_id)
+    if row["status"] != "fulfilled" or not row["publication_id"]:
+        raise HTTPException(409, "Request has no released proof to review")
+    if row["requested_by"] == actor["id"]:
+        raise HTTPException(409, "A different specialist must review the proof")
+    if outcome not in ("accepted", "returned"):
+        raise HTTPException(422, "Choose accepted or returned")
+    if _verdict(db, row):
+        raise HTTPException(409, "This exact release already has a verdict")
+    if outcome == "accepted":
+        group_documents.released_item(db, actor, row["publication_id"])
+    explanation = _required(reason, "verdict explanation", 500)
+    insert_returning_id(db, f"INSERT INTO {_table('group_request_verdicts')} "
+        "(request_id,requester_org_id,publication_id,outcome,reason,reviewed_by) "
+        "VALUES (%s,%s,%s,%s,%s,%s)",
+        (request_id, actor["org_id"], row["publication_id"], outcome, explanation, actor["id"]))
+    _event(db, row, actor, "request_proof_" + outcome)
+    return outcome

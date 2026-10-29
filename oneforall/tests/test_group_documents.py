@@ -299,6 +299,66 @@ def test_requirement_request_never_names_source_record_to_parent(group_world):
     assert all("SOURCE-DOC-1" not in event["detail"] for event in events)
 
 
+def test_parent_verdict_is_independent_version_bound_and_return_allows_new_release(group_world):
+    db, parent, child, _, users, evidence = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation,
+        "Parent requirement 4", "Need an independently reviewed report", _future(14))
+    source_doc = _id(db, "aria_documents", doc_id="SOURCE-ONLY-2", framework="ISO 27001",
+                     title="Source mapping", org_id=child)
+    requests.map_request(db, users["legal"], request_id, "aria", "document", source_doc)
+    requests.review_request(db, users["legal"], request_id, "approved", "Source record checked")
+    group.reviewed_rights(db, users["privacy"], evidence, "owned", True, False, "Owned report")
+    first = group.publish(db, users["publisher"], relation, evidence,
+                          "internal", "Group governance", _future(20))
+    group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                     "document.view", _future(25), _future(7))
+    db.commit()
+    requests.fulfill_request(db, users["publisher"], request_id, first)
+    db.commit()
+
+    with pytest.raises(HTTPException) as self_review:
+        requests.review_release(db, users["viewer"], request_id, "accepted", "Looks sufficient")
+    assert self_review.value.status_code == 409
+    with pytest.raises(HTTPException) as hidden:
+        requests.review_release(db, users["sibling"], request_id, "returned", "Wrong period")
+    assert hidden.value.status_code == 404
+    requests.review_release(db, users["ungranted"], request_id, "returned", "The period is missing")
+    db.commit()
+    assert requests.list_requests(db, users["publisher"])["items"][0]["verdict"] == "returned"
+    assert requests.list_requests(db, users["publisher"])["items"][0]["verdict_reason"] == "The period is missing"
+    assert requests.list_requests(db, users["publisher"])["items"][0]["can_refulfill"]
+    with pytest.raises(HTTPException) as same_version:
+        requests.fulfill_request(db, users["publisher"], request_id, first)
+    assert same_version.value.status_code == 409
+
+    replacement = _id(db, "evidence_items", title="Corrected period report", category="report",
+                      org_id=child, status="current", version=2, file_hash="different-hash")
+    group.reviewed_rights(db, users["privacy"], replacement, "owned", True, False,
+                          "Corrected owned report")
+    second = group.publish(db, users["publisher"], relation, replacement,
+                           "internal", "Group governance", _future(20))
+    db.commit()
+    assert {row["id"] for row in requests.release_candidates(db, users["publisher"], request_id)} == {second}
+    requests.fulfill_request(db, users["publisher"], request_id, second)
+    db.commit()
+    with pytest.raises(HTTPException) as no_grant:
+        requests.review_release(db, users["ungranted"], request_id, "accepted", "Now sufficient")
+    assert no_grant.value.status_code == 404
+    group.grant_view(db, users["parent_admin"], relation, users["ungranted"]["id"],
+                     "document.view", _future(25), _future(7))
+    db.commit()
+    requests.review_release(db, users["ungranted"], request_id, "accepted", "Now sufficient")
+    db.commit()
+    parent_row = requests.list_requests(db, users["viewer"])["items"][0]
+    assert parent_row["verdict"] == "accepted" and parent_row["released_publication_id"] == second
+    assert not parent_row["can_review_verdict"]
+    history = db.execute("SELECT publication_id,outcome FROM group_request_verdicts "
+                         "WHERE request_id=%s ORDER BY id", (request_id,)).fetchall()
+    assert [(r["publication_id"], r["outcome"]) for r in history] == [
+        (first, "returned"), (second, "accepted")]
+
+
 def test_requirement_clarification_resends_without_source_mapping(group_world):
     db, parent, child, sibling, users, _ = group_world
     relation = _activate(db, parent, child, users)

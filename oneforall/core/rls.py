@@ -118,6 +118,25 @@ _STMTS = [
     "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
     "AND status='requested')",
 
+    "ALTER TABLE public.group_request_verdicts ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_request_verdicts FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_request_verdicts_parties ON public.group_request_verdicts",
+    "CREATE POLICY group_request_verdicts_parties ON public.group_request_verdicts FOR SELECT "
+    "USING (COALESCE(current_setting('app.bypass_rls',true),'')='true' OR "
+    "EXISTS (SELECT 1 FROM public.group_evidence_requests r "
+    "WHERE r.id=request_id AND r.requester_org_id=group_request_verdicts.requester_org_id "
+    "AND (r.requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "OR r.source_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)))",
+    "DROP POLICY IF EXISTS group_request_verdicts_parent_insert ON public.group_request_verdicts",
+    "CREATE POLICY group_request_verdicts_parent_insert ON public.group_request_verdicts FOR INSERT "
+    "WITH CHECK (requester_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int "
+    "AND EXISTS (SELECT 1 FROM public.group_evidence_requests r "
+    "JOIN public.group_document_publications p ON p.id=group_request_verdicts.publication_id "
+    "WHERE r.id=request_id AND r.requester_org_id=group_request_verdicts.requester_org_id "
+    "AND r.status='fulfilled' AND r.publication_id=p.id "
+    "AND p.relationship_id=r.relationship_id AND p.viewer_org_id=r.requester_org_id "
+    "AND p.source_org_id=r.source_org_id))",
+
     "ALTER TABLE public.group_request_mappings ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_request_mappings FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_request_mappings_source ON public.group_request_mappings",

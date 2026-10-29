@@ -82,6 +82,10 @@
     card.append(node('small', row.purpose));
     card.append(node('small', `Needed by ${row.needed_by} · period ${row.period_start || 'unspecified'} to ${row.period_end || 'unspecified'}`));
     if (row.decision_reason) card.append(node('small', `Review: ${row.decision_reason}`));
+    if (row.status === 'fulfilled') {
+      card.append(node('small', row.verdict ? `Claim verdict: ${row.verdict}` : 'Claim verdict: awaiting independent review'));
+      if (row.verdict_reason) card.append(node('small', `Verdict reason: ${row.verdict_reason}`));
+    }
     if (row.is_source && row.source_mapping) {
       card.append(node('small', `Source mapping: ${row.source_mapping.module} / ${row.source_mapping.entity_type} #${row.source_mapping.entity_id}`));
     }
@@ -94,7 +98,9 @@
     if (row.can_revise) actions.append(action('Clarify and resend', 'revise'));
     if (row.can_map && row.status === 'requested') actions.append(action('Map source record', 'map'));
     if (row.can_map && row.status === 'requested') actions.append(action('Record decision', 'review'));
-    if (row.can_fulfill && row.status === 'approved') actions.append(action('Fulfill with released document', 'fulfill'));
+    if (row.can_fulfill && (row.status === 'approved' || row.can_refulfill))
+      actions.append(action(row.can_refulfill ? 'Submit a different release' : 'Fulfill with released document', 'fulfill'));
+    if (row.can_review_verdict) actions.append(action('Review released proof', 'verdict'));
     card.append(actions);
     const detail = node('div', '', 'gr-detail');
     detail.hidden = true;
@@ -108,6 +114,7 @@
       if (control.dataset.action === 'map') mapForm(row, detail);
       if (control.dataset.action === 'review') reviewForm(row, detail);
       if (control.dataset.action === 'fulfill') fulfillForm(row, detail);
+      if (control.dataset.action === 'verdict') verdictForm(row, detail);
     });
     return card;
   }
@@ -193,6 +200,24 @@
       event.preventDefault();
       save(`/evidence/api/group/requests/${row.id}/decisions`,
         {decision: select.value, reason: form.elements.reason.value}, 'Review recorded.');
+    });
+    detail.append(form);
+  }
+  function verdictForm(row, detail) {
+    const form = document.createElement('form');
+    form.className = 'gr-form';
+    const label = node('label', 'Does this exact release satisfy your requirement?', 'gr-control');
+    const select = document.createElement('select');
+    select.name = 'outcome';
+    [['accepted', 'Accept for this requirement'], ['returned', 'Return for different proof']]
+      .forEach(([key, title]) => select.append(new Option(title, key)));
+    label.append(select);
+    form.append(label, field('Verdict explanation', 'reason', '', 'textarea'),
+      formButton('Record independent verdict'));
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      save(`/evidence/api/group/requests/${row.id}/verdict`,
+        {outcome: select.value, reason: form.elements.reason.value}, 'Claim verdict recorded.');
     });
     detail.append(form);
   }
