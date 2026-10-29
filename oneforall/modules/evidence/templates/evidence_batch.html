@@ -31,7 +31,7 @@
 [data-theme="dark"] .eb-hero{background:linear-gradient(125deg,rgba(73,88,92,.9),rgba(43,56,61,.83));box-shadow:0 14px 30px rgba(0,0,0,.2)}
 </style>
 <main class="eb-page" id="evidenceBatch">
- <header class="eb-hero"><h1>Batch upload</h1><p>Stage up to 50 documents, check each title and filing scope, then upload. For a new version, search and select the exact current Vault document in the same scope. Each file is handled separately; a duplicate or failed file stays in the queue for review.</p></header>
+ <header class="eb-hero"><h1>Batch upload</h1><p>Stage up to 50 documents, check each title and filing scope, then upload. Check identical files in the chosen scope before filing. For a new version, search and select the exact current Vault document in the same scope. Each file is handled separately; a duplicate or failed file stays in the queue for review.</p></header>
  <section class="eb-panel" aria-labelledby="ebChooseHeading">
   <h2 id="ebChooseHeading">Choose files</h2>
   <p>For DOCX and PDF files, extract local, source-anchored suggestions for title, type and review date. Version, author and approver hints remain visible for comparison. Every value needs your review; a document author is not automatically its owner. Choose a scope that you are authorized to file into.</p>
@@ -46,5 +46,5 @@
   <div id="ebQueue"></div>
  </section>
 </main>
-<script src="/static/js/evidence_batch.js?v=5" defer></script>
+<script src="/static/js/evidence_batch.js?v=6" defer></script>
 {% endblock %}

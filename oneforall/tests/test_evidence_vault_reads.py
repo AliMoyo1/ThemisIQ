@@ -1,10 +1,13 @@
 """Evidence Vault read paths share one scope rule (design/evidence-vault/PHASE-1A.md, T2 to T5)."""
 import asyncio
+import hashlib
+import io
 import json
 import types
 from datetime import date, timedelta
 
 import pytest
+from starlette.datastructures import UploadFile
 
 import core.middleware as middleware
 import modules.bcm.data_service as bcm_ds
@@ -171,6 +174,33 @@ def test_batch_version_picker_bounds_search_and_results(test_db, world, auth):
     found = _get(search(_req(auth, org_user, q="Batch candidate", filing_scope="organization")))
     assert len(found["items"]) == 15
     assert all(item["title"].startswith("Batch candidate") for item in found["items"])
+
+
+def test_batch_duplicate_check_uses_exact_authorized_filing_scope(test_db, world, auth):
+    content = b"Synthetic exact Vault bytes for scope review"
+    digest = hashlib.sha256(content).hexdigest()
+    _item(test_db, "Wide copy", world.org1, file_hash=digest)
+    own = _item(test_db, "Unit A copy", world.org1, world.bu_a, file_hash=digest)
+    _item(test_db, "Unit B copy", world.org1, world.bu_b, file_hash=digest)
+    _item(test_db, "Other tenant copy", world.org2, file_hash=digest)
+    _item(test_db, "Archived copy", world.org1, world.bu_a, status="archived", file_hash=digest)
+    unit_user = {**world.users.unit_a, "roles": ["compliance_manager"]}
+    org_user = {**world.users.no_unit, "roles": ["compliance_manager"]}
+
+    def check(user, scope):
+        file = UploadFile(file=io.BytesIO(content), filename="candidate.txt")
+        return _get(ev.api_evidence_batch_duplicate_check(
+            _req(auth, user), file=file, filing_scope=scope))
+
+    result = check(unit_user, f"unit:{world.bu_a}")
+    assert result == {"items": [{"id": own, "title": "Unit A copy", "version": 1,
+                                  "status": "current"}]}
+    assert {row["title"] for row in check(org_user, "organization")["items"]} == {"Wide copy"}
+    for scope in ("organization", f"unit:{world.bu_b}"):
+        with pytest.raises(ev.HTTPException) as hidden:
+            check(unit_user, scope)
+        assert hidden.value.status_code == 404
+    assert check({**unit_user, "org_id": world.org2}, f"unit:{world.bu_a}")["items"] == []
 
 
 def test_pages_cover_every_item_exactly_once_when_timestamps_tie(test_db, world, auth):

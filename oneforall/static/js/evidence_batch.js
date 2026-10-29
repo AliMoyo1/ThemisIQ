@@ -49,6 +49,8 @@
       row.replaceId = '';
       row.replaceVerified = null;
       row.versionResults = [];
+      row.existingId = null;
+      if (row.state === 'duplicate') row.state = 'staged';
     }
     row.reviewed = false;
     refresh();
@@ -130,6 +132,34 @@
     }
     refresh();
   }
+  async function checkDuplicate(row) {
+    if (!row.scope) { row.message = 'Choose a filing scope first.'; refresh(); return; }
+    const scope = row.scope;
+    row.reviewed = false; row.existingId = null;
+    row.state = 'checking'; row.message = 'Checking identical files in this filing scope…'; refresh();
+    const body = new FormData();
+    body.append('file', row.file); body.append('filing_scope', scope);
+    try {
+      const result = await ApiClient.request('/evidence/api/batch/duplicate-check', {
+        method: 'POST', body, timeoutMs: 120000, actionId: 'evidence.batch_duplicate_check'
+      });
+      if (!rows.includes(row) || scope !== row.scope) return;
+      if (result.items?.length) {
+        row.state = 'duplicate'; row.existingId = result.items[0].id;
+        row.message = `Identical bytes already filed as ${result.items[0].title} · v${result.items[0].version} (${result.items[0].status}). Open that file for review before linking it to another claim.`;
+      } else {
+        row.state = 'staged';
+        row.message = 'No identical file found in this filing scope. Review the original before filing.';
+      }
+    } catch (error) {
+      if (!rows.includes(row) || scope !== row.scope) return;
+      row.state = 'staged';
+      row.message = error.detail || 'Duplicate check unavailable. Final upload will check again.';
+    } finally {
+      if (row.state === 'checking') row.state = 'staged';
+      refresh();
+    }
+  }
   function refresh() {
     queue.replaceChildren();
     rows.forEach((row, index) => {
@@ -209,6 +239,11 @@
         card.appendChild(link);
       }
       if (row.state !== 'uploaded' && !['extracting', 'checking', 'searching'].includes(row.state) && !busy) {
+        if (row.file.size <= 100 * 1024 * 1024) {
+          const duplicate = element('button', 'Check identical file', 'btn btn-secondary');
+          duplicate.type = 'button'; duplicate.addEventListener('click', () => checkDuplicate(row));
+          card.appendChild(duplicate);
+        }
         if (/\.(docx|pdf)$/i.test(row.file.name) && row.file.size <= 25 * 1024 * 1024 && row.state !== 'extracting') {
           const extract = element('button', 'Extract suggestions', 'btn btn-secondary');
           extract.type = 'button'; extract.addEventListener('click', () => suggest(row));
@@ -226,7 +261,7 @@
     updateSummary();
   }
   function updateSummary() {
-    const ready = rows.filter(row => row.reviewed && !['uploaded','extracting','checking','searching'].includes(row.state) &&
+    const ready = rows.filter(row => row.reviewed && !['uploaded','duplicate','extracting','checking','searching'].includes(row.state) &&
       row.file.size <= 100 * 1024 * 1024 && row.scope && row.title.trim() &&
       (row.versionMode !== 'replace' || row.replaceVerified?.id === Number(row.replaceId)));
     upload.disabled = busy || !ready.length;
@@ -257,7 +292,7 @@
     if (busy) return;
     busy = true; refresh();
     for (const row of rows) {
-      if (!row.reviewed || row.state === 'uploaded' || row.file.size > 100 * 1024 * 1024 || !row.scope || !row.title.trim() ||
+      if (!row.reviewed || ['uploaded', 'duplicate'].includes(row.state) || row.file.size > 100 * 1024 * 1024 || !row.scope || !row.title.trim() ||
           (row.versionMode === 'replace' && row.replaceVerified?.id !== Number(row.replaceId))) continue;
       row.state = 'uploading'; row.message = 'Uploading and checking…'; refresh();
       const body = new FormData();

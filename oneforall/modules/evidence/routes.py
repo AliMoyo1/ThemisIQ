@@ -501,6 +501,36 @@ async def api_evidence_batch_version_candidates(request: Request):
         db.close()
 
 
+@router.post("/api/batch/duplicate-check")
+@require_auth
+async def api_evidence_batch_duplicate_check(
+    request: Request, file: UploadFile = File(...), filing_scope: str = Form(""),
+):
+    """Advisory exact-byte check in one authorized filing scope; upload rechecks."""
+    user = request.state.user
+    if not user.get("org_id"):
+        raise HTTPException(403, "Select an organization")
+    db = get_db()
+    try:
+        unit_id = company_views.selected_unit(db, user, filing_scope.strip(), for_filing=True)
+        content = await file.read(MAX_FILE_SIZE + 1)
+        if not content or len(content) > MAX_FILE_SIZE:
+            raise HTTPException(413, "Choose a nonempty file under 100 MB")
+        digest = hashlib.sha256(content).hexdigest()
+        visible_sql, visible_params = evidence_scope_sql({**user, "is_super_admin": False})
+        unit_sql = "e.business_unit_id IS NULL" if unit_id is None else "e.business_unit_id = %s"
+        rows = db.execute(
+            "SELECT e.id,e.title,e.version,e.status FROM evidence_items e "
+            "WHERE e.org_id=%s AND " + visible_sql + " AND " + unit_sql +
+            " AND e.file_hash=%s AND e.status!='archived' "
+            "ORDER BY CASE WHEN e.status='current' THEN 0 ELSE 1 END,e.id DESC LIMIT 5",
+            [user["org_id"], *visible_params, *([unit_id] if unit_id is not None else []), digest],
+        ).fetchall()
+        return JSONResponse({"items": [dict(row) for row in rows]})
+    finally:
+        db.close()
+
+
 @router.get("/companies/", response_class=HTMLResponse)
 @require_auth
 async def evidence_companies_page(request: Request):

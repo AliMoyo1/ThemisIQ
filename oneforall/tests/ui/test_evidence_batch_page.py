@@ -42,6 +42,32 @@ def test_duplicate_in_batch_does_not_stop_later_files(login_as, live_app):
     expect(page.locator("#ebQueue .eb-state[data-state=duplicate]")).to_have_count(1)
 
 
+def test_batch_checks_identical_bytes_before_filing(login_as, live_app):
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence/batch/")
+    expect(page.locator("#ebSummary")).to_contain_text("Choose files")
+    content = b"unique synthetic bytes for reviewed duplicate preview"
+    page.locator("#ebFiles").set_input_files({
+        "name": "Source.txt", "mimeType": "text/plain", "buffer": content
+    })
+    first = page.locator("#ebQueue .eb-row").first
+    first.get_by_label("Filing scope").select_option(index=1)
+    first.get_by_label("Checked for filing").check()
+    page.locator("#ebUpload").click()
+    expect(first.locator(".eb-state[data-state=uploaded]")).to_be_visible()
+
+    page.locator("#ebFiles").set_input_files({
+        "name": "Another name.txt", "mimeType": "text/plain", "buffer": content
+    })
+    second = page.locator("#ebQueue .eb-row").last
+    second.get_by_label("Filing scope").select_option(index=1)
+    second.get_by_role("button", name="Check identical file").click()
+    expect(second.locator(".eb-state[data-state=duplicate]")).to_contain_text("Identical bytes")
+    expect(second.get_by_role("link", name="Review the existing Vault file")).to_be_visible()
+    second.get_by_label("Checked for filing").check()
+    expect(page.locator("#ebUpload")).to_be_disabled()
+
+
 def test_batch_extracts_reviewable_source_anchored_docx_suggestions(login_as, live_app):
     document = Document()
     document.core_properties.title = "Data Retention Policy"
