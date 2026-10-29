@@ -32,6 +32,18 @@
   <p id="gfStatus" class="gf-status" role="status" aria-live="polite"></p>
   <div id="gfTotals"></div>
   <div id="gfEntities"></div>
+  <section class="gf-entity" id="gfIssues" hidden>
+    <h2>Issue register</h2>
+    <small>Individual records a subsidiary has approved for its group, by reference. Only fixed fields are shown: no titles, names or descriptions leave the subsidiary.</small>
+    <form id="gfIssueForm" class="gf-form">
+      <label>Subsidiary<select name="org_id" required></select></label>
+      <label>Register<select name="issue_type" required></select></label>
+      <button class="btn btn-secondary" type="submit">Show</button>
+    </form>
+    <p id="gfIssueNote" class="gf-status" role="status" aria-live="polite"></p>
+    <div style="overflow-x:auto"><table class="gf-table" id="gfIssueTable"></table></div>
+    <div class="gf-tabs"><button class="btn btn-secondary" type="button" id="gfIssuePrev" hidden>Previous</button><button class="btn btn-secondary" type="button" id="gfIssueNext" hidden>Next</button></div>
+  </section>
   <section class="gf-entity" id="gfCorrections" hidden>
     <h2>Corrections to your published figures</h2>
     <small>A correction is proposed by one person and approved by another. Approval publishes a new figure marked as restated; the original stays on record.</small>
@@ -45,5 +57,5 @@
     <div id="gfCorrectionRows" style="margin-top:12px"></div>
   </section>
 </main>
-<script src="/static/js/group_figures.js?v=1" defer></script>
+<script src="/static/js/group_figures.js?v=3" defer></script>
 {% endblock %}

@@ -19,6 +19,8 @@ def _remove_seeded_group(live_app):
         ids = [r["id"] for r in db.execute("SELECT id FROM organizations WHERE slug LIKE 'gf_%'").fetchall()]
         for org in ids:
             db.execute("DELETE FROM group_figure_snapshots WHERE source_org_id=%s", (org,))
+            db.execute("DELETE FROM group_issue_rows WHERE source_org_id=%s", (org,))
+            db.execute("DELETE FROM group_issue_runs WHERE source_org_id=%s", (org,))
             db.execute("DELETE FROM group_access_events WHERE source_org_id=%s", (org,))
             db.execute("DELETE FROM group_view_grants WHERE source_org_id=%s", (org,))
             db.execute("DELETE FROM org_relationships WHERE child_org_id=%s", (org,))
@@ -129,3 +131,52 @@ def test_a_correction_is_proposed_by_one_person_and_the_figure_shows_as_restated
     expect(page.locator("#gfCorrectionRows")).to_contain_text("Duplicate records were merged")
     # the proposer cannot approve their own correction
     assert page.locator("#gfCorrectionRows button").count() == 0
+
+
+def _seed_issues(persona):
+    """Let the persona read the child's data subject requests: approved type, named issue grant and a published run."""
+    creds = {"dpo": "dpo", "compliance_manager": "compliance_manager"}
+    db = database.get_db()
+    try:
+        child = db.execute("SELECT id FROM organizations WHERE slug LIKE 'gf_child_%' ORDER BY id DESC LIMIT 1").fetchone()["id"]
+        rel = db.execute("SELECT id, parent_org_id FROM org_relationships WHERE child_org_id=%s", (child,)).fetchone()
+        grant = db.execute("SELECT user_id FROM group_view_grants WHERE source_org_id=%s LIMIT 1", (child,)).fetchone()
+        db.execute("UPDATE org_relationships SET terms_json=%s WHERE id=%s",
+                   (json.dumps({"figure_measures": list(gf.PUBLISHABLE), "issue_types": ["dsr"]}), rel["id"]))
+        db.execute(
+            "INSERT INTO group_view_grants (relationship_id,source_org_id,viewer_org_id,user_id,capability,expires_at,"
+            "review_due_at,granted_by) VALUES (%s,%s,%s,%s,'issue.view',%s,%s,999)",
+            (rel["id"], child, rel["parent_org_id"], grant["user_id"], _stamp(30), _stamp(7)))
+        db.execute("INSERT INTO group_issue_runs (source_org_id,issue_type,published_at,row_count,content_hash) "
+                   "VALUES (%s,'dsr',%s,2,'h')", (child, _stamp()))
+        run = db.execute("SELECT MAX(id) AS i FROM group_issue_runs").fetchone()["i"]
+        for ref, kind in (("DSR-2026-001", "Erasure Request"), ("DSR-2026-002", "Access Request")):
+            db.execute("INSERT INTO group_issue_rows (run_id,source_org_id,issue_type,ref_number,fields_json) "
+                       "VALUES (%s,%s,'dsr',%s,%s)",
+                       (run, child, ref, json.dumps({"request_type": kind, "status": "open", "deadline_date": "2026-11-01"})))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_the_dpo_reads_a_subsidiarys_approved_register_by_reference(login_as, live_app, synthetic_tenant):
+    _seed(synthetic_tenant, "dpo")
+    _seed_issues("dpo")
+    page = login_as("dpo")
+    page.goto(f"{live_app}/governance/group/figures/")
+    expect(page.locator("#gfIssues")).to_be_visible()
+    expect(page.locator("#gfIssueForm select[name=issue_type] option")).to_have_count(1)
+    page.locator("#gfIssueForm button[type=submit]").click()
+    expect(page.locator("#gfIssueNote")).to_contain_text("2 listed")
+    expect(page.locator("#gfIssueTable")).to_contain_text("DSR-2026-001")
+    expect(page.locator("#gfIssueTable")).to_contain_text("Erasure Request")
+    status = page.evaluate("async () => (await fetch('/governance/api/group/issues?org_id=999999&issue_type=dsr')).status")
+    assert status == 404
+
+
+def test_without_an_issue_grant_the_register_panel_stays_hidden_and_the_api_is_masked(login_as, live_app, synthetic_tenant):
+    _seed(synthetic_tenant, "dpo")
+    page = login_as("dpo")
+    page.goto(f"{live_app}/governance/group/figures/")
+    expect(page.locator("#gfTabs button")).to_have_count(4)
+    expect(page.locator("#gfIssues")).to_be_hidden()

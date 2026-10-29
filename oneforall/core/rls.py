@@ -116,6 +116,39 @@ _STMTS = [
     "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
     "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
 
+    # Issue register: written and pruned only by the platform's own job (bypass). The source reads its own rows and the
+    # parent of an active relationship reads its child's; whether a person may is decided by grant and terms in code.
+    "ALTER TABLE public.group_issue_runs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_issue_runs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_issue_runs_read ON public.group_issue_runs",
+    "CREATE POLICY group_issue_runs_read ON public.group_issue_runs FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.child_org_id = group_issue_runs.source_org_id "
+    "AND r.parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_issue_runs_write ON public.group_issue_runs",
+    "CREATE POLICY group_issue_runs_write ON public.group_issue_runs FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "DROP POLICY IF EXISTS group_issue_runs_prune ON public.group_issue_runs",
+    "CREATE POLICY group_issue_runs_prune ON public.group_issue_runs FOR DELETE USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "ALTER TABLE public.group_issue_rows ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_issue_rows FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_issue_rows_read ON public.group_issue_rows",
+    "CREATE POLICY group_issue_rows_read ON public.group_issue_rows FOR SELECT USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
+    "OR (NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL AND ("
+    "source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int "
+    "OR EXISTS (SELECT 1 FROM public.org_relationships r WHERE r.child_org_id = group_issue_rows.source_org_id "
+    "AND r.parent_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int AND r.status = 'active'))))",
+    "DROP POLICY IF EXISTS group_issue_rows_write ON public.group_issue_rows",
+    "CREATE POLICY group_issue_rows_write ON public.group_issue_rows FOR INSERT WITH CHECK ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+    "DROP POLICY IF EXISTS group_issue_rows_prune ON public.group_issue_rows",
+    "CREATE POLICY group_issue_rows_prune ON public.group_issue_rows FOR DELETE USING ("
+    "COALESCE(current_setting('app.bypass_rls', true), '') = 'true')",
+
     # Group band: written only by the platform's own job (bypass). The parent reads everything; a subsidiary reads the
     # publication of its own parent and only its own viewer row; the cohort and exact mean are parent-only.
     "ALTER TABLE public.group_band_publications ENABLE ROW LEVEL SECURITY",

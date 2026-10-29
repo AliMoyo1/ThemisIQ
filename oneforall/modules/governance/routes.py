@@ -137,6 +137,33 @@ async def api_group_figures(request: Request):
     return response
 
 
+@router.get("/api/group/issues/views")
+@require_auth
+async def api_group_issue_views(request: Request):
+    from modules.governance import group_issues
+    db = get_db()
+    try:
+        response = JSONResponse(group_issues.views(db, request.state.user))
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/issues")
+@require_auth
+async def api_group_issues(request: Request, org_id: int, issue_type: str, page: int = 1):
+    from modules.governance import group_issues
+    db = get_db()
+    try:
+        response = JSONResponse(group_issues.view(db, request.state.user, org_id, issue_type, page))
+        db.commit()  # the access is logged
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 @router.get("/api/group/band")
 @require_auth
 async def api_group_band(request: Request):

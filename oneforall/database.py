@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS group_view_grants (
     source_org_id INTEGER NOT NULL REFERENCES organizations(id),
     viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
     user_id INTEGER NOT NULL,
-    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download','figure.view')),
+    capability TEXT NOT NULL CHECK(capability IN ('document.view','document.download','figure.view','issue.view')),
     expires_at TEXT NOT NULL,
     review_due_at TEXT NOT NULL,
     revoked_at TEXT,
@@ -855,6 +855,27 @@ CREATE TABLE IF NOT EXISTS group_figure_snapshots (
     published_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_group_figure_latest ON group_figure_snapshots(source_org_id, measure_key, id);
+
+-- The level-2 issue register (plan 21, slice 5): sanitized rows per record, from the fields the code allows.
+CREATE TABLE IF NOT EXISTS group_issue_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    issue_type TEXT NOT NULL CHECK(issue_type IN ('breach','dsr','dpia','ropa','consent')),
+    published_at TEXT NOT NULL,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    truncated INTEGER NOT NULL DEFAULT 0,
+    content_hash TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_issue_runs_source ON group_issue_runs(source_org_id, issue_type, id);
+CREATE TABLE IF NOT EXISTS group_issue_rows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES group_issue_runs(id),
+    source_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    issue_type TEXT NOT NULL,
+    ref_number TEXT NOT NULL,
+    fields_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_issue_rows_run ON group_issue_rows(run_id, id);
 
 -- The banded group score (plan 21, slice 4). The publication holds only what a subsidiary may see; the cohort and the
 -- exact mean are parent-only; a viewer row says, per subsidiary, whether it may see the band this period.
@@ -8787,7 +8808,7 @@ def _run_pg_alters(conn) -> None:
     try:
         conn.execute("ALTER TABLE public.group_view_grants DROP CONSTRAINT IF EXISTS group_view_grants_capability_check")
         conn.execute("ALTER TABLE public.group_view_grants ADD CONSTRAINT group_view_grants_capability_check "
-                     "CHECK(capability IN ('document.view','document.download','figure.view'))")
+                     "CHECK(capability IN ('document.view','document.download','figure.view','issue.view'))")
         conn.commit()
     except Exception:
         conn.rollback()

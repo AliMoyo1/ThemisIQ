@@ -56,15 +56,19 @@
     box.append(table);
     target.append(box);
   }
+  let latest = 0;
   async function show(which, orgId) {
+    const mine = ++latest;  // a slower, earlier answer must not replace the view the person has since chosen
     get('gfStatus').textContent = 'Loading...';
     try {
       const query = which === 'subsidiary' ? `?view=subsidiary&org_id=${encodeURIComponent(orgId)}` : `?view=${which}`;
       const data = await ApiClient.request(`/governance/api/group/figures${query}`);
+      if (mine !== latest) return;
       renderTotals(data.totals || []);
       get('gfEntities').replaceChildren(...data.entities.map(renderEntity));
       get('gfStatus').textContent = '';
     } catch (error) {
+      if (mine !== latest) return;
       get('gfEntities').replaceChildren();
       renderTotals([]);
       get('gfStatus').textContent = message(error);
@@ -127,10 +131,63 @@
       });
     }
   }
+  const issueLabels = {breach_type: 'Type', severity: 'Severity', status: 'Status', discovery_date: 'Discovered',
+    reported_date: 'Reported', affected_count: 'Affected', notification_required: 'Notification required',
+    authority_notified: 'Authority notified', authority_notify_date: 'Authority notified on', regulation: 'Regulation',
+    request_type: 'Type', received_date: 'Received', deadline_date: 'Deadline', risk_level: 'Risk', updated: 'Updated',
+    dpia_required: 'DPIA required', active: 'Active', withdrawn: 'Withdrawn', expired: 'Expired', revoked: 'Revoked', other: 'Other'};
+  function issueCell(value) { return value === null || value === undefined ? '' : (value === 1 ? 'Yes' : value === 0 ? 'No' : value); }
+  async function loadIssues(page) {
+    const form = get('gfIssueForm');
+    const orgId = form.org_id.value, type = form.issue_type.value;
+    if (!orgId || !type) return;
+    const table = get('gfIssueTable');
+    try {
+      const data = await ApiClient.request(`/governance/api/group/issues?org_id=${encodeURIComponent(orgId)}&issue_type=${encodeURIComponent(type)}&page=${page}`);
+      table.replaceChildren();
+      get('gfIssueNote').textContent = data.state === 'reporting'
+        ? `${data.label} for ${data.name}: ${data.total} listed, as of ${data.as_of}.${data.truncated ? ' The list was cut at its limit.' : ''}`
+        : `${data.name} is not reporting this register${data.as_of ? '. Last published ' + data.as_of : ''}.`;
+      const columns = [];
+      data.rows.forEach(row => Object.keys(row.fields).forEach(key => { if (!columns.includes(key)) columns.push(key); }));
+      const head = el('tr');
+      head.append(el('th', 'Reference'));
+      columns.forEach(key => head.append(el('th', issueLabels[key] || key.replaceAll('_', ' '))));
+      if (data.rows.length) table.append(head);
+      data.rows.forEach(row => {
+        const line = el('tr');
+        line.append(el('td', row.ref));
+        columns.forEach(key => line.append(el('td', issueCell(row.fields[key]))));
+        table.append(line);
+      });
+      const last = Math.ceil(data.total / data.page_size) || 1;
+      const prev = get('gfIssuePrev'), next = get('gfIssueNext');
+      prev.hidden = data.page <= 1; next.hidden = data.page >= last;
+      prev.onclick = () => loadIssues(data.page - 1); next.onclick = () => loadIssues(data.page + 1);
+    } catch (error) { get('gfIssueNote').textContent = message(error); }
+  }
+  async function initIssues() {
+    let data;
+    try { data = await ApiClient.request('/governance/api/group/issues/views'); } catch (error) { return; }
+    if (!data.subsidiaries.length) return;
+    const form = get('gfIssueForm');
+    get('gfIssues').hidden = false;
+    data.subsidiaries.forEach(item => {
+      const option = el('option', item.name); option.value = item.org_id; form.org_id.append(option);
+    });
+    const fill = () => {
+      const chosen = data.subsidiaries.find(item => String(item.org_id) === form.org_id.value);
+      form.issue_type.replaceChildren();
+      (chosen ? chosen.types : []).forEach(type => { const option = el('option', type.label); option.value = type.key; form.issue_type.append(option); });
+    };
+    form.org_id.addEventListener('change', fill); fill();
+    form.addEventListener('submit', event => { event.preventDefault(); loadIssues(1); });
+  }
   async function init() {
     try {
       const views = await ApiClient.request('/governance/api/group/figures/views');
       loadCorrections(views);
+      initIssues();
       const tabs = get('gfTabs');
       const entries = [['own', `${views.own.name} alone`, null]];
       if (views.group) entries.push(['group', 'Whole group', null]);

@@ -317,21 +317,21 @@ def _allowed_families(actor: dict):
     return allowed
 
 
-def _children(db, actor: dict) -> "list[dict]":
+def _children(db, actor: dict, capability: str = "figure.view") -> "list[dict]":
     """Subsidiaries whose figures this person may read: an active, reviewed, current relationship and a named,
-    unexpired figure.view grant for exactly this person."""
+    unexpired grant of `capability` (figure.view, or issue.view for the issue register) for exactly this person."""
     now = _now().isoformat()
     rows = db.execute(
         "SELECT DISTINCT r.id AS relationship_id, o.id AS org_id, o.name AS name, r.terms_json AS terms_json "
         f"FROM {_table('org_relationships')} r "
         "JOIN organizations o ON o.id=r.child_org_id AND o.status='active' "
         f"JOIN {_table('group_view_grants')} g ON g.relationship_id=r.id AND g.viewer_org_id=r.parent_org_id "
-        "AND g.source_org_id=r.child_org_id AND g.user_id=%s AND g.capability='figure.view' "
+        "AND g.source_org_id=r.child_org_id AND g.user_id=%s AND g.capability=%s "
         "AND g.revoked_at IS NULL AND g.expires_at>%s AND g.review_due_at>%s "
         "WHERE r.parent_org_id=%s AND r.status='active' "
         "AND (r.child_ack_by IS NOT NULL OR r.notice_deemed_at IS NOT NULL) "
         "AND r.privacy_review_by IS NOT NULL AND r.legal_review_by IS NOT NULL AND r.review_due_at>%s "
-        "ORDER BY o.name, o.id", (actor["id"], now, now, actor["org_id"], now)).fetchall()
+        "ORDER BY o.name, o.id", (actor["id"], capability, now, now, actor["org_id"], now)).fetchall()
     return [dict(r) for r in rows]
 
 

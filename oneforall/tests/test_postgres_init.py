@@ -5215,3 +5215,75 @@ def test_group_band_restatement_and_lineage_row_level_security_on_real_postgres(
                 "state": "not_available"}
         finally:
             _release_role(conn)
+
+
+def test_group_issue_register_row_level_security_on_real_postgres(pg):
+    """The parent of an active relationship reads its children's register rows, a child reads only its own, an outsider
+    nothing, and no ordinary role can add, change or prune rows."""
+    import psycopg2
+    from modules.governance import group_issues as gi
+
+    pg.init_db()
+    parent = _make_org(pg, "iss_parent_pg")
+    child = _make_org(pg, "iss_child_pg")
+    child2 = _make_org(pg, "iss_child2_pg")
+    outsider = _make_org(pg, "iss_outsider_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        for kid in (child, child2):
+            setup.execute(
+                "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,child_ack_by,"
+                "privacy_review_by,legal_review_by,terms_json,review_due_at) "
+                "VALUES (%s,%s,'active','Group',1,2,3,%s,'2099-01-01T00:00:00')",
+                (parent, kid, __import__("json").dumps({"issue_types": ["dsr"]})))
+            run = setup.execute(
+                "INSERT INTO public.group_issue_runs (source_org_id,issue_type,published_at,row_count,content_hash) "
+                "VALUES (%s,'dsr','2026-10-29T00:00:00',1,'h') RETURNING id", (kid,)).fetchone()["id"]
+            setup.execute(
+                "INSERT INTO public.group_issue_rows (run_id,source_org_id,issue_type,ref_number,fields_json) "
+                "VALUES (%s,%s,'dsr','DSR-1','{}')", (run, kid))
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+
+    def count(org, table):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                _become_restricted(conn)
+                return conn.execute(f"SELECT COUNT(*) FROM public.{table}").fetchone()[0]
+            finally:
+                _release_role(conn)
+
+    for table in ("group_issue_runs", "group_issue_rows"):
+        assert {org: count(org, table) for org in (parent, child, child2, outsider)} == {
+            parent: 2, child: 1, child2: 1, outsider: 0}, table
+
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_issue_runs (source_org_id,issue_type,published_at,content_hash) "
+                             "VALUES (%s,'dsr','x','x')", (child,))
+            conn.rollback()
+            assert conn.execute("DELETE FROM public.group_issue_rows WHERE source_org_id=%s", (child,)).rowcount == 0
+            assert conn.execute("DELETE FROM public.group_issue_runs WHERE source_org_id=%s", (child,)).rowcount == 0
+            conn.commit()
+        finally:
+            _release_role(conn)
+    # The platform's own publish and prune path works on real PostgreSQL.
+    check = pg.get_db_bypass_rls()
+    try:
+        before = check.execute("SELECT COUNT(*) FROM public.group_issue_runs WHERE source_org_id=%s", (child,)).fetchone()[0]
+        gi.publish_tenant(child, "iss_child_pg")
+        after = check.execute("SELECT COUNT(*) FROM public.group_issue_runs WHERE source_org_id=%s", (child,)).fetchone()[0]
+    finally:
+        check.close()
+    assert after == before + 1, "one run for the one approved type, written from inside the tenant schema"
