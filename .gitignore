@@ -73,3 +73,7 @@ Thumbs.db
 
 # Bridge test log (ephemeral, not source)
 themisiq_wa_bridge/tests/audit.test.log.jsonl
+
+# Per-run pytest base directories (--basetemp)
+.pytest_*/
+oneforall/.pytest_*/
