@@ -168,6 +168,7 @@
       const form = byId('gsReviewGrant');
       form.reset(); form.elements.grant_id.value = String(grant.id);
       form.elements.decision.querySelector('option[value="narrow"]').disabled = grant.capability !== 'document.download';
+      reviewDates();
       byId('gsReviewTarget').textContent = `Review ${grant.capability} for ${
         workspace.recipients.find(person => person.id === grant.user_id)?.full_name || 'named person'}. ` +
         'Access stops on its review date until independently renewed.';
