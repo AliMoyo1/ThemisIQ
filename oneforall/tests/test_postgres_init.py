@@ -5287,3 +5287,53 @@ def test_group_issue_register_row_level_security_on_real_postgres(pg):
     finally:
         check.close()
     assert after == before + 1, "one run for the one approved type, written from inside the tenant schema"
+
+
+def test_a_decided_group_pack_cannot_change_and_belongs_to_its_parent_on_real_postgres(pg):
+    """The parent creates a pack and decides it once; after that no ordinary role can alter it, and nobody else reads it."""
+    pg.init_db()
+    parent = _make_org(pg, "pack_parent_pg")
+    child = _make_org(pg, "pack_child_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.commit()
+    finally:
+        setup.close()
+    with pg.tenant_context(parent, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            pack = conn.execute(
+                "INSERT INTO public.group_packs (parent_org_id,title,period_text,manifest_json,content_hash,created_by,created_at) "
+                "VALUES (%s,'Board pack','Q4','[]','h',1,'2026-10-29T00:00:00') RETURNING id", (parent,)).fetchone()["id"]
+            assert conn.execute("UPDATE public.group_packs SET status='issued', reviewed_by=2 WHERE id=%s", (pack,)).rowcount == 1
+            assert conn.execute("UPDATE public.group_packs SET title='Changed' WHERE id=%s", (pack,)).rowcount == 0, \
+                "an issued pack is immutable"
+            assert conn.execute("UPDATE public.group_packs SET status='rejected' WHERE id=%s", (pack,)).rowcount == 0
+            assert conn.execute("DELETE FROM public.group_packs WHERE id=%s", (pack,)).rowcount == 0
+            conn.commit()
+        finally:
+            _release_role(conn)
+    with pg.tenant_context(child, "public", is_super_admin=False):
+        conn = pg.get_db()
+        try:
+            _become_restricted(conn)
+            assert conn.execute("SELECT COUNT(*) FROM public.group_packs").fetchone()[0] == 0
+            with __import__("pytest").raises(__import__("psycopg2").errors.InsufficientPrivilege):
+                conn.execute("INSERT INTO public.group_packs (parent_org_id,title,manifest_json,content_hash,created_by,created_at) "
+                             "VALUES (%s,'x','[]','h',1,'x')", (parent,))
+            conn.rollback()
+        finally:
+            _release_role(conn)
+    check = pg.get_db_bypass_rls()
+    try:
+        row = check.execute("SELECT title, status FROM public.group_packs WHERE parent_org_id=%s", (parent,)).fetchone()
+    finally:
+        check.close()
+    assert (row["title"], row["status"]) == ("Board pack", "issued")

@@ -116,6 +116,17 @@ _STMTS = [
     "COALESCE(current_setting('app.bypass_rls', true), '') = 'true' "
     "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
 
+    # Group packs belong to the parent. A pack can be created, and decided once; after that no policy lets it change.
+    "ALTER TABLE public.group_packs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_packs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_packs_read ON public.group_packs",
+    f"CREATE POLICY group_packs_read ON public.group_packs FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_packs_insert ON public.group_packs",
+    f"CREATE POLICY group_packs_insert ON public.group_packs FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_packs_decide ON public.group_packs",
+    "CREATE POLICY group_packs_decide ON public.group_packs FOR UPDATE USING (status = 'proposed' AND "
+    f"{_GROUP_PARENT_USING}) WITH CHECK {_GROUP_PARENT_USING}",
+
     # Issue register: written and pruned only by the platform's own job (bypass). The source reads its own rows and the
     # parent of an active relationship reads its child's; whether a person may is decided by grant and terms in code.
     "ALTER TABLE public.group_issue_runs ENABLE ROW LEVEL SECURITY",

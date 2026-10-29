@@ -856,6 +856,24 @@ CREATE TABLE IF NOT EXISTS group_figure_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_group_figure_latest ON group_figure_snapshots(source_org_id, measure_key, id);
 
+-- A group pack (plan 21, slice 6): a manifest of snapshot ids and its hash, signed off by a second person. Once decided
+-- the row cannot change (row level security on PostgreSQL).
+CREATE TABLE IF NOT EXISTS group_packs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    title TEXT NOT NULL,
+    period_text TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','issued','rejected')),
+    manifest_json TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    reviewed_by INTEGER,
+    reviewed_at TEXT,
+    review_note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_group_packs_parent ON group_packs(parent_org_id, id);
+
 -- The level-2 issue register (plan 21, slice 5): sanitized rows per record, from the fields the code allows.
 CREATE TABLE IF NOT EXISTS group_issue_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

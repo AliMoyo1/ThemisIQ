@@ -164,6 +164,83 @@ async def api_group_issues(request: Request, org_id: int, issue_type: str, page:
     return response
 
 
+@router.get("/api/group/packs")
+@require_auth
+async def api_group_packs(request: Request):
+    from modules.governance import group_packs
+    db = get_db()
+    try:
+        response = JSONResponse({"items": group_packs.listing(db, request.state.user),
+                                 "can_create": has_capability(request.state.user, "group.pack.create")})
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/packs", status_code=201)
+@require_auth
+async def api_group_pack_create(request: Request):
+    from modules.governance import group_packs
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        new_id = group_packs.create(db, request.state.user, body.get("title"), body.get("period"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.get("/api/group/packs/{pack_id}")
+@require_auth
+async def api_group_pack(request: Request, pack_id: int):
+    from modules.governance import group_packs
+    db = get_db()
+    try:
+        response = JSONResponse(group_packs.get(db, request.state.user, pack_id))
+        db.commit()  # the access is logged
+    finally:
+        db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/packs/{pack_id}/review")
+@require_auth
+async def api_group_pack_review(request: Request, pack_id: int):
+    from modules.governance import group_packs
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        result = group_packs.review(db, request.state.user, pack_id, body.get("decision"), body.get("note"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(result)
+
+
+@router.get("/api/group/packs/{pack_id}/export")
+@require_auth
+async def api_group_pack_export(request: Request, pack_id: int):
+    from core.report_kit import respond
+    from modules.governance import group_packs
+    fmt = respond.format_of(request)
+    if fmt is None:
+        return JSONResponse({"detail": "Choose pdf or xlsx"}, status_code=400)
+    user = request.state.user
+    db = get_db()
+    try:
+        pack = group_packs.get(db, user, pack_id, log=False)
+        org = db.execute("SELECT name FROM organizations WHERE id=%s", (user["org_id"],)).fetchone()
+        group_packs.log_export(db, user, pack_id, fmt)
+        db.commit()
+    finally:
+        db.close()
+    report = group_packs.build_report(user, org["name"] if org else "", pack)
+    return await respond.download(report, fmt, f"ThemisIQ_group_pack_{pack_id}")
+
+
 @router.get("/api/group/band")
 @require_auth
 async def api_group_band(request: Request):

@@ -183,11 +183,82 @@
     form.org_id.addEventListener('change', fill); fill();
     form.addEventListener('submit', event => { event.preventDefault(); loadIssues(1); });
   }
+  async function openPack(id) {
+    const target = get('gfPackDetail');
+    try {
+      const pack = await ApiClient.request(`/governance/api/group/packs/${id}`);
+      target.replaceChildren();
+      const box = el('article', '', 'gf-entity');
+      box.append(el('h2', `${pack.title} (${pack.period})`));
+      box.append(el('small', `${pack.status === 'issued' ? 'Signed off by ' + pack.reviewed_by : 'Not signed off (' + pack.status + ')'}. Frozen ${pack.created_at} by ${pack.created_by}. Fingerprint ${pack.content_hash.slice(0, 16)}.`));
+      box.append(el('p', pack.verified ? 'Integrity check passed: every figure matches the frozen record.' : 'Integrity check FAILED: do not rely on this pack.', 'gf-status'));
+      ['pdf', 'xlsx'].forEach(format => {
+        const link = el('a', format === 'pdf' ? 'Download PDF' : 'Download Excel', 'btn btn-secondary');
+        link.href = `/governance/api/group/packs/${pack.id}/export?format=${format}`;
+        box.append(link);
+      });
+      if (pack.corrections.length) {
+        const notice = el('div', '', 'gf-card');
+        notice.append(el('b', 'Corrections since this pack was frozen'));
+        pack.corrections.forEach(fix => notice.append(el('span', `${fix.name}: ${fix.label} was ${fix.pack_value} and is now ${fix.corrected_value}. ${fix.reason || ''}`)));
+        box.append(notice);
+      }
+      target.append(box, ...pack.entities.map(renderEntity));
+    } catch (error) { get('gfStatus').textContent = message(error); }
+  }
+  async function loadPacks() {
+    let data;
+    try { data = await ApiClient.request('/governance/api/group/packs'); } catch (error) { return; }
+    get('gfPacks').hidden = false;
+    get('gfPackForm').hidden = !data.can_create;
+    const rows = get('gfPackRows');
+    rows.replaceChildren();
+    data.items.forEach(item => {
+      const row = el('div', '', 'gf-card');
+      row.append(el('b', `${item.title} (${item.period_text})`));
+      row.append(el('span', `${item.status} · frozen ${item.created_at} by ${item.created_name || 'unknown'}`));
+      const open = el('button', 'Open', 'btn btn-secondary');
+      open.type = 'button';
+      open.addEventListener('click', () => openPack(item.id));
+      row.append(open);
+      if (item.can_review) {
+        [['issued', 'Sign off'], ['rejected', 'Reject']].forEach(([decision, text]) => {
+          const button = el('button', text, 'btn btn-secondary');
+          button.type = 'button';
+          button.addEventListener('click', async () => {
+            const note = window.prompt('Reason for this decision (10 to 500 characters)');
+            if (!note) return;
+            try {
+              await ApiClient.request(`/governance/api/group/packs/${item.id}/review`, {method: 'POST', body: {decision, note}});
+              loadPacks();
+            } catch (error) { get('gfStatus').textContent = message(error); }
+          });
+          row.append(button);
+        });
+      }
+      rows.append(row);
+    });
+    if (!data.items.length) rows.append(el('p', 'No packs yet.'));
+    const form = get('gfPackForm');
+    if (!form.dataset.bound) {
+      form.dataset.bound = '1';
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const values = new FormData(form);
+        try {
+          await ApiClient.request('/governance/api/group/packs', {method: 'POST', body: {title: values.get('title'), period: values.get('period')}});
+          form.reset(); get('gfStatus').textContent = 'Pack frozen. A different person must sign it off.';
+          loadPacks();
+        } catch (error) { get('gfStatus').textContent = message(error); }
+      });
+    }
+  }
   async function init() {
     try {
       const views = await ApiClient.request('/governance/api/group/figures/views');
       loadCorrections(views);
       initIssues();
+      loadPacks();
       const tabs = get('gfTabs');
       const entries = [['own', `${views.own.name} alone`, null]];
       if (views.group) entries.push(['group', 'Whole group', null]);

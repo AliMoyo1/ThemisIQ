@@ -32,6 +32,17 @@
   <p id="gfStatus" class="gf-status" role="status" aria-live="polite"></p>
   <div id="gfTotals"></div>
   <div id="gfEntities"></div>
+  <section class="gf-entity" id="gfPacks" hidden>
+    <h2>Group packs</h2>
+    <small>A pack freezes the figures you can see now. A different person signs it off, and after that it never changes: a later correction is shown beside it.</small>
+    <form id="gfPackForm" class="gf-form" hidden>
+      <label>Title<input name="title" maxlength="120" required></label>
+      <label>Period<input name="period" maxlength="80" required placeholder="Q4 2026"></label>
+      <button class="btn btn-primary" type="submit">Freeze a pack</button>
+    </form>
+    <div id="gfPackRows" style="margin-top:12px"></div>
+    <div id="gfPackDetail"></div>
+  </section>
   <section class="gf-entity" id="gfIssues" hidden>
     <h2>Issue register</h2>
     <small>Individual records a subsidiary has approved for its group, by reference. Only fixed fields are shown: no titles, names or descriptions leave the subsidiary.</small>
@@ -57,5 +68,5 @@
     <div id="gfCorrectionRows" style="margin-top:12px"></div>
   </section>
 </main>
-<script src="/static/js/group_figures.js?v=3" defer></script>
+<script src="/static/js/group_figures.js?v=4" defer></script>
 {% endblock %}

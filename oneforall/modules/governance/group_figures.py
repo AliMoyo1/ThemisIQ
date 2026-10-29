@@ -371,7 +371,7 @@ def _figure(entry: dict) -> dict:
     definition = registry.REGISTRY.get(_base(row["measure_key"]))
     detail = json.loads(row["detail_json"] or "{}")
     return {"key": row["measure_key"], "label": definition.label if definition else row["measure_key"],
-            "module": row["module"], "state": row["state"], "value": row["value"], "window": row["window_text"],
+            "snapshot_id": row["id"], "module": row["module"], "state": row["state"], "value": row["value"], "window": row["window_text"],
             "as_of": row["as_of"], "method": row["method_version"], "previous": entry["previous"],
             "restated": bool(row.get("restates_snapshot_id")), "restatement_reason": row.get("restatement_reason"),
             "detail": detail, "additive": bool(definition and definition.denominator is None

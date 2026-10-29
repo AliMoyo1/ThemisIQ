@@ -17,6 +17,7 @@ def _remove_seeded_group(live_app):
     db = database.get_db()
     try:
         ids = [r["id"] for r in db.execute("SELECT id FROM organizations WHERE slug LIKE 'gf_%'").fetchall()]
+        db.execute("DELETE FROM group_packs WHERE title LIKE 'UI pack %'")
         for org in ids:
             db.execute("DELETE FROM group_figure_snapshots WHERE source_org_id=%s", (org,))
             db.execute("DELETE FROM group_issue_rows WHERE source_org_id=%s", (org,))
@@ -61,7 +62,9 @@ def _seed(synthetic_tenant, persona):
             db.execute(
                 "INSERT INTO group_figure_snapshots (source_org_id,measure_key,module,state,value,window_text,detail_json,"
                 "method_version,as_of,publication_version,content_hash) VALUES (%s,%s,%s,'measured',%s,'',%s,'t',%s,%s,%s)",
-                (org_id, key, module, value, json.dumps({}), as_of, version, f"h{org_id}{key}{version}"))
+                (org_id, key, module, value, json.dumps({}), as_of, version, gf._hash(
+                    org_id, {"measure_key": key, "state": "measured", "value": float(value), "window": "", "detail": {}},
+                    as_of, version)))
         for org_id, breaches, audits in ((parent, 2, 1), (child, 5, 4)):
             snap(org_id, "cc.open_breaches", breaches, "sentinel", _stamp())
             snap(org_id, "cc.grid_open_audit_controls", audits, "grid", _stamp())
@@ -180,3 +183,32 @@ def test_without_an_issue_grant_the_register_panel_stays_hidden_and_the_api_is_m
     page.goto(f"{live_app}/governance/group/figures/")
     expect(page.locator("#gfTabs button")).to_have_count(4)
     expect(page.locator("#gfIssues")).to_be_hidden()
+
+
+def test_a_pack_is_frozen_opened_and_exported_but_its_author_cannot_sign_it_off(login_as, live_app, synthetic_tenant):
+    _seed(synthetic_tenant, "compliance_manager")
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/governance/group/figures/")
+    expect(page.locator("#gfPacks")).to_be_visible()
+    page.locator("#gfPackForm input[name=title]").fill("UI pack one")
+    page.locator("#gfPackForm input[name=period]").fill("Q4 2026")
+    page.locator("#gfPackForm button[type=submit]").click()
+    row = page.locator("#gfPackRows .gf-card", has_text="UI pack one")
+    expect(row).to_contain_text("proposed")
+    expect(row.get_by_role("button", name="Sign off")).to_have_count(0)
+    row.get_by_role("button", name="Open").click()
+    expect(page.locator("#gfPackDetail")).to_contain_text("Integrity check passed")
+    expect(page.locator("#gfPackDetail")).to_contain_text("Child Co")
+    link = page.locator("#gfPackDetail a", has_text="Download Excel")
+    href = link.get_attribute("href")
+    result = page.evaluate("async (u) => { const r = await fetch(u); return [r.status, r.headers.get('content-type')]; }", href)
+    assert result[0] == 200 and "spreadsheetml" in result[1]
+    assert page.evaluate("async () => (await fetch('/governance/api/group/packs/999999')).status") == 404
+
+
+@pytest.mark.parametrize("persona", ["employee", "org_admin"])
+def test_roles_without_pack_access_are_refused(login_as, live_app, persona):
+    page = login_as(persona)
+    page.goto(f"{live_app}/governance/group/figures/")
+    assert page.evaluate("async () => (await fetch('/governance/api/group/packs')).status") == 403
+    assert page.evaluate("async () => (await fetch('/governance/api/group/packs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})).status") in (401, 403)
