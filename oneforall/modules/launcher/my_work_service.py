@@ -141,6 +141,36 @@ def _group_proof_requests(db, user: dict) -> list[dict]:
     return items
 
 
+def _group_grant_reviews(db, user: dict) -> list[dict]:
+    """Show due named-access reviews to an independent grant manager."""
+    from datetime import timedelta
+    from core.timeutils import utcnow
+    from modules.evidence.group_documents import grant_review_queue
+
+    if not has_capability(user, "group.grant.manage"):
+        return []
+    cutoff = (utcnow() + timedelta(days=30)).date().isoformat()
+    items = []
+    for page in (1, 2):
+        batch = grant_review_queue(db, user, page=page)
+        for row in batch["items"]:
+            if str(row["review_due_at"])[:10] > cutoff:
+                return items
+            if not row["can_review"]:
+                continue
+            items.append({
+                "source_module": "evidence", "entity_type": "group_access_grant",
+                "entity_id": row["id"], "action": "review_group_grant",
+                "title": f"Review group access: {row['recipient_name'] or 'former user'} · {row['source_name']}",
+                "due_date": row["review_due_at"], "priority": "high",
+                "org_id": user["org_id"], "business_unit_id": None,
+                "link": "/evidence/group/", "section": _section_for("open", row["review_due_at"]),
+            })
+        if not batch["has_more"]:
+            break
+    return items
+
+
 def _my_tasks(db, user: dict) -> list[dict]:
     """Restrict to personal tasks and the same BU visibility as Task Board."""
     bu_where, bu_params = _bu_filter("business_unit_id", bu_scope_ids(user))
@@ -853,6 +883,7 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
         ("aria_approvals", "aria", lambda: _aria_approvals(db, user)),
         ("evidence_expiry", None, lambda: _evidence_expiring(db, user)),
         ("group_proof_requests", None, lambda: _group_proof_requests(db, user)),
+        ("group_grant_reviews", None, lambda: _group_grant_reviews(db, user)),
         ("task_board", None, lambda: _my_tasks(db, user)),
         ("notifications", None, lambda: _unread_notifications(db, user)),
         ("workflow_actions", None, lambda: _workflow_actions(db, user)),

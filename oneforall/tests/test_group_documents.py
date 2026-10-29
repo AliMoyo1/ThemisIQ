@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from modules.evidence import group_documents as group
 from modules.evidence import group_requests as requests
 from modules.evidence import group_adoption as adoption
-from modules.launcher.my_work_service import _collect, _group_proof_requests
+from modules.launcher.my_work_service import _collect, _group_proof_requests, _group_grant_reviews
 
 
 def _id(db, table, **fields):
@@ -123,6 +123,23 @@ def test_group_proof_requests_flow_to_my_work_without_sibling_titles(group_world
     db.commit()
     assert _group_proof_requests(db, users["privacy"]) == []
     assert _group_proof_requests(db, users["parent_admin"]) == []
+
+
+def test_group_grant_reviews_are_independent_due_and_org_scoped(group_world):
+    db, parent, child, _, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    reviewer = _actor(db, parent, "grant_queue_reviewer", "org_admin")
+    due = group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                           "document.view", _future(40), _future(7))
+    group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
+                     "document.download", _future(90), _future(60))
+    db.commit()
+    assert [item["entity_id"] for item in _group_grant_reviews(db, reviewer)] == [due]
+    assert _group_grant_reviews(db, users["parent_admin"]) == []
+    assert _group_grant_reviews(db, {**users["sibling"], "roles": ["org_admin"]}) == []
+    items, states = _collect(db, reviewer, None, only={"group_grant_reviews"})
+    assert items[0]["action"] == "review_group_grant"
+    assert states[0]["state"] == "available"
 
 
 def test_grant_recertification_is_independent_audited_and_cannot_widen(group_world):
