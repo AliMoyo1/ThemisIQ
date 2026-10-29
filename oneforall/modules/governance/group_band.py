@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException
 
 from config import settings
+from core.best_effort import swallowed
 from core.rbac import has_capability
 from core.timeutils import utcnow
 from database import get_db_bypass_rls
@@ -53,6 +54,7 @@ def _setting(db, key: str, default, floor, cast):
         row = db.execute("SELECT value FROM settings WHERE key=%s", (key,)).fetchone()
         return max(floor, cast(row["value"])) if row else default
     except Exception:
+        swallowed(f"group band setting {key}")
         return default
 
 

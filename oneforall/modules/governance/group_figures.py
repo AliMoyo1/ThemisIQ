@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException
 
 from config import settings
+from core.best_effort import swallowed
 from core import metric_registry as registry
 from core.rbac import has_capability
 from core.timeutils import utcnow
@@ -254,6 +255,7 @@ def interval_hours() -> int:
     try:
         row = db.execute("SELECT value FROM settings WHERE key=%s", ("group.figures.interval_hours",)).fetchone()
     except Exception:
+        swallowed("group figures interval setting")
         row = None
     finally:
         db.close()

@@ -1,5 +1,5 @@
 {
-  "route_count": 1247,
+  "route_count": 1255,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -15710,6 +15710,20 @@
       "notes": ""
     },
     {
+      "path": "/governance/api/group/band",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_band",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/governance/api/group/figures",
       "methods": [
         "GET"
@@ -15790,6 +15804,104 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_figure_views",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/issues",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_issues",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/issues/views",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_issue_views",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/packs",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_packs",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/packs",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_pack_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/packs/{pack_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_pack",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/packs/{pack_id}/export",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_pack_export",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/packs/{pack_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_pack_review",
       "maturity": "",
       "notes": ""
     },
