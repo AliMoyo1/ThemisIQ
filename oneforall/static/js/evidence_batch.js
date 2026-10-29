@@ -65,7 +65,8 @@
       if (item.status !== 'current' || item.category === 'generated_record' || row.scope !== targetScope) {
         row.message = 'Choose a current, replaceable Vault document in the same filing scope.';
       } else {
-        row.replaceVerified = {id: item.id, title: item.title, version: item.version};
+        row.replaceVerified = {id: item.id, title: item.title, version: item.version,
+          category: item.category, reviewDue: item.review_due_date || '', fileName: item.file_name || ''};
         row.message = `Checked: ${item.title}, version ${item.version}. Review the new file and confirm before upload.`;
       }
     } catch (error) {
@@ -130,6 +131,20 @@
           replacement.appendChild(link);
         }
         card.appendChild(replacement);
+        if (row.replaceVerified) {
+          const before = row.replaceVerified;
+          const compare = element('div', '', 'eb-compare');
+          compare.appendChild(element('strong', 'Compare before filing'));
+          [['Title', before.title, row.title], ['Type', before.category, row.category],
+            ['Review due', before.reviewDue || 'Not set', row.reviewDue || 'Not set'],
+            ['File', before.fileName || 'No file', row.file.name]].forEach(([label, oldValue, newValue]) => {
+              const line = element('p', `${label}: ${oldValue} → ${newValue}`);
+              if (oldValue !== newValue) line.classList.add('is-changed');
+              compare.appendChild(line);
+            });
+          compare.appendChild(element('small', 'This compares metadata only. Open both files to review content changes. Carried links require a new review.'));
+          card.appendChild(compare);
+        }
       }
       if (row.suggestions) {
         const hints = element('div', '', 'eb-note');

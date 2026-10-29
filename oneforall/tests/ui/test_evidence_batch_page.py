@@ -103,6 +103,8 @@ def test_batch_new_version_requires_current_record_check_and_keeps_scope(login_a
     expect(page.locator("#ebUpload")).to_be_disabled()
     second.get_by_role("button", name="Check current version").click()
     expect(second.locator(".eb-state")).to_contain_text("Checked:")
+    expect(second.locator(".eb-compare")).to_contain_text("Original.txt → Updated.txt")
+    expect(second.locator(".eb-compare")).to_contain_text("compares metadata only")
     expect(page.locator("#ebUpload")).to_be_disabled()
     second.get_by_label("Checked for filing").check()
     with page.expect_response(lambda response: response.url.endswith("/evidence/api/items") and

@@ -18,6 +18,9 @@
 .eb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
 .eb-row{padding:18px;margin:12px 0;border-radius:15px;background:var(--surface2)}.eb-row label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650}
 .eb-replacement{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-top:12px}.eb-replacement label{min-width:220px}.eb-replacement a{align-self:center}
+.eb-compare{margin-top:12px;padding:14px 16px;border-radius:12px;background:var(--surface);box-shadow:inset 0 1px rgba(255,255,255,.65)}
+.eb-compare strong{display:block;margin-bottom:6px}.eb-compare p{margin:4px 0;overflow-wrap:anywhere}.eb-compare .is-changed{font-weight:650;color:var(--text)}
+.eb-compare small{display:block;margin-top:8px;color:var(--muted);line-height:1.45}
 .eb-name{font-size:12px;color:var(--muted);word-break:break-all;margin-bottom:10px}
 .eb-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:15px}.eb-actions button{font:inherit}
 .eb-state{font-weight:650;margin:10px 0 0}.eb-state[data-state="failed"],.eb-state[data-state="duplicate"]{color:#a33b22}.eb-state[data-state="uploaded"]{color:#17744a}
@@ -42,5 +45,5 @@
   <div id="ebQueue"></div>
  </section>
 </main>
-<script src="/static/js/evidence_batch.js?v=3" defer></script>
+<script src="/static/js/evidence_batch.js?v=4" defer></script>
 {% endblock %}
