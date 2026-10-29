@@ -2229,6 +2229,10 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
         try:
             group.grant_view(db, users["parent_admin"], relation, users["viewer"]["id"],
                              "document.view", future(30), future(7))
+            queue = group.grant_review_queue(db, users["parent_admin"])
+            assert len(queue["items"]) == 1
+            assert queue["items"][0]["recipient_name"] == "viewer"
+            assert queue["items"][0]["source_name"] == child_slug
             request_id = requests.create_request(db, users["viewer"], relation,
                 "Parent requirement 1", "Need current proof", future(10))
             db.commit()
@@ -2237,12 +2241,15 @@ def test_group_catalogue_rechecks_exact_source_version_across_tenant_schemas(pg)
             assert [r["id"] for r in group.catalogue_cursor(db, users["viewer"], source_org_id=child)["items"]] == [publication]
             assert group.released_item(db, users["viewer"], publication)[1]["id"] == item
             assert [r["id"] for r in requests.list_requests(db, users["viewer"])["items"]] == [request_id]
+            from modules.launcher.my_work_service import _group_proof_requests
+            assert _group_proof_requests(db, users["parent_admin"])[0]["entity_id"] == request_id
         finally:
             db.close()
     with pg.tenant_context(child, child_slug, is_super_admin=False):
         db = pg.get_db()
         try:
             assert [r["id"] for r in requests.list_requests(db, users["legal"])["items"]] == [request_id]
+            assert group.grant_review_queue(db, users["ack"])["items"] == []
             assert db.execute("SELECT action FROM public.group_access_events "
                               "WHERE action='request_created' AND detail=%s",
                               (str(request_id),)).fetchone()
