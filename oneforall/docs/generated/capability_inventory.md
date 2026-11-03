@@ -897,6 +897,12 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/grid/api/reports/saved/{rid}` | capability | grid.ai.report | grid.ai.report: audit_lead, super_admin | - |  |
 | GET | `/grid/api/reports/saved/{rid}` | capability | grid.ai.report | grid.ai.report: audit_lead, super_admin | - |  |
 | GET | `/grid/api/reports/saved/{rid}/download` | capability | grid.ai.report | grid.ai.report: audit_lead, super_admin | - |  |
+| POST | `/grid/api/reuse/apply` | authenticated | - | - | - |  |
+| GET | `/grid/api/reuse/audits` | authenticated | - | - | - |  |
+| POST | `/grid/api/reuse/decisions/{decision_id}/undo` | authenticated | - | - | - |  |
+| GET | `/grid/api/reuse/history` | authenticated | - | - | - |  |
+| POST | `/grid/api/reuse/mappings/{mapping_id}/review` | authenticated | - | - | - |  |
+| GET | `/grid/api/reuse/preview` | authenticated | - | - | - |  |
 | GET | `/grid/api/scheduler/status` | capability | grid.audits.manage | grid.audits.manage: audit_lead, super_admin | - |  |
 | GET | `/grid/api/scores/{audit_id}` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
 | POST | `/grid/api/scores/{audit_id}` | capability | grid.audit.edit | grid.audit.edit: audit_lead, super_admin | - |  |
@@ -915,6 +921,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/grid/api/vendors/{vid}/assessments` | capability | grid.vendor.manage | grid.vendor.manage: audit_lead, super_admin | - |  |
 | GET | `/grid/api/vendors/{vid}/cross-module` | capability | grid.vendor.manage | grid.vendor.manage: audit_lead, super_admin | - |  |
 | GET | `/grid/assignments/` | authenticated | - | - | - |  |
+| GET | `/grid/reuse/` | capability | grid.audits.manage | grid.audits.manage: audit_lead, super_admin | - |  |
 
 ## `modules.launcher.routes_admin`
 

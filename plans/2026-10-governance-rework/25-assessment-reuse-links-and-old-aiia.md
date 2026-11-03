@@ -43,11 +43,25 @@
 
 ## 4. Decisions (chat confirmation, not sign-off)
 
-(Filled in as slices finish.)
+| Decision | Why | Cost | How to change it |
+|---|---|---|---|
+| Reuse never sets a target control's status; it adds proof waiting for review and, for a full match, the earlier answer as a comment marked "Suggested, not yet assessed" | CISO 02: partial matches never silently become compliant, and the target keeps its own review | The auditor still reviews every reused control | Add an explicit "accept as assessed" step per row, after pilot users trust the matches |
+| An unreviewed mapping counts as partial, whatever its type | Legacy `equivalent` and `ims_equivalent` rows were made automatically (IMS audits copy them from ARIA) and nobody reviewed them | Until someone marks a mapping equivalent, only proof is carried through it | Mark mappings equivalent on the Reuse page, or bulk-review them |
+| One hop only: same requirement, or one direct mapping | CISO 02 pilot rule; multi-hop accuracy is unmeasured | A control two mappings away is not offered | Add a second hop after measuring direct-mapping accuracy |
+| Only Vault proof is carried; GRID-only files are listed as held back | A GRID file belongs to its control; copying it would make a second file store | The auditor attaches still-valid GRID files again, or moves them to the Vault | Use the existing GRID-to-Vault migration first, then reuse carries them |
+| Reuse is the audit lead's (`grid.audits.manage`); reviewing a mapping is `grid.cross_mapping.manage` | The same people who set up audits and maintain mappings in GRID today | None | Change the capabilities in `modules/grid/reuse.py` |
+| Undo is allowed only while nothing it added has been reviewed | After a review, removing the link would erase a reviewer's decision | Reviewed suggestions are decided on in the Vault instead | None needed |
+| GRID reports do not yet show reuse provenance | The provenance is stored (`grid_reuse_rows`) and visible on the Reuse page | A report reader does not see which answers came from an earlier audit | Add a provenance section to the GRID audit report |
+| Linking needs the right to change at least one end | PLAN-37: a link is a change; seeing two records is not enough | A read-only role (an outside auditor, an employee reading Governance records) can no longer add Related Items links | Adjust `relationships.CHANGE` per kind |
+| Vault files are changeable through links by every role except the outside auditor (new capability `evidence.item.change`) | The Vault lets everyone who files evidence link it; only the outside auditor is read-only | None for today's users | Narrow the capability |
+| Old AI impact assessments get a suggestion, never an automatic link | Plan 06 section 6: "Nothing is matched by name automatically"; a suggestion the person clicks keeps that rule | Names that differ in wording are not suggested | Widen the word rule, or add an alias list per system |
 
 ## 5. Build log
 
-(Filled in as slices finish.)
+- 2026-11-03: committed `810e2507`: `relationships.CHANGE` and `may_change` (link create and confirm need the right to change one end); `("platform","evidence")` aliased to `("evidence","item")`; capability `evidence.item.change`; 3 tests.
+- 2026-11-03: committed `e902d42b`: `assessments._suggest_systems` and the list's "Suggested" line with one-click link; script version 2; test.
+- 2026-11-03: committed `e95544d7`: `modules/grid/reuse.py`, tables `grid_reuse_decisions` and `grid_reuse_rows`, mapping review columns, 7 routes, the Reuse an earlier audit page and GRID sidebar link; 5 tests.
+- 2026-11-03: browser test for the Reuse page (preview, apply, undo, axe) and a real PostgreSQL test (tenant schema, ordinary role) added; capability inventory regenerated.
 
 ## 6. Verification
 

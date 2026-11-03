@@ -1,5 +1,5 @@
 {
-  "route_count": 1294,
+  "route_count": 1301,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -19143,6 +19143,90 @@
       "notes": ""
     },
     {
+      "path": "/grid/api/reuse/apply",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_reuse_apply",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/reuse/audits",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_reuse_audits",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/reuse/decisions/{decision_id}/undo",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_reuse_undo",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/reuse/history",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_reuse_history",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/reuse/mappings/{mapping_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_reuse_review_mapping",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/reuse/preview",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_reuse_preview",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/grid/api/scheduler/status",
       "methods": [
         "GET"
@@ -19538,6 +19622,27 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "grid_assignments_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/reuse/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "capability",
+      "capabilities": [
+        "grid.audits.manage"
+      ],
+      "roles_by_capability": {
+        "grid.audits.manage": [
+          "audit_lead",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "grid_reuse_page",
       "maturity": "",
       "notes": ""
     },

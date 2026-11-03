@@ -5547,3 +5547,75 @@ def test_assignments_and_needs_attention_run_as_an_ordinary_role_in_tenant_schem
     finally:
         _release_role(conn)
         context.__exit__(None, None, None)
+
+
+def test_reusing_an_earlier_audit_runs_as_an_ordinary_role_in_a_tenant_schema_on_real_postgres(pg):
+    """Plan 25: preview, apply, mapping review and undo, in a provisioned tenant schema (the mapping review columns
+    are migrated there too), as a role that row level security applies to."""
+    from modules.grid import reuse
+    pg.init_db()
+    org = _make_org(pg, "reuse_a")
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        for schema in ("public", "tenant_reuse_a"):
+            setup.execute(f"GRANT USAGE ON SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+            setup.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+            setup.execute(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+        lead = setup.execute("INSERT INTO public.users (username,email,full_name,password_hash,org_id,is_active) "
+                             "VALUES ('reuse_lead','reuse_lead@example.invalid','Lead','x',%s,1) RETURNING id",
+                             (org,)).fetchone()["id"]
+        setup.execute("INSERT INTO public.user_roles (user_id,role_key) VALUES (%s,'audit_lead')", (lead,))
+        setup.commit()
+    finally:
+        setup.close()
+    user = {"id": lead, "org_id": org, "business_unit_id": None, "roles": ["audit_lead"], "is_super_admin": False}
+    with pg.tenant_context(org, "reuse_a", is_super_admin=True):
+        seed = pg.get_db()
+        try:
+            columns = {r[0] for r in seed.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema='tenant_reuse_a' "
+                "AND table_name='grid_control_mappings'").fetchall()}
+            assert {"review_kind", "reviewed_by", "reviewed_at"} <= columns
+            earlier = seed.execute("INSERT INTO grid_audits (name) VALUES ('2025') RETURNING id").fetchone()["id"]
+            new = seed.execute("INSERT INTO grid_audits (name) VALUES ('2026') RETURNING id").fetchone()["id"]
+            source = seed.execute("INSERT INTO grid_controls (audit_id,framework_id,control_id,name,status) "
+                                  "VALUES (%s,3,'A.1','Access','Complete') RETURNING id", (earlier,)).fetchone()["id"]
+            mapped = seed.execute("INSERT INTO grid_controls (audit_id,framework_id,control_id,name,status) "
+                                  "VALUES (%s,3,'Z.9','Other','Complete') RETURNING id", (earlier,)).fetchone()["id"]
+            target = seed.execute("INSERT INTO grid_controls (audit_id,framework_id,control_id,name) "
+                                  "VALUES (%s,3,'A.1','Access') RETURNING id", (new,)).fetchone()["id"]
+            other_target = seed.execute("INSERT INTO grid_controls (audit_id,framework_id,control_id,name) "
+                                        "VALUES (%s,3,'B.2','Backups') RETURNING id", (new,)).fetchone()["id"]
+            mapping = seed.execute("INSERT INTO grid_control_mappings (source_control_id,target_control_id,mapping_type) "
+                                   "VALUES (%s,%s,'equivalent') RETURNING id", (other_target, mapped)).fetchone()["id"]
+            item = seed.execute("INSERT INTO evidence_items (title,status,version,file_hash,org_id) "
+                                "VALUES ('2025 review','current',1,'pg-reuse',%s) RETURNING id", (org,)).fetchone()["id"]
+            seed.execute("INSERT INTO evidence_links (evidence_id,module,entity_type,entity_id,review_status) "
+                         "VALUES (%s,'grid','control',%s,'accepted')", (item, source))
+            seed.commit()
+        finally:
+            seed.close()
+    context = pg.tenant_context(org, "reuse_a", is_super_admin=False)
+    context.__enter__()
+    conn = pg.get_db()
+    _become_restricted(conn)
+    try:
+        rows = {r["target"]["ref"]: r for r in reuse.preview(conn, user, new, earlier)["rows"]}
+        assert rows["A.1"]["relation"] == "full" and rows["A.1"]["carry"] == [item]
+        assert rows["B.2"]["relation"] == "partial"
+        reuse.review_mapping(conn, user, mapping, "equivalent")
+        conn.commit()
+        assert reuse.preview(conn, user, new, earlier)["counts"]["full"] == 2
+        done = reuse.apply(conn, user, new, earlier,
+                           [{"target_control_id": target, "fingerprint": rows["A.1"]["fingerprint"]}])
+        conn.commit()
+        assert done["links"] == 1
+        assert reuse.undo(conn, user, done["decision_id"], "Checking undo on PostgreSQL")["links_removed"] == 1
+        conn.commit()
+        assert [h["undone_at"] is not None for h in reuse.history(conn, user, new)] == [True]
+    finally:
+        _release_role(conn)
+        context.__exit__(None, None, None)
