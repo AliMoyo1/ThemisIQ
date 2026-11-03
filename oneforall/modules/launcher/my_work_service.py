@@ -329,6 +329,39 @@ def _grid_ncs(db, user, scope):
     } for r in rows]
 
 
+def _grid_assignments(db, user):
+    """Audit questions sent to this person, and answers waiting for their review (plan 24, CISO 03). Not gated on
+    GRID access: the person who answers usually has none, and the assignment itself is what lets them in."""
+    if not user.get("org_id"):
+        return []
+    rows = db.execute(
+        "SELECT a.id, a.title, a.state, a.due_date, a.assignee_id, a.reviewer_id, a.business_unit_id, a.audit_id, "
+        "g.name AS audit_name FROM grid_assignments a JOIN grid_audits g ON g.id=a.audit_id "
+        "WHERE a.org_id=%s AND ((a.assignee_id=%s AND a.state IN ('in_progress','changes_requested','submitted')) "
+        "OR (a.reviewer_id=%s AND a.state='submitted')) ORDER BY a.due_date, a.id LIMIT 100",
+        (user["org_id"], user["id"], user["id"])).fetchall()
+    items = []
+    for r in rows:
+        reviewing = r["reviewer_id"] == user["id"] and r["state"] == "submitted"
+        if reviewing and not has_capability(user, "grid.assignment.review"):
+            continue
+        if not reviewing and not has_capability(user, "grid.assignment.respond"):
+            continue
+        waiting = not reviewing and r["state"] == "submitted"
+        items.append({
+            "source_module": "grid", "entity_type": "assignment", "entity_id": r["id"],
+            "action": "review_audit_answers" if reviewing else "answer_audit_questions",
+            "title": ("Review audit answers: " if reviewing else
+                      "Audit questions changes requested: " if r["state"] == "changes_requested" else
+                      "Answer audit questions: ") + r["title"],
+            "due_date": r["due_date"], "priority": "medium", "org_id": user.get("org_id"),
+            "business_unit_id": r["business_unit_id"], "link": f"/grid/assignments/?open={r['id']}",
+            "section": _section_for("waiting" if waiting else "open", r["due_date"]),
+            "group_source": ("grid", "assignment", r["id"]),
+        })
+    return items
+
+
 def _erm_reviews(db, user, scope):
     where, params = _bu_filter("business_unit_id", scope)
     rows = db.execute(
@@ -919,6 +952,7 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
         ("notifications", None, lambda: _unread_notifications(db, user)),
         ("workflow_actions", None, lambda: _workflow_actions(db, user)),
         ("grid_non_conformances", "grid", lambda: _grid_ncs(db, user, scope)),
+        ("grid_assignments", None, lambda: _grid_assignments(db, user)),
         ("erm_reviews", "erm", lambda: _erm_reviews(db, user, scope)),
         ("erm_acceptances", "erm", lambda: _erm_acceptance_actions(db, user, scope)),
         ("erm_scenarios", "erm", lambda: _erm_scenarios(db, user, scope)),
@@ -1034,7 +1068,8 @@ TEAM_TOP = 5      # overdue items named for each person
 # What is assigned to a person, as against a queue that anyone with the capability sees (evidence expiring, open
 # incidents, statutory deadlines, evidence waiting for any reviewer). Only assigned work is counted against a person,
 # so the same shared item is not charged to everyone on the team.
-_ASSIGNED_SOURCES = ("aria_approvals", "task_board", "workflow_actions", "grid_non_conformances", "erm_reviews",
+_ASSIGNED_SOURCES = ("aria_approvals", "task_board", "workflow_actions", "grid_non_conformances", "grid_assignments",
+                     "erm_reviews",
                      "orm_reviews", "change_reviews", "ai_governance")
 _ASSIGNED_AI = ("ai_condition", "ai_intake_returned", "ai_decision_waiting")
 _TEAM_SECTIONS = ("overdue", "due_soon", "needs_my_action", "waiting_on_others")

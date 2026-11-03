@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Streamin
 from fastapi.templating import Jinja2Templates
 
 from database import get_db, get_current_tenant, get_current_org, insert_returning_id
-from core.middleware import require_module, require_capability
+from core.middleware import require_auth, require_module, require_capability
 from core.sanitize import sanitize_str as _s
 from core.shell_context import shell_ctx
 from modules.grid import data_service as ds
@@ -2829,3 +2829,245 @@ async def api_scheduler_status(request: Request):
     """Return GRID scheduler status and next run times."""
     from modules.grid.scheduler import get_scheduler_status
     return JSONResponse(get_scheduler_status())
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# RESPONDENT ASSIGNMENTS (plan 24, CISO 03)
+# ═════════════════════════════════════════════════════════════════════════════
+# Signed in is enough to reach these routes: what each person may see or do is decided per assignment in
+# modules/grid/assignments.py (the assignee only their own, staff only in audits they may open).
+
+async def _assignment_body(request: Request) -> dict:
+    """The raw JSON body: answers are stored as typed and shown as text, never as markup."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(422, "Send a JSON request") from None
+    if not isinstance(body, dict):
+        raise HTTPException(422, "Send a JSON object")
+    return body
+
+
+def _assignment_call(work, *, commit=True):
+    db = get_db()
+    try:
+        result = work(db)
+        if commit:
+            db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def _no_store(data):
+    response = JSONResponse(data)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/assignments/", response_class=HTMLResponse)
+@require_auth
+async def grid_assignments_page(request: Request):
+    from core.rbac import has_capability
+    user = request.state.user
+    if not any(has_capability(user, c) for c in
+               ("grid.assignment.respond", "grid.assignment.manage", "grid.assignment.review")):
+        raise HTTPException(404, "Not found")
+    return _templates.TemplateResponse(request, "assignments.html", {
+        "user": user, **shell_ctx(request, active_module="grid", active_section="assignments")})
+
+
+@router.get("/api/assignments")
+@require_auth
+async def api_assignments_list(request: Request):
+    from modules.grid import assignments
+    return _no_store(_assignment_call(lambda db: assignments.listing(db, request.state.user), commit=False))
+
+
+@router.get("/api/assignments/audits")
+@require_auth
+async def api_assignments_audits(request: Request):
+    from modules.grid import assignments
+    return _no_store({"items": _assignment_call(lambda db: assignments.audit_choices(db, request.state.user),
+                                                commit=False)})
+
+
+@router.get("/api/assignments/audits/{audit_id}")
+@require_auth
+async def api_assignments_audit_controls(request: Request, audit_id: int):
+    from modules.grid import assignments
+    return _no_store(_assignment_call(lambda db: assignments.audit_controls(db, request.state.user, audit_id),
+                                      commit=False))
+
+
+@router.post("/api/assignments", status_code=201)
+@require_auth
+async def api_assignments_create(request: Request):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    new_id = _assignment_call(lambda db: assignments.create(
+        db, request.state.user, body.get("audit_id"), body.get("control_ids"), body.get("assignee_id"),
+        body.get("reviewer_id"), body.get("due_date"), body.get("title"), body.get("instructions", "")))
+    return JSONResponse({"id": new_id, "state": "draft"}, status_code=201)
+
+
+@router.get("/api/assignments/{assignment_id}")
+@require_auth
+async def api_assignments_detail(request: Request, assignment_id: int):
+    from modules.grid import assignments
+    return _no_store(_assignment_call(lambda db: assignments.detail(db, request.state.user, assignment_id),
+                                      commit=False))
+
+
+@router.post("/api/assignments/{assignment_id}/launch")
+@require_auth
+async def api_assignments_launch(request: Request, assignment_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.launch(
+        db, request.state.user, assignment_id, body.get("version"))))
+
+
+@router.post("/api/assignments/{assignment_id}/revise")
+@require_auth
+async def api_assignments_revise(request: Request, assignment_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.revise(
+        db, request.state.user, assignment_id, body.get("version"), body.get("reason"), body.get("add"),
+        body.get("remove"), body.get("assignee_id"), body.get("reviewer_id"), body.get("due_date"))))
+
+
+@router.post("/api/assignments/{assignment_id}/cancel")
+@require_auth
+async def api_assignments_cancel(request: Request, assignment_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.cancel(
+        db, request.state.user, assignment_id, body.get("version"), body.get("reason"))))
+
+
+@router.post("/api/assignments/{assignment_id}/submit")
+@require_auth
+async def api_assignments_submit(request: Request, assignment_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.submit(
+        db, request.state.user, assignment_id, body.get("version"))))
+
+
+@router.post("/api/assignments/{assignment_id}/items/{item_id}/answer")
+@require_auth
+async def api_assignments_answer(request: Request, assignment_id: int, item_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.save_item(
+        db, request.state.user, assignment_id, item_id, body.get("version"), body.get("response"),
+        body.get("observation", ""))))
+
+
+@router.get("/api/assignments/{assignment_id}/proof-choices")
+@require_auth
+async def api_assignments_proof_choices(request: Request, assignment_id: int, q: str = ""):
+    from modules.grid import assignments
+    return _no_store({"items": _assignment_call(lambda db: assignments.proof_choices(
+        db, request.state.user, assignment_id, q), commit=False)})
+
+
+@router.post("/api/assignments/{assignment_id}/items/{item_id}/proof", status_code=201)
+@require_auth
+async def api_assignments_add_proof(request: Request, assignment_id: int, item_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.add_proof(
+        db, request.state.user, assignment_id, item_id, body.get("version"), body.get("evidence_id"))),
+        status_code=201)
+
+
+@router.post("/api/assignments/{assignment_id}/items/{item_id}/proof/{proof_id}/remove")
+@require_auth
+async def api_assignments_remove_proof(request: Request, assignment_id: int, item_id: int, proof_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.remove_proof(
+        db, request.state.user, assignment_id, item_id, body.get("version"), proof_id)))
+
+
+@router.post("/api/assignments/{assignment_id}/items/{item_id}/review")
+@require_auth
+async def api_assignments_review(request: Request, assignment_id: int, item_id: int):
+    from modules.grid import assignments
+    body = await _assignment_body(request)
+    return JSONResponse(_assignment_call(lambda db: assignments.review_item(
+        db, request.state.user, assignment_id, item_id, body.get("version"), body.get("decision"),
+        body.get("note"))))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# REUSE AN EARLIER AUDIT (plan 25, CISO 02)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reuse/", response_class=HTMLResponse)
+@require_capability("grid.audits.manage")
+async def grid_reuse_page(request: Request):
+    return _templates.TemplateResponse(request, "reuse.html", {
+        "user": request.state.user, **shell_ctx(request, active_module="grid", active_section="reuse")})
+
+
+@router.get("/api/reuse/audits")
+@require_auth
+async def api_reuse_audits(request: Request):
+    from modules.grid import reuse
+    return _no_store({"items": _assignment_call(lambda db: reuse.audit_choices(db, request.state.user), commit=False)})
+
+
+@router.get("/api/reuse/preview")
+@require_auth
+async def api_reuse_preview(request: Request, target: int, source: int, page: int = 1):
+    from modules.grid import reuse
+    return _no_store(_assignment_call(lambda db: reuse.preview(db, request.state.user, target, source, page),
+                                      commit=False))
+
+
+@router.post("/api/reuse/apply")
+@require_auth
+async def api_reuse_apply(request: Request):
+    from modules.grid import reuse
+    body = await _assignment_body(request)
+    result = _assignment_call(lambda db: reuse.apply(
+        db, request.state.user, body.get("target_audit_id"), body.get("source_audit_id"), body.get("rows")))
+    if result["decision_id"]:
+        ds.log_activity(_uid(request), "reuse_audit", "grid_reuse_decisions", result["decision_id"],
+                        f"{result['applied']} control(s) from audit {body.get('source_audit_id')}")
+    return JSONResponse(result)
+
+
+@router.get("/api/reuse/history")
+@require_auth
+async def api_reuse_history(request: Request, target: int):
+    from modules.grid import reuse
+    return _no_store({"items": _assignment_call(lambda db: reuse.history(db, request.state.user, target),
+                                                commit=False)})
+
+
+@router.post("/api/reuse/decisions/{decision_id}/undo")
+@require_auth
+async def api_reuse_undo(request: Request, decision_id: int):
+    from modules.grid import reuse
+    body = await _assignment_body(request)
+    result = _assignment_call(lambda db: reuse.undo(db, request.state.user, decision_id, body.get("reason")))
+    ds.log_activity(_uid(request), "undo_reuse_audit", "grid_reuse_decisions", decision_id, body.get("reason"))
+    return JSONResponse(result)
+
+
+@router.post("/api/reuse/mappings/{mapping_id}/review")
+@require_auth
+async def api_reuse_review_mapping(request: Request, mapping_id: int):
+    from modules.grid import reuse
+    body = await _assignment_body(request)
+    result = _assignment_call(lambda db: reuse.review_mapping(db, request.state.user, mapping_id, body.get("kind")))
+    ds.log_activity(_uid(request), "review_mapping", "grid_control_mappings", mapping_id, body.get("kind"))
+    return JSONResponse(result)

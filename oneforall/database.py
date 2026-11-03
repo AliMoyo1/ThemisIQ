@@ -1403,6 +1403,24 @@ CREATE TABLE IF NOT EXISTS evidence_staging (
 );
 CREATE INDEX IF NOT EXISTS idx_evidence_staging_user ON evidence_staging(org_id, user_id, status);
 
+-- Needs attention (plan 24, CISO 01): a reviewer's record that one issue is a false positive or an accepted exception.
+-- It names the exact facts it was about (fingerprint); when they change, or the expiry passes, the issue is open
+-- again. Append only: the latest row for an issue is the one that counts. The source record is never changed.
+CREATE TABLE IF NOT EXISTS assurance_issue_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    rule TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_id INTEGER NOT NULL,
+    fingerprint TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK(decision IN ('false_positive','accepted_exception')),
+    reason TEXT NOT NULL,
+    expires_on TEXT,
+    reviewed_by INTEGER NOT NULL,
+    reviewed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_assurance_issue_reviews ON assurance_issue_reviews(org_id, rule, source_type, source_id);
+
 CREATE TABLE IF NOT EXISTS evidence_links (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     evidence_id     INTEGER NOT NULL REFERENCES evidence_items(id) ON DELETE CASCADE,
@@ -4421,6 +4439,101 @@ CREATE TABLE IF NOT EXISTS grid_audit_signoffs (
 );
 CREATE INDEX IF NOT EXISTS idx_grid_signoffs_audit ON grid_audit_signoffs(audit_id);
 
+-- ── GRID: Respondent assignments (plan 24, CISO 03) ────────────────────
+-- An audit lead hands a few controls of one audit to a named person, who answers them and chooses proof from the Vault;
+-- a named reviewer accepts or returns each answer. The assignment opens only its own controls to that person.
+CREATE TABLE IF NOT EXISTS grid_assignments (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER,
+    audit_id         INTEGER NOT NULL REFERENCES grid_audits(id) ON DELETE CASCADE,
+    business_unit_id INTEGER,
+    title            TEXT NOT NULL,
+    instructions     TEXT NOT NULL DEFAULT '',
+    assignee_id      INTEGER NOT NULL REFERENCES users(id),
+    reviewer_id      INTEGER NOT NULL REFERENCES users(id),
+    due_date         TEXT NOT NULL,
+    state            TEXT NOT NULL DEFAULT 'draft'
+                     CHECK(state IN ('draft','in_progress','submitted','changes_requested','closed','cancelled')),
+    version          INTEGER NOT NULL DEFAULT 1,
+    created_by       INTEGER NOT NULL REFERENCES users(id),
+    created_at       TEXT NOT NULL,
+    launched_at      TEXT,
+    submitted_at     TEXT,
+    closed_at        TEXT,
+    updated_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_grid_assignments_audit ON grid_assignments(audit_id, state);
+CREATE INDEX IF NOT EXISTS idx_grid_assignments_people ON grid_assignments(assignee_id, reviewer_id, state);
+CREATE TABLE IF NOT EXISTS grid_assignment_items (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id    INTEGER NOT NULL REFERENCES grid_assignments(id) ON DELETE CASCADE,
+    control_id       INTEGER NOT NULL REFERENCES grid_controls(id) ON DELETE CASCADE,
+    response         TEXT NOT NULL DEFAULT '',
+    observation      TEXT NOT NULL DEFAULT '',
+    review_state     TEXT NOT NULL DEFAULT 'unreviewed'
+                     CHECK(review_state IN ('unreviewed','changes_requested','resubmitted','accepted')),
+    review_note      TEXT,
+    reviewed_by      INTEGER REFERENCES users(id),
+    reviewed_at      TEXT,
+    updated_at       TEXT,
+    UNIQUE(assignment_id, control_id)
+);
+CREATE INDEX IF NOT EXISTS idx_grid_assignment_items_control ON grid_assignment_items(control_id);
+CREATE TABLE IF NOT EXISTS grid_assignment_proof (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id          INTEGER NOT NULL REFERENCES grid_assignment_items(id) ON DELETE CASCADE,
+    evidence_id      INTEGER NOT NULL,
+    evidence_version INTEGER,
+    file_hash        TEXT,
+    link_id          INTEGER,
+    added_by         INTEGER NOT NULL REFERENCES users(id),
+    added_at         TEXT NOT NULL,
+    removed_at       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_grid_assignment_proof_item ON grid_assignment_proof(item_id);
+CREATE TABLE IF NOT EXISTS grid_assignment_events (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id    INTEGER NOT NULL REFERENCES grid_assignments(id) ON DELETE CASCADE,
+    item_id          INTEGER,
+    actor_id         INTEGER NOT NULL REFERENCES users(id),
+    action           TEXT NOT NULL,
+    detail           TEXT,
+    created_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_grid_assignment_events ON grid_assignment_events(assignment_id, id);
+
+-- ── GRID: Reusing an earlier audit (plan 25, CISO 02) ──────────────────
+-- An audit lead applies reviewed answers and current proof from an earlier audit to this one, as suggestions the
+-- target still reviews. A decision keeps who, when, both snapshots and what it created, so it can be undone while
+-- nothing it created has been reviewed.
+CREATE TABLE IF NOT EXISTS grid_reuse_decisions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER,
+    target_audit_id  INTEGER NOT NULL REFERENCES grid_audits(id) ON DELETE CASCADE,
+    source_audit_id  INTEGER NOT NULL,
+    applied_by       INTEGER NOT NULL REFERENCES users(id),
+    applied_at       TEXT NOT NULL,
+    undone_by        INTEGER REFERENCES users(id),
+    undone_at        TEXT,
+    undo_reason      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_grid_reuse_decisions_target ON grid_reuse_decisions(target_audit_id, id);
+CREATE TABLE IF NOT EXISTS grid_reuse_rows (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    decision_id       INTEGER NOT NULL REFERENCES grid_reuse_decisions(id) ON DELETE CASCADE,
+    target_control_id INTEGER NOT NULL,
+    source_control_id INTEGER NOT NULL,
+    relation          TEXT NOT NULL CHECK(relation IN ('full','partial')),
+    basis             TEXT NOT NULL,
+    mapping_id        INTEGER,
+    fingerprint       TEXT NOT NULL,
+    source_snapshot   TEXT NOT NULL,
+    target_before     TEXT NOT NULL,
+    link_ids          TEXT NOT NULL DEFAULT '[]',
+    comment_id        INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_grid_reuse_rows_target ON grid_reuse_rows(target_control_id, source_control_id);
+
 -- ── GRID: Policy Requests (GRID→ARIA cross-module) ─────────────────────
 CREATE TABLE IF NOT EXISTS grid_policy_requests (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -7175,6 +7288,10 @@ _COLUMN_MIGRATIONS = [
         # ── Governance Graph T1.2: canonical control linkage + user BU ────────
         ("aria_controls",     "canonical_control_id", "INTEGER"),
         ("grid_controls",     "canonical_control_id", "INTEGER"),
+        # ── Reusing an earlier audit (plan 25, CISO 02): a mapping counts as equivalent only once reviewed ──
+        ("grid_control_mappings", "review_kind", "TEXT"),
+        ("grid_control_mappings", "reviewed_by", "INTEGER REFERENCES users(id)"),
+        ("grid_control_mappings", "reviewed_at", "TEXT"),
         ("orm_rcsa_controls", "canonical_control_id", "INTEGER"),
         ("users",             "business_unit_id",     "INTEGER"),
         # ── Governance Graph T1.3: effectiveness scoring timestamp ────────────

@@ -266,6 +266,52 @@ async def group_rooms_page(request: Request):
         "user": user, **shell_ctx(request, active_module="governance")})
 
 
+# ── Needs attention (plan 24, CISO 01) ──────────────────────────────────────
+
+@router.get("/attention/", response_class=HTMLResponse)
+@require_auth
+async def attention_page(request: Request):
+    if not has_capability(request.state.user, "assurance.attention.view"):
+        raise HTTPException(404, "Not found")
+    return templates.TemplateResponse(request, "attention.html", {
+        "user": request.state.user, **shell_ctx(request, active_module="platform", active_section="attention")})
+
+
+@router.get("/api/attention")
+@require_auth
+async def api_attention(request: Request, severity: str = "", rule: str = "", state: str = "open",
+                        source_type: str = "", source_id: int = 0, page: int = 1):
+    from modules.governance import attention
+    db = get_db()
+    try:
+        data = attention.needs_attention(db, request.state.user, severity=severity, rule=rule, state=state,
+                                         source_type=source_type, source_id=source_id or None, page=page)
+    finally:
+        db.close()
+    response = JSONResponse(data)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/attention/reviews", status_code=201)
+@require_auth
+async def api_attention_review(request: Request):
+    from modules.governance import attention
+    body = await _json_body(request)
+    source_id = body.get("source_id")
+    if not isinstance(source_id, int) or isinstance(source_id, bool):
+        raise HTTPException(422, "Choose an issue")
+    db = get_db()
+    try:
+        review_id = attention.review(db, request.state.user, body.get("rule"), body.get("source_type"), source_id,
+                                     body.get("fingerprint"), body.get("decision"), body.get("reason"),
+                                     body.get("expires_on"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": review_id}, status_code=201)
+
+
 def _room_call(request: Request, call, commit: bool = False):
     from modules.governance import group_rooms  # noqa: F401 (callers pass a lambda over it)
     db = get_db()

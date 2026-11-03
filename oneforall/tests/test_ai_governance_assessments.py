@@ -192,6 +192,36 @@ def test_the_system_an_assessment_names_is_shown_only_to_those_who_may_open_it(w
     assert "Unit B churn" not in json.dumps(listed)
 
 
+def test_an_old_assessment_not_linked_to_a_system_is_offered_the_one_system_its_name_points_to(world):
+    """Plan 25: a suggestion from the recorded system name, among systems the person may open; never a link by
+    itself, never a guess between two equally good fits, and never a system the person cannot open."""
+    a, b = world.unit["A"], world.unit["B"]
+    triage = _insert(world.db, "applications", name="Claims Triage Bot", business_unit_id=a, is_active=1)
+    _insert(world.db, "applications", name="Claims portal", business_unit_id=a, is_active=1)
+    _insert(world.db, "applications", name="Payroll engine", business_unit_id=b, is_active=1)
+    _insert(world.db, "applications", name="Fraud scorer", business_unit_id=a, is_active=1)
+    _insert(world.db, "applications", name="Fraud scorer EU", business_unit_id=a, is_active=1)
+    for ref, title, system in (("AIIA-S1", "2024 review", "claims triage bot"),
+                               ("AIIA-S2", "Payroll engine impact assessment", None),
+                               ("AIIA-S3", "Fraud scorer and Fraud scorer EU", None),
+                               ("AIIA-S4", "Unrelated pilot", "Something else")):
+        _insert(world.db, "sentinel_aiia", ref_number=ref, title=title, ai_system_name=system, business_unit_id=a)
+    world.db.commit()
+    rows = {r["ref_number"]: r for r in assessments.list_assessments(world.db, user(world, "dpo_a"),
+                                                                     linked="none")["items"]}
+    assert rows["AIIA-S1"]["suggestion"] == {"id": triage, "name": "Claims Triage Bot",
+                                             "why": "Its recorded system name is this system's name."}
+    assert "suggestion" not in rows["AIIA-S2"], "a system in a unit the person cannot open is never suggested"
+    assert rows["AIIA-S3"]["suggestion"]["name"] == "Fraud scorer EU", "the fuller name fits better"
+    assert "suggestion" not in rows["AIIA-S4"]
+    assert rows["AIIA-S1"]["application"] is None, "a suggestion links nothing by itself"
+    _insert(world.db, "applications", name="claims triage bot", business_unit_id=a, is_active=1)
+    world.db.commit()
+    tied = {r["ref_number"]: r for r in assessments.list_assessments(world.db, user(world, "dpo_a"),
+                                                                     linked="none")["items"]}
+    assert "suggestion" not in tied["AIIA-S1"], "two equally good fits: nothing is suggested"
+
+
 # ── Classification (the tests the Sentinel service had) ─────────────────────
 
 def test_the_classification_is_the_active_frameworks_band_for_the_highest_product(world):

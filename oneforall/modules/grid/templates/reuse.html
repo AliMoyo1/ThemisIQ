@@ -1,0 +1,58 @@
+{% extends "base_shell.html" %}
+{% block title %}Reuse an earlier audit · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">GRID</div><div class="module-desc">Reuse an earlier audit</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Audits</div>
+  <a class="nav-item" href="/grid/">GRID home</a>
+  <a class="nav-item" href="/grid/assignments/">Audit questions</a>
+  <a class="nav-item active" href="/grid/reuse/" aria-current="page">Reuse an earlier audit</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.gr-page{max-width:1240px;padding:24px;margin:auto;color:var(--text)}
+.gr-hero,.gr-panel{padding:26px 30px;border-radius:22px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
+.gr-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.gr-hero p{max-width:820px;color:var(--muted);line-height:1.55;margin:0}
+.gr-panel{margin-top:18px}.gr-panel h2{font:600 20px/1.2 Georgia,serif;margin:0 0 8px}
+.gr-panel[hidden]{display:none}
+.gr-status{min-height:24px;font-weight:650;margin:12px 0}
+.gr-pick{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.gr-pick label{display:grid;gap:4px;font-size:13px;font-weight:650}
+.gr-pick select,.gr-pick input{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;min-width:240px}
+.gr-chip{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);font-size:12px;font-weight:650}
+.gr-chip.is-full{background:rgba(40,140,90,.12);border-color:rgba(40,140,90,.4)}
+.gr-chip.is-partial{background:rgba(200,120,20,.14);border-color:rgba(200,120,20,.45)}
+.gr-table-wrap{overflow-x:auto}
+.gr-table{width:100%;border-collapse:collapse;font-size:13px}
+.gr-table th,.gr-table td{text-align:left;vertical-align:top;padding:10px 8px;border-bottom:1px solid var(--border)}
+.gr-table ul{margin:4px 0 0;padding-left:18px}.gr-muted{color:var(--muted)}
+.gr-summary{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.gr-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+@media(max-width:700px){.gr-page{padding:14px}.gr-hero{padding:20px}.gr-pick select{min-width:0;width:100%}}
+</style>
+<main class="gr-page" id="gridReuse">
+  <header class="gr-hero"><h1>Reuse an earlier audit</h1><p>Choose the audit you are working on and an earlier one. For each control you see which earlier control speaks to it, how strongly, what was accepted there and what is held back. Applying adds the earlier proof as proof waiting for review, and for a full match the earlier answer as a comment marked "Suggested, not yet assessed". No control's status changes: each one is still reviewed in this audit.</p></header>
+  <p id="grStatus" class="gr-status" role="status" aria-live="polite"></p>
+  <section class="gr-panel">
+    <form class="gr-pick" id="grPick">
+      <label>This audit<select name="target" required></select></label>
+      <label>Earlier audit<select name="source" required></select></label>
+      <button class="btn btn-primary" type="submit">Show what could be reused</button>
+    </form>
+  </section>
+  <section class="gr-panel" id="grPreview" hidden>
+    <h2 id="grTitle"></h2>
+    <div class="gr-summary" id="grSummary"></div>
+    <div class="gr-table-wrap"><table class="gr-table"><caption class="gr-muted" id="grNote"></caption>
+      <thead><tr><th scope="col">Apply</th><th scope="col">This audit</th><th scope="col">Match</th><th scope="col">Earlier audit</th><th scope="col">Accepted there</th><th scope="col">Held back</th></tr></thead>
+      <tbody id="grRows"></tbody></table></div>
+    <div class="gr-actions"><button class="btn btn-secondary" type="button" id="grPrev">Previous</button><span id="grPage"></span><button class="btn btn-secondary" type="button" id="grNext">Next</button>
+      <button class="btn btn-primary" type="button" id="grApply">Apply the chosen rows</button></div>
+  </section>
+  <section class="gr-panel" id="grHistoryPanel" hidden>
+    <h2>Reuse applied to this audit</h2>
+    <div id="grHistory"></div>
+  </section>
+</main>
+<script src="/static/js/grid_reuse.js?v=1" defer></script>
+{% endblock %}

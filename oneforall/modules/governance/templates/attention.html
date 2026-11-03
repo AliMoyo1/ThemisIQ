@@ -1,0 +1,48 @@
+{% extends "base_shell.html" %}
+{% block title %}Needs attention · ThemisIQ{% endblock %}
+{% block content %}
+<style>
+.na-page{max-width:1180px;padding:24px;margin:auto;color:var(--text)}
+.na-hero,.na-panel{padding:26px 30px;border-radius:22px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
+.na-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.na-hero p{max-width:780px;color:var(--muted);line-height:1.55;margin:0}
+.na-panel{margin-top:18px}.na-panel h2{font:600 20px/1.2 Georgia,serif;margin:18px 0 6px}
+.na-status{min-height:24px;font-weight:650;margin:12px 0}
+.na-summary{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.na-chip{display:inline-flex;gap:6px;align-items:center;padding:4px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);font-size:13px;font-weight:650}
+.na-chip.is-error{background:rgba(196,60,50,.12);border-color:rgba(196,60,50,.45)}
+.na-chip.is-warning{background:rgba(200,120,20,.14);border-color:rgba(200,120,20,.45)}
+.na-chip.is-reviewed{background:rgba(40,120,170,.12);border-color:rgba(40,120,170,.4)}
+.na-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.na-filters label{display:grid;gap:4px;font-size:13px;font-weight:650}
+.na-filters select,.na-form input,.na-form select,.na-form textarea{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;min-width:0}
+.na-issue{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin:10px 0;display:grid;gap:6px}
+.na-issue p{margin:0;line-height:1.5}.na-issue small{color:var(--muted)}
+.na-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.na-head a{font-weight:700;color:var(--text)}
+.na-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
+.na-form label{display:grid;gap:4px;font-size:12px;font-weight:650}.na-wide{grid-column:1/-1}
+.na-form[hidden]{display:none}
+.na-pages{display:flex;gap:10px;align-items:center;margin-top:14px}
+@media(max-width:700px){.na-page{padding:14px}.na-hero{padding:20px}.na-form{grid-template-columns:1fr}.na-wide{grid-column:1}}
+</style>
+<main class="na-page" id="needsAttention">
+  <header class="na-hero">
+    <h1>Needs attention</h1>
+    <p>Fixed checks over the records you may open: controls marked done with no accepted proof, proof that has lapsed, risk scores that do not add up, risk acceptances that expired or no longer match the risk, and overdue work nobody answers for. Each issue says what raised it and opens the record to fix it there. Nothing here changes a record.</p>
+    <div class="na-summary" id="naSummary"></div>
+  </header>
+  <p id="naStatus" class="na-status" role="status" aria-live="polite"></p>
+  <section class="na-panel">
+    <form class="na-filters" id="naFilters">
+      <label>Severity<select name="severity"><option value="">All</option><option value="error">Errors</option><option value="warning">Warnings</option></select></label>
+      <label>Check<select name="rule"><option value="">All checks</option></select></label>
+      <label>Show<select name="state"><option value="open">Open</option><option value="reviewed">Reviewed</option><option value="all">All</option></select></label>
+    </form>
+    <p id="naSources" class="na-status"></p>
+    <div id="naList"></div>
+    <div class="na-pages"><button class="btn btn-secondary" type="button" id="naPrev">Previous</button><span id="naPage"></span><button class="btn btn-secondary" type="button" id="naNext">Next</button></div>
+    <p class="na-status" id="naNote"></p>
+  </section>
+</main>
+<script src="/static/js/needs_attention.js?v=1" defer></script>
+{% endblock %}

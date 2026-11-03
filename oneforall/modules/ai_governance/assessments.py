@@ -368,8 +368,47 @@ def list_assessments(db, user, *, q=None, status=None, application_id=None, link
             "overall_classification": r["overall_classification"], "residual_classification": r["residual_classification"],
             "autonomy_level": r["autonomy_level"], "business_unit": r["bu_name"], "version": r["version"],
             "updated_at": service._text(r["updated_at"]), "url": f"/ai-governance/assessments/{r['id']}"})
+    if _can(user)["manage"] and any(i["application"] is None for i in items):
+        _suggest_systems(db, user, items)
     return {"items": items, "total": total, "page": page, "page_size": size, "pages": max(1, -(-total // size)),
             "can": _can(user)}
+
+
+# Words that say nothing about which system an assessment is about.
+_FILLER = {"ai", "the", "a", "an", "of", "for", "and", "to", "in", "on", "system", "systems", "model", "tool",
+           "assessment", "impact", "aiia", "use", "new", "v1", "v2"}
+
+
+def _words(text) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", str(text or "").lower()) if w not in _FILLER}
+
+
+def _suggest_systems(db, user, items) -> None:
+    """For an assessment not linked to a system, suggest the one system its recorded name points to (plan 25).
+
+    A suggestion only: nothing is linked until a person chooses it, through the ordinary link action and its checks.
+    Only systems the person may open are compared, and when two fit equally well nothing is suggested."""
+    scope, params = entity_scope_sql(APP, user, "ap")
+    systems = [(r["id"], r["name"], _words(r["name"])) for r in db.execute(
+        f"SELECT ap.id, ap.name FROM applications ap WHERE {scope} ORDER BY ap.id LIMIT 2000", params).fetchall()]
+    for item in items:
+        if item["application"] is not None:
+            continue
+        recorded = _words(item["ai_system_name"])
+        said = recorded | _words(item["title"])
+        best = []
+        for system_id, name, words in systems:
+            if not words or not words <= said:
+                continue
+            exact = bool(recorded) and words == recorded
+            score = (2 if exact else 1, len(words))
+            best.append((score, system_id, name, exact))
+        best.sort(reverse=True)
+        if best and (len(best) == 1 or best[0][0] > best[1][0]):
+            _, system_id, name, exact = best[0]
+            item["suggestion"] = {"id": system_id, "name": name,
+                                  "why": "Its recorded system name is this system's name." if exact else
+                                  "Every word of this system's name appears in its title or recorded system name."}
 
 
 # ── Writing ─────────────────────────────────────────────────────────────────

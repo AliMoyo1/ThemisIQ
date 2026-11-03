@@ -28,6 +28,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
     Evidence Repository
   </a>
+  {% if can_view_attention %}
+  <a href="/governance/attention/" class="nav-item{% if active_section == 'attention' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Needs attention
+  </a>
+  {% endif %}
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Tools</div>

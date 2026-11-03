@@ -73,6 +73,44 @@ def _side_sql(prefix, key):
     return f"({clause})", [part for spelling in spellings for part in spelling]
 
 
+# What lets a person change a record of each kind: the capability its own module's edit routes require (plan 25,
+# PLAN-37 Slice 1). A link is a change, so it needs the right to change at least one of its two ends, not only to see
+# them; a read-only role can no longer link. A kind missing here cannot be changed through a link by anyone but a
+# super administrator.
+CHANGE = {
+    ("aria", "control"): ("aria.control.update_own",), ("aria", "document"): ("aria.policy.edit_own",),
+    ("aria", "risk"): ("aria.risk.update_own",), ("aria", "framework"): ("aria.control.update_any",),
+    ("evidence", "item"): ("evidence.item.change",),
+    ("sentinel", "ropa"): ("sentinel.ropa.manage",), ("sentinel", "breach"): ("sentinel.breach.manage",),
+    ("sentinel", "dpia"): ("sentinel.dpia.manage",), ("sentinel", "dsr"): ("sentinel.dsr.manage",),
+    ("sentinel", "vendor"): ("sentinel.vendor.manage",), ("sentinel", "aiia"): ("ai_assessment.manage",),
+    ("grid", "audit"): ("grid.audit.edit",), ("grid", "nc"): ("grid.nc.manage",),
+    ("grid", "control"): ("grid.control.update_own",), ("grid", "vendor"): ("grid.vendor.manage",),
+    ("bcm", "plan"): ("bcm.plan.edit",), ("bcm", "incident"): ("bcm.incident.update",),
+    ("bcm", "exercise"): ("bcm.exercise.manage",), ("bcm", "vendor"): ("bcm.vendor.manage",),
+    ("bcm", "risk"): ("bcm.risk.manage",), ("bcm", "bia"): ("bcm.bia.manage",),
+    ("bcm", "compliance_control"): ("bcm.compliance.manage",),
+    ("erm", "risk"): ("erm.risk.manage",), ("erm", "scenario"): ("erm.scenario.manage",),
+    ("erm", "pillar"): ("erm.framework.manage",), ("erm", "objective"): ("erm.framework.manage",),
+    ("erm", "obligation"): ("erm.obligations.manage",), ("platform", "risk"): ("erm.risk.manage",),
+    ("orm", "event"): ("orm.event.manage",), ("orm", "kri"): ("orm.kri.manage",),
+    ("orm", "aims"): ("orm.event.manage",), ("orm", "ai_control"): ("orm.event.manage",),
+    ("governance", "application"): ("ai_use.link",), ("governance", "data_asset"): ("governance.entities.manage",),
+    ("governance", "process"): ("governance.entities.manage",),
+}
+
+
+def may_change(user, key) -> bool:
+    return bool(user.get("is_super_admin")) or any(has_capability(user, c) for c in CHANGE.get(key, ()))
+
+
+def _changes_one_end(db, user, ends) -> bool:
+    """The person may change at least one end. An application's owner may change it whatever their role, as
+    `_may_write` has always allowed for the edges of their own application."""
+    return any(may_change(user, key) or (key == _APP and _may_write(db, user, key, record_id))
+               for key, record_id in ends)
+
+
 def _may_write(db, user, key, record_id) -> bool:
     """Creating or removing an edge on an application needs the AI use link capability, or being that
     application's owner. Other kinds keep the rule Related Items always had: open both ends."""
@@ -105,6 +143,8 @@ def _validated_ends(db, user, source, target, relationship):
         raise LinkError(400, f"'{relationship}' cannot join {skey[0]}/{skey[1]} to {tkey[0]}/{tkey[1]}.")
     if not (_may_write(db, user, skey, sid) and _may_write(db, user, tkey, tid)):
         raise LinkError(403, "Access denied.")
+    if not _changes_one_end(db, user, ((skey, sid), (tkey, tid))):
+        raise LinkError(403, "You may view these records but change neither of them, so you cannot link them.")
     return skey, tkey
 
 
@@ -237,7 +277,8 @@ def set_link_status(db, user, link_id, status) -> dict:
     if not (is_linkable(skey) and is_linkable(tkey)
             and describe_record(db, skey, sid, user) and describe_record(db, tkey, tid, user)):
         raise LinkError(404, "Link not found.")
-    if not (_may_write(db, user, skey, sid) and _may_write(db, user, tkey, tid)):
+    if not (_may_write(db, user, skey, sid) and _may_write(db, user, tkey, tid)
+            and _changes_one_end(db, user, ((skey, sid), (tkey, tid)))):
         raise LinkError(403, "Access denied.")
     db.execute(
         "UPDATE cross_module_links SET status=%s, confirmed_by=%s, confirmed_at=%s WHERE id=%s",
