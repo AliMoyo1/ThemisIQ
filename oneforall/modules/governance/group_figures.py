@@ -6,6 +6,7 @@ for the people holding a named, unexpired `figure.view` grant. A subsidiary that
 reporting** and never counts as zero.
 """
 import hashlib
+import importlib
 import json
 import logging
 import math
@@ -43,9 +44,12 @@ _TEXT_DETAIL = {"module", "unit", "name"}
 _DETAIL_KEY = re.compile(r"[a-z0-9_ -]{1,40}")
 
 
-# The measures a child may publish are the Command Centre ones; which of them cross to a parent is decided per
-# relationship, in its reviewed sharing terms (`figure_measures`). Nothing crosses that the terms do not list.
-PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.startswith("cc.")))
+# The measures a child may publish: the Command Centre ones and the business continuity and privacy dashboards' own
+# (plan 22, C6), each built by the same code as its page, for the whole organization. Which of them cross to a parent
+# is decided per relationship, in its DPO-reviewed sharing terms (`figure_measures`); nothing crosses that the terms do
+# not list. The Vault claim metrics are registered but no code builds them yet, so they cannot be published.
+_MODULE_DASHBOARDS = ("modules.bcm.dashboard_metrics", "modules.sentinel.dashboard_metrics")
+PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.split(".", 1)[0] in ("cc", "bcm", "sentinel")))
 
 
 def publishable_measures() -> "list[dict]":
@@ -151,11 +155,14 @@ def _build(org_id: int, slug: str):
         db = get_db()
         try:
             built = command_metrics.build(db, actor)
+            extra = []
+            for name in _MODULE_DASHBOARDS:
+                extra += list(importlib.import_module(name).metrics(db, actor).values())
             licensed = licensed_modules_for(db, org_id)
         finally:
             db.close()
     rows = {}
-    for metric in list(built["metrics"].values()) + list(built["health"]):
+    for metric in list(built["metrics"].values()) + list(built["health"]) + extra:
         row = sanitize(metric)
         if row is None:
             continue

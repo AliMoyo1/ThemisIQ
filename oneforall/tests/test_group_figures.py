@@ -109,6 +109,19 @@ def test_publishing_freezes_figures_append_only_with_versions_and_a_hash(world):
     assert all(isinstance(json.loads(r["detail_json"]), dict) for r in stored)
 
 
+def test_the_continuity_and_privacy_dashboards_are_published_but_not_the_unbuilt_vault_metrics(world):
+    db, parent, child, *_ = world
+    gf.publish_tenant(child, "fig_child")
+    keys = {r["measure_key"] for r in db.execute(
+        "SELECT DISTINCT measure_key FROM group_figure_snapshots WHERE source_org_id=%s", (child,)).fetchall()}
+    assert {"bcm.plans", "bcm.active_incidents", "sentinel.ropa_records", "sentinel.dsr_open"} <= keys
+    assert not any(k.startswith("vault.") for k in keys) and not any(k.startswith("vault.") for k in gf.PUBLISHABLE)
+    assert gf.validate_measures(["bcm.plans", "sentinel.dsr_open"]) == ["bcm.plans", "sentinel.dsr_open"]
+    families = {r["measure_key"]: r["module"] for r in db.execute(
+        "SELECT measure_key, module FROM group_figure_snapshots WHERE source_org_id=%s", (child,)).fetchall()}
+    assert families["bcm.plans"] == "bcm" and families["sentinel.dsr_open"] == "sentinel", "the DPO sees privacy only"
+
+
 def test_a_module_the_organization_is_not_licensed_for_publishes_nothing(world):
     db, parent, child, *_ = world
     db.execute("INSERT INTO licenses (org_id, module_keys, seats) VALUES (%s,'aria',10)", (child,))
