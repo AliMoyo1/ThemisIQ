@@ -104,6 +104,13 @@ def may_change(user, key) -> bool:
     return bool(user.get("is_super_admin")) or any(has_capability(user, c) for c in CHANGE.get(key, ()))
 
 
+def _changes_one_end(db, user, ends) -> bool:
+    """The person may change at least one end. An application's owner may change it whatever their role, as
+    `_may_write` has always allowed for the edges of their own application."""
+    return any(may_change(user, key) or (key == _APP and _may_write(db, user, key, record_id))
+               for key, record_id in ends)
+
+
 def _may_write(db, user, key, record_id) -> bool:
     """Creating or removing an edge on an application needs the AI use link capability, or being that
     application's owner. Other kinds keep the rule Related Items always had: open both ends."""
@@ -136,7 +143,7 @@ def _validated_ends(db, user, source, target, relationship):
         raise LinkError(400, f"'{relationship}' cannot join {skey[0]}/{skey[1]} to {tkey[0]}/{tkey[1]}.")
     if not (_may_write(db, user, skey, sid) and _may_write(db, user, tkey, tid)):
         raise LinkError(403, "Access denied.")
-    if not (may_change(user, skey) or may_change(user, tkey)):
+    if not _changes_one_end(db, user, ((skey, sid), (tkey, tid))):
         raise LinkError(403, "You may view these records but change neither of them, so you cannot link them.")
     return skey, tkey
 
@@ -271,7 +278,7 @@ def set_link_status(db, user, link_id, status) -> dict:
             and describe_record(db, skey, sid, user) and describe_record(db, tkey, tid, user)):
         raise LinkError(404, "Link not found.")
     if not (_may_write(db, user, skey, sid) and _may_write(db, user, tkey, tid)
-            and (may_change(user, skey) or may_change(user, tkey))):
+            and _changes_one_end(db, user, ((skey, sid), (tkey, tid)))):
         raise LinkError(403, "Access denied.")
     db.execute(
         "UPDATE cross_module_links SET status=%s, confirmed_by=%s, confirmed_at=%s WHERE id=%s",

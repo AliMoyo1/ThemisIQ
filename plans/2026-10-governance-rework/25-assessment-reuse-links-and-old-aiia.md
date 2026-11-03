@@ -61,6 +61,7 @@
 - 2026-11-03: committed `810e2507`: `relationships.CHANGE` and `may_change` (link create and confirm need the right to change one end); `("platform","evidence")` aliased to `("evidence","item")`; capability `evidence.item.change`; 3 tests.
 - 2026-11-03: committed `e902d42b`: `assessments._suggest_systems` and the list's "Suggested" line with one-click link; script version 2; test.
 - 2026-11-03: committed `e95544d7`: `modules/grid/reuse.py`, tables `grid_reuse_decisions` and `grid_reuse_rows`, mapping review columns, 7 routes, the Reuse an earlier audit page and GRID sidebar link; 5 tests.
+- 2026-11-03: CI's PostgreSQL schema job found that the new link rule refused an AI system's owner without an AI governance role, which `_may_write` has always allowed for edges of their own system. Ownership now counts as the right to change that end; SQLite test added.
 - 2026-11-03: browser test for the Reuse page (preview, apply, undo, axe) and a real PostgreSQL test (tenant schema, ordinary role) added; capability inventory regenerated.
 
 ## 6. Verification

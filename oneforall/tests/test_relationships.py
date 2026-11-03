@@ -340,6 +340,10 @@ def test_seeing_two_records_is_not_enough_to_link_them(graph):
     assert made is None and error.status == 403 and "change neither" in error.message
     made, error = _link(graph, graph.users["owner_a"], asset, process)
     assert error is None and made["created"], "a person who may change the asset links it"
+    app = _ref(graph, APP, "A")
+    owner_as_employee = {**graph.users["owner_a"], "roles": ["employee"]}
+    made, error = _link(graph, owner_as_employee, app, process, "depends_on")
+    assert error is None and made["created"], "an application's owner may link it whatever their role"
 
 
 def test_a_vault_file_picked_from_search_links_as_the_vault_file_it_is(graph):
