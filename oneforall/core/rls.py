@@ -297,6 +297,12 @@ _STMTS = [
     "CREATE POLICY group_policy_adoptions_review ON public.group_policy_adoptions FOR UPDATE "
     "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
     "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "ALTER TABLE public.group_adoption_controls ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_adoption_controls FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_adoption_controls_viewer ON public.group_adoption_controls",
+    "CREATE POLICY group_adoption_controls_viewer ON public.group_adoption_controls "
+    "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
+    "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
     # users
     "ALTER TABLE public.users ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.users FORCE ROW LEVEL SECURITY",

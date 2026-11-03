@@ -20,6 +20,8 @@ def test_policy_adoption_page_requires_named_parent_policy(login_as, live_app):
     expect(page.get_by_role("heading", name="Policy adoption")).to_be_visible()
     expect(page.locator("#gaList")).to_contain_text("No published parent policies")
     expect(page.locator("#gaMore")).to_be_hidden()
+    expect(page.locator("#gaRollup")).to_be_visible()
+    expect(page.locator("#gaRollupRows")).to_contain_text("You have not published a policy version")
 
 
 def test_verdict_history_does_not_render_inaccessible_release_or_html(login_as, live_app):

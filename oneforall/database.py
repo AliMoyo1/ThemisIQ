@@ -1038,6 +1038,21 @@ CREATE INDEX IF NOT EXISTS idx_group_policy_adoptions_viewer
 CREATE UNIQUE INDEX IF NOT EXISTS idx_group_policy_one_pending
     ON group_policy_adoptions(publication_id) WHERE state='pending_review';
 
+-- The subsidiary's own controls that carry out an adopted parent policy (plan 22, C5). Visible only to it.
+CREATE TABLE IF NOT EXISTS group_adoption_controls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    adoption_id INTEGER NOT NULL REFERENCES group_policy_adoptions(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    module TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    linked_by INTEGER NOT NULL,
+    linked_at TEXT NOT NULL,
+    removed_by INTEGER,
+    removed_at TEXT,
+    UNIQUE(adoption_id, module, entity_type, entity_id)
+);
+
 CREATE TABLE IF NOT EXISTS group_request_mappings (
     request_id INTEGER PRIMARY KEY REFERENCES group_evidence_requests(id),
     source_org_id INTEGER NOT NULL REFERENCES organizations(id),

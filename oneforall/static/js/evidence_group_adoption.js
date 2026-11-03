@@ -91,6 +91,46 @@
     });
     target.append(form);
   }
+  function linkControl(row, target) {
+    const form = el('form', '', 'ga-form');
+    const kind = el('label', 'Control type');
+    const select = document.createElement('select'); select.name = 'kind';
+    [['aria/control', 'ARIA control'], ['grid/control', 'GRID audit control'],
+      ['bcm/compliance_control', 'BCM compliance control'], ['orm/ai_control', 'AI control']]
+      .forEach(([value, label]) => select.append(new Option(label, value)));
+    kind.append(select);
+    const id = input('Control ID', 'entity_id', 'number', true);
+    const note = el('p', 'This records that your own control carries out the policy. It stays in your organization and is not proof that the control works.', 'ga-wide');
+    const send = el('button', 'Link control', 'btn btn-primary'); send.type = 'submit';
+    form.append(kind, id, note, send);
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const [module, entityType] = select.value.split('/');
+      save(`/evidence/api/group/adoptions/${row.adoption.id}/controls`,
+        {module, entity_type: entityType, entity_id: Number(form.elements.entity_id.value)}, 'Control linked.');
+    });
+    target.append(form);
+  }
+  async function loadRollup() {
+    let data;
+    try { data = await ApiClient.request('/evidence/api/group/adoptions/rollup', {actionId: 'group.policy.rollup'}); }
+    catch (error) { return; }
+    const panel = document.getElementById('gaRollup');
+    const body = document.getElementById('gaRollupRows');
+    panel.hidden = false;
+    body.replaceChildren();
+    if (!data.items.length) body.append(el('p', 'You have not published a policy version to a subsidiary.'));
+    data.items.forEach(item => {
+      const card = el('article', '', 'ga-card');
+      card.append(el('h3', `${item.title} · v${item.version} · ${item.organization}`));
+      const state = {no_decision: 'No decision yet', in_review: 'Decision in review'}[item.state]
+        || item.state.replaceAll('_', ' ');
+      card.append(el('p', item.decided_at
+        ? `${state} · decided ${item.decided_at.slice(0, 10)}${item.effective_at ? ` · effective ${item.effective_at}` : ''} · next review ${item.review_due_at}`
+        : `${state} · published ${String(item.published_at).slice(0, 10)}`));
+      body.append(card);
+    });
+  }
   function render() {
     list.replaceChildren();
     if (!rows.length) list.append(el('p', 'No published parent policies are available in your named access.'));
@@ -107,13 +147,29 @@
       actions.append(link);
       if (rights.can_propose && (!adoption || adoption.state === 'rejected')) actions.append(button('Record local outcome', 'propose'));
       if (adoption && adoption.can_review) actions.append(button('Review outcome', 'review'));
+      if (adoption && adoption.can_link) actions.append(button('Link a local control', 'link'));
       card.append(actions);
+      if (adoption && adoption.controls && adoption.controls.length) {
+        const linked = el('div', '', 'ga-actions');
+        linked.append(el('span', 'Carried out by your controls:'));
+        adoption.controls.forEach(control => {
+          const open = el('a', control.title, 'btn btn-secondary');
+          open.href = control.url;
+          const remove = el('button', `Remove ${control.title}`, 'btn btn-secondary');
+          remove.type = 'button';
+          remove.addEventListener('click', () => save(`/evidence/api/group/adoption-controls/${control.id}/remove`, {},
+            'Control link removed.'));
+          linked.append(open, remove);
+        });
+        card.append(linked);
+      }
       const detail = el('div', ''); card.append(detail);
       actions.addEventListener('click', event => {
         const control = event.target.closest('button[data-action]');
         if (!control) return;
         detail.replaceChildren();
         if (control.dataset.action === 'propose') proposal(row, detail);
+        else if (control.dataset.action === 'link') linkControl(row, detail);
         else review(row, detail);
       });
       list.append(card);
@@ -132,4 +188,5 @@
   }
   more.addEventListener('click', () => load(page + 1));
   load(1);
+  loadRollup();
 })();

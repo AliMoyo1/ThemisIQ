@@ -871,6 +871,36 @@ async def api_group_adoption_propose(request: Request, publication_id: int):
     return JSONResponse({"id": adoption_id, "status": "pending_review"}, status_code=201)
 
 
+@router.get("/api/group/adoptions/rollup")
+@require_auth
+async def api_group_adoption_rollup(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse(group_adoption.rollup(db, request.state.user))
+    finally:
+        db.close()
+
+
+@router.post("/api/group/adoptions/{adoption_id}/controls", status_code=201)
+@require_auth
+async def api_group_adoption_link_control(request: Request, adoption_id: int):
+    body = await _group_body(request)
+    try:
+        entity_id = int(body.get("entity_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose one of your controls") from None
+    link_id = _group_operation(lambda db: group_adoption.link_control(
+        db, request.state.user, adoption_id, body.get("module"), body.get("entity_type"), entity_id))
+    return JSONResponse({"id": link_id}, status_code=201)
+
+
+@router.post("/api/group/adoption-controls/{link_id}/remove")
+@require_auth
+async def api_group_adoption_unlink_control(request: Request, link_id: int):
+    _group_operation(lambda db: group_adoption.unlink_control(db, request.state.user, link_id))
+    return JSONResponse({"status": "removed"})
+
+
 @router.post("/api/group/adoptions/{adoption_id}/review")
 @require_auth
 async def api_group_adoption_review(request: Request, adoption_id: int):
