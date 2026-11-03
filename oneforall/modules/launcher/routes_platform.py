@@ -1070,8 +1070,23 @@ async def api_onboarding(request: Request):
     return _JSONResp({
         "user": user["id"],
         "tours": onboarding.tours_for(user),
-        "checklist": onboarding.checklist_for(user, mfa_on),
+        "checklist": onboarding.checklist_for(user, mfa_on, _dpo_named(user)),
     })
+
+
+def _dpo_named(user) -> "bool | None":
+    """For a customer administrator: whether an active person in their organization holds the DPO role."""
+    from core.rbac import DPO, has_capability
+    if not user.get("org_id") or not has_capability(user, "platform.manage_org_users"):
+        return None
+    db = get_db()
+    try:
+        return db.execute(
+            "SELECT 1 FROM users u JOIN user_roles r ON r.user_id = u.id "
+            "WHERE u.org_id = %s AND u.is_active = 1 AND r.role_key = %s LIMIT 1",
+            (user["org_id"], DPO)).fetchone() is not None
+    finally:
+        db.close()
 
 
 @router.post("/api/trainer/ask")

@@ -173,19 +173,20 @@ _add("aria.framework_implemented", "Controls implemented, by framework", "aria",
 
 # ── Evidence Vault ──────────────────────────────────────────────────────────
 
-_VAULT = "modules/evidence/routes.py"
+_VAULT = "modules/evidence/claim_metrics.py"
+_VAULT_RECORDS = ("Every record of the kinds the Evidence Vault measures (controls, documents, risks, audits, plans, "
+                  "assessments and the like) that the viewer may open, in modules the organization is licensed for.")
+_VAULT_ALL = "All of those records."
 _add("vault.linked", "Claims with a live link", "", _VAULT,
-     "Claims (records) that have at least one live evidence link. A link is not proof.",
-     "Records of the kind that the viewer may open.", denominator="Records of that kind the viewer may open.",
-     drilldown="/evidence/", exact=False, ownership="mixed_sources")
+     "The share of claims (records) that have at least one live evidence link. A link is not proof.",
+     _VAULT_RECORDS, denominator=_VAULT_ALL, drilldown="/evidence/", exact=False, ownership="mixed_sources")
 _add("vault.current_proof", "Claims with current proof", "", _VAULT,
-     "Claims with a live link to a current file that has not expired and whose link was not returned or rejected.",
-     "As above.", denominator="Records of that kind the viewer may open.", drilldown="/evidence/", exact=False,
+     "The share of claims with a live link to a current file that has not expired and whose link was not returned or "
+     "rejected.", _VAULT_RECORDS, denominator=_VAULT_ALL, drilldown="/evidence/", exact=False,
      ownership="mixed_sources")
 _add("vault.accepted", "Claims with accepted proof", "", _VAULT,
-     "Claims whose current proof a reviewer other than the person who attached it has accepted.",
-     "As above.", denominator="Records of that kind the viewer may open.", drilldown="/evidence/", exact=False,
-     ownership="mixed_sources")
+     "The share of claims whose current proof a reviewer other than the person who attached it has accepted.",
+     _VAULT_RECORDS, denominator=_VAULT_ALL, drilldown="/evidence/", exact=False, ownership="mixed_sources")
 
 
 # ── Access ──────────────────────────────────────────────────────────────────

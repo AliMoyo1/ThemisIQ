@@ -101,3 +101,29 @@ def test_the_onboarding_api_answers_a_signed_in_person_and_refuses_everyone_else
     assert body["checklist"][0]["id"] == "mfa" and body["checklist"][0]["done"] is False
 
     assert api.get("/api/onboarding").status_code in (303, 401, 403)
+
+
+def test_a_customer_administrator_is_asked_to_name_a_dpo_until_one_is_active(test_db, api):
+    """Each customer names its own DPO when it sets up its people; without one no group sharing terms can be reviewed."""
+    test_db.execute("INSERT INTO organizations (name, slug, status) VALUES ('Customer','customer-dpo','active')")
+    org = test_db.execute("SELECT id FROM organizations WHERE slug='customer-dpo'").fetchone()["id"]
+    for name, role in (("cust_admin", "org_admin"), ("cust_staff", "employee"), ("cust_dpo", "dpo")):
+        test_db.execute("INSERT INTO users (username, email, full_name, password_hash, org_id, is_active) "
+                        "VALUES (%s,%s,%s,'x',%s,%s)", (name, name + "@example.test", name, org,
+                                                        0 if name == "cust_dpo" else 1))
+        uid = test_db.execute("SELECT id FROM users WHERE username=%s", (name,)).fetchone()["id"]
+        test_db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s,%s)", (uid, role))
+    test_db.commit()
+
+    def checklist(name):
+        uid = test_db.execute("SELECT id FROM users WHERE username=%s", (name,)).fetchone()["id"]
+        token = create_session(uid, ip="203.0.113.5", user_agent="Test/1.0")
+        body = api.get("/api/onboarding", headers={"Cookie": f"{settings.SESSION_COOKIE_NAME}={token}"}).json()
+        return {item["id"]: item for item in body["checklist"]}
+
+    assert checklist("cust_admin")["dpo"]["done"] is False, "a DPO who is not active does not count"
+    assert checklist("cust_admin")["dpo"]["href"] == "/admin/users"
+    assert "dpo" not in checklist("cust_staff"), "only someone who manages the organization's people is asked"
+    test_db.execute("UPDATE users SET is_active=1 WHERE username='cust_dpo'")
+    test_db.commit()
+    assert checklist("cust_admin")["dpo"]["done"] is True

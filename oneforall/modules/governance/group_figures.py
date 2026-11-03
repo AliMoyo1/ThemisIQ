@@ -45,12 +45,13 @@ _DETAIL_KEY = re.compile(r"[a-z0-9_ -]{1,40}")
 
 
 # The measures a child may publish: the Command Centre ones, the business continuity and privacy dashboards' own
-# (plan 22, C6) and the framework register (C7), each built by the same code as its page, for the whole organization. Which of them cross to a parent
-# is decided per relationship, in its DPO-reviewed sharing terms (`figure_measures`); nothing crosses that the terms do
-# not list. The Vault claim metrics are registered but no code builds them yet, so they cannot be published.
+# (plan 22, C6), the framework register (C7) and the Vault claim figures (plan 23, P1), each built by the same code as
+# its page, for the whole organization. Which of them cross to a parent is decided per relationship, in its DPO-reviewed
+# sharing terms (`figure_measures`); nothing crosses that the terms do not list.
 _MODULE_DASHBOARDS = ("modules.bcm.dashboard_metrics", "modules.sentinel.dashboard_metrics",
-                      "modules.aria.framework_register")
-PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.split(".", 1)[0] in ("cc", "bcm", "sentinel", "aria")))
+                      "modules.aria.framework_register", "modules.evidence.claim_metrics")
+PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY
+                           if k.split(".", 1)[0] in ("cc", "bcm", "sentinel", "aria", "vault")))
 
 
 def publishable_measures() -> "list[dict]":

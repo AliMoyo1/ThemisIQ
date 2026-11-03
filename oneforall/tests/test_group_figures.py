@@ -109,17 +109,48 @@ def test_publishing_freezes_figures_append_only_with_versions_and_a_hash(world):
     assert all(isinstance(json.loads(r["detail_json"]), dict) for r in stored)
 
 
-def test_the_continuity_and_privacy_dashboards_are_published_but_not_the_unbuilt_vault_metrics(world):
+def test_the_continuity_and_privacy_dashboards_are_published(world):
     db, parent, child, *_ = world
     gf.publish_tenant(child, "fig_child")
     keys = {r["measure_key"] for r in db.execute(
         "SELECT DISTINCT measure_key FROM group_figure_snapshots WHERE source_org_id=%s", (child,)).fetchall()}
     assert {"bcm.plans", "bcm.active_incidents", "sentinel.ropa_records", "sentinel.dsr_open"} <= keys
-    assert not any(k.startswith("vault.") for k in keys) and not any(k.startswith("vault.") for k in gf.PUBLISHABLE)
     assert gf.validate_measures(["bcm.plans", "sentinel.dsr_open"]) == ["bcm.plans", "sentinel.dsr_open"]
     families = {r["measure_key"]: r["module"] for r in db.execute(
         "SELECT measure_key, module FROM group_figure_snapshots WHERE source_org_id=%s", (child,)).fetchall()}
     assert families["bcm.plans"] == "bcm" and families["sentinel.dsr_open"] == "sentinel", "the DPO sees privacy only"
+
+
+def test_the_vault_claim_figures_match_the_vaults_own_coverage_count(world):
+    """A link is not proof: of three linked controls one has current proof waiting for review, one accepted proof, and
+    one only an expired file. The figures are the Vault page's own count for the whole organization."""
+    from core.report_kit.identity import pct
+    from modules.evidence.routes import coverage_for
+    db, parent, child, *_ = world
+    gdpr = db.execute("SELECT id FROM frameworks WHERE name='GDPR'").fetchone()[0]
+    controls = []
+    for ref in ("V-1", "V-2", "V-3", "V-4"):
+        db.execute("INSERT INTO controls (framework_id, ref, name, status) VALUES (%s,%s,%s,'Not Started')",
+                   (gdpr, ref, "Control " + ref))
+        controls.append(db.execute("SELECT MAX(id) FROM controls").fetchone()[0])
+    for control, expiry, review in ((controls[0], None, None), (controls[1], None, "accepted"),
+                                    (controls[2], "2020-01-01", "accepted")):
+        item = _id(db, "evidence_items", title="Proof", status="current", expiry_date=expiry, org_id=child)
+        _id(db, "evidence_links", evidence_id=item, module="aria", entity_type="control", entity_id=control,
+            review_status=review)
+    gf.publish_tenant(child, "fig_child")
+    rows = {r["measure_key"]: r for r in db.execute(
+        "SELECT measure_key, state, value, detail_json, module FROM group_figure_snapshots WHERE source_org_id=%s "
+        "AND measure_key LIKE 'vault.%%'", (child,)).fetchall()}
+    assert set(rows) == {"vault.linked", "vault.current_proof", "vault.accepted"}
+    detail = {key: json.loads(r["detail_json"]) for key, r in rows.items()}
+    assert [detail[k]["claims"] for k in ("vault.linked", "vault.current_proof", "vault.accepted")] == [3, 2, 1]
+    whole = coverage_for({"id": 0, "org_id": child, "is_super_admin": True, "roles": ["super_admin"],
+                          "business_unit_id": None})
+    total = sum(data["total"] for data in whole.values())
+    assert all(d["total"] == total for d in detail.values()) and total >= 4
+    assert rows["vault.accepted"]["value"] == pct(1, total) and rows["vault.accepted"]["module"] == ""
+    assert gf.validate_measures(["vault.accepted"]) == ["vault.accepted"]
 
 
 def test_the_framework_register_names_catalogue_frameworks_and_never_a_typed_name(world):
