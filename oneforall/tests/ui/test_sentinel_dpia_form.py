@@ -114,7 +114,10 @@ def test_clearing_the_due_date_removes_it_from_the_list(login_as, live_app, page
     row.locator("button[title='Edit']").click()
     page.wait_for_selector("#dd_due_date")
     page.fill("#dd_due_date", "")
-    page.click("#snDpiaDrawerSaveBtn")
+    with page.expect_response(lambda response: response.request.method == "PUT" and
+                              "/sentinel/api/dpias/" in response.url) as saved:
+        page.click("#snDpiaDrawerSaveBtn")
+    assert saved.value.status == 200, saved.value.text()
     page.wait_for_selector("#snDpiaDrawerWrap", state="detached")
 
     row = _row(page, title)

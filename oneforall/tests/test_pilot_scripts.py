@@ -1,4 +1,4 @@
-"""The plan 23 pilot and search speed scripts keep working (each runs on its own throwaway SQLite file)."""
+"""The group pilot needs tenant schemas; the search speed script uses disposable SQLite."""
 import os
 import subprocess
 import sys
@@ -13,10 +13,10 @@ def _run(*args):
     return subprocess.run([sys.executable, *args], cwd=ROOT, env=env, capture_output=True, text=True, timeout=600)
 
 
-def test_the_group_pilot_walks_every_step():
+def test_the_group_pilot_refuses_shared_sqlite_figures():
     done = _run("scripts/pilot_group_oversight.py")
-    assert done.returncode == 0, done.stdout[-3000:] + done.stderr[-3000:]
-    assert "21 of 21 steps passed" in done.stdout
+    assert done.returncode != 0
+    assert "requires tenant-isolated PostgreSQL" in done.stdout + done.stderr
 
 
 def test_the_search_speed_script_checks_answers_and_reports_percentiles():

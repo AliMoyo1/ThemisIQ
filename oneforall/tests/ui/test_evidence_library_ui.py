@@ -125,6 +125,7 @@ def test_a_new_version_proposes_the_links_and_they_wait_for_their_own_review(
     page.goto(f"{live_app}/evidence")
     page.wait_for_selector("#evWork")
     page.click("button:has-text('+ Upload')")
+    page.select_option("#uploadFilingScope", f"unit:{synthetic_tenant['business_unit_id']}")
     first = tmp_path / "v1.txt"
     first.write_text("first signed copy " + title)
     page.set_input_files("#uploadFile", str(first))
@@ -134,7 +135,8 @@ def test_a_new_version_proposes_the_links_and_they_wait_for_their_own_review(
     db = database.get_db()
     try:
         item = db.execute("SELECT id FROM evidence_items WHERE title = %s", (title,)).fetchone()["id"]
-        risk = db.execute("INSERT INTO erm_enterprise_risks (title) VALUES (%s)", (f"Claim for {title}",)).lastrowid
+        risk = db.execute("INSERT INTO erm_enterprise_risks (title,business_unit_id) VALUES (%s,%s)",
+                          (f"Claim for {title}", synthetic_tenant["business_unit_id"])).lastrowid
         reviewer = synthetic_tenant["users"]["risk_owner"]["user_id"]
         db.execute("INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by, review_status, "
                    "reviewed_by, reviewed_at) VALUES (%s,'erm','risk',%s,%s,'accepted',%s,'2026-10-01 10:00:00')",
@@ -165,13 +167,15 @@ def test_guided_upload_files_a_claim_for_independent_review(login_as, live_app, 
     risk_name = _title("Guided claim")
     db = database.get_db()
     try:
-        risk = db.execute("INSERT INTO erm_enterprise_risks (title) VALUES (%s)", (risk_name,)).lastrowid
+        risk = db.execute("INSERT INTO erm_enterprise_risks (title,business_unit_id) VALUES (%s,%s)",
+                          (risk_name, synthetic_tenant["business_unit_id"])).lastrowid
         db.commit()
     finally:
         db.close()
     login_as("compliance_manager")
     page.goto(f"{live_app}/evidence")
     page.click("button:has-text('+ Upload')")
+    page.select_option("#uploadFilingScope", f"unit:{synthetic_tenant['business_unit_id']}")
     file = tmp_path / "guided.txt"
     file.write_text(title)
     page.set_input_files("#uploadFile", str(file))

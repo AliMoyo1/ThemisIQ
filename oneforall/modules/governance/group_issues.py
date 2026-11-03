@@ -208,6 +208,7 @@ def _read_tenant(org_id: int, slug: str, types: "set[str]") -> "dict[str, tuple[
 
 def publish_tenant(org_id: int, slug: str) -> int:
     """Publish the approved issue types of one subsidiary. Returns how many rows were written."""
+    gf.require_isolated_figures()
     db = get_db_bypass_rls()
     try:
         types = approved_for_child(db, org_id)
@@ -271,6 +272,7 @@ def _children(db, actor: dict) -> "list[dict]":
 def views(db, actor: dict) -> dict:
     if not actor.get("org_id") or not has_capability(actor, "group.issue.view"):
         raise HTTPException(403, "Group issue access required")
+    gf.require_isolated_figures(db)
     return {"subsidiaries": [{"org_id": c["org_id"], "name": c["name"],
                               "types": [{"key": t, "label": LABELS[t]} for t in c["types"]]} for c in _children(db, actor)]}
 
@@ -278,6 +280,7 @@ def views(db, actor: dict) -> dict:
 def view(db, actor: dict, org_id: int, issue_type: str, page: int = 1) -> dict:
     if not actor.get("org_id") or not has_capability(actor, "group.issue.view"):
         raise HTTPException(403, "Group issue access required")
+    gf.require_isolated_figures(db)
     child = next((c for c in _children(db, actor) if c["org_id"] == org_id), None)
     if child is None or issue_type not in child["types"]:
         raise HTTPException(404, "Company not found")  # an unknown, ungranted or unapproved type look alike

@@ -85,6 +85,7 @@ def review(db, actor: dict, pack_id: int, decision, note) -> dict:
     """A different person signs the pack off (issued) or turns it down (rejected). Either is final."""
     if not actor.get("org_id") or not has_capability(actor, "group.pack.approve"):
         raise HTTPException(403, "Group pack sign-off required")
+    gf.require_isolated_figures(db)
     if decision not in ("issued", "rejected") or not isinstance(note, str) or not 10 <= len(note.strip()) <= 500:
         raise HTTPException(422, "Choose a decision and record the reason")
     row = db.execute(f"SELECT created_by, status FROM {_table('group_packs')} WHERE id=%s AND parent_org_id=%s",
@@ -177,6 +178,7 @@ def log_export(db, actor: dict, pack_id: int, fmt: str) -> None:
 def get(db, actor: dict, pack_id: int, log: bool = True) -> dict:
     if not actor.get("org_id") or not has_capability(actor, "group.pack.view"):
         raise HTTPException(403, "Group pack access required")
+    gf.require_isolated_figures(db)
     row = db.execute(
         f"SELECT p.*, c.full_name AS created_name, r.full_name AS reviewed_name FROM {_table('group_packs')} p "
         "LEFT JOIN users c ON c.id=p.created_by LEFT JOIN users r ON r.id=p.reviewed_by "

@@ -175,6 +175,22 @@ jobs:
             tests/test_postgres_init.py::test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres \
             tests/test_postgres_init.py::test_two_workers_cannot_reserve_the_same_ai_allowance_on_real_postgres
 
+      - name: Run isolated group oversight pilot
+        working-directory: oneforall
+        env:
+          PILOT_DATABASE_URL: postgresql://postgres:${{ github.run_id }}@127.0.0.1:55432/themisiq_test_pilot
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+          connection = psycopg2.connect(os.environ["TEST_DATABASE_URL"])
+          connection.autocommit = True
+          with connection.cursor() as cursor:
+              cursor.execute("CREATE DATABASE themisiq_test_pilot")
+          connection.close()
+          PY
+          python scripts/pilot_group_oversight.py
+
   js-checks:
     name: JavaScript syntax + unit tests
     runs-on: ubuntu-latest

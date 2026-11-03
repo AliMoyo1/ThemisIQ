@@ -76,6 +76,28 @@ def test_replacement_requires_a_visible_current_version(lib, auth, tmp_path, mon
     assert not evidence_dir.exists()
 
 
+def test_replacement_without_filing_scope_inherits_authorized_versions_unit(lib, auth, tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "EVIDENCE_DIR", tmp_path / "evidence")
+    old = lib.item("Previous signed copy", unit=lib.unit_a)
+    status, body = _upload(auth, lib.people.unit_a, b"new signed copy", replace_id=str(old), filing_scope="")
+    assert status == 201
+    row = lib.db.execute("SELECT org_id, business_unit_id, parent_id FROM evidence_items WHERE id=%s",
+                         (body["id"],)).fetchone()
+    assert (row["org_id"], row["business_unit_id"], row["parent_id"]) == (lib.org1, lib.unit_a, old)
+    assert lib.db.execute("SELECT status FROM evidence_items WHERE id=%s", (old,)).fetchone()[0] == "superseded"
+
+
+def test_platform_admin_replacement_keeps_the_parents_organization(lib, auth, tmp_path, monkeypatch):
+    monkeypatch.setattr(ev, "EVIDENCE_DIR", tmp_path / "evidence")
+    old = lib.item("Tenant policy", unit=lib.unit_a)
+    admin = {**lib.people.uploader, "org_id": None, "business_unit_id": None, "is_super_admin": True}
+    status, body = _upload(auth, admin, b"updated tenant policy", replace_id=str(old), filing_scope="")
+    assert status == 201
+    row = lib.db.execute("SELECT org_id, business_unit_id, parent_id FROM evidence_items WHERE id=%s",
+                         (body["id"],)).fetchone()
+    assert (row["org_id"], row["business_unit_id"], row["parent_id"]) == (lib.org1, lib.unit_a, old)
+
+
 def test_selected_claim_on_a_new_version_is_not_linked_twice(lib, auth, tmp_path, monkeypatch):
     monkeypatch.setattr(ev, "EVIDENCE_DIR", tmp_path / "evidence")
     risk = lib.risk("Continuity risk", lib.unit_a)

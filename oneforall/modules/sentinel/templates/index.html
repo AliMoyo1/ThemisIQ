@@ -2137,8 +2137,8 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       '</div>'+
       '<div class="ropa-drawer-footer">'+
         '<button class="btn btn-secondary" onclick="document.getElementById(\'snRopaDrawerWrap\').remove()">Cancel</button>'+
-        '<button class="btn btn-primary" id="snRopaDrawerSaveBtn" onclick="snSaveRopaDrawer('+(isEdit?id:'null')+')">'+
-          (isEdit?'Save Changes':'Create Activity')+
+        '<button class="btn btn-primary" id="snRopaDrawerSaveBtn" disabled onclick="snSaveRopaDrawer('+(isEdit?id:'null')+')">'+
+          'Loading fields…'+
         '</button>'+
       '</div>'+
     '</div></div>';
@@ -2149,14 +2149,21 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       .then(function(profile){
         RecordProfileFields.fillRegulations(document.getElementById('rd_regulation'),profile,initialReg);
         RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile,f('legal_basis'));
+        var btn=document.getElementById('snRopaDrawerSaveBtn');
+        if(btn&&document.getElementById('snRopaProfileFields').dataset.ready==='true'){
+          btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create Activity';
+        }
       })
-      .catch(function(e){var host=document.getElementById('snRopaProfileFields');if(host)host.textContent=e.message;});
+      .catch(function(e){var host=document.getElementById('snRopaProfileFields');if(host)host.textContent=e.message;
+        var btn=document.getElementById('snRopaDrawerSaveBtn');if(btn)btn.textContent='Fields unavailable';});
     document.getElementById('rd_regulation').addEventListener('change',function(){
       var host=document.getElementById('snRopaProfileFields'),draft=Object.assign({},r||{});
       if(host.dataset.ready==='true')Object.assign(draft,RecordProfileFields.values(host));
+      var btn=document.getElementById('snRopaDrawerSaveBtn');if(btn){btn.disabled=true;btn.textContent='Loading fields…';}
       RecordProfileFields.mount(host,'/sentinel/api/record-profile/ropa?regulation='+encodeURIComponent(this.value),draft)
-        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile);})
-        .catch(function(e){host.textContent=e.message;});
+        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile);
+          if(btn&&host.dataset.ready==='true'){btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create Activity';}})
+        .catch(function(e){host.textContent=e.message;if(btn)btn.textContent='Fields unavailable';});
     });
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#snRopaDrawerWrap .ropa-drawer'));
     snRenderChipPicker('snRopaDC',SN_DATA_CATEGORIES,f('data_categories'));
@@ -2534,8 +2541,8 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       '</div>'+
       '<div class="ropa-drawer-footer">'+
         '<button class="btn btn-secondary" onclick="document.getElementById(\'snDpiaDrawerWrap\').remove()">Cancel</button>'+
-        '<button class="btn btn-primary" id="snDpiaDrawerSaveBtn" onclick="snSaveDpiaDrawer('+(isEdit?id:'null')+')">'+
-          (isEdit?'Save Changes':'Create DPIA')+
+        '<button class="btn btn-primary" id="snDpiaDrawerSaveBtn" disabled onclick="snSaveDpiaDrawer('+(isEdit?id:'null')+')">'+
+          'Loading fields…'+
         '</button>'+
       '</div>'+
     '</div></div>';
@@ -2545,14 +2552,21 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       .then(function(profile){
         RecordProfileFields.fillRegulations(document.getElementById('dd_regulation'),profile,reg);
         RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile,f('legal_basis'));
+        var btn=document.getElementById('snDpiaDrawerSaveBtn');
+        if(btn&&document.getElementById('snDpiaProfileFields').dataset.ready==='true'){
+          btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create DPIA';
+        }
       })
-      .catch(function(e){var host=document.getElementById('snDpiaProfileFields');if(host)host.textContent=e.message;});
+      .catch(function(e){var host=document.getElementById('snDpiaProfileFields');if(host)host.textContent=e.message;
+        var btn=document.getElementById('snDpiaDrawerSaveBtn');if(btn)btn.textContent='Fields unavailable';});
     document.getElementById('dd_regulation').addEventListener('change',function(){
       var host=document.getElementById('snDpiaProfileFields'),draft=Object.assign({},r||{});
       if(host.dataset.ready==='true')Object.assign(draft,RecordProfileFields.values(host));
+      var btn=document.getElementById('snDpiaDrawerSaveBtn');if(btn){btn.disabled=true;btn.textContent='Loading fields…';}
       RecordProfileFields.mount(host,'/sentinel/api/record-profile/dpia?regulation='+encodeURIComponent(this.value),draft)
-        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile);})
-        .catch(function(e){host.textContent=e.message;});
+        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile);
+          if(btn&&host.dataset.ready==='true'){btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create DPIA';}})
+        .catch(function(e){host.textContent=e.message;if(btn)btn.textContent='Fields unavailable';});
     });
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDpiaDrawerWrap').firstElementChild);
     if(isEdit)snLoadDpiaDocuments(id);

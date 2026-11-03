@@ -137,6 +137,7 @@ def compute(parent_org_id: int, now: "datetime | None" = None) -> dict:
     period = _period(now)
     db = get_db_bypass_rls()
     try:
+        gf.require_isolated_figures(db)
         existing = db.execute(
             f"SELECT * FROM {_table('group_band_publications')} WHERE parent_org_id=%s AND period_key=%s",
             (parent_org_id, period)).fetchone()
@@ -197,6 +198,7 @@ def compute(parent_org_id: int, now: "datetime | None" = None) -> dict:
 def compute_all() -> int:
     db = get_db_bypass_rls()
     try:
+        gf.require_isolated_figures(db)
         parents = [r["parent_org_id"] for r in db.execute(
             f"SELECT DISTINCT parent_org_id FROM {_table('org_relationships')} WHERE status='active'").fetchall()]
     finally:
@@ -215,6 +217,7 @@ def read(db, actor: dict) -> dict:
     """The band a subsidiary's senior role may see, or the single answer 'not available'. The answer never says why."""
     if not actor.get("org_id") or not has_capability(actor, "group.figure.view_band"):
         raise HTTPException(404, "Not found")
+    gf.require_isolated_figures(db)
     now = utcnow()
     edge = db.execute(
         f"SELECT r.parent_org_id AS parent_org_id FROM {_table('org_relationships')} r "
