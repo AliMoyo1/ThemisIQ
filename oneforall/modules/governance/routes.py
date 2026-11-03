@@ -206,6 +206,21 @@ async def api_group_pack(request: Request, pack_id: int):
     return response
 
 
+@router.post("/api/group/packs/{pack_id}/retention")
+@require_auth
+async def api_group_pack_retention(request: Request, pack_id: int):
+    from modules.governance import group_packs
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        result = group_packs.set_retention(db, request.state.user, pack_id, body.get("retain_until"),
+                                           body.get("legal_hold"), body.get("reason"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(result)
+
+
 @router.post("/api/group/packs/{pack_id}/review")
 @require_auth
 async def api_group_pack_review(request: Request, pack_id: int):

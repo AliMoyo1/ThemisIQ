@@ -117,6 +117,18 @@ _STMTS = [
     "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
 
     # Group packs belong to the parent. A pack can be created, and decided once; after that no policy lets it change.
+    "ALTER TABLE public.group_pack_runs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_pack_runs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_pack_runs_parent ON public.group_pack_runs",
+    f"CREATE POLICY group_pack_runs_parent ON public.group_pack_runs FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_pack_runs_insert ON public.group_pack_runs",
+    f"CREATE POLICY group_pack_runs_insert ON public.group_pack_runs FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_pack_retention ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_pack_retention FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_pack_retention_parent ON public.group_pack_retention",
+    f"CREATE POLICY group_pack_retention_parent ON public.group_pack_retention FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_pack_retention_insert ON public.group_pack_retention",
+    f"CREATE POLICY group_pack_retention_insert ON public.group_pack_retention FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
     "ALTER TABLE public.group_packs ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_packs FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_packs_read ON public.group_packs",

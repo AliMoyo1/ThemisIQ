@@ -233,8 +233,10 @@ def publish_tenant(org_id: int, slug: str) -> int:
                     "VALUES (%s,%s,%s,%s,%s)",
                     (run, org_id, issue_type, row["ref"], json.dumps(row["fields"], sort_keys=True)))
                 written += 1
+            # A run that a group pack froze is kept: the pack must stay checkable (plan 22, C8).
             old = [r["id"] for r in db.execute(
                 f"SELECT id FROM {_table('group_issue_runs')} WHERE source_org_id=%s AND issue_type=%s "
+                f"AND id NOT IN (SELECT run_id FROM {_table('group_pack_runs')}) "
                 "ORDER BY id DESC", (org_id, issue_type)).fetchall()][KEEP_RUNS:]
             for run_id in old:
                 db.execute(f"DELETE FROM {_table('group_issue_rows')} WHERE run_id=%s", (run_id,))
@@ -300,3 +302,57 @@ def view(db, actor: dict, org_id: int, issue_type: str, page: int = 1) -> dict:
     return {**base, "state": "reporting", "as_of": run["published_at"], "total": run["row_count"],
             "truncated": bool(run["truncated"]), "page": page, "page_size": PAGE,
             "rows": [{"ref": r["ref_number"], "fields": json.loads(r["fields_json"] or "{}")} for r in rows]}
+
+
+# ── counts for group packs (plan 22, C8) ────────────────────────────────────
+
+def counts(issue_type: str, rows: "list[dict]") -> "dict[str, int]":
+    """Counts by status: the consent summary's own counts, otherwise each row's status (or "unknown")."""
+    if issue_type == "consent":
+        fields = rows[0]["fields"] if rows else {}
+        return {k: int(v) for k, v in sorted(fields.items()) if isinstance(v, int) and not isinstance(v, bool)}
+    out = {}
+    for row in rows:
+        status = row["fields"].get("status") or "unknown"
+        out[status] = out.get(status, 0) + 1
+    return dict(sorted(out.items()))
+
+
+def frozen_run(db, org_id: int, issue_type: str, run_id: int) -> "tuple[str, dict] | None":
+    """(hash recomputed from the stored rows, counts) of one run, or None when the run cannot be read here."""
+    run = db.execute(f"SELECT id FROM {_table('group_issue_runs')} WHERE id=%s AND source_org_id=%s AND issue_type=%s",
+                     (run_id, org_id, issue_type)).fetchone()
+    if not run:
+        return None
+    rows = [{"ref": r["ref_number"], "fields": json.loads(r["fields_json"] or "{}")} for r in db.execute(
+        f"SELECT ref_number, fields_json FROM {_table('group_issue_rows')} WHERE run_id=%s AND source_org_id=%s "
+        "ORDER BY id", (run_id, org_id)).fetchall()]
+    payload = json.dumps(rows, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(f"{org_id}:{issue_type}:{payload}".encode()).hexdigest(), counts(issue_type, rows)
+
+
+def latest_for_pack(db, actor: dict) -> "dict[int, list[dict]]":
+    """What a pack author can freeze now: for each subsidiary and approved type they may read, the latest fresh run's
+    counts. Never a row, a reference or a field value."""
+    if not has_capability(actor, "group.issue.view"):
+        return {}
+    out = {}
+    for child in _children(db, actor):
+        for issue_type in child["types"]:
+            run = db.execute(
+                f"SELECT id, published_at, row_count, truncated, content_hash FROM {_table('group_issue_runs')} "
+                "WHERE source_org_id=%s AND issue_type=%s ORDER BY id DESC LIMIT 1",
+                (child["org_id"], issue_type)).fetchone()
+            try:
+                fresh = run and datetime.fromisoformat(run["published_at"]) >= utcnow() - timedelta(hours=STALE_HOURS)
+            except ValueError:
+                fresh = False
+            if not fresh:
+                continue
+            checked = frozen_run(db, child["org_id"], issue_type, run["id"])
+            if checked is None or checked[0] != run["content_hash"]:
+                continue
+            out.setdefault(child["org_id"], []).append({
+                "type": issue_type, "run_id": run["id"], "run_hash": run["content_hash"], "as_of": run["published_at"],
+                "total": run["row_count"], "truncated": bool(run["truncated"]), "counts": checked[1]})
+    return out

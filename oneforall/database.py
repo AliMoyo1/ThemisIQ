@@ -873,6 +873,25 @@ CREATE TABLE IF NOT EXISTS group_packs (
     review_note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_group_packs_parent ON group_packs(parent_org_id, id);
+-- The issue register runs a pack froze, so the daily pruning keeps them and the pack stays checkable (plan 22, C8).
+CREATE TABLE IF NOT EXISTS group_pack_runs (
+    pack_id INTEGER NOT NULL REFERENCES group_packs(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    run_id INTEGER NOT NULL,
+    PRIMARY KEY (pack_id, run_id)
+);
+-- How long a pack is kept and whether it is under legal hold. Append only: the latest row is in force. Nothing is ever
+-- deleted automatically; the dates tell people what the organization decided.
+CREATE TABLE IF NOT EXISTS group_pack_retention (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id INTEGER NOT NULL REFERENCES group_packs(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    retain_until TEXT NOT NULL,
+    legal_hold INTEGER NOT NULL DEFAULT 0 CHECK(legal_hold IN (0,1)),
+    reason TEXT NOT NULL,
+    set_by INTEGER NOT NULL,
+    set_at TEXT NOT NULL
+);
 
 -- The level-2 issue register (plan 21, slice 5): sanitized rows per record, from the fields the code allows.
 CREATE TABLE IF NOT EXISTS group_issue_runs (

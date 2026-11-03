@@ -204,7 +204,37 @@
         pack.corrections.forEach(fix => notice.append(el('span', `${fix.name}: ${fix.label} was ${fix.pack_value} and is now ${fix.corrected_value}. ${fix.reason || ''}`)));
         box.append(notice);
       }
-      target.append(box, ...pack.entities.map(renderEntity));
+      const issueBox = el('div', '', 'gf-card');
+      pack.entities.forEach(entity => (entity.issues || []).forEach(issue => {
+        const byStatus = Object.entries(issue.counts).map(([k, v]) => `${k.replaceAll('_', ' ')} ${v}`).join(', ') || 'none';
+        issueBox.append(el('span', `${entity.name} · ${issue.label}: ${issue.total} records (${byStatus}) as of ${issue.as_of.slice(0, 10)}`));
+      }));
+      if (issueBox.childElementCount) { issueBox.prepend(el('b', 'Issue registers')); box.append(issueBox); }
+      const kept = pack.retention;
+      box.append(el('p', kept ? `Kept until ${kept.retain_until}${kept.legal_hold ? ', under legal hold' : ''}: ${kept.reason}`
+        : 'No retention recorded. Nothing is deleted automatically.'));
+      if (pack.can_set_retention) {
+        const form = el('form', '', 'gf-form');
+        const until = document.createElement('input'); until.type = 'date'; until.name = 'retain_until'; until.required = true;
+        const hold = document.createElement('input'); hold.type = 'checkbox'; hold.name = 'legal_hold';
+        const reason = document.createElement('input'); reason.name = 'reason'; reason.maxLength = 500; reason.required = true;
+        const untilLabel = el('label', 'Keep until'); untilLabel.append(until);
+        const holdLabel = el('label', 'Legal hold'); holdLabel.append(hold);
+        const reasonLabel = el('label', 'Reason'); reasonLabel.append(reason);
+        const save = el('button', 'Record retention', 'btn btn-secondary'); save.type = 'submit';
+        form.append(untilLabel, holdLabel, reasonLabel, save);
+        form.addEventListener('submit', async event => {
+          event.preventDefault();
+          try {
+            await ApiClient.request(`/governance/api/group/packs/${pack.id}/retention`, {method: 'POST',
+              body: {retain_until: until.value, legal_hold: hold.checked, reason: reason.value}});
+            get('gfStatus').textContent = 'Retention recorded.';
+            openPack(pack.id);
+          } catch (error) { get('gfStatus').textContent = message(error); }
+        });
+        box.append(form);
+      }
+      target.append(box, ...pack.entities.filter(e => e.figures.length || !(e.issues || []).length).map(renderEntity));
     } catch (error) { get('gfStatus').textContent = message(error); }
   }
   async function loadPacks() {
