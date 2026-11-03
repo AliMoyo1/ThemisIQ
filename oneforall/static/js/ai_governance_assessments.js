@@ -182,14 +182,16 @@
 
     function filtersActive() { return !!(current.q || current.status || current.linked); }
 
+    function linkTo(row, system) {
+      AIGov.say(say, 'Linking...');
+      AIGov.api('/ai-governance/api/assessments/' + row.id, 'PUT', { application_id: system.id, version: row.version })
+        .then(function () { return load(); })
+        .then(function () { AIGov.say(say, 'Linked to ' + system.name + '.', 'good'); })
+        .catch(function (err) { AIGov.say(say, AIGov.errorText(err), 'bad'); });
+    }
+
     function linkDialog(row) {
-      chooseSystem(function (system) {
-        AIGov.say(say, 'Linking...');
-        AIGov.api('/ai-governance/api/assessments/' + row.id, 'PUT', { application_id: system.id, version: row.version })
-          .then(function () { return load(); })
-          .then(function () { AIGov.say(say, 'Linked to ' + system.name + '.', 'good'); })
-          .catch(function (err) { AIGov.say(say, AIGov.errorText(err), 'bad'); });
-      });
+      chooseSystem(function (system) { linkTo(row, system); });
     }
 
     function systemCell(row, canManage) {
@@ -197,7 +199,14 @@
       if (app && app.restricted) return el('td', { class: 'aig-muted', text: 'A system you cannot open' });
       if (app) return el('td', {}, [el('a', { href: app.url, text: app.name })]);
       var kids = [el('span', { class: 'aig-muted', text: 'Not linked' })];
-      if (canManage) kids.push(' ', el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Link to a system',
+      if (canManage && row.suggestion) {
+        var hint = row.suggestion;
+        kids.push(el('div', { class: 'aig-muted', text: 'Suggested: ' + hint.name + '. ' + hint.why }));
+        kids.push(el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Link to ' + hint.name,
+          'aria-label': 'Link ' + row.ref_number + ' to ' + hint.name, on: { click: function () { linkTo(row, hint); } } }));
+      }
+      if (canManage) kids.push(' ', el('button', { type: 'button', class: 'btn btn-ghost btn-sm',
+        text: row.suggestion ? 'Choose another system' : 'Link to a system',
         'aria-label': 'Link ' + row.ref_number + ' to an AI system', on: { click: function () { linkDialog(row); } } }));
       return el('td', {}, kids);
     }
