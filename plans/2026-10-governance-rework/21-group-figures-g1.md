@@ -70,11 +70,11 @@ A subsidiary senior role (Chief GRC Officer, Compliance Manager, Audit Lead, DPO
 - **Auditor room: deferred.** It needs external identities, time-boxed access and its own legal terms. The grant model here covers named internal users only. Doing it properly is a separate plan.
 - **Only `cc.*` metrics** (Command Centre and module health) are published. The module dashboards' own metrics are not.
 - **No nested groups.** A parent reads its direct children only, and a child can have one active parent.
-- **Privacy reviewer approval is a process gate, not enforced in code.** The terms default to publishing nothing, which is the safeguard until a named reviewer approves each customer's measure and issue lists.
+- **Privacy reviewer: the DPO (owner, 2026-11-03), and enforced in code.** Corrected 2026-11-03: this line used to say approval was only a process gate. The measure and issue lists are part of the relationship terms, which are fixed when the relationship is proposed; the relationship becomes active only after the privacy review, which only a DPO can record (`group.terms.privacy`). Tested in `test_only_a_dpo_records_the_privacy_review_that_approves_the_shared_figures_and_issues`.
 - **The pack contains figures only.** Issue register rows and the band are not in packs.
 - **Existing SQLite development databases** keep the old `group_view_grants` check, so `issue.view` grants need a fresh database there. PostgreSQL is migrated by an idempotent alter.
 - Pack and register reads write access-log rows, so they are not pure reads.
-- **A pack whose relationship has ended cannot be re-checked.** Row level security stops the former parent reading the former child's snapshots, so the integrity check reports a failure for that pack rather than a pass. That is the safe direction, but the wording does not yet say "cannot be checked".
+- **A pack whose relationship has ended cannot be re-checked** for that organization. Fixed 2026-11-03 (plan 22, C1): the check now says "incomplete" and names the organization that cannot be checked, still checks everything it can read, and reports a failure only on a real mismatch.
 - **Figures and the register are published for the whole organization**, not split by business unit, as the figures already were. A subsidiary that needs a unit-level split needs a new decision.
 
 ## 7. Build log

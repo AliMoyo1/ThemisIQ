@@ -313,8 +313,17 @@ def review_release(db, actor, request_id, outcome, reason):
     if _verdict(db, row):
         raise HTTPException(409, "This exact release already has a verdict")
     if outcome == "accepted":
-        group_documents.released_item(db, actor, row["publication_id"])
-    explanation = _required(reason, "verdict explanation", 500)
+        # Accepting means having opened the proof. The reviewer already sees this request, so saying why they cannot
+        # open it tells them nothing new; a bare "not found" left them stuck (found in the plan 23 pilot).
+        try:
+            group_documents.released_item(db, actor, row["publication_id"])
+        except HTTPException as hidden:
+            if hidden.status_code != 404:
+                raise
+            raise HTTPException(409, "You cannot open this proof, so you cannot accept it. It was withdrawn or "
+                                     "replaced, or you have no named access to this company's documents: ask your "
+                                     "administrator for access, or return it.") from None
+    explanation =_required(reason, "verdict explanation", 500)
     insert_returning_id(db, f"INSERT INTO {_table('group_request_verdicts')} "
         "(request_id,requester_org_id,publication_id,outcome,reason,reviewed_by) "
         "VALUES (%s,%s,%s,%s,%s,%s)",

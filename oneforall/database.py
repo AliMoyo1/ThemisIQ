@@ -873,6 +873,76 @@ CREATE TABLE IF NOT EXISTS group_packs (
     review_note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_group_packs_parent ON group_packs(parent_org_id, id);
+-- The auditor room (plan 22, C9): a named external auditor of the parent reads the listed items for a limited time.
+CREATE TABLE IF NOT EXISTS group_audit_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    title TEXT NOT NULL,
+    auditor_user_id INTEGER NOT NULL,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','open','rejected','closed')),
+    proposed_by INTEGER NOT NULL,
+    approved_by INTEGER,
+    approved_at TEXT,
+    decision_reason TEXT,
+    closed_by INTEGER,
+    closed_at TEXT,
+    close_reason TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_audit_rooms_parent ON group_audit_rooms(parent_org_id, status, id);
+CREATE TABLE IF NOT EXISTS group_audit_room_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL REFERENCES group_audit_rooms(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    kind TEXT NOT NULL CHECK(kind IN ('pack','publication')),
+    ref_id INTEGER NOT NULL,
+    allow_download INTEGER NOT NULL DEFAULT 0 CHECK(allow_download IN (0,1)),
+    added_by INTEGER NOT NULL,
+    added_at TEXT NOT NULL,
+    UNIQUE(room_id, kind, ref_id)
+);
+CREATE TABLE IF NOT EXISTS group_audit_room_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL REFERENCES group_audit_rooms(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    author_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('question','answer')),
+    body TEXT NOT NULL,
+    cites_json TEXT NOT NULL DEFAULT '[]',
+    reply_to INTEGER,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS group_audit_room_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL REFERENCES group_audit_rooms(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    actor_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_audit_room_events_room ON group_audit_room_events(room_id, id);
+-- The issue register runs a pack froze, so the daily pruning keeps them and the pack stays checkable (plan 22, C8).
+CREATE TABLE IF NOT EXISTS group_pack_runs (
+    pack_id INTEGER NOT NULL REFERENCES group_packs(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    run_id INTEGER NOT NULL,
+    PRIMARY KEY (pack_id, run_id)
+);
+-- How long a pack is kept and whether it is under legal hold. Append only: the latest row is in force. Nothing is ever
+-- deleted automatically; the dates tell people what the organization decided.
+CREATE TABLE IF NOT EXISTS group_pack_retention (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id INTEGER NOT NULL REFERENCES group_packs(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    retain_until TEXT NOT NULL,
+    legal_hold INTEGER NOT NULL DEFAULT 0 CHECK(legal_hold IN (0,1)),
+    reason TEXT NOT NULL,
+    set_by INTEGER NOT NULL,
+    set_at TEXT NOT NULL
+);
 
 -- The level-2 issue register (plan 21, slice 5): sanitized rows per record, from the fields the code allows.
 CREATE TABLE IF NOT EXISTS group_issue_runs (
@@ -959,6 +1029,17 @@ CREATE TABLE IF NOT EXISTS group_access_events (
 );
 CREATE INDEX IF NOT EXISTS idx_group_access_events_relationship ON group_access_events(relationship_id, created_at);
 
+-- One reminder per organization, item and stage (plan 22, C2): the daily pass never repeats a nudge.
+CREATE TABLE IF NOT EXISTS group_reminders_sent (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    kind TEXT NOT NULL CHECK(kind IN ('grant','request','adoption')),
+    ref_id INTEGER NOT NULL,
+    stage TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    UNIQUE(org_id, kind, ref_id, stage)
+);
+
 -- A requirement-led request names no hidden subsidiary file. The source's
 -- internal record mapping is separate and readable only by its own tenant.
 CREATE TABLE IF NOT EXISTS group_evidence_requests (
@@ -1026,6 +1107,21 @@ CREATE INDEX IF NOT EXISTS idx_group_policy_adoptions_viewer
     ON group_policy_adoptions(viewer_org_id,state,review_due_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_group_policy_one_pending
     ON group_policy_adoptions(publication_id) WHERE state='pending_review';
+
+-- The subsidiary's own controls that carry out an adopted parent policy (plan 22, C5). Visible only to it.
+CREATE TABLE IF NOT EXISTS group_adoption_controls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    adoption_id INTEGER NOT NULL REFERENCES group_policy_adoptions(id),
+    viewer_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    module TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    linked_by INTEGER NOT NULL,
+    linked_at TEXT NOT NULL,
+    removed_by INTEGER,
+    removed_at TEXT,
+    UNIQUE(adoption_id, module, entity_type, entity_id)
+);
 
 CREATE TABLE IF NOT EXISTS group_request_mappings (
     request_id INTEGER PRIMARY KEY REFERENCES group_evidence_requests(id),
@@ -1286,6 +1382,26 @@ CREATE TABLE IF NOT EXISTS evidence_items (
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
 );
+
+-- A file staged for the batch queue (plan 22, C10): kept on the server outside the Vault until a person files it,
+-- so a reload or a lost connection loses nothing. A file that fails a check is quarantined: its bytes are not kept.
+CREATE TABLE IF NOT EXISTS evidence_staging (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    filing_scope TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    stored_name TEXT,
+    status TEXT NOT NULL CHECK(status IN ('staged','quarantined','filed','discarded','expired')),
+    reason TEXT,
+    evidence_id INTEGER,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_staging_user ON evidence_staging(org_id, user_id, status);
 
 CREATE TABLE IF NOT EXISTS evidence_links (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -7567,27 +7683,32 @@ def _backfill_evidence_org_id(conn) -> None:
     )
 
 
+# The built-in framework catalogue: seeded into every database, and the only framework names that may be named in
+# a group figure (plan 22, C7). A tenant's own frameworks are counted as "other", never named.
+EXPECTED_FRAMEWORKS = [
+    ("ISO 27001:2022", "Information Security Management System", "#1E3A5F", "aria,grid"),
+    ("ISO 42001", "Artificial Intelligence Management System", "#6A0572", "aria,grid"),
+    ("SOC 2 Type II", "Service Organization Control 2", "#0B5345", "aria,grid"),
+    ("PCI DSS v4.0", "Payment Card Industry Data Security Standard", "#7D6608", "aria,grid"),
+    ("GDPR", "General Data Protection Regulation (EU) 2016/679", "#154360", "sentinel,aria"),
+    ("Zimbabwe CDPA", "Cyber and Data Protection Act [Chapter 12:07]", "#145A32", "sentinel"),
+    ("HIPAA", "Health Insurance Portability and Accountability Act", "#6E2F03", "sentinel,aria"),
+    ("ISO 9001:2015", "Quality Management System", "#1B4F72", "aria,grid"),
+    ("ISO 22301:2019", "Business Continuity Management System", "#7B241C", "bcm,aria,grid"),
+    ("ISO 27701:2019", "Privacy Information Management System", "#4A235A", "sentinel,aria"),
+    ("ISO 20000-1:2018", "IT Service Management System", "#0E6251", "aria,grid"),
+    ("ISO 27017:2015", "Cloud Security Controls", "#1A5276", "aria,grid"),
+    ("ISO 31000:2018", "Risk Management Guidelines", "#784212", "aria,bcm,grid"),
+    ("ISO 14001:2015", "Environmental Management System", "#1D8348", "aria,grid"),
+    ("ISO 50001:2018", "Energy Management System", "#117A65", "aria,grid"),
+    ("ISO 45001:2018", "Occupational Health and Safety Management System", "#D35400", "bcm,aria,grid"),
+]
+
+
 def _seed_baseline_data(conn):
     """Seed reference data — runs on both SQLite and PostgreSQL."""
     # ── Data migration: ensure all expected frameworks exist ──
-    _EXPECTED_FRAMEWORKS = [
-        ("ISO 27001:2022", "Information Security Management System", "#1E3A5F", "aria,grid"),
-        ("ISO 42001", "Artificial Intelligence Management System", "#6A0572", "aria,grid"),
-        ("SOC 2 Type II", "Service Organization Control 2", "#0B5345", "aria,grid"),
-        ("PCI DSS v4.0", "Payment Card Industry Data Security Standard", "#7D6608", "aria,grid"),
-        ("GDPR", "General Data Protection Regulation (EU) 2016/679", "#154360", "sentinel,aria"),
-        ("Zimbabwe CDPA", "Cyber and Data Protection Act [Chapter 12:07]", "#145A32", "sentinel"),
-        ("HIPAA", "Health Insurance Portability and Accountability Act", "#6E2F03", "sentinel,aria"),
-        ("ISO 9001:2015", "Quality Management System", "#1B4F72", "aria,grid"),
-        ("ISO 22301:2019", "Business Continuity Management System", "#7B241C", "bcm,aria,grid"),
-        ("ISO 27701:2019", "Privacy Information Management System", "#4A235A", "sentinel,aria"),
-        ("ISO 20000-1:2018", "IT Service Management System", "#0E6251", "aria,grid"),
-        ("ISO 27017:2015", "Cloud Security Controls", "#1A5276", "aria,grid"),
-        ("ISO 31000:2018", "Risk Management Guidelines", "#784212", "aria,bcm,grid"),
-        ("ISO 14001:2015", "Environmental Management System", "#1D8348", "aria,grid"),
-        ("ISO 50001:2018", "Energy Management System", "#117A65", "aria,grid"),
-        ("ISO 45001:2018", "Occupational Health and Safety Management System", "#D35400", "bcm,aria,grid"),
-    ]
+    _EXPECTED_FRAMEWORKS = EXPECTED_FRAMEWORKS
     # Seed unified frameworks table
     try:
         existing = {}

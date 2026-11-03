@@ -22,7 +22,7 @@
 .ga-actions{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.ga-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px;border-radius:13px;background:var(--surface)}
 .ga-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:650}.ga-form input,.ga-form select,.ga-form textarea{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
 .ga-wide{grid-column:1/-1}.ga-form button{justify-self:start}.ga-form[hidden]{display:none}
-#gaMore[hidden],.ga-form label[hidden]{display:none}
+#gaMore[hidden],#gaRollup[hidden],.ga-form label[hidden]{display:none}
 @media(max-width:700px){.ga-page{padding:14px}.ga-hero h1{font-size:29px}.ga-form{grid-template-columns:1fr}.ga-wide{grid-column:1}}
 [data-theme="dark"] .ga-hero{background:linear-gradient(125deg,rgba(73,88,92,.9),rgba(43,56,61,.83))}
 </style>
@@ -32,6 +32,9 @@
  <section class="ga-panel"><h2>Parent policies available to you</h2><p>Only exact versions you have a named view grant for appear here.</p>
   <div id="gaList"></div><button type="button" class="btn btn-secondary" id="gaMore" hidden>Show more</button>
  </section>
+ <section class="ga-panel" id="gaRollup" hidden><h2>Your subsidiaries' decisions</h2><p>Each subsidiary's reviewed outcome on the policy versions you published to it. Their reasons and local controls stay with them; an adoption is not proof that controls operate.</p>
+  <div id="gaRollupRows"></div>
+ </section>
 </main>
-<script src="/static/js/evidence_group_adoption.js?v=1" defer></script>
+<script src="/static/js/evidence_group_adoption.js?v=2" defer></script>
 {% endblock %}

@@ -75,6 +75,7 @@ FEATURES = {
     "erm.scenario_challenge":              ("Challenge a scenario's assumptions", ("business",)),
     "evidence.api_evidence_suggest_links": ("Suggest where evidence belongs", ("business", "evidence")),
     "evidence.find_evidence":              ("Read a question into evidence filters", ("business",)),
+    "evidence.group_ask":                  ("Answer a question from released group documents", ("business", "evidence")),
     "governance.run_drift_check":          ("Governance drift check", ("business",)),
     "grid.batch_risk_score":               ("Score audit risks in bulk", ("business",)),
     "grid.parse_checklist_with_ai":        ("Read an audit checklist", ("business",)),

@@ -26,6 +26,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
+from modules.evidence import staging
 from modules.evidence import company_views, find as finder, group_adoption, group_cases, group_documents, group_requests, inspector, ownership, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
@@ -829,6 +830,23 @@ async def api_group_case_close(request: Request, case_id: int):
     return JSONResponse({"status": status})
 
 
+@router.post("/api/group/cases/{case_id}/position")
+@require_auth
+async def api_group_case_position(request: Request, case_id: int):
+    body = await _group_body(request)
+    _group_operation(lambda db: group_cases.amend_position(
+        db, request.state.user, case_id, body.get("position"), body.get("reason")))
+    return JSONResponse({"status": "amended"})
+
+
+@router.post("/api/group/cases/{case_id}/reopen")
+@require_auth
+async def api_group_case_reopen(request: Request, case_id: int):
+    body = await _group_body(request)
+    _group_operation(lambda db: group_cases.reopen_case(db, request.state.user, case_id, body.get("reason")))
+    return JSONResponse({"status": "open"})
+
+
 @router.get("/api/group/adoptions")
 @require_auth
 async def api_group_adoptions(request: Request):
@@ -852,6 +870,36 @@ async def api_group_adoption_propose(request: Request, publication_id: int):
         body.get("reason"), body.get("review_due_at"), body.get("effective_at"),
         body.get("local_policy_version_id")))
     return JSONResponse({"id": adoption_id, "status": "pending_review"}, status_code=201)
+
+
+@router.get("/api/group/adoptions/rollup")
+@require_auth
+async def api_group_adoption_rollup(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse(group_adoption.rollup(db, request.state.user))
+    finally:
+        db.close()
+
+
+@router.post("/api/group/adoptions/{adoption_id}/controls", status_code=201)
+@require_auth
+async def api_group_adoption_link_control(request: Request, adoption_id: int):
+    body = await _group_body(request)
+    try:
+        entity_id = int(body.get("entity_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose one of your controls") from None
+    link_id = _group_operation(lambda db: group_adoption.link_control(
+        db, request.state.user, adoption_id, body.get("module"), body.get("entity_type"), entity_id))
+    return JSONResponse({"id": link_id}, status_code=201)
+
+
+@router.post("/api/group/adoption-controls/{link_id}/remove")
+@require_auth
+async def api_group_adoption_unlink_control(request: Request, link_id: int):
+    _group_operation(lambda db: group_adoption.unlink_control(db, request.state.user, link_id))
+    return JSONResponse({"status": "removed"})
 
 
 @router.post("/api/group/adoptions/{adoption_id}/review")
@@ -1086,9 +1134,12 @@ async def api_group_catalogue(request: Request):
 async def api_group_source_companies(request: Request):
     db = get_db()
     try:
-        return JSONResponse({"companies": group_documents.source_companies(db, request.state.user)})
+        response = JSONResponse({"companies": group_documents.source_companies(db, request.state.user)})
     finally:
         db.close()
+    # Named grants expire and are revoked: a cached list would keep showing a company that is no longer open.
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @router.get("/api/group/companies/{source_org_id}/publications")
@@ -1101,10 +1152,12 @@ async def api_group_company_publications(request: Request, source_org_id: int):
         raise HTTPException(422, "Invalid catalogue cursor") from None
     db = get_db()
     try:
-        return JSONResponse(group_documents.catalogue_cursor(
+        response = JSONResponse(group_documents.catalogue_cursor(
             db, request.state.user, source_org_id=source_org_id, before_id=before))
     finally:
         db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @router.delete("/api/group/publications/{publication_id}")
@@ -1112,6 +1165,18 @@ async def api_group_company_publications(request: Request, source_org_id: int):
 async def api_group_publication_revoke(request: Request, publication_id: int):
     _group_operation(lambda db: group_documents.revoke_publication(db, request.state.user, publication_id))
     return JSONResponse({"status": "revoked"})
+
+
+@router.post("/api/group/ask")
+@require_auth
+async def api_group_ask(request: Request):
+    from modules.evidence import group_ask
+    body = await _group_body(request)
+    db = get_db()
+    try:
+        return JSONResponse(await group_ask.ask(db, request.state.user, body.get("question")))
+    finally:
+        db.close()
 
 
 @router.get("/api/group/publications/{publication_id}")
@@ -1388,11 +1453,48 @@ async def api_evidence_people(request: Request):
     return JSONResponse({"items": [{"id": r["id"], "name": r["full_name"]} for r in rows]})
 
 
+@router.post("/api/batch/staged", status_code=201)
+@require_auth
+async def api_evidence_stage(request: Request, file: UploadFile = File(...), filing_scope: str = Form("")):
+    """Keep a batch file on the server until it is filed (plan 22, C10). A file that fails a check is quarantined."""
+    user = request.state.user
+    content = await file.read(MAX_FILE_SIZE + 1)
+    db = get_db()
+    try:
+        staged = staging.stage(db, user, file.filename, file.content_type, content, filing_scope)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(staged, status_code=201)
+
+
+@router.get("/api/batch/staged")
+@require_auth
+async def api_evidence_staged(request: Request):
+    db = get_db()
+    try:
+        return JSONResponse({"items": staging.listing(db, request.state.user)})
+    finally:
+        db.close()
+
+
+@router.post("/api/batch/staged/{staged_id}/discard")
+@require_auth
+async def api_evidence_staged_discard(request: Request, staged_id: int):
+    db = get_db()
+    try:
+        staging.discard(db, request.state.user, staged_id)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"status": "discarded"})
+
+
 @router.post("/api/items", status_code=201)
 @require_auth
 async def api_evidence_upload(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     title: str = Form(""),
     description: str = Form(""),
     category: str = Form("general"),
@@ -1407,9 +1509,15 @@ async def api_evidence_upload(
     link_entity_type: str = Form(""),
     link_entity_id: str = Form(""),
     filing_scope: str = Form(""),
+    staged_id: str = Form(""),
 ):
-    """Upload a file and optionally create a pending link in one transaction."""
+    """Upload a file, or file one the caller staged earlier, and optionally create a pending link in one transaction."""
     user = request.state.user
+    staged_id = staged_id.strip() if isinstance(staged_id, str) else ""
+    if bool(staged_id) == (file is not None):
+        return JSONResponse({"error": "Send one file, or the staged file to file."}, status_code=422)
+    if staged_id and not staged_id.isdigit():
+        return JSONResponse({"error": "Choose a staged file."}, status_code=422)
     if not user.get("is_super_admin") and not user.get("org_id"):
         raise HTTPException(403, "Your account has no organization to upload evidence for")
     org_id = None if user.get("is_super_admin") else user.get("org_id")
@@ -1429,7 +1537,7 @@ async def api_evidence_upload(
         problems.append("The period cannot end before it starts.")
     if problems:
         return JSONResponse({"error": " ".join(problems)}, status_code=422)
-    if file.size and file.size > MAX_FILE_SIZE:
+    if file is not None and file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(413, "File too large (max 100MB)")
 
     # Direct callers in the route tests omit the optional Form fields.
@@ -1469,12 +1577,22 @@ async def api_evidence_upload(
     finally:
         scope_db.close()
 
-    content = await file.read(MAX_FILE_SIZE + 1)
+    staged = None
+    if staged_id:
+        stage_db = get_db()
+        try:
+            staged, content = staging.take(stage_db, user, int(staged_id))
+        finally:
+            stage_db.close()
+        upload_name, upload_mime = staged["file_name"], staged["mime_type"]
+    else:
+        content = await file.read(MAX_FILE_SIZE + 1)
+        upload_name, upload_mime = file.filename, file.content_type
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(413, "File too large (max 100MB)")
 
     # Magic-byte check: verify content matches declared extension
-    original_ext_check = Path(file.filename or "file").suffix.lower()
+    original_ext_check = Path(upload_name or "file").suffix.lower()
     sigs = _MAGIC.get(original_ext_check)
     if sigs:
         header = content[:16]
@@ -1556,37 +1674,19 @@ async def api_evidence_upload(
             }, status_code=409)
 
         # ── Sanitise and store file ────────────────────────────────────────
-        original_name = file.filename or "file"
+        original_name = upload_name or "file"
         ext = Path(original_name).suffix.lower()
 
         # Block dangerous executable extensions (including HTML/SVG which can carry XSS)
-        blocked_extensions = frozenset({
-            ".exe", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse",
-            ".wsf", ".wsh", ".msi", ".scr", ".com", ".pif", ".hta", ".cpl",
-            ".inf", ".reg", ".dll", ".sys", ".drv", ".lnk", ".html", ".htm",
-            ".svg", ".xhtml",
-        })
-        if ext in blocked_extensions:
+        if ext in staging.BLOCKED_EXTENSIONS:
             return JSONResponse(
                 {"error": f"File type '{ext}' is not allowed for security reasons."},
                 status_code=400,
             )
 
         # Validate MIME type against allowlist
-        declared_mime = (file.content_type or "application/octet-stream").lower()
-        allowed_mimes = frozenset({
-            "application/pdf", "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
-            "text/plain", "text/csv", "text/xml",
-            "application/json", "application/xml",
-            "image/png", "image/jpeg", "image/gif", "image/webp",
-            "application/zip", "application/x-zip-compressed",
-            "application/octet-stream",  # fallback for unknown — extension check is primary gate
-        })
-        if declared_mime not in allowed_mimes:
+        declared_mime = (upload_mime or "application/octet-stream").lower()
+        if declared_mime not in staging.ALLOWED_MIMES:
             return JSONResponse(
                 {"error": f"MIME type '{declared_mime}' is not permitted."},
                 status_code=400,
@@ -1670,6 +1770,8 @@ async def api_evidence_upload(
                     "entity_id": target_id, "review_status": "pending"}
         if selected_target or (impact and impact["carried"]):
             recompute_confidence(db, eid)
+        if staged is not None:
+            staging.mark_filed(db, user, staged["id"], eid)
         db.commit()
     except Exception:
         db.rollback()
@@ -1678,6 +1780,8 @@ async def api_evidence_upload(
         raise
     finally:
         db.close()
+    if staged is not None:
+        staging.remove_bytes(staged["stored_name"])
     _rescore_controls(touched_controls)
 
     return JSONResponse({

@@ -242,6 +242,11 @@
     <div id="evGroupBrowse" hidden><h3 id="evGroupBrowseName"></h3><div id="evGroupItems" class="ev-company-grid" role="group" aria-label="Approved group documents"></div></div>
     <div id="evGroupDetail" class="ev-record-folders" hidden aria-live="polite"></div>
     <div id="evGroupPager" style="display:flex;gap:10px;align-items:center;margin:12px 0"></div>
+    <form id="evGroupAsk" style="display:grid;gap:8px;max-width:760px;margin:12px 0">
+      <label for="evGroupQuestion"><strong>Ask the released documents</strong> <small>Searches only versions you can open. An answer cites the passages it used; check them before relying on it.</small></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="evGroupQuestion" maxlength="500" required style="flex:1;min-width:220px" placeholder="For example: what is the recovery time objective for payments?"><button type="submit" class="btn btn-secondary">Ask</button></div>
+      <div id="evGroupAnswer" aria-live="polite"></div>
+    </form>
   </section>
 
   <section class="ev-folders" aria-labelledby="evFolderHeading">
@@ -2066,6 +2071,24 @@ async function evLoadGroupCompanyItems(){
   }catch(_){host.textContent='Approved releases are unavailable. Try again.';}
 }
 document.getElementById('evGroupRefresh').addEventListener('click',evLoadGroupPublications);
+document.getElementById('evGroupAsk').addEventListener('submit',async function(event){
+  event.preventDefault();
+  var host=document.getElementById('evGroupAnswer');host.textContent='Searching released documents…';
+  try{
+    var data=await ApiClient.request('/evidence/api/group/ask',{method:'POST',actionId:'evidence.group_ask',
+      body:{question:document.getElementById('evGroupQuestion').value}});
+    host.replaceChildren();
+    if(data.answer){var answer=document.createElement('p');answer.textContent=data.answer;host.appendChild(answer);}
+    if(data.note){var note=document.createElement('small');note.textContent=data.note;host.appendChild(note);}
+    (data.results||[]).forEach(function(item){
+      var card=document.createElement('div');card.className='ev-company-card';
+      var title=document.createElement('strong');
+      title.textContent='['+item.n+'] '+item.title+' v'+item.version+' · '+item.source_name+' · '+item.section;
+      var text=document.createElement('small');text.textContent=item.text;
+      card.append(title,text);host.appendChild(card);
+    });
+  }catch(error){host.textContent=error.detail||'The question could not be answered. Try again.';}
+});
 function evChooseFolder(key,openRecords){
   evFolder=key;evPage=1;currentModule='';currentCategory='';currentView='all';
   currentStatus='';currentState='';currentWords='';evOwnerOnly=false;
@@ -2326,6 +2349,7 @@ async function handleUpload(e){
 document.addEventListener('DOMContentLoaded',function(){
   setViewMode(evViewMode);  // Apply saved view mode to toggle buttons
   loadStats();loadEvidence();loadCoverage();loadChecks();evLoadSavedViews();evLoadCompanyViews();evLoadEntityViews();
+  evLoadGroupPublications();
 });
 
 

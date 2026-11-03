@@ -6,6 +6,7 @@ for the people holding a named, unexpired `figure.view` grant. A subsidiary that
 reporting** and never counts as zero.
 """
 import hashlib
+import importlib
 import json
 import logging
 import math
@@ -43,9 +44,14 @@ _TEXT_DETAIL = {"module", "unit", "name"}
 _DETAIL_KEY = re.compile(r"[a-z0-9_ -]{1,40}")
 
 
-# The measures a child may publish are the Command Centre ones; which of them cross to a parent is decided per
-# relationship, in its reviewed sharing terms (`figure_measures`). Nothing crosses that the terms do not list.
-PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.startswith("cc.")))
+# The measures a child may publish: the Command Centre ones, the business continuity and privacy dashboards' own
+# (plan 22, C6), the framework register (C7) and the Vault claim figures (plan 23, P1), each built by the same code as
+# its page, for the whole organization. Which of them cross to a parent is decided per relationship, in its DPO-reviewed
+# sharing terms (`figure_measures`); nothing crosses that the terms do not list.
+_MODULE_DASHBOARDS = ("modules.bcm.dashboard_metrics", "modules.sentinel.dashboard_metrics",
+                      "modules.aria.framework_register", "modules.evidence.claim_metrics")
+PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY
+                           if k.split(".", 1)[0] in ("cc", "bcm", "sentinel", "aria", "vault")))
 
 
 def publishable_measures() -> "list[dict]":
@@ -151,11 +157,14 @@ def _build(org_id: int, slug: str):
         db = get_db()
         try:
             built = command_metrics.build(db, actor)
+            extra = []
+            for name in _MODULE_DASHBOARDS:
+                extra += list(importlib.import_module(name).metrics(db, actor).values())
             licensed = licensed_modules_for(db, org_id)
         finally:
             db.close()
     rows = {}
-    for metric in list(built["metrics"].values()) + list(built["health"]):
+    for metric in list(built["metrics"].values()) + list(built["health"]) + extra:
         row = sanitize(metric)
         if row is None:
             continue
@@ -372,7 +381,10 @@ def _figure(entry: dict) -> dict:
     row = entry["row"]
     definition = registry.REGISTRY.get(_base(row["measure_key"]))
     detail = json.loads(row["detail_json"] or "{}")
-    return {"key": row["measure_key"], "label": definition.label if definition else row["measure_key"],
+    label = definition.label if definition else row["measure_key"]
+    if ":" in row["measure_key"] and isinstance(detail.get("name"), str):
+        label = f"{label}: {detail['name']}"  # one figure per module or framework; the name is fixed by the code
+    return {"key": row["measure_key"], "label": label,
             "snapshot_id": row["id"], "module": row["module"], "state": row["state"], "value": row["value"], "window": row["window_text"],
             "as_of": row["as_of"], "method": row["method_version"], "previous": entry["previous"],
             "restated": bool(row.get("restates_snapshot_id")), "restatement_reason": row.get("restatement_reason"),

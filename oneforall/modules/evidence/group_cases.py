@@ -4,6 +4,8 @@ Cases contain the parent's position and references, never a subsidiary's
 internal mapping. A child sees its own request through group_requests only.
 """
 
+import json
+
 from fastapi import HTTPException
 
 from config import settings
@@ -102,7 +104,9 @@ def case_detail(db, actor, case_id):
     return {"case": dict(row), "requests": items, "events": [dict(event) for event in events],
             "can_manage": has_capability(actor, "group.case.manage") and row["status"] == "open",
             "can_close": has_capability(actor, "group.case.review") and row["status"] == "open"
-                         and row["created_by"] != actor["id"]}
+                         and row["created_by"] != actor["id"],
+            "can_reopen": has_capability(actor, "group.case.review") and row["status"] != "open"
+                          and row["closed_by"] != actor["id"]}
 
 
 def link_request(db, actor, case_id, request_id):
@@ -169,3 +173,42 @@ def close_case(db, actor, case_id, reason):
         raise HTTPException(409, "Case changed; review it again")
     _event(db, row, actor, status, explanation)
     return status
+
+
+def amend_position(db, actor, case_id, position, reason):
+    """Change the parent's position on an open case. The earlier text is kept in the trail, never overwritten."""
+    if not has_capability(actor, "group.case.manage"):
+        raise HTTPException(403, "Group case management required")
+    row = _case(db, actor, case_id)
+    if row["status"] != "open":
+        raise HTTPException(409, "Closed cases cannot be changed")
+    stance = group_requests._required(position, "parent position", 2000)
+    why = group_requests._required(reason, "reason for the change", 500)
+    if stance == row["position"]:
+        raise HTTPException(409, "The position is unchanged")
+    changed = db.execute(
+        f"UPDATE {_table('group_cases')} SET position=%s WHERE id=%s AND parent_org_id=%s AND status='open' "
+        "AND position=%s", (stance, case_id, actor["org_id"], row["position"]))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "Case changed; review it again")
+    _event(db, row, actor, "position_amended", json.dumps({"previous": row["position"], "reason": why}))
+
+
+def reopen_case(db, actor, case_id, reason):
+    """Reopen a closed case. Someone other than the person who closed it decides, and the conclusion stays in the trail."""
+    if not has_capability(actor, "group.case.review"):
+        raise HTTPException(403, "Independent case review required")
+    row = _case(db, actor, case_id)
+    if row["status"] == "open":
+        raise HTTPException(409, "Case is already open")
+    if row["closed_by"] == actor["id"]:
+        raise HTTPException(409, "A different specialist must reopen the case")
+    why = group_requests._required(reason, "reason for reopening", 500)
+    changed = db.execute(
+        f"UPDATE {_table('group_cases')} SET status='open',closed_by=NULL,closed_at=NULL,close_reason=NULL "
+        "WHERE id=%s AND parent_org_id=%s AND status=%s", (case_id, actor["org_id"], row["status"]))
+    if changed.rowcount != 1:
+        raise HTTPException(409, "Case changed; review it again")
+    _event(db, row, actor, "reopened", json.dumps({
+        "previous_status": row["status"], "previous_conclusion": row["close_reason"],
+        "closed_by": row["closed_by"], "closed_at": row["closed_at"], "reason": why}))

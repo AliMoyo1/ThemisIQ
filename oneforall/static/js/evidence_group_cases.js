@@ -46,6 +46,8 @@
         el('p', caseRow.position), el('p', `Status: ${caseRow.status.replaceAll('_', ' ')}`));
       if (caseRow.close_reason) detail.append(el('p', `Conclusion: ${caseRow.close_reason}`));
       get('gcLink').hidden = !data.can_manage;
+      get('gcAmend').hidden = !data.can_manage;
+      get('gcReopen').hidden = !data.can_reopen;
       get('gcClose').hidden = !data.can_close;
       const requests = get('gcRequests');
       requests.replaceChildren();
@@ -58,8 +60,17 @@
       if (!data.requests.length) requests.append(el('p', 'Link a proof request to document the evidence sought.'));
       const events = get('gcEvents');
       events.replaceChildren();
-      for (const row of data.events) events.append(el('div', `${row.action.replaceAll('_', ' ')} · ${row.detail}`, 'gc-card'));
+      for (const row of data.events) events.append(el('div', `${row.action.replaceAll('_', ' ')} · ${describe(row)}`, 'gc-card'));
     } catch (error) { get('gcStatus').textContent = errorMessage(error); }
+  }
+  function describe(row) {
+    if (row.action !== 'position_amended' && row.action !== 'reopened') return row.detail;
+    try {
+      const detail = JSON.parse(row.detail);
+      return row.action === 'reopened'
+        ? `${detail.reason} (was ${String(detail.previous_status).replaceAll('_', ' ')}: ${detail.previous_conclusion || ''})`
+        : `${detail.reason} (earlier position: ${detail.previous})`;
+    } catch (error) { return row.detail; }
   }
   async function post(path, body, message) {
     get('gcStatus').textContent = 'Saving…';
@@ -91,6 +102,22 @@
     if (!selected) return;
     await post(`/evidence/api/group/cases/${selected}/close`,
       {reason: new FormData(event.currentTarget).get('reason')}, 'Case closed.');
+  });
+  get('gcAmend').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!selected) return;
+    const form = event.currentTarget;
+    const result = await post(`/evidence/api/group/cases/${selected}/position`,
+      Object.fromEntries(new FormData(form).entries()), 'Position amended.');
+    if (result) form.reset();
+  });
+  get('gcReopen').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!selected) return;
+    const form = event.currentTarget;
+    const result = await post(`/evidence/api/group/cases/${selected}/reopen`,
+      Object.fromEntries(new FormData(form).entries()), 'Case reopened.');
+    if (result) form.reset();
   });
   get('gcMore').addEventListener('click', () => load(page + 1));
   load(1).then(() => {

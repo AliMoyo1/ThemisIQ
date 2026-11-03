@@ -188,6 +188,12 @@ DECLARATIONS = {
                                               "control and audit names", "The file's content", "Any signed-in person who "
                                               "may open the item", "Suggestions shown; a person links the ones they accept",
                                               "person", "unavailable"),
+    "evidence.group_ask": _d("Answer a question from released group documents",
+                             "Passages of released document versions the person holds a named view grant for, chosen "
+                             "by the question, only from organizations whose own AI policy allows it",
+                             "Any other document, version or organization; the full text of a document",
+                             "group.document.view and a named view grant", "An answer citing the passages, shown beside "
+                             "them", "person", "rules"),
     "evidence.find_evidence": _d("Read a question into Vault filters", _ASKED, "Every record and file content",
                                  "Any person using Find evidence", "Filters, shown and applied to the person's own "
                                  "scoped search", "person", "rules"),

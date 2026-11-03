@@ -5337,3 +5337,117 @@ def test_a_decided_group_pack_cannot_change_and_belongs_to_its_parent_on_real_po
     finally:
         check.close()
     assert (row["title"], row["status"]) == ("Board pack", "issued")
+
+
+def test_plan_22_tables_keep_each_organization_to_its_own_rows_on_real_postgres(pg):
+    """Reminders, adoption control links, pack runs and retention, audit rooms and staged files: an ordinary role sees
+    and writes only its own organization's rows (the parent's for group rooms and packs, the child's for its links)."""
+    import psycopg2
+    import pytest
+    pg.init_db()
+    parent = _make_org(pg, "p22_parent_pg")
+    child = _make_org(pg, "p22_child_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        setup.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        setup.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        relation = setup.execute(
+            "INSERT INTO public.org_relationships (parent_org_id,child_org_id,status,purpose,terms_json,review_due_at,"
+            "created_by) VALUES (%s,%s,'active','Group','{}','2099-01-01T00:00:00',1) RETURNING id",
+            (parent, child)).fetchone()["id"]
+        rights = setup.execute(
+            "INSERT INTO public.group_document_rights (source_org_id,evidence_id,file_hash,rights_state,permit_group_view,"
+            "basis,reviewed_by) VALUES (%s,1,'h','owned',1,'Owned',1) RETURNING id", (parent,)).fetchone()["id"]
+        publication = setup.execute(
+            "INSERT INTO public.group_document_publications (relationship_id,source_org_id,viewer_org_id,evidence_id,"
+            "version,file_hash,title,category,classification,purpose,rights_id,expires_at,approved_by) "
+            "VALUES (%s,%s,%s,1,1,'h','Policy','policy','internal','Group',%s,'2099-01-01',2) RETURNING id",
+            (relation, parent, child, rights)).fetchone()["id"]
+        adoption = setup.execute(
+            "INSERT INTO public.group_policy_adoptions (publication_id,source_org_id,viewer_org_id,proposed_state,state,"
+            "reason,review_due_at,proposed_by) VALUES (%s,%s,%s,'adopted','adopted','Checked','2099-01-01',3) "
+            "RETURNING id", (publication, parent, child)).fetchone()["id"]
+        pack = setup.execute(
+            "INSERT INTO public.group_packs (parent_org_id,title,period_text,manifest_json,content_hash,created_by,"
+            "created_at) VALUES (%s,'Pack','Q4','[]','h',1,'2026-11-03T00:00:00') RETURNING id", (parent,)).fetchone()["id"]
+        setup.commit()
+    finally:
+        setup.close()
+
+    def as_org(org):
+        context = pg.tenant_context(org, "public", is_super_admin=False)
+        context.__enter__()
+        conn = pg.get_db()
+        _become_restricted(conn)
+        return context, conn
+
+    def done(context, conn):
+        _release_role(conn)
+        context.__exit__(None, None, None)
+
+    # Each organization writes its own rows.
+    context, conn = as_org(parent)
+    try:
+        conn.execute("INSERT INTO public.group_reminders_sent (org_id,kind,ref_id,stage,sent_at) "
+                     "VALUES (%s,'grant',1,'due','2026-11-03')", (parent,))
+        conn.execute("INSERT INTO public.group_pack_runs (pack_id,parent_org_id,run_id) VALUES (%s,%s,1)", (pack, parent))
+        conn.execute("INSERT INTO public.group_pack_retention (pack_id,parent_org_id,retain_until,legal_hold,reason,set_by,"
+                     "set_at) VALUES (%s,%s,'2033-01-01',1,'Board records',1,'2026-11-03')", (pack, parent))
+        room = conn.execute(
+            "INSERT INTO public.group_audit_rooms (parent_org_id,title,auditor_user_id,starts_at,ends_at,proposed_by,"
+            "created_at) VALUES (%s,'Room',5,'2026-11-01','2026-12-01',1,'2026-11-03') RETURNING id",
+            (parent,)).fetchone()["id"]
+        for sql in ("INSERT INTO public.group_audit_room_items (room_id,parent_org_id,kind,ref_id,added_by,added_at) "
+                    "VALUES (%s,%s,'pack',1,1,'2026-11-03')",
+                    "INSERT INTO public.group_audit_room_messages (room_id,parent_org_id,author_id,kind,body,created_at) "
+                    "VALUES (%s,%s,5,'question','Why?','2026-11-03')",
+                    "INSERT INTO public.group_audit_room_events (room_id,parent_org_id,actor_id,action,created_at) "
+                    "VALUES (%s,%s,1,'proposed','2026-11-03')"):
+            conn.execute(sql, (room, parent))
+        assert conn.execute("UPDATE public.group_audit_rooms SET status='open' WHERE id=%s", (room,)).rowcount == 1
+        conn.execute("INSERT INTO public.evidence_staging (org_id,user_id,filing_scope,file_name,mime_type,file_size,"
+                     "file_hash,status,created_at,expires_at) VALUES (%s,1,'organization','a.txt','text/plain',1,'h',"
+                     "'staged','2026-11-03','2026-11-10')", (parent,))
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM public.group_adoption_controls").fetchone()[0] == 0
+    finally:
+        done(context, conn)
+    context, conn = as_org(child)
+    try:
+        conn.execute("INSERT INTO public.group_adoption_controls (adoption_id,viewer_org_id,module,entity_type,entity_id,"
+                     "linked_by,linked_at) VALUES (%s,%s,'aria','control',1,3,'2026-11-03')", (adoption, child))
+        conn.commit()
+        # Nothing of the parent's is visible to the child.
+        for table in ("group_reminders_sent", "group_pack_runs", "group_pack_retention", "group_audit_rooms",
+                      "group_audit_room_items", "group_audit_room_messages", "group_audit_room_events",
+                      "evidence_staging"):
+            assert conn.execute(f"SELECT COUNT(*) FROM public.{table}").fetchone()[0] == 0, table
+        assert conn.execute("UPDATE public.group_audit_rooms SET status='closed' WHERE id=%s", (room,)).rowcount == 0
+        for sql, args in (
+                ("INSERT INTO public.group_audit_rooms (parent_org_id,title,auditor_user_id,starts_at,ends_at,proposed_by,"
+                 "created_at) VALUES (%s,'x',5,'a','b',1,'c')", (parent,)),
+                ("INSERT INTO public.group_reminders_sent (org_id,kind,ref_id,stage,sent_at) VALUES (%s,'grant',2,'due','x')",
+                 (parent,)),
+                ("INSERT INTO public.evidence_staging (org_id,user_id,filing_scope,file_name,mime_type,file_size,file_hash,"
+                 "status,created_at,expires_at) VALUES (%s,1,'o','a','t',1,'h','staged','x','y')", (parent,)),
+                ("INSERT INTO public.group_pack_retention (pack_id,parent_org_id,retain_until,reason,set_by,set_at) "
+                 "VALUES (%s,%s,'x','y',1,'z')", (pack, parent))):
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                conn.execute(sql, args)
+            conn.rollback()
+    finally:
+        done(context, conn)
+    context, conn = as_org(parent)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM public.group_adoption_controls").fetchone()[0] == 0, \
+            "a subsidiary's control links never reach the parent"
+        with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+            conn.execute("INSERT INTO public.group_adoption_controls (adoption_id,viewer_org_id,module,entity_type,"
+                         "entity_id,linked_by,linked_at) VALUES (%s,%s,'aria','control',2,1,'x')", (adoption, child))
+        conn.rollback()
+    finally:
+        done(context, conn)

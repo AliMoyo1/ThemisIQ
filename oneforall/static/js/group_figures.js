@@ -80,6 +80,21 @@
     panel.hidden = false;
     const form = get('gfPropose');
     form.hidden = !views.can_restate;
+    // Bound before anything is awaited: a click while the lists load must never fall through to a native submit.
+    if (!form.dataset.bound) {
+      form.dataset.bound = '1';
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const data = new FormData(form);
+        try {
+          await ApiClient.request('/governance/api/group/figures/restatements', {method: 'POST', body: {
+            measure_key: data.get('measure_key'), new_value: Number(data.get('new_value')),
+            period: data.get('period'), reason: data.get('reason')}});
+          form.reset(); get('gfStatus').textContent = 'Correction proposed for review.';
+          loadCorrections(views);
+        } catch (error) { get('gfStatus').textContent = message(error); }
+      });
+    }
     try {
       if (views.can_restate && !form.measure_key.options.length) {
         const own = await ApiClient.request('/governance/api/group/figures?view=own');
@@ -116,20 +131,6 @@
       });
       if (!data.items.length) rows.append(el('p', 'No corrections yet.'));
     } catch (error) { get('gfStatus').textContent = message(error); }
-    if (!form.dataset.bound) {
-      form.dataset.bound = '1';
-      form.addEventListener('submit', async event => {
-        event.preventDefault();
-        const data = new FormData(form);
-        try {
-          await ApiClient.request('/governance/api/group/figures/restatements', {method: 'POST', body: {
-            measure_key: data.get('measure_key'), new_value: Number(data.get('new_value')),
-            period: data.get('period'), reason: data.get('reason')}});
-          form.reset(); get('gfStatus').textContent = 'Correction proposed for review.';
-          loadCorrections(views);
-        } catch (error) { get('gfStatus').textContent = message(error); }
-      });
-    }
   }
   const issueLabels = {breach_type: 'Type', severity: 'Severity', status: 'Status', discovery_date: 'Discovered',
     reported_date: 'Reported', affected_count: 'Affected', notification_required: 'Notification required',
@@ -191,7 +192,7 @@
       const box = el('article', '', 'gf-entity');
       box.append(el('h2', `${pack.title} (${pack.period})`));
       box.append(el('small', `${pack.status === 'issued' ? 'Signed off by ' + pack.reviewed_by : 'Not signed off (' + pack.status + ')'}. Frozen ${pack.created_at} by ${pack.created_by}. Fingerprint ${pack.content_hash.slice(0, 16)}.`));
-      box.append(el('p', pack.verified ? 'Integrity check passed: every figure matches the frozen record.' : 'Integrity check FAILED: do not rely on this pack.', 'gf-status'));
+      box.append(el('p', pack.integrity_text, 'gf-status'));
       ['pdf', 'xlsx'].forEach(format => {
         const link = el('a', format === 'pdf' ? 'Download PDF' : 'Download Excel', 'btn btn-secondary');
         link.href = `/governance/api/group/packs/${pack.id}/export?format=${format}`;
@@ -203,7 +204,37 @@
         pack.corrections.forEach(fix => notice.append(el('span', `${fix.name}: ${fix.label} was ${fix.pack_value} and is now ${fix.corrected_value}. ${fix.reason || ''}`)));
         box.append(notice);
       }
-      target.append(box, ...pack.entities.map(renderEntity));
+      const issueBox = el('div', '', 'gf-card');
+      pack.entities.forEach(entity => (entity.issues || []).forEach(issue => {
+        const byStatus = Object.entries(issue.counts).map(([k, v]) => `${k.replaceAll('_', ' ')} ${v}`).join(', ') || 'none';
+        issueBox.append(el('span', `${entity.name} · ${issue.label}: ${issue.total} records (${byStatus}) as of ${issue.as_of.slice(0, 10)}`));
+      }));
+      if (issueBox.childElementCount) { issueBox.prepend(el('b', 'Issue registers')); box.append(issueBox); }
+      const kept = pack.retention;
+      box.append(el('p', kept ? `Kept until ${kept.retain_until}${kept.legal_hold ? ', under legal hold' : ''}: ${kept.reason}`
+        : 'No retention recorded. Nothing is deleted automatically.'));
+      if (pack.can_set_retention) {
+        const form = el('form', '', 'gf-form');
+        const until = document.createElement('input'); until.type = 'date'; until.name = 'retain_until'; until.required = true;
+        const hold = document.createElement('input'); hold.type = 'checkbox'; hold.name = 'legal_hold';
+        const reason = document.createElement('input'); reason.name = 'reason'; reason.maxLength = 500; reason.required = true;
+        const untilLabel = el('label', 'Keep until'); untilLabel.append(until);
+        const holdLabel = el('label', 'Legal hold'); holdLabel.append(hold);
+        const reasonLabel = el('label', 'Reason'); reasonLabel.append(reason);
+        const save = el('button', 'Record retention', 'btn btn-secondary'); save.type = 'submit';
+        form.append(untilLabel, holdLabel, reasonLabel, save);
+        form.addEventListener('submit', async event => {
+          event.preventDefault();
+          try {
+            await ApiClient.request(`/governance/api/group/packs/${pack.id}/retention`, {method: 'POST',
+              body: {retain_until: until.value, legal_hold: hold.checked, reason: reason.value}});
+            get('gfStatus').textContent = 'Retention recorded.';
+            openPack(pack.id);
+          } catch (error) { get('gfStatus').textContent = message(error); }
+        });
+        box.append(form);
+      }
+      target.append(box, ...pack.entities.filter(e => e.figures.length || !(e.issues || []).length).map(renderEntity));
     } catch (error) { get('gfStatus').textContent = message(error); }
   }
   async function loadPacks() {

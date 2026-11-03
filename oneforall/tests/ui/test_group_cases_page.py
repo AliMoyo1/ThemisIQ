@@ -18,6 +18,13 @@ def test_group_case_page_creates_parent_case_without_inline_script(login_as, liv
     page.get_by_role("button", name="Open case").first.click()
     expect(page.locator("#gcDetail")).to_contain_text("The parent is reviewing evidence")
     expect(page.locator("#gcRequests")).to_contain_text("Link a proof request")
+    amend = page.locator("#gcAmend")
+    amend.get_by_label("Revised position").fill("The parent now relies on the subsidiary's annual review.")
+    amend.get_by_label("Why it changed").fill("Scope narrowed after the kickoff")
+    amend.get_by_role("button", name="Amend position").click()
+    expect(page.locator("#gcStatus")).to_contain_text("Position amended")
+    expect(page.locator("#gcDetail")).to_contain_text("annual review")
+    expect(page.locator("#gcEvents")).to_contain_text("earlier position: The parent is reviewing evidence")
 
 
 def test_group_case_api_denies_employee(login_as, live_app):

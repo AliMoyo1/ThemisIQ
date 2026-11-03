@@ -235,6 +235,28 @@ def _expiry_check_in(org_id: int) -> None:
 # Scheduler start / stop
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _group_reminders() -> None:
+    """Daily group oversight reminders (plan 22, C2), once across workers."""
+    lock_db = get_db()
+    try:
+        acquired = try_acquire_scheduler_lock(lock_db, "group_reminders", 3000)
+    finally:
+        lock_db.close()
+    if not acquired:
+        return
+    from modules.evidence import group_reminders
+    log.info("Group oversight reminders: %d sent", group_reminders.run())
+    # Staged batch files that were never filed expire after a week (plan 22, C10).
+    from database import get_db_bypass_rls
+    from modules.evidence import staging
+    db = get_db_bypass_rls()
+    try:
+        log.info("Evidence staging: %d expired", staging.sweep(db))
+        db.commit()
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global _scheduler
     if _scheduler and _scheduler.running:
@@ -246,6 +268,13 @@ def start_scheduler() -> None:
         _expiry_check,
         CronTrigger(hour=9, minute=0, timezone=TZ),
         id="evidence_expiry",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
+    _scheduler.add_job(
+        _group_reminders,
+        CronTrigger(hour=9, minute=30, timezone=TZ),
+        id="evidence_group_reminders",
         replace_existing=True,
         misfire_grace_time=300,
     )

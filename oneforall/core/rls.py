@@ -117,6 +117,44 @@ _STMTS = [
     "OR source_org_id = NULLIF(current_setting('app.current_org_id', true), '')::int)",
 
     # Group packs belong to the parent. A pack can be created, and decided once; after that no policy lets it change.
+    "ALTER TABLE public.group_audit_rooms ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_audit_rooms FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_audit_rooms_read ON public.group_audit_rooms",
+    f"CREATE POLICY group_audit_rooms_read ON public.group_audit_rooms FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_audit_rooms_insert ON public.group_audit_rooms",
+    f"CREATE POLICY group_audit_rooms_insert ON public.group_audit_rooms FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_audit_room_items ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_audit_room_items FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_audit_room_items_read ON public.group_audit_room_items",
+    f"CREATE POLICY group_audit_room_items_read ON public.group_audit_room_items FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_audit_room_items_insert ON public.group_audit_room_items",
+    f"CREATE POLICY group_audit_room_items_insert ON public.group_audit_room_items FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_audit_room_messages ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_audit_room_messages FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_audit_room_messages_read ON public.group_audit_room_messages",
+    f"CREATE POLICY group_audit_room_messages_read ON public.group_audit_room_messages FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_audit_room_messages_insert ON public.group_audit_room_messages",
+    f"CREATE POLICY group_audit_room_messages_insert ON public.group_audit_room_messages FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_audit_room_events ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_audit_room_events FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_audit_room_events_read ON public.group_audit_room_events",
+    f"CREATE POLICY group_audit_room_events_read ON public.group_audit_room_events FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_audit_room_events_insert ON public.group_audit_room_events",
+    f"CREATE POLICY group_audit_room_events_insert ON public.group_audit_room_events FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_audit_rooms_decide ON public.group_audit_rooms",
+    f"CREATE POLICY group_audit_rooms_decide ON public.group_audit_rooms FOR UPDATE USING {_GROUP_PARENT_USING} WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_pack_runs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_pack_runs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_pack_runs_parent ON public.group_pack_runs",
+    f"CREATE POLICY group_pack_runs_parent ON public.group_pack_runs FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_pack_runs_insert ON public.group_pack_runs",
+    f"CREATE POLICY group_pack_runs_insert ON public.group_pack_runs FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
+    "ALTER TABLE public.group_pack_retention ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_pack_retention FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_pack_retention_parent ON public.group_pack_retention",
+    f"CREATE POLICY group_pack_retention_parent ON public.group_pack_retention FOR SELECT USING {_GROUP_PARENT_USING}",
+    "DROP POLICY IF EXISTS group_pack_retention_insert ON public.group_pack_retention",
+    f"CREATE POLICY group_pack_retention_insert ON public.group_pack_retention FOR INSERT WITH CHECK {_GROUP_PARENT_USING}",
     "ALTER TABLE public.group_packs ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_packs FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_packs_read ON public.group_packs",
@@ -205,6 +243,10 @@ _STMTS = [
     "DROP POLICY IF EXISTS group_lineage_insert ON public.group_figure_lineage",
     f"CREATE POLICY group_lineage_insert ON public.group_figure_lineage FOR INSERT WITH CHECK {_GROUP_SOURCE_USING}",
 
+    "ALTER TABLE public.group_reminders_sent ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_reminders_sent FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_reminders_own ON public.group_reminders_sent",
+    f"CREATE POLICY group_reminders_own ON public.group_reminders_sent USING {_USING} WITH CHECK {_USING}",
     "ALTER TABLE public.group_access_events ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_access_events FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_events_orgs ON public.group_access_events",
@@ -293,6 +335,12 @@ _STMTS = [
     "CREATE POLICY group_policy_adoptions_review ON public.group_policy_adoptions FOR UPDATE "
     "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
     "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
+    "ALTER TABLE public.group_adoption_controls ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_adoption_controls FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_adoption_controls_viewer ON public.group_adoption_controls",
+    "CREATE POLICY group_adoption_controls_viewer ON public.group_adoption_controls "
+    "USING (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int) "
+    "WITH CHECK (viewer_org_id=NULLIF(current_setting('app.current_org_id',true),'')::int)",
     # users
     "ALTER TABLE public.users ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.users FORCE ROW LEVEL SECURITY",
@@ -350,6 +398,11 @@ _STMTS = [
     "ALTER TABLE public.evidence_unit_company_events FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_unit_company_events",
     f"CREATE POLICY tenant_isolation ON public.evidence_unit_company_events USING {_USING} WITH CHECK {_USING}",
+
+    "ALTER TABLE public.evidence_staging ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_staging FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_staging",
+    f"CREATE POLICY tenant_isolation ON public.evidence_staging USING {_USING} WITH CHECK {_USING}",
 
     # Parsed document text is more sensitive than its metadata. Public rows
     # get the same organization guard; business-unit access is checked via

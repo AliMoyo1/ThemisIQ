@@ -175,10 +175,15 @@ def tours_for(user) -> list:
     return [t for t in TOURS if t["area"] is None or t["area"] in areas]
 
 
-def checklist_for(user, mfa_enabled: bool) -> list:
-    """Getting-started items. Tour items are ticked in the browser, where finished tours are remembered."""
+def checklist_for(user, mfa_enabled: bool, dpo_named: "bool | None" = None) -> list:
+    """Getting-started items. Tour items are ticked in the browser, where finished tours are remembered. `dpo_named` is
+    None when this person does not manage the organization's people; otherwise whether an active person holds the DPO
+    role, without whom no group sharing terms can be privacy reviewed."""
     items = [{"id": "mfa", "label": "Turn on two-step sign-in", "done": mfa_enabled,
               "href": "/mfa/setup"}]
+    if dpo_named is not None:
+        items.append({"id": "dpo", "label": "Name your Data Protection Officer", "done": dpo_named,
+                      "href": "/admin/users"})
     items += [{"id": f"tour:{t['id']}", "label": f"Take the tour: {t['title']}", "tour": t["id"]}
               for t in tours_for(user)]
     return items

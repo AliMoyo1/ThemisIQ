@@ -206,6 +206,21 @@ async def api_group_pack(request: Request, pack_id: int):
     return response
 
 
+@router.post("/api/group/packs/{pack_id}/retention")
+@require_auth
+async def api_group_pack_retention(request: Request, pack_id: int):
+    from modules.governance import group_packs
+    body = await _json_body(request)
+    db = get_db()
+    try:
+        result = group_packs.set_retention(db, request.state.user, pack_id, body.get("retain_until"),
+                                           body.get("legal_hold"), body.get("reason"))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse(result)
+
+
 @router.post("/api/group/packs/{pack_id}/review")
 @require_auth
 async def api_group_pack_review(request: Request, pack_id: int):
@@ -239,6 +254,141 @@ async def api_group_pack_export(request: Request, pack_id: int):
         db.close()
     report = group_packs.build_report(user, org["name"] if org else "", pack)
     return await respond.download(report, fmt, f"ThemisIQ_group_pack_{pack_id}")
+
+
+@router.get("/group/rooms/", response_class=HTMLResponse)
+@require_auth
+async def group_rooms_page(request: Request):
+    user = request.state.user
+    if not any(has_capability(user, c) for c in ("group.room.manage", "group.room.approve", "group.room.enter")):
+        raise HTTPException(404, "Not found")
+    return templates.TemplateResponse(request, "group_rooms.html", {
+        "user": user, **shell_ctx(request, active_module="governance")})
+
+
+def _room_call(request: Request, call, commit: bool = False):
+    from modules.governance import group_rooms  # noqa: F401 (callers pass a lambda over it)
+    db = get_db()
+    try:
+        result = call(db)
+        if commit:
+            db.commit()
+        return result
+    finally:
+        db.close()
+
+
+@router.get("/api/group/rooms")
+@require_auth
+async def api_group_rooms(request: Request):
+    from modules.governance import group_rooms
+    return JSONResponse(_room_call(request, lambda db: group_rooms.listing(db, request.state.user)))
+
+
+@router.get("/api/group/rooms/candidates")
+@require_auth
+async def api_group_room_candidates(request: Request):
+    from modules.governance import group_rooms
+    return JSONResponse(_room_call(request, lambda db: group_rooms.candidates(db, request.state.user)))
+
+
+@router.post("/api/group/rooms", status_code=201)
+@require_auth
+async def api_group_room_propose(request: Request):
+    from modules.governance import group_rooms
+    body = await _json_body(request)
+    room_id = _room_call(request, lambda db: group_rooms.propose(
+        db, request.state.user, body.get("title"), body.get("auditor_user_id"), body.get("starts_at"),
+        body.get("ends_at")), commit=True)
+    return JSONResponse({"id": room_id, "status": "proposed"}, status_code=201)
+
+
+@router.get("/api/group/rooms/{room_id}")
+@require_auth
+async def api_group_room(request: Request, room_id: int):
+    from modules.governance import group_rooms
+    response = JSONResponse(_room_call(request, lambda db: group_rooms.detail(db, request.state.user, room_id),
+                                       commit=True))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/group/rooms/{room_id}/items", status_code=201)
+@require_auth
+async def api_group_room_add(request: Request, room_id: int):
+    from modules.governance import group_rooms
+    body = await _json_body(request)
+    item_id = _room_call(request, lambda db: group_rooms.add_item(
+        db, request.state.user, room_id, body.get("kind"), body.get("ref_id"), body.get("allow_download", False)),
+        commit=True)
+    return JSONResponse({"id": item_id}, status_code=201)
+
+
+@router.post("/api/group/rooms/{room_id}/decision")
+@require_auth
+async def api_group_room_decide(request: Request, room_id: int):
+    from modules.governance import group_rooms
+    body = await _json_body(request)
+    status = _room_call(request, lambda db: group_rooms.decide(
+        db, request.state.user, room_id, body.get("decision"), body.get("reason")), commit=True)
+    return JSONResponse({"status": status})
+
+
+@router.post("/api/group/rooms/{room_id}/close")
+@require_auth
+async def api_group_room_close(request: Request, room_id: int):
+    from modules.governance import group_rooms
+    body = await _json_body(request)
+    _room_call(request, lambda db: group_rooms.close(db, request.state.user, room_id, body.get("reason")), commit=True)
+    return JSONResponse({"status": "closed"})
+
+
+@router.post("/api/group/rooms/{room_id}/messages", status_code=201)
+@require_auth
+async def api_group_room_message(request: Request, room_id: int):
+    from modules.governance import group_rooms
+    body = await _json_body(request)
+    message_id = _room_call(request, lambda db: group_rooms.post_message(
+        db, request.state.user, room_id, body.get("body"), body.get("reply_to"), body.get("cites")), commit=True)
+    return JSONResponse({"id": message_id}, status_code=201)
+
+
+@router.get("/api/group/rooms/{room_id}/items/{item_id}")
+@require_auth
+async def api_group_room_item(request: Request, room_id: int, item_id: int):
+    from modules.governance import group_rooms
+    response = JSONResponse(_room_call(request, lambda db: group_rooms.open_item(
+        db, request.state.user, room_id, item_id), commit=True))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/group/rooms/{room_id}/items/{item_id}/download")
+@require_auth
+async def api_group_room_download(request: Request, room_id: int, item_id: int):
+    from fastapi.responses import FileResponse
+    from core.report_kit import respond
+    from modules.evidence.routes import EVIDENCE_DIR
+    from modules.governance import group_packs, group_rooms
+    fmt = request.query_params.get("format", "pdf")
+    if fmt not in ("pdf", "xlsx"):
+        raise HTTPException(422, "Choose PDF or Excel")
+    db = get_db()
+    try:
+        kind, payload, adder = group_rooms.download_item(db, request.state.user, room_id, item_id)
+        org = db.execute("SELECT name FROM organizations WHERE id=%s", (request.state.user["org_id"],)).fetchone()
+        db.commit()
+    finally:
+        db.close()
+    if kind == "pack":
+        report = group_packs.build_report(request.state.user, org["name"] if org else "", payload)
+        return await respond.download(report, fmt, f"ThemisIQ_group_pack_{payload['id']}")
+    rel = payload["file_path"] or ""
+    candidate = (EVIDENCE_DIR / rel).resolve() if rel and not rel.startswith("aria://") else None
+    if candidate is None or not candidate.is_relative_to(EVIDENCE_DIR.resolve()) or not candidate.is_file():
+        raise HTTPException(404, "Item file unavailable")
+    return FileResponse(str(candidate), filename=payload["file_name"] or "download",
+                        media_type=payload["mime_type"] or "application/octet-stream")
 
 
 @router.get("/api/group/band")

@@ -1,5 +1,5 @@
 {
-  "route_count": 1255,
+  "route_count": 1276,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -13397,6 +13397,48 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/batch/staged",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_evidence_staged",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/batch/staged",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_evidence_stage",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/batch/staged/{staged_id}/discard",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_evidence_staged_discard",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/batch/suggest",
       "methods": [
         "POST"
@@ -13537,6 +13579,20 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/group/adoption-controls/{link_id}/remove",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_adoption_unlink_control",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/group/adoptions",
       "methods": [
         "GET"
@@ -13551,6 +13607,34 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/group/adoptions/rollup",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_adoption_rollup",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/adoptions/{adoption_id}/controls",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_adoption_link_control",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/group/adoptions/{adoption_id}/review",
       "methods": [
         "POST"
@@ -13561,6 +13645,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_adoption_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/ask",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_ask",
       "maturity": "",
       "notes": ""
     },
@@ -13617,6 +13715,34 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_case_close",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/cases/{case_id}/position",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_case_position",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/group/cases/{case_id}/reopen",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_case_reopen",
       "maturity": "",
       "notes": ""
     },
@@ -15892,6 +16018,20 @@
       "notes": ""
     },
     {
+      "path": "/governance/api/group/packs/{pack_id}/retention",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_pack_retention",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/governance/api/group/packs/{pack_id}/review",
       "methods": [
         "POST"
@@ -15902,6 +16042,146 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_group_pack_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_rooms",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_propose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/candidates",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_candidates",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}/close",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_close",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}/decision",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_decide",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}/items",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_add",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}/items/{item_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_item",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}/items/{item_id}/download",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_download",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/group/rooms/{room_id}/messages",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_group_room_message",
       "maturity": "",
       "notes": ""
     },
@@ -16314,6 +16594,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "group_figures_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/group/rooms/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "group_rooms_page",
       "maturity": "",
       "notes": ""
     },
