@@ -37,7 +37,10 @@ ALL_MEASURES = json.dumps({"figure_measures": list(gf.PUBLISHABLE)})
 
 
 @pytest.fixture
-def world(test_db):
+def world(test_db, monkeypatch):
+    # These tests exercise grants and aggregation with synthetic snapshots. A separate test verifies
+    # that the real multi-org SQLite path refuses publication and reads without tenant schemas.
+    monkeypatch.setattr(gf, "require_isolated_figures", lambda db=None: None)
     db = test_db
     parent = _id(db, "organizations", name="Parent Co", slug="fig_parent", status="active")
     child = _id(db, "organizations", name="Child Co", slug="fig_child", status="active")

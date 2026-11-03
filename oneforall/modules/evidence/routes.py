@@ -1558,8 +1558,9 @@ async def api_evidence_upload(
             return JSONResponse({"error": "Choose a valid claim."}, status_code=422)
 
     # Validate filing and referenced-record authority before processing bytes.
-    # An unlinked upload never silently inherits a broad or unit scope.
-    if not selected_target and not filing_scope:
+    # A new unlinked upload declares its scope; a replacement inherits its authorized parent's scope.
+    replacement_for_access = replace_id.strip() if isinstance(replace_id, str) else ""
+    if not selected_target and not filing_scope and not replacement_for_access:
         return JSONResponse({"error": "Choose an authorized filing scope."}, status_code=422)
     requested_unit = None
     scope_db = get_db()
@@ -1568,7 +1569,6 @@ async def api_evidence_upload(
             requested_unit = company_views.selected_unit(scope_db, user, filing_scope, for_filing=True)
         if selected_target and not _visible_target(scope_db, (link_module, link_entity_type), target_id, user):
             raise HTTPException(404, "Link target not found")
-        replacement_for_access = replace_id.strip() if isinstance(replace_id, str) else ""
         if replacement_for_access:
             if not replacement_for_access.isdigit() or int(replacement_for_access) < 1:
                 return JSONResponse({"error": "Choose a valid version to replace."}, status_code=422)
@@ -1621,7 +1621,8 @@ async def api_evidence_upload(
                 return JSONResponse({"error": "Filing scope must match the linked record."}, status_code=422)
             if not selected_target:
                 target_unit = requested_unit
-        elif target_unit is None and not user.get("is_super_admin") and not company_views.can_file_org_wide(user):
+        elif (not replacement_for_access and target_unit is None and not user.get("is_super_admin")
+              and not company_views.can_file_org_wide(user)):
             return JSONResponse({"error": "Choose an authorized filing scope."}, status_code=422)
 
         parent_id = None
@@ -1646,8 +1647,12 @@ async def api_evidence_upload(
                 return JSONResponse({"error": "A new version keeps the original filing scope."}, status_code=422)
             parent_id = rid
             version_num = parent_row["version"] + 1
-            if selected_target and target_unit is not None and parent_row["business_unit_id"] != target_unit:
+            if selected_target and parent_row["business_unit_id"] != target_unit:
                 return JSONResponse({"error": "The selected claim belongs to a different business unit."}, status_code=422)
+
+        # A platform administrator can replace a tenant's file without being a member of that tenant.
+        # Preserve the original organization rather than filing the new version as an orphan.
+        filing_org_id = parent_row["org_id"] if parent_row is not None else org_id
 
         owner, owner_problem = _clean_owner(db, user, owner_user_id) if str(owner_user_id).strip() else (None, None)
         if owner_problem:
@@ -1719,7 +1724,7 @@ async def api_evidence_upload(
             (
                 display_title, description, str(stored_name), original_name,
                 len(content), file_hash, declared_mime,
-                category, tags, version_num, parent_id, _uid(request), exp, org_id,
+                category, tags, version_num, parent_id, _uid(request), exp, filing_org_id,
                 owner, days["review_due_date"], days["period_start"], days["period_end"],
                 (parent_row["business_unit_id"] if parent_row is not None else target_unit),
                 (parent_row["company_id"] if parent_row is not None else None),
@@ -1748,7 +1753,7 @@ async def api_evidence_upload(
             change_signals.publish(
                 db, source=("evidence", "item", eid), kind="evidence_replaced",
                 before={"version": parent_row["version"]}, after={"version": version_num}, fields={"version": "Version"},
-                actor_id=_uid(request), org_id=org_id,
+                actor_id=_uid(request), org_id=filing_org_id,
                 extra_targets=[(r["module"], r["entity_type"], r["entity_id"]) for r in db.execute(
                     "SELECT module, entity_type, entity_id FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL",
                     (parent_id,)).fetchall()])

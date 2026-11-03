@@ -95,6 +95,23 @@ def _table(name: str) -> str:
     return f"public.{name}" if settings.is_postgres() else name
 
 
+def require_isolated_figures(db=None) -> None:
+    """SQLite's legacy controls have no org owner, so a multi-org figure cannot be attributed safely."""
+    if settings.is_postgres():
+        return
+    own_db = db is None
+    if own_db:
+        db = get_db_bypass_rls()
+    try:
+        # Inactive tenants may still have historical publications, so count every tenant.
+        count = db.execute("SELECT COUNT(*) AS n FROM organizations").fetchone()["n"]
+    finally:
+        if own_db:
+            db.close()
+    if count > 1:
+        raise HTTPException(503, "Group figures require tenant-isolated PostgreSQL")
+
+
 def _now() -> datetime:
     return utcnow()
 
@@ -196,6 +213,7 @@ def reconcile(row: dict, again: "dict | None") -> str:
 def collect_with_lineage(org_id: int, slug: str) -> "tuple[list[dict], list[dict]]":
     """(figures to publish, how each was made). A figure that does not reconcile is published as unavailable, never as
     the last value relabelled as current."""
+    require_isolated_figures()
     first, second = _build(org_id, slug), _build(org_id, slug)
     rows, lineage = [], []
     for key, row in first.items():
@@ -415,6 +433,7 @@ def propose_restatement(db, actor: dict, measure_key: str, new_value, reason: st
     """The source organization proposes a corrected value for its own latest published figure."""
     if not actor.get("org_id") or not has_capability(actor, "group.figure.restate"):
         raise HTTPException(403, "Figure correction access required")
+    require_isolated_figures(db)
     if not isinstance(measure_key, str) or _base(measure_key) not in registry.REGISTRY:
         raise HTTPException(422, "Choose a published figure")
     _possible(measure_key, new_value)
@@ -444,6 +463,7 @@ def list_restatements(db, actor: dict) -> "list[dict]":
     if not actor.get("org_id") or not (has_capability(actor, "group.figure.restate")
                                        or has_capability(actor, "group.figure.restate_review")):
         raise HTTPException(403, "Figure correction access required")
+    require_isolated_figures(db)
     rows = db.execute(
         f"SELECT id,measure_key,old_value,new_value,period_text,reason,status,proposed_by,reviewed_at,review_reason "
         f"FROM {_table('group_figure_restatements')} WHERE source_org_id=%s ORDER BY id DESC LIMIT 100",
@@ -464,6 +484,7 @@ def review_restatement(db, actor: dict, restatement_id: int, decision: str, reas
     """A different person decides. Approval publishes a new snapshot that points at the original; nothing is edited."""
     if not actor.get("org_id") or not has_capability(actor, "group.figure.restate_review"):
         raise HTTPException(403, "Figure correction review required")
+    require_isolated_figures(db)
     if decision not in ("approved", "rejected") or not isinstance(reason, str) or not 10 <= len(reason.strip()) <= 500:
         raise HTTPException(422, "Choose a decision and record the reason")
     row = db.execute(f"SELECT * FROM {_table('group_figure_restatements')} WHERE id=%s AND source_org_id=%s",
@@ -525,6 +546,7 @@ def view(db, actor: dict, which: str, org_id: "int | None" = None) -> dict:
     every child the person may read, with totals for counts)."""
     if not actor.get("org_id") or not has_capability(actor, "group.figure.view_exact"):
         raise HTTPException(403, "Group figure access required")
+    require_isolated_figures(db)
     families = _allowed_families(actor)
     org = db.execute("SELECT id, name FROM organizations WHERE id=%s", (actor["org_id"],)).fetchone()
     children = _children(db, actor)

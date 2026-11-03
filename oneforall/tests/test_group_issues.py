@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from modules.governance import group_issues as gi
+from modules.governance import group_figures as gf
 
 CANARY = "ZQXCANARYQXZ"
 
@@ -41,7 +42,9 @@ def _terms(types):
 
 
 @pytest.fixture
-def world(test_db):
+def world(test_db, monkeypatch):
+    # Disclosure tests use synthetic cross-organization SQLite rows; the live gate is tested separately.
+    monkeypatch.setattr(gf, "require_isolated_figures", lambda db=None: None)
     db = test_db
     parent = _id(db, "organizations", name="Issue Parent", slug="iss_parent", status="active")
     child = _id(db, "organizations", name="Issue Child", slug="iss_child", status="active")

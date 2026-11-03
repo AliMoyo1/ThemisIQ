@@ -49,7 +49,9 @@ def _snap(db, org, key, value, module, version=1, as_of=None):
 
 
 @pytest.fixture
-def world(test_db):
+def world(test_db, monkeypatch):
+    # Packs here use synthetic frozen snapshots; the SQLite tenant-isolation gate has its own test.
+    monkeypatch.setattr(gf, "require_isolated_figures", lambda db=None: None)
     db = test_db
     parent = _id(db, "organizations", name="Pack Parent", slug="pk_parent", status="active")
     child = _id(db, "organizations", name="Pack Child", slug="pk_child", status="active")

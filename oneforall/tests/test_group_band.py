@@ -61,7 +61,10 @@ def _user(db, org, key, role="grc_officer"):
 
 
 @pytest.fixture
-def group(test_db):
+def group(test_db, monkeypatch):
+    # Mathematical disclosure tests use synthetic cross-organization SQLite rows.
+    # The deployed multi-organization SQLite path is fail-closed and tested separately.
+    monkeypatch.setattr(gf, "require_isolated_figures", lambda db=None: None)
     db = test_db
     parent, a, b = _org(db, "Band Parent"), _org(db, "Band A"), _org(db, "Band B")
     _edge(db, parent, a)

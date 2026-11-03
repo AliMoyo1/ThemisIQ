@@ -18,7 +18,7 @@
   </a>
   <a href="#" class="nav-item" id="nav-unlinked" onclick="switchView('needs_filing',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-    Needs filing <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--bad,#dc2626)"></span>
+    Needs filing <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--badge-red,#b91c1c)"></span>
   </a>
   <a href="#" class="nav-item" id="nav-archived" onclick="switchView('archived',this)" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -1989,6 +1989,10 @@ function evRenderEntityViews(){
   });
 }
 async function evLoadEntityViews(){
+  // A platform super administrator without a selected tenant has no company catalogue to read.
+  if(!{{ 'true' if user.org_id else 'false' }}){
+    evEntityViews={companies:[],unconfirmed:0};evRenderEntityViews();return;
+  }
   try{
     var response=await fetch('/evidence/api/companies');if(!response.ok)throw new Error();
     evEntityViews=await response.json();

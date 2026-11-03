@@ -15,9 +15,10 @@ application (every middleware, route and permission check) over HTTP:
 Between the steps it checks what must be refused: another tenant, another business unit, a person without a grant, a
 revoked grant, a superseded version. Each step is timed (system time, not a person's).
 
-Never point this at a real database. SQLite (default) uses a new temporary file. PostgreSQL needs PILOT_DATABASE_URL
-naming a database whose name starts with themisiq_test_; after setup every request runs as an ordinary login role that
-is subject to row level security (NOSUPERUSER, NOBYPASSRLS). No AI provider is called: the assistant is switched off.
+Never point this at a real database. The complete group-figure pilot needs PILOT_DATABASE_URL naming a disposable
+PostgreSQL database whose name starts with themisiq_test_; SQLite cannot attribute legacy controls to a tenant.
+After setup every request runs as an ordinary login role subject to row level security (NOSUPERUSER, NOBYPASSRLS).
+No AI provider is called: the assistant is switched off.
 
 Run from oneforall/:  python scripts/pilot_group_oversight.py [--json out.json]
 """
@@ -524,12 +525,11 @@ def main():
     parser.add_argument("--json")
     args = parser.parse_args()
     if not PG_URL:
-        database._DB_PATH = str(Path(tempfile.mkdtemp(prefix="pilot_")) / "pilot.db")
+        sys.exit("Group figure pilot requires tenant-isolated PostgreSQL (PILOT_DATABASE_URL=themisiq_test_*).")
     database.init_db()
     world = setup(secrets.token_hex(3))
-    if PG_URL:
-        as_ordinary_role()
-    engine = "PostgreSQL, a tenant schema per customer, ordinary role under row level security" if PG_URL else "SQLite"
+    as_ordinary_role()
+    engine = "PostgreSQL, a tenant schema per customer, ordinary role under row level security"
     pilot = run(world)
     passed = sum(s["ok"] for s in pilot.steps)
     print(f"Group oversight pilot ({engine}): {passed} of {len(pilot.steps)} steps passed\n")

@@ -1,6 +1,6 @@
 # Plan 23: group pilot, search speed and the Vault claim figures
 
-**Status:** Built and run on branch `claude/group-completion` (PR 42), 2026-11-03. Not merged.
+**Status:** P1-P4 merged into master (PR 42). Follow-up SQLite isolation and browser fixes are on `codex/vault-ci-scope-fix`, 2026-11-03.
 
 **Owner's words (chat, 2026-11-03):** "The DPO will be chosen during onboarding and user creation. Remember this is a SAAS. Can you do the pilot tests, measure search speed and build the 3 vault evidence measures."
 
@@ -24,7 +24,7 @@
 |---|---|---|---|
 | The DPO is named by each customer when its people are set up; the product only reminds the administrator | It is a service: the customer, not the operator, knows who its DPO is, and the role is already granted like any other | A customer can leave it undone; then no group sharing can start (enforced), and the checklist keeps asking | Make naming a DPO a required step of tenant creation |
 | One Vault claim figure per measure for the whole organization, over every kind of record the Vault measures | The Vault page already counts exactly this (`coverage_for`); one share per measure is what a parent can compare across companies | A parent does not see which kind of record (controls, risks, plans) is weak | Add a figure per module, keyed like the framework register (`vault.accepted:<module>`) |
-| The pilot and the speed measurement are scripts plus a SQLite smoke test, not part of the PostgreSQL lane | They need their own throwaway database and an ordinary login role, which the lane's shared database does not give | The PostgreSQL run is by hand (commands below) | Add a CI job with its own PostgreSQL service that runs both scripts |
+| The full group pilot runs on a disposable PostgreSQL database in the CI PostgreSQL lane; the search-speed smoke test remains on SQLite | Legacy SQLite controls cannot be attributed to one organization | The full pilot requires PostgreSQL even for a local demonstration | Use the isolated CI service or a named throwaway PostgreSQL database |
 | A reviewer who cannot open the released proof is told why (409) instead of "not found" | Found by the pilot: the parent's second reviewer had no named grant and was stuck. They already see the request, so the reason tells them nothing new | None | Revert in `group_requests.review_release` |
 | The pilot's timings are the system's, not a person's | No real users took part; plan 19's median task times and correction rates need people | Human task times are still unmeasured | Run the same tasks with the first customer group's specialists and record their times |
 
@@ -32,7 +32,7 @@
 
 - 2026-11-03: P1 and P2 committed (`5ee2e47a`): `modules/evidence/claim_metrics.py` builds `vault.linked`, `vault.current_proof` and `vault.accepted` from `coverage_for`, limited to licensed modules for a whole-organization build; registry owner and wording updated; `vault.*` added to the publishable measures. The getting-started checklist shows "Name your Data Protection Officer" to a customer administrator until an active person holds the DPO role.
 - 2026-11-03: P3 committed (`d2cfa2db`): `scripts/measure_vault_search.py`.
-- 2026-11-03: P4: `scripts/pilot_group_oversight.py` and `tests/test_pilot_scripts.py` (runs both scripts on SQLite). The pilot found that a parent reviewer without a named grant was told only "not found" when accepting proof: fixed in `group_requests.review_release` (409 with what to do), test updated.
+- 2026-11-03: P4: `scripts/pilot_group_oversight.py` and `tests/test_pilot_scripts.py` initially ran both scripts on SQLite. The pilot found that a parent reviewer without a named grant was told only "not found" when accepting proof: fixed in `group_requests.review_release` (409 with what to do), test updated. The full group pilot was subsequently moved to PostgreSQL CI after finding that SQLite cannot isolate legacy control counts.
 
 ## 5. Results
 
@@ -80,7 +80,7 @@ To repeat on PostgreSQL, from `oneforall/`, against a throwaway database whose n
 
 No AI provider is called.
 
-**Result: 21 of 21 steps passed** on PostgreSQL 18, with a tenant schema per customer and every request made as an ordinary role under row level security. The same result on SQLite.
+**Verified result: 21 of 21 steps passed** on a disposable PostgreSQL 18 database with the follow-up changes, a tenant schema per customer and every request made as an ordinary role under row level security. The earlier SQLite run completed the steps but its group control counts were not tenant-safe; that run is no longer a valid acceptance result. The PostgreSQL pilot is now part of CI.
 
 | Step | Who | Result |
 |---|---|---|
@@ -109,7 +109,7 @@ No AI provider is called.
 What the pilot found:
 
 1. **Fixed:** the parent's second reviewer, accepting a subsidiary's proof without a named grant to open it, got "Not found." and no way forward. They now get a 409 that says what to do.
-2. **Noted, SQLite only:** on SQLite all organizations share one database, so a whole-organization figure build counted another organization's control. Mining showed 36 figures, one of them for a framework it has no controls in. On PostgreSQL, where each customer has its own schema, Mining correctly showed 35. Production runs PostgreSQL, but a development or demonstration copy on SQLite can show another organization's control counts in group figures.
+2. **Closed by failing safely on SQLite:** SQLite's legacy controls and Sentinel registers have no organization owner. When more than one organization exists, including inactive historical tenants, group figure and issue publication and reads, band scores, frozen pack contents and restatements return 503 instead of showing untrustworthy information. PostgreSQL's tenant schemas continue to support these features. The complete 21-step pilot now requires a disposable PostgreSQL database and runs in the CI PostgreSQL job; SQLite's test asserts that the pilot refuses a shared database. Synthetic unit tests still exercise aggregation and grants separately.
 
 To repeat on PostgreSQL: set `PILOT_DATABASE_URL` to a throwaway database whose name starts with `themisiq_test_` and run `python scripts/pilot_group_oversight.py` from `oneforall/`.
 

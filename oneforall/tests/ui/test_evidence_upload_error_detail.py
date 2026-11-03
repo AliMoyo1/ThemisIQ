@@ -10,11 +10,14 @@ import io
 
 
 def _open_upload_modal(login_as, live_app):
-    page = login_as("super_admin")
+    page = login_as("compliance_manager")
     page.goto(f"{live_app}/evidence")
     page.wait_for_selector("button:has-text('+ Upload')")
     page.click("button:has-text('+ Upload')")
     page.wait_for_selector("#uploadModal.open")
+    unit = page.locator("#uploadFilingScope option[value^='unit:']").first
+    unit.wait_for(state="attached")
+    page.select_option("#uploadFilingScope", unit.get_attribute("value"))
     page.set_input_files("#uploadFile", files=[
         {"name": "policy.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 test"}
     ])
