@@ -546,7 +546,8 @@ def test_parent_verdict_is_independent_version_bound_and_return_allows_new_relea
     db.commit()
     with pytest.raises(HTTPException) as no_grant:
         requests.review_release(db, users["ungranted"], request_id, "accepted", "Now sufficient")
-    assert no_grant.value.status_code == 404
+    assert no_grant.value.status_code == 409 and "ask your administrator" in no_grant.value.detail, \
+        "a reviewer who cannot open the proof is told why, not shown a bare not found"
     group.grant_view(db, users["parent_admin"], relation, users["ungranted"]["id"],
                      "document.view", _future(25), _future(7))
     db.commit()

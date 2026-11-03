@@ -80,7 +80,8 @@ Each decision lists why it was taken, its cost, and how to change it.
 
 ## 7. Still open after this plan
 
-- **Owner and operations:** a live inventory and sign-off of real tenants, a named DPO per customer group recording the reviews, the pilot with a synthetic parent and two subsidiaries, deployment.
-- **Measured acceptance:** p95 search and discovery at 500 and 5,000 files, mobile usability, timed specialist tasks.
+Update 2026-11-03: plan 23 built the Vault claim figures, ran the synthetic pilot (21 of 21 steps on PostgreSQL) and measured search speed (every p95 under 0.25 seconds at 5,000 files). Each customer names its own DPO at onboarding, so that is no longer an owner step.
+
+- **Owner and operations:** a live inventory and sign-off of real tenants, the pilot with one real customer group, deployment.
+- **Measured acceptance:** mobile usability, timed specialist tasks with people.
 - **Not built, by decision (section 4):** nested groups, unit-level group figures, child participants in parent cases, review delegation outside a role, email reminders, federated auditor identities, automatic deletion of packs.
-- **Vault claim metrics** (`vault.linked`, `vault.current_proof`, `vault.accepted`) cannot be group figures until something builds them.
