@@ -5451,3 +5451,99 @@ def test_plan_22_tables_keep_each_organization_to_its_own_rows_on_real_postgres(
         conn.rollback()
     finally:
         done(context, conn)
+
+
+def test_assignments_and_needs_attention_run_as_an_ordinary_role_in_tenant_schemas_on_real_postgres(pg):
+    """Plan 24: the whole assignment round and Needs attention, in a provisioned tenant schema, as a role that row
+    level security applies to. Another organization sees neither the assignment (its own schema) nor the review (RLS)."""
+    import psycopg2
+    import pytest
+    from datetime import date, timedelta
+    from modules.governance import attention
+    from modules.grid import assignments as ga
+    pg.init_db()
+    org, other = _make_org(pg, "ciso_a"), _make_org(pg, "ciso_b")
+    setup = pg.get_db_bypass_rls()
+    people = {}
+    try:
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        for schema in ("public", "tenant_ciso_a", "tenant_ciso_b"):
+            setup.execute(f"GRANT USAGE ON SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+            setup.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+            setup.execute(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+        for key, role, org_id in (("lead", "audit_lead", org), ("owner", "control_owner", org),
+                                  ("uploader", "compliance_manager", org), ("far", "compliance_manager", other)):
+            uid = setup.execute("INSERT INTO public.users (username,email,full_name,password_hash,org_id,is_active) "
+                                "VALUES (%s,%s,%s,'x',%s,1) RETURNING id",
+                                (f"ciso_{key}", f"ciso_{key}@example.invalid", key, org_id)).fetchone()["id"]
+            setup.execute("INSERT INTO public.user_roles (user_id,role_key) VALUES (%s,%s)", (uid, role))
+            people[key] = {"id": uid, "org_id": org_id, "business_unit_id": None, "roles": [role],
+                           "is_super_admin": False}
+        setup.commit()
+    finally:
+        setup.close()
+    with pg.tenant_context(org, "ciso_a", is_super_admin=True):
+        seed = pg.get_db()
+        try:
+            audit = seed.execute("INSERT INTO grid_audits (name) VALUES ('PG audit') RETURNING id").fetchone()["id"]
+            controls = [seed.execute("INSERT INTO grid_controls (audit_id,control_id,name,status) VALUES (%s,%s,%s,%s) "
+                                     "RETURNING id", (audit, ref, "Control " + ref, status)).fetchone()["id"]
+                        for ref, status in (("P.1", "Not Started"), ("P.2", "Complete"))]
+            evidence = seed.execute(
+                "INSERT INTO evidence_items (title,status,version,file_hash,org_id,uploaded_by) "
+                "VALUES ('PG review log','current',1,'pg-hash',%s,%s) RETURNING id",
+                (org, people["uploader"]["id"])).fetchone()["id"]
+            seed.commit()
+        finally:
+            seed.close()
+
+    context = pg.tenant_context(org, "ciso_a", is_super_admin=False)
+    context.__enter__()
+    conn = pg.get_db()
+    _become_restricted(conn)
+    try:
+        lead, owner = people["lead"], people["owner"]
+
+        def version(assignment):
+            return conn.execute("SELECT version FROM grid_assignments WHERE id=%s", (assignment,)).fetchone()[0]
+        assignment = ga.create(conn, lead, audit, [controls[0]], owner["id"], None,
+                               (date.today() + timedelta(days=5)).isoformat(), "PG questions")
+        ga.launch(conn, lead, assignment, version(assignment))
+        conn.commit()
+        item = ga.detail(conn, owner, assignment)["items"][0]["id"]
+        assert [f["title"] for f in ga.proof_choices(conn, owner, assignment, "review")] == ["PG review log"]
+        ga.add_proof(conn, owner, assignment, item, version(assignment), evidence)
+        ga.save_item(conn, owner, assignment, item, version(assignment), "Reviewed every quarter")
+        ga.submit(conn, owner, assignment, version(assignment))
+        conn.commit()
+        assert ga.review_item(conn, lead, assignment, item, version(assignment), "accept")["state"] == "closed"
+        conn.commit()
+        assert conn.execute("SELECT review_status FROM evidence_links WHERE evidence_id=%s",
+                            (evidence,)).fetchone()[0] == "accepted"
+        found = attention.needs_attention(conn, lead, state="all")
+        issue = next(i for i in found["issues"] if i["title"] == "P.2 Control P.2")
+        assert issue["rule"] == "proof_missing" and all(s["state"] == "checked" for s in found["sources"])
+        attention.review(conn, lead, issue["rule"], issue["source_type"], issue["source_id"], issue["fingerprint"],
+                         "false_positive", "Proof sits with the auditor in paper form")
+        conn.commit()
+    finally:
+        _release_role(conn)
+        context.__exit__(None, None, None)
+
+    context = pg.tenant_context(other, "ciso_b", is_super_admin=False)
+    context.__enter__()
+    conn = pg.get_db()
+    _become_restricted(conn)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM grid_assignments").fetchone()[0] == 0, "its own tenant schema"
+        assert conn.execute("SELECT COUNT(*) FROM public.assurance_issue_reviews").fetchone()[0] == 0
+        with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+            conn.execute("INSERT INTO public.assurance_issue_reviews (org_id,rule,source_type,source_id,fingerprint,"
+                         "decision,reason,reviewed_by,reviewed_at) VALUES (%s,'proof_missing','grid.control',1,'f',"
+                         "'false_positive','Trying to hide it','1','x')", (org,))
+        conn.rollback()
+    finally:
+        _release_role(conn)
+        context.__exit__(None, None, None)

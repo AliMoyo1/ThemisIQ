@@ -1,5 +1,5 @@
 {
-  "route_count": 1276,
+  "route_count": 1294,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -15122,6 +15122,34 @@
       "notes": ""
     },
     {
+      "path": "/governance/api/attention",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_attention",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/attention/reviews",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_attention_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/governance/api/business-processes",
       "methods": [
         "GET"
@@ -16556,6 +16584,20 @@
       "notes": ""
     },
     {
+      "path": "/governance/attention/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "attention_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/governance/changes",
       "methods": [
         "GET"
@@ -16870,6 +16912,202 @@
         "grid"
       ],
       "name": "api_aria_policies",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_list",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/audits",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_audits",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/audits/{audit_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_audit_controls",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_detail",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_cancel",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/items/{item_id}/answer",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_answer",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/items/{item_id}/proof",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_add_proof",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/items/{item_id}/proof/{proof_id}/remove",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_remove_proof",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/items/{item_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_review",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/launch",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_launch",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/proof-choices",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_proof_choices",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/revise",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_revise",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/assignments/{assignment_id}/submit",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_assignments_submit",
       "maturity": "",
       "notes": ""
     },
@@ -19286,6 +19524,20 @@
       },
       "license_modules_required": [],
       "name": "api_vendor_cross_module",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/assignments/",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "grid_assignments_page",
       "maturity": "",
       "notes": ""
     },

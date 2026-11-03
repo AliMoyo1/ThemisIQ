@@ -54,11 +54,23 @@
 
 ## 5. Decisions (chat confirmation, not sign-off)
 
-(Filled in as slices finish.)
+| Decision | Why | Cost | How to change it |
+|---|---|---|---|
+| Only the audit lead sends and reviews; the GRID auditor role does neither | Accepting an answer accepts its proof, which needs `evidence.link.review`; the auditor role does not have it | An auditor cannot run a round on their own | Give the auditor `evidence.link.review` and the two assignment capabilities |
+| Anyone except an external auditor can be sent questions | The person who runs a control is often an employee or control owner without GRID access | None: the capability opens only assignments naming the person | Narrow `grid.assignment.respond` in `core/rbac.py` |
+| An accepted answer does not change the GRID control status | GRID's own rules set Complete from approved evidence; an answer is a proposal (CISO 03: "a proposal until the auditor accepts it", and the verdict stays GRID's) | The audit lead still marks the control in GRID | Add an explicit "apply to the control" step to acceptance |
+| Accepting an answer accepts its proof links under the Vault's rule | One meaning of accepted proof everywhere (Needs attention, coverage, group figures) | A reviewer who cannot open the file, or who uploaded it, cannot accept that answer; they are told why | Separate answer acceptance from proof review |
+| A respondent's link is made to the assigned control only, without GRID's IMS inheritance | The assignment authorizes that control, not the controls it maps to | Mapped controls get the proof when someone links it in GRID or the Vault | Run the inheritance for respondent links too, checking each mapped control's scope |
+| Upload goes through the Vault, not the assignment page | One upload path with all its checks (type, size, duplicates, filing scope) | The respondent uploads in the Vault, then chooses the file | Add an upload button that posts to the Vault's own route |
+| Needs attention is computed on request with no issue table | The X-rays pattern; nothing to keep in step with the sources; a failed source is said to be unchecked | Each page load runs the checks (bounded at 2,000 records per source) | Materialize issues when a tenant outgrows it (measure first, as plan 23 did for search) |
+| A reviewed issue stays listed as reviewed; nothing hides it | CISO 01: never hide an issue from an authorized view without a visible reason | The list keeps reviewed items (filtered out of Open by default) | None needed |
+| No Command Centre count and no report gate yet | Rule quality and false positives should be seen with pilot users first (CISO 01 slice 6) | The page is reached from the sidebar, not from a count | Add a count card and a pre-report acknowledgement after the pilot |
 
 ## 6. Build log
 
-(Filled in as slices finish.)
+- 2026-11-03: research recorded (section 1).
+- 2026-11-03: committed `800ab8e7`: tables `grid_assignments`, `grid_assignment_items`, `grid_assignment_proof`, `grid_assignment_events` (GRID tables, so in every tenant schema), `assurance_issue_reviews` (shared, with row level security); capabilities `grid.assignment.manage`, `.review`, `.respond`, `assurance.attention.view`, `.review`; `modules/grid/assignments.py` and 15 routes under `/grid/api/assignments`; the Audit questions page; My Work source `grid_assignments`; `modules/governance/attention.py`, its page and two routes; sidebar links.
+- 2026-11-03: found and fixed while testing in the browser: both pages announced success before redrawing, so text typed right after the message went into a form that was about to be replaced (the second answer of a reviewer was lost). They now redraw first. The Needs attention link was only in one of the three Command Centre sidebars; it is in all three.
 
 ## 7. Verification
 

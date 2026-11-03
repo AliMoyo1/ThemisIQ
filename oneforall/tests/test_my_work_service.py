@@ -63,7 +63,8 @@ def test_shape_has_all_five_sections_and_registered_sources(test_db):
     assert {state["source"] for state in result["source_states"]} == {
         "aria_approvals", "evidence_expiry", "group_proof_requests", "group_grant_reviews", "group_case_reviews",
         "task_board", "notifications",
-        "workflow_actions", "grid_non_conformances", "erm_reviews", "erm_acceptances", "erm_scenarios",
+        "workflow_actions", "grid_non_conformances", "grid_assignments", "erm_reviews", "erm_acceptances",
+        "erm_scenarios",
         "orm_reviews", "bcm_incidents", "privacy_deadlines", "ai_governance",
         "change_reviews", "evidence_reviews",
     }

@@ -705,6 +705,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/governance/api/applications` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | DELETE | `/governance/api/applications/{app_id}` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/governance/api/applications/{app_id}` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/governance/api/attention` | authenticated | - | - | - |  |
+| POST | `/governance/api/attention/reviews` | authenticated | - | - | - |  |
 | GET | `/governance/api/business-processes` | capability | governance.entities.view | governance.entities.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/governance/api/business-processes` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | DELETE | `/governance/api/business-processes/{bp_id}` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -771,6 +773,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/governance/api/summary` | capability | governance.entities.view | governance.entities.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/governance/api/users` | capability | governance.bu.assign | governance.bu.assign: compliance_manager, grc_officer, org_admin, super_admin | - |  |
 | PATCH | `/governance/api/users/{uid}/business-unit` | capability | governance.bu.assign | governance.bu.assign: compliance_manager, grc_officer, org_admin, super_admin | - |  |
+| GET | `/governance/attention/` | authenticated | - | - | - |  |
 | GET | `/governance/changes` | authenticated | - | - | - |  |
 | GET | `/governance/connected/{module}/{entity_type}/{entity_id}` | authenticated | - | - | - |  |
 | GET | `/governance/group/figures/` | authenticated | - | - | - |  |
@@ -791,6 +794,20 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/grid/api/approvals/{evidence_id}` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
 | POST | `/grid/api/approvals/{evidence_id}` | capability | grid.evidence.approve | grid.evidence.approve: audit_lead, super_admin | - |  |
 | GET | `/grid/api/aria-policies` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
+| GET | `/grid/api/assignments` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments` | authenticated | - | - | - |  |
+| GET | `/grid/api/assignments/audits` | authenticated | - | - | - |  |
+| GET | `/grid/api/assignments/audits/{audit_id}` | authenticated | - | - | - |  |
+| GET | `/grid/api/assignments/{assignment_id}` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/cancel` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/items/{item_id}/answer` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/items/{item_id}/proof` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/items/{item_id}/proof/{proof_id}/remove` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/items/{item_id}/review` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/launch` | authenticated | - | - | - |  |
+| GET | `/grid/api/assignments/{assignment_id}/proof-choices` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/revise` | authenticated | - | - | - |  |
+| POST | `/grid/api/assignments/{assignment_id}/submit` | authenticated | - | - | - |  |
 | GET | `/grid/api/audits` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
 | POST | `/grid/api/audits` | capability | grid.audit.create | grid.audit.create: audit_lead, super_admin | - |  |
 | DELETE | `/grid/api/audits/{aid}` | capability | grid.audit.delete | grid.audit.delete: super_admin | - |  |
@@ -897,6 +914,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/grid/api/vendors/{vid}` | capability | grid.vendor.manage | grid.vendor.manage: audit_lead, super_admin | - |  |
 | POST | `/grid/api/vendors/{vid}/assessments` | capability | grid.vendor.manage | grid.vendor.manage: audit_lead, super_admin | - |  |
 | GET | `/grid/api/vendors/{vid}/cross-module` | capability | grid.vendor.manage | grid.vendor.manage: audit_lead, super_admin | - |  |
+| GET | `/grid/assignments/` | authenticated | - | - | - |  |
 
 ## `modules.launcher.routes_admin`
 

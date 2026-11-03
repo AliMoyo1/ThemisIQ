@@ -39,8 +39,8 @@
         await ApiClient.request('/governance/api/attention/reviews', {method: 'POST', actionId: 'attention.review', body: {
           rule: issue.rule, source_type: issue.source_type, source_id: issue.source_id, fingerprint: issue.fingerprint,
           decision: decision.value, reason: reason.value, expires_on: expires.value || null}});
-        get('naStatus').textContent = 'Review recorded. The issue stays listed as reviewed, and opens again if its facts change.';
         await load();
+        get('naStatus').textContent = 'Review recorded. The issue stays listed as reviewed, and opens again if its facts change.';
       } catch (error) { get('naStatus').textContent = message(error); }
     });
     return form;

@@ -18,13 +18,16 @@
   }
   function say(text) { get('gaStatus').textContent = text; }
   function message(error) { return (error && (error.detail || error.message)) || 'That did not work. Reload the page and try again.'; }
-  async function call(path, body, done) {
+  // The page is redrawn before success is announced, so nothing typed after the message lands in a form about to go.
+  async function call(path, body, done, refresh) {
     say('Saving…');
+    let result;
     try {
-      const result = await ApiClient.request(path, body === undefined ? {} : {method: 'POST', body, actionId: 'grid.assignment'});
-      if (done) say(done);
-      return result || true;
+      result = await ApiClient.request(path, {method: 'POST', body, actionId: 'grid.assignment'});
     } catch (error) { say(message(error)); return null; }
+    if (refresh) await refresh(result);
+    if (done) say(done);
+    return result || true;
   }
   function summaryCard(row, extra) {
     const card = el('div', '', 'ga-card');
@@ -85,12 +88,12 @@
     const form = event.target;
     const controls = [...form.querySelectorAll('input[name="control"]:checked')].map(i => Number(i.value));
     if (!controls.length) { say('Choose at least one control.'); return; }
-    const made = await call('/grid/api/assignments', {
+    await call('/grid/api/assignments', {
       audit_id: Number(form.elements.audit_id.value), control_ids: controls,
       assignee_id: Number(form.elements.assignee_id.value), reviewer_id: Number(form.elements.reviewer_id.value),
       due_date: form.elements.due_date.value, title: form.elements.title.value,
-      instructions: form.elements.instructions.value}, 'Saved as a draft. Check it, then send it.');
-    if (made) { await load(); await open(made.id); }
+      instructions: form.elements.instructions.value}, 'Saved as a draft. Check it, then send it.',
+      async made => { await load(); await open(made.id, true); });
   });
 
   function itemView(item, data) {
@@ -116,9 +119,9 @@
       form.append(l1, l2, save);
       form.addEventListener('submit', async event => {
         event.preventDefault();
-        const done = await call(`/grid/api/assignments/${data.id}/items/${item.id}/answer`,
-          {version: current.version, response: response.value, observation: observation.value}, 'Answer saved.');
-        if (done) await open(data.id, true);
+        await call(`/grid/api/assignments/${data.id}/items/${item.id}/answer`,
+          {version: current.version, response: response.value, observation: observation.value}, 'Answer saved.',
+          () => open(data.id, true));
       });
       box.append(form);
     } else {
@@ -132,8 +135,8 @@
       const row = el('div', '', 'ga-actions');
       row.append(el('span', `${p.title} (version ${p.version}) · ${p.review}` + (p.changed ? ' · changed since it was chosen' : '')));
       if (editable) row.append(button('Remove', 'btn-secondary', async () => {
-        const done = await call(`/grid/api/assignments/${data.id}/items/${item.id}/proof/${p.id}/remove`, {version: current.version}, 'Proof removed.');
-        if (done) await open(data.id, true);
+        await call(`/grid/api/assignments/${data.id}/items/${item.id}/proof/${p.id}/remove`, {version: current.version},
+          'Proof removed.', () => open(data.id, true));
       }));
       proofList.append(row);
     });
@@ -154,8 +157,8 @@
           const row = el('div', '', 'ga-actions');
           row.append(el('span', `${f.title} (version ${f.version})`));
           row.append(button('Choose', 'btn-secondary', async () => {
-            const done = await call(`/grid/api/assignments/${data.id}/items/${item.id}/proof`, {version: current.version, evidence_id: f.id}, 'Proof chosen.');
-            if (done) await open(data.id, true);
+            await call(`/grid/api/assignments/${data.id}/items/${item.id}/proof`, {version: current.version, evidence_id: f.id},
+              'Proof chosen.', () => open(data.id, true));
           }));
           return row;
         }));
@@ -178,9 +181,8 @@
     return box;
   }
   async function review(data, item, decision, note) {
-    const done = await call(`/grid/api/assignments/${data.id}/items/${item.id}/review`, {version: current.version, decision, note},
-      decision === 'accept' ? 'Answer accepted.' : 'Change requested.');
-    if (done) { await load(); await open(data.id, true); }
+    await call(`/grid/api/assignments/${data.id}/items/${item.id}/review`, {version: current.version, decision, note},
+      decision === 'accept' ? 'Answer accepted.' : 'Change requested.', refresh);
   }
   async function open(id, keepStatus) {
     let data;
@@ -206,18 +208,15 @@
     }
     get('gaDetail').scrollIntoView({block: 'start'});
   }
-  get('gaLaunch').addEventListener('click', async () => {
-    const done = await call(`/grid/api/assignments/${current.id}/launch`, {version: current.version}, 'Sent. The person has been told.');
-    if (done) { await load(); await open(current.id, true); }
-  });
-  get('gaSubmit').addEventListener('click', async () => {
-    const done = await call(`/grid/api/assignments/${current.id}/submit`, {version: current.version}, 'Sent for review.');
-    if (done) { await load(); await open(current.id, true); }
-  });
-  get('gaCancel').addEventListener('submit', async event => {
+  async function refresh() { await load(); await open(current.id, true); }
+  get('gaLaunch').addEventListener('click', () =>
+    call(`/grid/api/assignments/${current.id}/launch`, {version: current.version}, 'Sent. The person has been told.', refresh));
+  get('gaSubmit').addEventListener('click', () =>
+    call(`/grid/api/assignments/${current.id}/submit`, {version: current.version}, 'Sent for review.', refresh));
+  get('gaCancel').addEventListener('submit', event => {
     event.preventDefault();
-    const done = await call(`/grid/api/assignments/${current.id}/cancel`, {version: current.version, reason: event.target.elements.reason.value}, 'Cancelled.');
-    if (done) { event.target.reset(); await load(); await open(current.id, true); }
+    return call(`/grid/api/assignments/${current.id}/cancel`, {version: current.version, reason: event.target.elements.reason.value},
+      'Cancelled.', async () => { event.target.reset(); await refresh(); });
   });
   load().then(() => {
     const wanted = new URLSearchParams(window.location.search).get('open');
