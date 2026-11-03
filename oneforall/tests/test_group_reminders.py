@@ -111,3 +111,21 @@ def test_run_visits_every_organization_and_survives_a_failure(group_world, monke
         return real(org_id, now)
     monkeypatch.setattr(reminders, "remind", flaky)
     assert reminders.run() == 1, "the child is still reminded when the parent's pass fails"
+
+
+def test_when_nobody_can_act_the_administrators_are_told_to_staff_the_role(group_world):
+    db, parent, child, sibling, users, _ = group_world
+    relation = _activate(db, parent, child, users)
+    request_id = requests.create_request(db, users["viewer"], relation, "Parent control 4", "Need proof", _future(14))
+    db.execute("UPDATE group_evidence_requests SET needed_by=%s WHERE id=%s", (_at(-2), request_id))
+    # Nobody in the child holds a role that reviews proof requests any more.
+    db.execute("DELETE FROM user_roles WHERE user_id IN (%s,%s)", (users["legal"]["id"], users["privacy"]["id"]))
+    db.commit()
+    assert _run_all(db, child) == 1
+    assert [t for t, _ in _inbox(db, users["ack"])] == ["Nobody can act on a group item"]
+    assert "Assign the role to a second person" in _inbox(db, users["ack"])[0][1]
+    assert _run_all(db, child) == 0
+    db.execute("INSERT INTO user_roles (user_id,role_key) VALUES (%s,'compliance_manager')", (users["legal"]["id"],))
+    db.commit()
+    assert _run_all(db, child) == 1, "once the role is staffed the reviewer is reminded as usual"
+    assert [t for t, _ in _inbox(db, users["legal"])] == ["Group proof request overdue"]

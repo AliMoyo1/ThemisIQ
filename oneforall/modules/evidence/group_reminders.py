@@ -104,6 +104,14 @@ def remind(org_id: int, now=None) -> int:
         for producer in (_grants, _requests, _adoptions):
             for kind, ref_id, stage, capability, title, message, link, skip in list(producer(db, org_id, now)):
                 people = [p for p in outbox.organization_people(db, org_id, CAPABILITIES[capability]) if p not in skip]
+                if not people:
+                    # Reviews are not assigned to one person: any other holder of the role may act, which covers an
+                    # absent reviewer. When nobody else holds it, nobody can act, and that is a staffing gap for the
+                    # organization's administrators to fix by assigning the role (no delegation outside the role).
+                    people = outbox.organization_people(db, org_id, ("org_admin",))
+                    title, stage = "Nobody can act on a group item", stage + "_unstaffed"
+                    message = (f"{message} Nobody in your organization other than the person concerned holds a role "
+                               "that can do this. Assign the role to a second person.")
                 if not people or not _claim(db, org_id, kind, ref_id, stage):
                     continue
                 for user_id in people:

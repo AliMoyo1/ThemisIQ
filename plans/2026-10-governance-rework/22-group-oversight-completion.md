@@ -13,7 +13,7 @@
 | --- | --- | --- |
 | C1 | 2/6 | Pack integrity says "cannot be checked" (not "failed") when a pack's source is no longer readable. A test that the relationship cannot activate without a DPO privacy review. Plan 21 gap corrected. |
 | C2 | 5 | Daily reminders and escalation (in-app notifications): grant reviews due in 14 days or overdue; proof requests past their needed-by date to the source reviewers, then after 7 more days to the requester's managers; parent policies with no adoption decision after 30 days. Nothing is released, renewed or granted automatically. |
-| C3 | 5 | Absence delegation: a named substitute for a reviewer, bounded to 30 days, never the person under review, recorded in the trail. |
+| C3 | 5 | Absence cover. Changed while building (see section 4): no delegation outside a role. Group reviews are never assigned to one person, so any other holder of the role already covers an absence. When nobody else holds the role, the daily pass tells the organization's administrators to staff it. |
 | C4 | 5 | Cases: amend the position (with a trail) and reopen a closed case (a different person, a reason). |
 | C5 | 3/5 | Policy adoption: the parent sees each child's adoption state for its own published policy versions (state and dates only, never the child's reason text); a child may link the adopted policy to its own local controls. |
 | C6 | 6 | More group measures: the registry's `bcm.*`, `sentinel.*` and `vault.*` metrics become publishable once each builder is shown to run organization-wide without a viewer. A measure that cannot is left out and listed. |
@@ -45,11 +45,15 @@ Each decision lists why it was taken, its cost, and how to change it.
 | Figures stay whole organization, not per business unit | Group figures answer a group question; unit splits raise small-cell risk | A subsidiary cannot share one unit only | Add unit-scoped measures and terms; separate plan |
 | No child participant inside parent cases | The proof request already carries the child's part, and a shared case would expose the parent's position and sibling requests | The child sees requests, not the case | A child-specific shared view with DPO review; separate slice |
 | Reminders are in-app notifications and My Work, not email | Email templates need the email inventory and outbox review; in-app is already scoped and audited | No email nudge | Register templates in the email inventory and enqueue alongside |
+| No delegation of a review to someone outside the role | Group reviews are not assigned to a named person: every other holder of the capability may act, so an absent reviewer is already covered. Lending a capability to someone outside the role would weaken the separation that the independence rules depend on | An organization with a single holder must assign the role to a second person; the daily pass tells its administrators when that blocks an item | A time-boxed capability loan with its own approval and audit; separate slice |
 | Auditor identity reuses tenant accounts with the `external_auditor` role | MFA, sessions and login audit already exist and are tested | The auditor needs an account in the parent tenant | Federated guest identities; separate plan |
 
 ## 5. Build log
 
 - 2026-11-03: plan written; branch created from `807e65f1`.
+- 2026-11-03: C1 committed (`07f9532a`): pack integrity is `passed`, `failed` or `partly_checked` with the unreadable organizations named; the page and exports use the same sentence. DPO privacy review test added. 40 tests pass.
+- 2026-11-03: C2 committed (`539c92c4`): `modules/evidence/group_reminders.py`, table `group_reminders_sent` (organization-scoped row level security), daily job at 09:30 UTC in the evidence scheduler. Each organization's pass runs in its own tenant context, so it reads only rows it is a party to (the adoption table has no bypass policy, so a platform-wide read would have seen no decisions and nagged everyone).
+- 2026-11-03: C3: the administrator alert when nobody can act, 5 reminder tests pass.
 
 ## 6. Verification
 
