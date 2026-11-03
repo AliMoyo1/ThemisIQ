@@ -1,0 +1,76 @@
+{% extends "base_shell.html" %}
+{% block title %}Audit questions · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">GRID</div><div class="module-desc">Audit questions</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Questions</div>
+  <a class="nav-item active" href="/grid/assignments/" aria-current="page">Audit questions</a>
+  <a class="nav-item" href="/my-work">My Work</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.ga-page{max-width:1180px;padding:24px;margin:auto;color:var(--text)}
+.ga-hero,.ga-panel{padding:26px 30px;border-radius:22px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
+.ga-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.ga-hero p{max-width:760px;color:var(--muted);line-height:1.55;margin:0}
+.ga-panel{margin-top:18px}.ga-panel h2{font:600 22px/1.2 Georgia,serif;margin:0 0 6px}.ga-panel h3{font-size:15px;margin:14px 0 4px}
+.ga-panel[hidden],.ga-form[hidden],.ga-item [hidden]{display:none}
+.ga-status{min-height:24px;font-weight:650;margin:12px 0}
+.ga-card{background:var(--surface2);border-radius:14px;padding:14px 16px;margin:10px 0;display:grid;gap:6px}
+.ga-card small,.ga-muted{color:var(--muted)}.ga-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ga-chip{display:inline-block;padding:2px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:12px;font-weight:650}
+.ga-chip.is-accepted{background:rgba(40,140,90,.12);border-color:rgba(40,140,90,.4)}
+.ga-chip.is-changes_requested{background:rgba(200,120,20,.14);border-color:rgba(200,120,20,.45)}
+.ga-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.ga-form label{display:grid;gap:4px;font-size:13px;font-weight:650}.ga-wide{grid-column:1/-1}
+.ga-form input,.ga-form select,.ga-form textarea{width:100%;min-width:0;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+.ga-controls{max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+.ga-controls label{display:flex;gap:8px;align-items:flex-start;font-weight:500;padding:4px 0}
+.ga-controls input{width:auto}
+.ga-item{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin:12px 0;display:grid;gap:8px}
+.ga-item p{margin:0;line-height:1.5}.ga-note{white-space:pre-wrap}
+@media(max-width:700px){.ga-page{padding:14px}.ga-hero{padding:20px}.ga-form{grid-template-columns:1fr}.ga-wide{grid-column:1}}
+</style>
+<main class="ga-page" id="gridAssignments">
+  <header class="ga-hero"><h1>Audit questions</h1><p>An audit lead sends a few controls of one audit to the person who runs them. That person answers each one and chooses proof from the Evidence Vault, then sends the answers back. A named reviewer accepts each answer or asks for a change. You see only the questions sent to you, never the rest of the audit.</p></header>
+  <p id="gaStatus" class="ga-status" role="status" aria-live="polite"></p>
+  <section class="ga-panel">
+    <h2>For you to answer</h2>
+    <div id="gaAnswer"></div>
+  </section>
+  <section class="ga-panel" id="gaReviewPanel" hidden>
+    <h2>Waiting for your review</h2>
+    <div id="gaReview"></div>
+  </section>
+  <section class="ga-panel" id="gaManagePanel" hidden>
+    <h2>All assignments</h2>
+    <div id="gaManaged"></div>
+    <h3>Send questions</h3>
+    <form id="gaCreate" class="ga-form">
+      <label class="ga-wide">Audit<select name="audit_id" required><option value="">Choose an audit</option></select></label>
+      <fieldset class="ga-wide ga-controls" id="gaControls"><legend>Controls (up to 50)</legend><p class="ga-muted">Choose an audit first.</p></fieldset>
+      <label>Person who answers<select name="assignee_id" required></select></label>
+      <label>Reviewer<select name="reviewer_id" required></select></label>
+      <label>Due date<input name="due_date" type="date" required></label>
+      <label>Title<input name="title" maxlength="120" required></label>
+      <label class="ga-wide">Instructions<textarea name="instructions" maxlength="2000" rows="3"></textarea></label>
+      <button class="btn btn-primary" type="submit">Save as draft</button>
+    </form>
+  </section>
+  <section class="ga-panel" id="gaDetail" hidden>
+    <h2 id="gaTitle"></h2>
+    <p id="gaMeta" class="ga-muted"></p>
+    <p id="gaInstructions" class="ga-note"></p>
+    <div id="gaStaff" class="ga-actions" hidden>
+      <button class="btn btn-primary" type="button" id="gaLaunch" hidden>Send to the person</button>
+    </div>
+    <form id="gaCancel" class="ga-form" hidden>
+      <label class="ga-wide">Reason for cancelling<input name="reason" maxlength="1000" required></label>
+      <button class="btn btn-secondary" type="submit">Cancel assignment</button>
+    </form>
+    <div id="gaItems"></div>
+    <div class="ga-actions"><button class="btn btn-primary" type="button" id="gaSubmit" hidden>Send answers for review</button></div>
+    <div id="gaEvents"></div>
+  </section>
+</main>
+<script src="/static/js/grid_assignments.js?v=1" defer></script>
+{% endblock %}

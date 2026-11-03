@@ -197,6 +197,17 @@ CAPABILITIES: dict[str, set[str]] = {
     "grid.vendor.manage":         {SUPER_ADMIN, AUDIT_LEAD},
     "grid.share.manage":          {SUPER_ADMIN, AUDIT_LEAD},
     "grid.cross_mapping.manage":  {SUPER_ADMIN, AUDIT_LEAD, AUDITOR},
+    # Respondent assignments (plan 24, CISO 03). The audit lead hands controls to a named person and reviews the answers
+    # (accepting an answer accepts its proof, so the reviewer also needs evidence.link.review, which the audit lead has).
+    # Answering opens nothing by itself: only the assignments that name the person.
+    "grid.assignment.manage":     {SUPER_ADMIN, AUDIT_LEAD},
+    "grid.assignment.review":     {SUPER_ADMIN, AUDIT_LEAD},
+    "grid.assignment.respond":    set(ALL_ROLES) - {EXTERNAL_AUDITOR},
+
+    # Needs attention (plan 24, CISO 01): fixed checks over the records a person may already open in each module.
+    # Viewing adds no access; reviewing records a false positive or an accepted exception, never changes the record.
+    "assurance.attention.view":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, BCM_MANAGER, RISK_OWNER, DPO},
+    "assurance.attention.review": {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD},
 
     # ── BCM capabilities ─────────────────────────────────────────
     "bcm.bia.manage":             {SUPER_ADMIN, BCM_MANAGER},
