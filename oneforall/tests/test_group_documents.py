@@ -785,6 +785,27 @@ def test_a_group_dpo_records_privacy_and_legal_and_notice_is_deemed_after_the_pe
     assert row["status"] == "active" and row["child_ack_by"] is None and row["notice_deemed_at"]
 
 
+def test_only_a_dpo_records_the_privacy_review_that_approves_the_shared_figures_and_issues(group_world):
+    """The DPO is the privacy reviewer (owner, 2026-11-03). Its review covers the figure and issue lists in the terms,
+    which are fixed when the relationship is proposed, so nothing on those lists is shared without a DPO."""
+    db, parent, child, _, users, _ = group_world
+    terms = {**_terms("document_bytes"), "figure_measures": ["cc.open_breaches"], "issue_types": ["breach"]}
+    relation = group.propose_relationship(db, users["platform"], parent, child, "Group governance", terms, _future(90))
+    db.commit()
+    for role in ("compliance_manager", "grc_officer", "audit_lead", "org_admin"):
+        reviewer = _actor(db, parent, f"not_dpo_{role}", role)
+        with pytest.raises(HTTPException) as denied:
+            group.record_relationship_decision(db, reviewer, relation, "privacy")
+        assert denied.value.status_code == 403, role
+    group.record_relationship_decision(db, users["ack"], relation, "ack")
+    group.record_relationship_decision(db, _actor(db, parent, "legal_cm", "compliance_manager"), relation, "legal")
+    db.commit()
+    row = db.execute("SELECT status FROM org_relationships WHERE id=%s", (relation,)).fetchone()
+    assert row["status"] == "proposed", "acknowledgement and legal review alone never activate sharing"
+    assert not hasattr(group, "update_terms"), "terms have no edit path: a change needs a new reviewed relationship"
+    assert group.record_relationship_decision(db, users["privacy"], relation, "privacy")["status"] == "active"
+
+
 def test_reviews_are_still_required_after_a_deemed_notice(group_world):
     db, parent, child, _, users, _ = group_world
     relation = group.propose_relationship(db, users["platform"], parent, child,

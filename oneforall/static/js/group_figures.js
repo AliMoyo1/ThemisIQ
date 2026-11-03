@@ -191,7 +191,7 @@
       const box = el('article', '', 'gf-entity');
       box.append(el('h2', `${pack.title} (${pack.period})`));
       box.append(el('small', `${pack.status === 'issued' ? 'Signed off by ' + pack.reviewed_by : 'Not signed off (' + pack.status + ')'}. Frozen ${pack.created_at} by ${pack.created_by}. Fingerprint ${pack.content_hash.slice(0, 16)}.`));
-      box.append(el('p', pack.verified ? 'Integrity check passed: every figure matches the frozen record.' : 'Integrity check FAILED: do not rely on this pack.', 'gf-status'));
+      box.append(el('p', pack.integrity_text, 'gf-status'));
       ['pdf', 'xlsx'].forEach(format => {
         const link = el('a', format === 'pdf' ? 'Download PDF' : 'Download Excel', 'btn btn-secondary');
         link.href = `/governance/api/group/packs/${pack.id}/export?format=${format}`;

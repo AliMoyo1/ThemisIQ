@@ -101,13 +101,25 @@ def listing(db, actor: dict) -> "list[dict]":
     return out
 
 
-def _verify(db, pack: dict, entities: "list[dict]") -> bool:
-    """True when every snapshot still hashes to what the manifest recorded and the manifest hash still matches."""
+def _verify(db, pack: dict, entities: "list[dict]") -> "tuple[str, list[str]]":
+    """("passed", []) when every snapshot still hashes to what the manifest recorded and the manifest hash matches.
+
+    ("failed", []) on any mismatch. ("partly_checked", names) when nothing mismatched but some organizations' snapshots
+    can no longer be read here: a relationship that ended stops the parent reading its former child's rows (row level
+    security on PostgreSQL, the same rule here), and that is not tampering. Snapshots are never deleted, so a row that
+    is missing from an organization that is still readable is a failure."""
     if _manifest_hash(pack["parent_org_id"], pack["title"], pack["period_text"], entities) != pack["content_hash"]:
-        return False
+        return "failed", []
+    readable = {pack["parent_org_id"]} | {r["child_org_id"] for r in db.execute(
+        f"SELECT child_org_id FROM {_table('org_relationships')} WHERE parent_org_id=%s AND status='active'",
+        (pack["parent_org_id"],)).fetchall()}
+    unchecked = []
     for entity in entities:
         ids = [s["id"] for s in entity["snapshots"]]
         if not ids:
+            continue
+        if entity["org_id"] not in readable:
+            unchecked.append(entity["name"])
             continue
         rows = db.execute(
             f"SELECT * FROM {_table('group_figure_snapshots')} WHERE source_org_id=%s "
@@ -116,14 +128,14 @@ def _verify(db, pack: dict, entities: "list[dict]") -> bool:
         for snap in entity["snapshots"]:
             row = by_id.get(snap["id"])
             if row is None or row["content_hash"] != snap["hash"]:
-                return False
+                return "failed", []
             expected = gf._hash(entity["org_id"], {"measure_key": row["measure_key"], "state": row["state"],
                                                    "value": row["value"], "window": row["window_text"] or "",
                                                    "detail": json.loads(row["detail_json"] or "{}")},
                                 row["as_of"], row["publication_version"])
             if expected != row["content_hash"]:
-                return False
-    return True
+                return "failed", []
+    return ("partly_checked", unchecked) if unchecked else ("passed", [])
 
 
 def _log(db, actor: dict, shown_orgs: "set[int]", action: str) -> None:
@@ -149,7 +161,7 @@ def get(db, actor: dict, pack_id: int, log: bool = True) -> dict:
         raise HTTPException(404, "Pack not found")
     pack = dict(row)
     manifest = json.loads(pack["manifest_json"])
-    verified = _verify(db, pack, manifest)
+    integrity, unchecked = _verify(db, pack, manifest)
     families = gf._allowed_families(actor)
     permitted = {c["org_id"]: gf._approved(c["terms_json"]) for c in gf._children(db, actor)}
     entities, corrections = [], []
@@ -182,11 +194,23 @@ def get(db, actor: dict, pack_id: int, log: bool = True) -> dict:
                                     "corrected_at": fix["as_of"], "reason": fix["restatement_reason"]})
     if log:
         _log(db, actor, {e["org_id"] for e in entities}, "pack_view")
-    return {"id": pack["id"], "title": pack["title"], "period": pack["period_text"], "status": pack["status"],
+    out = {"id": pack["id"], "title": pack["title"], "period": pack["period_text"], "status": pack["status"],
             "created_at": pack["created_at"], "created_by": pack["created_name"] or "",
             "reviewed_at": pack["reviewed_at"], "reviewed_by": pack["reviewed_name"] or "",
-            "review_note": pack["review_note"], "content_hash": pack["content_hash"], "verified": verified,
+            "review_note": pack["review_note"], "content_hash": pack["content_hash"],
+            "verified": integrity == "passed", "integrity": integrity, "unchecked": unchecked,
             "entities": entities, "corrections": corrections}
+    out["integrity_text"] = integrity_text(out)
+    return out
+
+
+def integrity_text(pack: dict) -> str:
+    if pack["integrity"] == "passed":
+        return "Integrity check passed: every figure matches the frozen record."
+    if pack["integrity"] == "partly_checked":
+        return ("Integrity check incomplete: no figure disagrees with the frozen record, but the figures of "
+                f"{', '.join(pack['unchecked'])} cannot be checked because that relationship has ended.")
+    return "Integrity check FAILED: do not rely on this pack."
 
 
 def build_report(actor: dict, org_name: str, pack: dict):
@@ -203,9 +227,7 @@ def build_report(actor: dict, org_name: str, pack: dict):
     report = Report(meta)
     sign = (f"Signed off by {pack['reviewed_by']} on {pack['reviewed_at'][:10]}: {pack['review_note']}" if final
             else f"Not signed off ({pack['status']})")
-    report.add(Callout("Status", [sign, "Integrity check passed: every figure matches the frozen record."
-                                  if pack["verified"] else "Integrity check FAILED: do not rely on this pack.",
-                                  f"Fingerprint {pack['content_hash'][:16]}"],
+    report.add(Callout("Status", [sign, integrity_text(pack), f"Fingerprint {pack['content_hash'][:16]}"],
                        kind="note" if pack["verified"] else "limit"))
     columns = [Col("Figure", "label", weight=3), Col("Value", "value", align="right", kind="number", weight=1),
                Col("State", "state", weight=1.5), Col("Window", "window", weight=2), Col("As of", "as_of", kind="date", weight=1.2)]

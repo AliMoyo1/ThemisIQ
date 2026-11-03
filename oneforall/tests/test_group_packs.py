@@ -155,6 +155,19 @@ def test_a_pack_that_no_longer_matches_what_was_frozen_says_so(world):
     assert gp.get(db, users["grc"], pack_id)["verified"] is False, "a figure dropped from the manifest is noticed"
 
 
+def test_a_pack_whose_relationship_ended_says_it_cannot_be_checked_not_that_it_failed(world):
+    db, parent, child, relation, users, snaps = world
+    pack_id = _make(db, users)
+    db.execute("UPDATE org_relationships SET status='ended' WHERE id=%s", (relation,))
+    db.commit()
+    pack = gp.get(db, users["grc"], pack_id)
+    assert (pack["verified"], pack["integrity"], pack["unchecked"]) == (False, "partly_checked", ["Pack Child"])
+    assert "cannot be checked" in pack["integrity_text"] and "FAILED" not in pack["integrity_text"]
+    db.execute("UPDATE group_figure_snapshots SET value=50 WHERE id=%s", (snaps[parent, "breach"],))
+    db.commit()
+    assert gp.get(db, users["grc"], pack_id)["integrity"] == "failed", "what can still be read is still checked"
+
+
 def test_a_reader_sees_only_the_families_their_role_allows(world):
     db, parent, child, relation, users, snaps = world
     pack_id = _make(db, users)
