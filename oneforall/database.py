@@ -873,6 +873,57 @@ CREATE TABLE IF NOT EXISTS group_packs (
     review_note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_group_packs_parent ON group_packs(parent_org_id, id);
+-- The auditor room (plan 22, C9): a named external auditor of the parent reads the listed items for a limited time.
+CREATE TABLE IF NOT EXISTS group_audit_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    title TEXT NOT NULL,
+    auditor_user_id INTEGER NOT NULL,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','open','rejected','closed')),
+    proposed_by INTEGER NOT NULL,
+    approved_by INTEGER,
+    approved_at TEXT,
+    decision_reason TEXT,
+    closed_by INTEGER,
+    closed_at TEXT,
+    close_reason TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_audit_rooms_parent ON group_audit_rooms(parent_org_id, status, id);
+CREATE TABLE IF NOT EXISTS group_audit_room_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL REFERENCES group_audit_rooms(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    kind TEXT NOT NULL CHECK(kind IN ('pack','publication')),
+    ref_id INTEGER NOT NULL,
+    allow_download INTEGER NOT NULL DEFAULT 0 CHECK(allow_download IN (0,1)),
+    added_by INTEGER NOT NULL,
+    added_at TEXT NOT NULL,
+    UNIQUE(room_id, kind, ref_id)
+);
+CREATE TABLE IF NOT EXISTS group_audit_room_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL REFERENCES group_audit_rooms(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    author_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('question','answer')),
+    body TEXT NOT NULL,
+    cites_json TEXT NOT NULL DEFAULT '[]',
+    reply_to INTEGER,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS group_audit_room_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL REFERENCES group_audit_rooms(id),
+    parent_org_id INTEGER NOT NULL REFERENCES organizations(id),
+    actor_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_audit_room_events_room ON group_audit_room_events(room_id, id);
 -- The issue register runs a pack froze, so the daily pruning keeps them and the pack stays checkable (plan 22, C8).
 CREATE TABLE IF NOT EXISTS group_pack_runs (
     pack_id INTEGER NOT NULL REFERENCES group_packs(id),

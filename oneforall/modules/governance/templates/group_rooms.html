@@ -1,0 +1,67 @@
+{% extends "base_shell.html" %}
+{% block title %}Audit rooms · ThemisIQ{% endblock %}
+{% block module_sidebar %}
+<div class="module-sidebar-header"><div class="module-name">Governance</div><div class="module-desc">Group oversight</div></div>
+<div class="sidebar-section"><div class="sidebar-label">Group</div>
+  {% if user and not ('external_auditor' in (user.roles or []) and (user.roles or [])|length == 1) %}<a class="nav-item" href="/governance/group/figures/">Group figures</a>{% endif %}
+  <a class="nav-item active" href="/governance/group/rooms/" aria-current="page">Audit rooms</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.ar-page{max-width:1180px;padding:24px;margin:auto;color:var(--text)}
+.ar-hero,.ar-panel{padding:26px 30px;border-radius:22px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
+.ar-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.ar-hero p{max-width:760px;color:var(--muted);line-height:1.55;margin:0}
+.ar-panel{margin-top:18px}.ar-panel h2{font:600 22px/1.2 Georgia,serif;margin:0 0 6px}.ar-panel[hidden],.ar-form[hidden]{display:none}
+.ar-status{min-height:24px;font-weight:650;margin:12px 0}
+.ar-card{background:var(--surface2);border-radius:14px;padding:14px 16px;margin:10px 0;display:grid;gap:6px}
+.ar-card small{color:var(--muted)}.ar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ar-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.ar-form label{display:grid;gap:4px;font-size:13px;font-weight:650}.ar-wide{grid-column:1/-1}
+.ar-form input,.ar-form select,.ar-form textarea{width:100%;min-width:0;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit}
+@media(max-width:700px){.ar-page{padding:14px}.ar-hero{padding:20px}.ar-form{grid-template-columns:1fr}.ar-wide{grid-column:1}}
+</style>
+<main class="ar-page" id="auditRooms">
+  <header class="ar-hero"><h1>Audit rooms</h1><p>A room gives one named external auditor read access to issued group packs and released document versions, for a limited time. A different person approves it, and its contents are fixed after that. Every item is checked again each time it is opened. The auditor asks questions; your specialists answer, citing items in the room.</p></header>
+  <p id="arStatus" class="ar-status" role="status" aria-live="polite"></p>
+  <section class="ar-panel">
+    <h2>Rooms</h2>
+    <div id="arList"></div>
+    <form id="arCreate" class="ar-form" hidden>
+      <label class="ar-wide">Title<input name="title" maxlength="120" required></label>
+      <label>Auditor<select name="auditor_user_id" required></select></label>
+      <span></span>
+      <label>Opens<input name="starts_at" type="datetime-local" required></label>
+      <label>Closes (at most 90 days later)<input name="ends_at" type="datetime-local" required></label>
+      <button class="btn btn-primary" type="submit">Propose room</button>
+    </form>
+  </section>
+  <section class="ar-panel" id="arDetail" hidden>
+    <h2 id="arTitle"></h2>
+    <small id="arMeta"></small>
+    <div id="arItems"></div>
+    <form id="arAdd" class="ar-form" hidden>
+      <label class="ar-wide">Item<select name="item" required></select></label>
+      <label><span>Allow download</span><input name="allow_download" type="checkbox"></label>
+      <button class="btn btn-secondary" type="submit">Add to room</button>
+    </form>
+    <form id="arDecide" class="ar-form" hidden>
+      <label class="ar-wide">Reason<input name="reason" maxlength="500" required></label>
+      <div class="ar-actions ar-wide"><button class="btn btn-primary" type="submit" value="open">Approve and open</button><button class="btn btn-secondary" type="submit" value="rejected">Reject</button></div>
+    </form>
+    <div id="arOpened"></div>
+    <h2>Questions</h2>
+    <div id="arMessages"></div>
+    <form id="arAsk" class="ar-form" hidden>
+      <label class="ar-wide">Your question<textarea name="body" maxlength="2000" rows="3" required></textarea></label>
+      <button class="btn btn-primary" type="submit">Ask</button>
+    </form>
+    <form id="arClose" class="ar-form" hidden>
+      <label class="ar-wide">Reason for closing<input name="reason" maxlength="500" required></label>
+      <button class="btn btn-secondary" type="submit">Close room</button>
+    </form>
+    <div id="arEvents"></div>
+  </section>
+</main>
+<script src="/static/js/group_rooms.js?v=1" defer></script>
+{% endblock %}

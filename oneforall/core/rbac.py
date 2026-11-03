@@ -247,6 +247,10 @@ CAPABILITIES: dict[str, set[str]] = {
     "group.pack.view":           {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.issue.view":          {GRC_OFFICER, COMPLIANCE_MGR, DPO},
     "group.figure.view_band":    {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
+    # The auditor room (plan 22, C9): staff propose and answer, a different person approves, the named auditor enters.
+    "group.room.manage":         {GRC_OFFICER, COMPLIANCE_MGR},
+    "group.room.approve":        {COMPLIANCE_MGR, AUDIT_LEAD, DPO},
+    "group.room.enter":          {EXTERNAL_AUDITOR},
     "group.figure.restate":      {GRC_OFFICER, COMPLIANCE_MGR},
     "group.figure.restate_review": {COMPLIANCE_MGR, AUDIT_LEAD, DPO},
     "group.request.create":      {GRC_OFFICER, COMPLIANCE_MGR, AUDIT_LEAD, DPO},
