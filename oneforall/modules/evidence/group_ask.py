@@ -140,7 +140,7 @@ async def ask(db, actor: dict, question) -> dict:
     user_msg = f"<passages>\n{passages}\n</passages>\n\n<question>{question}</question>"
     from modules.aria.ai_generator import _call_ai
     try:
-        raw, _meta = await _call_ai(SYSTEM, user_msg, max_tokens=900, feature=FEATURE)
+        raw, _meta = await _call_ai(SYSTEM, user_msg, max_tokens=900, feature="evidence.group_ask")
     except ai_policy.AIPolicyError as refusal:
         return {**base, "state": "search_only", "answer": None, "citations": [],
                 "note": f"{refusal} These are the matching passages."}

@@ -72,7 +72,9 @@ Each decision lists why it was taken, its cost, and how to change it.
 
 - Focused SQLite tests per slice, all passing: reminders 5, case amend 2, adoption rollup 3, figures and band and packs 63, pack issues and retention 4, rooms 6, staging 5 (with the upload library and proof tests, 36), group ask 6 (with the AI declaration tests, 22).
 - Browser: group figures page 12, cases page 2, requests and adoption page 3, audit rooms page 3, batch page 10, group ask 1 with the company review page 2.
-- PostgreSQL with the restricted (non-bypass) role: a new test covers every table this plan added; with the existing group tests, 8 passed. The full PostgreSQL lane and the full backend suite results are in the PR description.
+- PostgreSQL with the restricted (non-bypass) role: a new test covers every table this plan added; with the existing group tests, 8 passed.
+- Full PostgreSQL lane (PostgreSQL 18, Docker): 93 passed.
+- Full backend suite: 3352 passed, 93 skipped, 2 failed on the first run. Both failures were the AI call guard: the group question passed its feature name through a constant instead of the literal string the guard reads. Fixed; the guard, group ask and AI declaration tests then passed (92).
 - Capability inventory regenerated; `--check` passes.
 - Three browser tests in `tests/ui/test_evidence_upload_error_detail.py` fail on this branch and on the merged G1 code alike (the upload dialog's toasts and duplicate notice): not caused by this work, not fixed here.
 
