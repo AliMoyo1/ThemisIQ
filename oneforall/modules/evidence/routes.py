@@ -1134,9 +1134,12 @@ async def api_group_catalogue(request: Request):
 async def api_group_source_companies(request: Request):
     db = get_db()
     try:
-        return JSONResponse({"companies": group_documents.source_companies(db, request.state.user)})
+        response = JSONResponse({"companies": group_documents.source_companies(db, request.state.user)})
     finally:
         db.close()
+    # Named grants expire and are revoked: a cached list would keep showing a company that is no longer open.
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @router.get("/api/group/companies/{source_org_id}/publications")
@@ -1149,10 +1152,12 @@ async def api_group_company_publications(request: Request, source_org_id: int):
         raise HTTPException(422, "Invalid catalogue cursor") from None
     db = get_db()
     try:
-        return JSONResponse(group_documents.catalogue_cursor(
+        response = JSONResponse(group_documents.catalogue_cursor(
             db, request.state.user, source_org_id=source_org_id, before_id=before))
     finally:
         db.close()
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @router.delete("/api/group/publications/{publication_id}")
@@ -1160,6 +1165,18 @@ async def api_group_company_publications(request: Request, source_org_id: int):
 async def api_group_publication_revoke(request: Request, publication_id: int):
     _group_operation(lambda db: group_documents.revoke_publication(db, request.state.user, publication_id))
     return JSONResponse({"status": "revoked"})
+
+
+@router.post("/api/group/ask")
+@require_auth
+async def api_group_ask(request: Request):
+    from modules.evidence import group_ask
+    body = await _group_body(request)
+    db = get_db()
+    try:
+        return JSONResponse(await group_ask.ask(db, request.state.user, body.get("question")))
+    finally:
+        db.close()
 
 
 @router.get("/api/group/publications/{publication_id}")
