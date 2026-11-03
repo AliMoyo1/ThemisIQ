@@ -41,11 +41,13 @@
     </section>
     <section class="gc-panel" id="gcDetailPanel" hidden><h2>Case detail</h2><div id="gcDetail"></div>
       <form id="gcLink" class="gc-form" hidden><label>Proof request ID<input name="request_id" type="number" min="1" required></label><p>Find the request ID in <a href="/evidence/group/requests/">Proof requests</a>. Only requests sent by this parent can be linked.</p><button class="btn btn-secondary" type="submit">Link request</button></form>
+      <form id="gcAmend" class="gc-form" hidden><label>Revised position<textarea name="position" maxlength="2000" rows="3" required></textarea></label><label>Why it changed<input name="reason" maxlength="500" required></label><p>The earlier position stays in the case history.</p><button class="btn btn-secondary" type="submit">Amend position</button></form>
+      <form id="gcReopen" class="gc-form" hidden><label>Why the case is reopened<input name="reason" maxlength="500" required></label><p>Someone other than the person who closed it reopens it. The conclusion stays in the case history.</p><button class="btn btn-secondary" type="submit">Reopen case</button></form>
       <form id="gcClose" class="gc-form" hidden><label>Independent conclusion<textarea name="reason" maxlength="2000" rows="3" required></textarea></label><button class="btn btn-primary" type="submit">Close reviewed case</button></form>
       <h3>Linked proof requests</h3><div id="gcRequests" class="gc-list"></div>
       <h3>Decision trail</h3><div id="gcEvents" class="gc-list"></div>
     </section>
   </div>
 </main>
-<script src="/static/js/evidence_group_cases.js?v=1" defer></script>
+<script src="/static/js/evidence_group_cases.js?v=2" defer></script>
 {% endblock %}

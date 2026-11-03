@@ -829,6 +829,23 @@ async def api_group_case_close(request: Request, case_id: int):
     return JSONResponse({"status": status})
 
 
+@router.post("/api/group/cases/{case_id}/position")
+@require_auth
+async def api_group_case_position(request: Request, case_id: int):
+    body = await _group_body(request)
+    _group_operation(lambda db: group_cases.amend_position(
+        db, request.state.user, case_id, body.get("position"), body.get("reason")))
+    return JSONResponse({"status": "amended"})
+
+
+@router.post("/api/group/cases/{case_id}/reopen")
+@require_auth
+async def api_group_case_reopen(request: Request, case_id: int):
+    body = await _group_body(request)
+    _group_operation(lambda db: group_cases.reopen_case(db, request.state.user, case_id, body.get("reason")))
+    return JSONResponse({"status": "open"})
+
+
 @router.get("/api/group/adoptions")
 @require_auth
 async def api_group_adoptions(request: Request):
