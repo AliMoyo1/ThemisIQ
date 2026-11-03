@@ -258,7 +258,7 @@ def _bcm(db, user) -> list:
 SOURCES = (
     ("grid_controls", (("grid", "control"),), _grid_proof),
     ("aria_controls", (("aria", "control"),), _aria_proof),
-    ("erm_risks", (("erm", "risk"),), _erm),
+    ("enterprise_risks", (("erm", "risk"),), _erm),
     ("grid_audits", (("grid", "audit"),), _grid_audits),
     ("bcm", (("bcm", "exercise"), ("bcm", "plan")), _bcm),
 )

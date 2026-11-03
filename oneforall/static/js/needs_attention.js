@@ -3,7 +3,7 @@
   const root = document.getElementById('needsAttention');
   if (!root) return;
   const get = id => document.getElementById(id);
-  const SOURCE_NAMES = {grid_controls: 'GRID controls', aria_controls: 'ARIA controls', erm_risks: 'enterprise risks',
+  const SOURCE_NAMES = {grid_controls: 'GRID controls', aria_controls: 'ARIA controls', enterprise_risks: 'enterprise risks',
                         grid_audits: 'GRID audits', bcm: 'continuity exercises and plans'};
   let page = 1;
   let rulesLoaded = false;
