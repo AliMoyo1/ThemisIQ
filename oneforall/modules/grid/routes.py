@@ -3004,3 +3004,70 @@ async def api_assignments_review(request: Request, assignment_id: int, item_id: 
     return JSONResponse(_assignment_call(lambda db: assignments.review_item(
         db, request.state.user, assignment_id, item_id, body.get("version"), body.get("decision"),
         body.get("note"))))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# REUSE AN EARLIER AUDIT (plan 25, CISO 02)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/reuse/", response_class=HTMLResponse)
+@require_capability("grid.audits.manage")
+async def grid_reuse_page(request: Request):
+    return _templates.TemplateResponse(request, "reuse.html", {
+        "user": request.state.user, **shell_ctx(request, active_module="grid", active_section="reuse")})
+
+
+@router.get("/api/reuse/audits")
+@require_auth
+async def api_reuse_audits(request: Request):
+    from modules.grid import reuse
+    return _no_store({"items": _assignment_call(lambda db: reuse.audit_choices(db, request.state.user), commit=False)})
+
+
+@router.get("/api/reuse/preview")
+@require_auth
+async def api_reuse_preview(request: Request, target: int, source: int, page: int = 1):
+    from modules.grid import reuse
+    return _no_store(_assignment_call(lambda db: reuse.preview(db, request.state.user, target, source, page),
+                                      commit=False))
+
+
+@router.post("/api/reuse/apply")
+@require_auth
+async def api_reuse_apply(request: Request):
+    from modules.grid import reuse
+    body = await _assignment_body(request)
+    result = _assignment_call(lambda db: reuse.apply(
+        db, request.state.user, body.get("target_audit_id"), body.get("source_audit_id"), body.get("rows")))
+    if result["decision_id"]:
+        ds.log_activity(_uid(request), "reuse_audit", "grid_reuse_decisions", result["decision_id"],
+                        f"{result['applied']} control(s) from audit {body.get('source_audit_id')}")
+    return JSONResponse(result)
+
+
+@router.get("/api/reuse/history")
+@require_auth
+async def api_reuse_history(request: Request, target: int):
+    from modules.grid import reuse
+    return _no_store({"items": _assignment_call(lambda db: reuse.history(db, request.state.user, target),
+                                                commit=False)})
+
+
+@router.post("/api/reuse/decisions/{decision_id}/undo")
+@require_auth
+async def api_reuse_undo(request: Request, decision_id: int):
+    from modules.grid import reuse
+    body = await _assignment_body(request)
+    result = _assignment_call(lambda db: reuse.undo(db, request.state.user, decision_id, body.get("reason")))
+    ds.log_activity(_uid(request), "undo_reuse_audit", "grid_reuse_decisions", decision_id, body.get("reason"))
+    return JSONResponse(result)
+
+
+@router.post("/api/reuse/mappings/{mapping_id}/review")
+@require_auth
+async def api_reuse_review_mapping(request: Request, mapping_id: int):
+    from modules.grid import reuse
+    body = await _assignment_body(request)
+    result = _assignment_call(lambda db: reuse.review_mapping(db, request.state.user, mapping_id, body.get("kind")))
+    ds.log_activity(_uid(request), "review_mapping", "grid_control_mappings", mapping_id, body.get("kind"))
+    return JSONResponse(result)

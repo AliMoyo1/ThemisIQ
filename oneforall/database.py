@@ -4502,6 +4502,38 @@ CREATE TABLE IF NOT EXISTS grid_assignment_events (
 );
 CREATE INDEX IF NOT EXISTS idx_grid_assignment_events ON grid_assignment_events(assignment_id, id);
 
+-- ── GRID: Reusing an earlier audit (plan 25, CISO 02) ──────────────────
+-- An audit lead applies reviewed answers and current proof from an earlier audit to this one, as suggestions the
+-- target still reviews. A decision keeps who, when, both snapshots and what it created, so it can be undone while
+-- nothing it created has been reviewed.
+CREATE TABLE IF NOT EXISTS grid_reuse_decisions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER,
+    target_audit_id  INTEGER NOT NULL REFERENCES grid_audits(id) ON DELETE CASCADE,
+    source_audit_id  INTEGER NOT NULL,
+    applied_by       INTEGER NOT NULL REFERENCES users(id),
+    applied_at       TEXT NOT NULL,
+    undone_by        INTEGER REFERENCES users(id),
+    undone_at        TEXT,
+    undo_reason      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_grid_reuse_decisions_target ON grid_reuse_decisions(target_audit_id, id);
+CREATE TABLE IF NOT EXISTS grid_reuse_rows (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    decision_id       INTEGER NOT NULL REFERENCES grid_reuse_decisions(id) ON DELETE CASCADE,
+    target_control_id INTEGER NOT NULL,
+    source_control_id INTEGER NOT NULL,
+    relation          TEXT NOT NULL CHECK(relation IN ('full','partial')),
+    basis             TEXT NOT NULL,
+    mapping_id        INTEGER,
+    fingerprint       TEXT NOT NULL,
+    source_snapshot   TEXT NOT NULL,
+    target_before     TEXT NOT NULL,
+    link_ids          TEXT NOT NULL DEFAULT '[]',
+    comment_id        INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_grid_reuse_rows_target ON grid_reuse_rows(target_control_id, source_control_id);
+
 -- ── GRID: Policy Requests (GRID→ARIA cross-module) ─────────────────────
 CREATE TABLE IF NOT EXISTS grid_policy_requests (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -7256,6 +7288,10 @@ _COLUMN_MIGRATIONS = [
         # ── Governance Graph T1.2: canonical control linkage + user BU ────────
         ("aria_controls",     "canonical_control_id", "INTEGER"),
         ("grid_controls",     "canonical_control_id", "INTEGER"),
+        # ── Reusing an earlier audit (plan 25, CISO 02): a mapping counts as equivalent only once reviewed ──
+        ("grid_control_mappings", "review_kind", "TEXT"),
+        ("grid_control_mappings", "reviewed_by", "INTEGER REFERENCES users(id)"),
+        ("grid_control_mappings", "reviewed_at", "TEXT"),
         ("orm_rcsa_controls", "canonical_control_id", "INTEGER"),
         ("users",             "business_unit_id",     "INTEGER"),
         # ── Governance Graph T1.3: effectiveness scoring timestamp ────────────
