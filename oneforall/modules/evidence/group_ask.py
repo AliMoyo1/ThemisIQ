@@ -25,6 +25,7 @@ FEATURE = "evidence.group_ask"
 MAX_DOCUMENTS = 100
 MAX_PASSAGES = 6
 PASSAGE = 600
+MAX_TEXT = 200_000  # characters read from one document, so one question cannot pull a hundred whole books
 _WORD = re.compile(r"[a-z0-9]{3,}")
 _STOP = {"the", "and", "for", "are", "with", "that", "this", "what", "which", "how", "does", "our", "from", "have",
          "who", "when", "where", "why", "any", "all", "not", "was", "were", "has", "its", "into", "about"}
@@ -71,7 +72,7 @@ def _source_text(row: dict) -> "tuple[str, list]":
         segments = json.loads(found["segments_json"] or "[]")
     except ValueError:
         segments = []
-    return found["content_text"] or "", segments if isinstance(segments, list) else []
+    return (found["content_text"] or "")[:MAX_TEXT], segments if isinstance(segments, list) else []
 
 
 def search(db, actor: dict, question: str) -> "tuple[list[dict], dict[int, dict]]":

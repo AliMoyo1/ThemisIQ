@@ -580,6 +580,9 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/evidence/` | authenticated | - | - | - |  |
 | GET | `/evidence/api/auto/{module}/{entity_type}/{entity_id}` | authenticated | - | - | - |  |
 | POST | `/evidence/api/batch/duplicate-check` | authenticated | - | - | - |  |
+| GET | `/evidence/api/batch/staged` | authenticated | - | - | - |  |
+| POST | `/evidence/api/batch/staged` | authenticated | - | - | - |  |
+| POST | `/evidence/api/batch/staged/{staged_id}/discard` | authenticated | - | - | - |  |
 | POST | `/evidence/api/batch/suggest` | authenticated | - | - | - |  |
 | GET | `/evidence/api/batch/version-candidates` | authenticated | - | - | - |  |
 | GET | `/evidence/api/companies` | authenticated | - | - | - |  |
@@ -590,12 +593,18 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/evidence/api/find` | authenticated | - | - | - |  |
 | GET | `/evidence/api/folders` | authenticated | - | - | - |  |
 | GET | `/evidence/api/folders/{group}/records` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/adoption-controls/{link_id}/remove` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/adoptions` | authenticated | - | - | - |  |
+| GET | `/evidence/api/group/adoptions/rollup` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/adoptions/{adoption_id}/controls` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/adoptions/{adoption_id}/review` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/ask` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/cases` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/cases` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/cases/{case_id}` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/cases/{case_id}/close` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/cases/{case_id}/position` | authenticated | - | - | - |  |
+| POST | `/evidence/api/group/cases/{case_id}/reopen` | authenticated | - | - | - |  |
 | POST | `/evidence/api/group/cases/{case_id}/requests` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/companies` | authenticated | - | - | - |  |
 | GET | `/evidence/api/group/companies/{source_org_id}/publications` | authenticated | - | - | - |  |
@@ -736,7 +745,18 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/governance/api/group/packs` | authenticated | - | - | - |  |
 | GET | `/governance/api/group/packs/{pack_id}` | authenticated | - | - | - |  |
 | GET | `/governance/api/group/packs/{pack_id}/export` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/packs/{pack_id}/retention` | authenticated | - | - | - |  |
 | POST | `/governance/api/group/packs/{pack_id}/review` | authenticated | - | - | - |  |
+| GET | `/governance/api/group/rooms` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/rooms` | authenticated | - | - | - |  |
+| GET | `/governance/api/group/rooms/candidates` | authenticated | - | - | - |  |
+| GET | `/governance/api/group/rooms/{room_id}` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/rooms/{room_id}/close` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/rooms/{room_id}/decision` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/rooms/{room_id}/items` | authenticated | - | - | - |  |
+| GET | `/governance/api/group/rooms/{room_id}/items/{item_id}` | authenticated | - | - | - |  |
+| GET | `/governance/api/group/rooms/{room_id}/items/{item_id}/download` | authenticated | - | - | - |  |
+| POST | `/governance/api/group/rooms/{room_id}/messages` | authenticated | - | - | - |  |
 | GET | `/governance/api/regulatory-frameworks` | capability | governance.entities.view | governance.entities.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/governance/api/regulatory-source-candidates` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/governance/api/regulatory-source-candidates` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -754,6 +774,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/governance/changes` | authenticated | - | - | - |  |
 | GET | `/governance/connected/{module}/{entity_type}/{entity_id}` | authenticated | - | - | - |  |
 | GET | `/governance/group/figures/` | authenticated | - | - | - |  |
+| GET | `/governance/group/rooms/` | authenticated | - | - | - |  |
 
 ## `modules.grid.routes`
 

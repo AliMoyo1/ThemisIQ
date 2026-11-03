@@ -1,6 +1,6 @@
 # 22. Group oversight completion: the remaining build of plan 19
 
-**Status:** In progress on branch `claude/group-completion`, from master `807e65f1` (after PR 41), started 2026-11-03. Owner direction (chat, 2026-11-03): "The privacy reviewer is the DPO. Do and complete all remaining building." That is a chat confirmation, not a formal sign-off. Nothing here is merged, deployed or enabled for a real customer group.
+**Status:** All eleven slices built and verified on branch `claude/group-completion`, from master `807e65f1` (after PR 41), 2026-11-03. Not merged. Owner direction (chat, 2026-11-03): "The privacy reviewer is the DPO. Do and complete all remaining building." That is a chat confirmation, not a formal sign-off. Nothing here is merged, deployed or enabled for a real customer group.
 
 ## 1. What is already true
 
@@ -16,7 +16,7 @@
 | C3 | 5 | Absence cover. Changed while building (see section 4): no delegation outside a role. Group reviews are never assigned to one person, so any other holder of the role already covers an absence. When nobody else holds the role, the daily pass tells the organization's administrators to staff it. |
 | C4 | 5 | Cases: amend the position (with a trail) and reopen a closed case (a different person, a reason). |
 | C5 | 3/5 | Policy adoption: the parent sees each child's adoption state for its own published policy versions (state and dates only, never the child's reason text); a child may link the adopted policy to its own local controls. |
-| C6 | 6 | More group measures: the registry's `bcm.*`, `sentinel.*` and `vault.*` metrics become publishable once each builder is shown to run organization-wide without a viewer. A measure that cannot is left out and listed. |
+| C6 | 6 | More group measures: the registry's `bcm.*` and `sentinel.*` metrics are publishable, built by their own dashboard code for the whole organization. The `vault.*` metrics are registered but no code builds them, so they cannot be published; that is listed in section 7. |
 | C7 | 6 | Framework register: per child, active frameworks and the share of controls implemented, published as a figure with a flat numeric detail map. |
 | C8 | 6 | Packs carry issue register counts (by type and status, from the frozen run ids) as well as figures; retention date and legal hold on a pack; nothing is purged automatically. |
 | C9 | 6 | Auditor room (see section 3). |
@@ -46,6 +46,10 @@ Each decision lists why it was taken, its cost, and how to change it.
 | No child participant inside parent cases | The proof request already carries the child's part, and a shared case would expose the parent's position and sibling requests | The child sees requests, not the case | A child-specific shared view with DPO review; separate slice |
 | Reminders are in-app notifications and My Work, not email | Email templates need the email inventory and outbox review; in-app is already scoped and audited | No email nudge | Register templates in the email inventory and enqueue alongside |
 | No delegation of a review to someone outside the role | Group reviews are not assigned to a named person: every other holder of the capability may act, so an absent reviewer is already covered. Lending a capability to someone outside the role would weaken the separation that the independence rules depend on | An organization with a single holder must assign the role to a second person; the daily pass tells its administrators when that blocks an item | A time-boxed capability loan with its own approval and audit; separate slice |
+| A staged batch file is checked like an upload, and a file that fails is quarantined without its bytes | Keeping a file that failed a security check has no use and some risk; the reason and hash are enough for the person to see what happened | A quarantined file cannot be inspected later on the server | Keep quarantined bytes in a separate, never-served store with its own retention |
+| The group question answer needs both organizations' AI policies | The asking organization's policy is the platform's normal check; the text belongs to the source, so its own policy decides whether it leaves | A subsidiary with no approved AI policy gives search results only | None needed: the subsidiary approves its own policy |
+| Framework names cross only from the built-in catalogue | A framework a tenant created has a name a person typed; the group sees it only as Other frameworks | A custom framework is not named to the parent | Add it to the catalogue, or a reviewed per-relationship alias list |
+| Pack retention records a date and legal hold, and nothing is ever deleted automatically | Deleting a board record is a reviewed decision, not a timer | Old packs stay until someone decides | A reviewed deletion step with second-person sign-off; separate slice |
 | Auditor identity reuses tenant accounts with the `external_auditor` role | MFA, sessions and login audit already exist and are tested | The auditor needs an account in the parent tenant | Federated guest identities; separate plan |
 
 ## 5. Build log
@@ -53,8 +57,28 @@ Each decision lists why it was taken, its cost, and how to change it.
 - 2026-11-03: plan written; branch created from `807e65f1`.
 - 2026-11-03: C1 committed (`07f9532a`): pack integrity is `passed`, `failed` or `partly_checked` with the unreadable organizations named; the page and exports use the same sentence. DPO privacy review test added. 40 tests pass.
 - 2026-11-03: C2 committed (`539c92c4`): `modules/evidence/group_reminders.py`, table `group_reminders_sent` (organization-scoped row level security), daily job at 09:30 UTC in the evidence scheduler. Each organization's pass runs in its own tenant context, so it reads only rows it is a party to (the adoption table has no bypass policy, so a platform-wide read would have seen no decisions and nagged everyone).
-- 2026-11-03: C3: the administrator alert when nobody can act, 5 reminder tests pass.
+- 2026-11-03: C3 committed (`764aa2d9`): the administrator alert when nobody can act, 5 reminder tests pass.
+- 2026-11-03: C4 committed (`d5df1f8e`): `amend_position` and `reopen_case` in `group_cases.py`, two routes, forms on the cases page; the earlier position and the closing conclusion stay in the case trail.
+- 2026-11-03: C5 committed (`6ab46105`): `group_adoption.rollup` reads each subsidiary's decision state in its own tenant context (state and dates only); `group_adoption_controls` (subsidiary-only row level security) links an adopted policy to the subsidiary's own ARIA, GRID, BCM or AI controls; panels on the adoption page.
+- 2026-11-03: C6 committed (`ae005a45`): `bcm.*` and `sentinel.*` figures are publishable; the DPO's family filter now shows the privacy figures.
+- 2026-11-03: C7 committed (`9ab23824`): `modules/aria/framework_register.py`, registry key `aria.framework_implemented`, the framework catalogue hoisted to `database.EXPECTED_FRAMEWORKS`; figure labels show the fixed module or framework name. Found and fixed while testing: the correction form on the figures page was bound only after two requests finished, so an early click submitted the form natively and lost the entry.
+- 2026-11-03: C8 committed (`a2d0c9d8`): packs freeze issue register counts (never rows) with their run hash; `group_pack_runs` keeps those runs from the daily pruning; `group_pack_retention` (append only) records the retention date and legal hold; PDF and Excel include both.
+- 2026-11-03: C9 committed (`122909e8`): `modules/governance/group_rooms.py`, four tables with parent-only row level security, capabilities `group.room.manage`, `group.room.approve` and `group.room.enter`, ten routes and the Audit rooms page.
+- 2026-11-03: C10 committed (`24f37854`): `modules/evidence/staging.py`, table `evidence_staging`, three routes; the upload route files a staged file by id; the batch page keeps each file on the server once it has a scope and restores the queue after a reload; staged files expire after seven days in the daily job. The upload's blocked extension and MIME lists moved into `staging.py` so both paths share one copy.
+- 2026-11-03: C11 committed (`ec832768`): `modules/evidence/group_ask.py`, AI feature `evidence.group_ask` declared, route and the Vault panel. Found and fixed while testing: the Vault page never loaded the "Shared by related companies" section on start, only after an upload; the group catalogue responses now also send `Cache-Control: private, no-store`.
+- 2026-11-03: review hardening: a group question reads at most 200,000 characters of one document; quarantined files count toward the 50 staged files a person may hold.
 
 ## 6. Verification
 
-(Filled in as slices finish.)
+- Focused SQLite tests per slice, all passing: reminders 5, case amend 2, adoption rollup 3, figures and band and packs 63, pack issues and retention 4, rooms 6, staging 5 (with the upload library and proof tests, 36), group ask 6 (with the AI declaration tests, 22).
+- Browser: group figures page 12, cases page 2, requests and adoption page 3, audit rooms page 3, batch page 10, group ask 1 with the company review page 2.
+- PostgreSQL with the restricted (non-bypass) role: a new test covers every table this plan added; with the existing group tests, 8 passed. The full PostgreSQL lane and the full backend suite results are in the PR description.
+- Capability inventory regenerated; `--check` passes.
+- Three browser tests in `tests/ui/test_evidence_upload_error_detail.py` fail on this branch and on the merged G1 code alike (the upload dialog's toasts and duplicate notice): not caused by this work, not fixed here.
+
+## 7. Still open after this plan
+
+- **Owner and operations:** a live inventory and sign-off of real tenants, a named DPO per customer group recording the reviews, the pilot with a synthetic parent and two subsidiaries, deployment.
+- **Measured acceptance:** p95 search and discovery at 500 and 5,000 files, mobile usability, timed specialist tasks.
+- **Not built, by decision (section 4):** nested groups, unit-level group figures, child participants in parent cases, review delegation outside a role, email reminders, federated auditor identities, automatic deletion of packs.
+- **Vault claim metrics** (`vault.linked`, `vault.current_proof`, `vault.accepted`) cannot be group figures until something builds them.

@@ -72,7 +72,8 @@ def stage(db, user: dict, file_name, mime, content: bytes, filing_scope: str) ->
     if not isinstance(filing_scope, str) or not filing_scope.strip():
         raise HTTPException(422, "Choose an authorized filing scope.")
     company_views.selected_unit(db, user, filing_scope.strip(), for_filing=True)
-    open_count = db.execute(f"SELECT COUNT(*) FROM {_table()} WHERE org_id=%s AND user_id=%s AND status='staged'",
+    open_count = db.execute(f"SELECT COUNT(*) FROM {_table()} WHERE org_id=%s AND user_id=%s "
+                            "AND status IN ('staged','quarantined')",
                             (user["org_id"], user["id"])).fetchone()[0]
     if open_count >= MAX_STAGED:
         raise HTTPException(409, f"File or discard staged files first: at most {MAX_STAGED} wait at a time.")
