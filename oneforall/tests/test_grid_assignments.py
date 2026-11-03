@@ -232,6 +232,34 @@ def test_handing_it_to_someone_else_or_cancelling_ends_the_old_persons_access_at
         "a cancelled assignment frees its controls"
 
 
+def test_a_proof_file_is_named_only_to_people_who_may_open_it(world):
+    """The person answering sits above the audit's unit and chooses a file from a sibling unit the reviewer cannot
+    open: the reviewer sees that a file was chosen, never its title, and cannot accept it."""
+    db, people, audit, controls, foreign, files = world
+    org = people["lead"]["org_id"]
+    parent = _id(db, "business_units", name="Group", is_active=1)
+    child = _id(db, "business_units", name="Plant", is_active=1, parent_id=parent)
+    sibling = _id(db, "business_units", name="Depot", is_active=1, parent_id=parent)
+    plant_audit = _id(db, "grid_audits", name="Plant audit", business_unit_id=child)
+    control = _id(db, "grid_controls", audit_id=plant_audit, control_id="P.1", name="Plant control")
+    head = _person(db, org, "head_hal", "control_owner", parent)
+    plant_lead = _person(db, org, "plant_ivy", "audit_lead", child)
+    depot_file = _id(db, "evidence_items", title="Depot fire drill", status="current", version=1, file_hash="h-depot",
+                     org_id=org, business_unit_id=sibling, uploaded_by=people["uploader"]["id"])
+    assignment = ga.create(db, plant_lead, plant_audit, [control], head["id"], None, _due(), "Plant questions")
+    ga.launch(db, plant_lead, assignment, _version(db, assignment))
+    item = ga.detail(db, head, assignment)["items"][0]["id"]
+    ga.add_proof(db, head, assignment, item, _version(db, assignment), depot_file)
+    ga.save_item(db, head, assignment, item, _version(db, assignment), "Drill records attached")
+    ga.submit(db, head, assignment, _version(db, assignment))
+    db.commit()
+    assert ga.detail(db, head, assignment)["items"][0]["proof"][0]["title"] == "Depot fire drill"
+    seen = ga.detail(db, plant_lead, assignment)["items"][0]["proof"][0]
+    assert seen["title"] == "A file you cannot open"
+    refused = _expect(409, lambda: ga.review_item(db, plant_lead, assignment, item, _version(db, assignment), "accept"))
+    assert "Depot" not in refused and "cannot open" in refused
+
+
 def test_my_work_shows_the_person_their_questions_and_the_reviewer_the_answers(world):
     db, people, audit, controls, foreign, files = world
     assignment = _draft(db, people, audit, controls[:2])

@@ -482,10 +482,15 @@ def review_item(db, actor: dict, assignment_id, item_id, version, decision, note
 
 def _accept_proof(db, actor: dict, item_id: int) -> None:
     """Accepting an answer accepts the proof chosen for it, under the Vault's own rule, or refuses and says why."""
+    scope, params = evidence_scope_sql({**actor, "is_super_admin": False})
     for chosen in db.execute("SELECT p.*, e.title, e.file_hash AS hash_now, e.status FROM grid_assignment_proof p "
                              "LEFT JOIN evidence_items e ON e.id=p.evidence_id "
                              "WHERE p.item_id=%s AND p.removed_at IS NULL", (item_id,)).fetchall():
-        title = chosen["title"] or "A chosen file"
+        if not db.execute(f"SELECT 1 FROM evidence_items e WHERE e.id=%s AND {scope}",
+                          [chosen["evidence_id"], *params]).fetchone():
+            raise HTTPException(409, "One of the chosen files is one you cannot open, so you cannot accept this "
+                                     "answer. Request a change, or ask an administrator about your access.")
+        title = chosen["title"]
         if chosen["hash_now"] != chosen["file_hash"] or chosen["status"] != "current":
             raise HTTPException(409, f"{title} changed after it was chosen. Request changes so the current "
                                      "version is chosen.")
@@ -573,11 +578,20 @@ def detail(db, actor: dict, assignment_id) -> dict:
             f"WHERE p.removed_at IS NULL AND p.item_id IN ({marks}) ORDER BY p.id", [i["id"] for i in items]).fetchall()
     else:
         chosen = []
+    # A file's title is shown only to someone who may open it: the person answering may reach files (a sibling unit
+    # under their own) that the reviewer cannot, and the other way round.
+    openable = set()
+    if chosen:
+        scope, params = evidence_scope_sql({**actor, "is_super_admin": False})
+        marks = ",".join(["%s"] * len(chosen))
+        openable = {r["id"] for r in db.execute(f"SELECT e.id FROM evidence_items e WHERE e.id IN ({marks}) AND {scope}",
+                                                [*[p["evidence_id"] for p in chosen], *params]).fetchall()}
     by_item = {}
     for p in chosen:
         changed = p["hash_now"] != p["file_hash"] or p["status"] != "current" or proof.expired(p["expiry_date"])
         by_item.setdefault(p["item_id"], []).append({
-            "id": p["id"], "evidence_id": p["evidence_id"], "title": p["title"] or "A file you can no longer open",
+            "id": p["id"], "evidence_id": p["evidence_id"],
+            "title": p["title"] if p["evidence_id"] in openable else "A file you cannot open",
             "version": p["evidence_version"], "changed": changed,
             "review": proof.OUTCOME_LABELS.get(p["review_status"] or "pending", "Waiting for a reviewer")})
     for item in items:

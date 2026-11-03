@@ -71,6 +71,8 @@
 - 2026-11-03: research recorded (section 1).
 - 2026-11-03: committed `800ab8e7`: tables `grid_assignments`, `grid_assignment_items`, `grid_assignment_proof`, `grid_assignment_events` (GRID tables, so in every tenant schema), `assurance_issue_reviews` (shared, with row level security); capabilities `grid.assignment.manage`, `.review`, `.respond`, `assurance.attention.view`, `.review`; `modules/grid/assignments.py` and 15 routes under `/grid/api/assignments`; the Audit questions page; My Work source `grid_assignments`; `modules/governance/attention.py`, its page and two routes; sidebar links.
 - 2026-11-03: found and fixed while testing in the browser: both pages announced success before redrawing, so text typed right after the message went into a form that was about to be replaced (the second answer of a reviewer was lost). They now redraw first. The Needs attention link was only in one of the three Command Centre sidebars; it is in all three.
+- 2026-11-03: security review of the new code: a person answering from a parent unit can choose a file in a sibling unit that the reviewer cannot open. The reviewer was shown its title, and the refusal to accept named it. Both now say only that a file was chosen that they cannot open; test added.
+- Known limit: the rule "one control, one open assignment" is checked in code, not by a database constraint, so two audit leads creating assignments for the same control at the same instant could both succeed. The second round is visible in the list and can be cancelled.
 
 ## 7. Verification
 
