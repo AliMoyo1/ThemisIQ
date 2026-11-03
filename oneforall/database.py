@@ -959,6 +959,17 @@ CREATE TABLE IF NOT EXISTS group_access_events (
 );
 CREATE INDEX IF NOT EXISTS idx_group_access_events_relationship ON group_access_events(relationship_id, created_at);
 
+-- One reminder per organization, item and stage (plan 22, C2): the daily pass never repeats a nudge.
+CREATE TABLE IF NOT EXISTS group_reminders_sent (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL REFERENCES organizations(id),
+    kind TEXT NOT NULL CHECK(kind IN ('grant','request','adoption')),
+    ref_id INTEGER NOT NULL,
+    stage TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    UNIQUE(org_id, kind, ref_id, stage)
+);
+
 -- A requirement-led request names no hidden subsidiary file. The source's
 -- internal record mapping is separate and readable only by its own tenant.
 CREATE TABLE IF NOT EXISTS group_evidence_requests (

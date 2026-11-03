@@ -205,6 +205,10 @@ _STMTS = [
     "DROP POLICY IF EXISTS group_lineage_insert ON public.group_figure_lineage",
     f"CREATE POLICY group_lineage_insert ON public.group_figure_lineage FOR INSERT WITH CHECK {_GROUP_SOURCE_USING}",
 
+    "ALTER TABLE public.group_reminders_sent ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.group_reminders_sent FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS group_reminders_own ON public.group_reminders_sent",
+    f"CREATE POLICY group_reminders_own ON public.group_reminders_sent USING {_USING} WITH CHECK {_USING}",
     "ALTER TABLE public.group_access_events ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.group_access_events FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS group_events_orgs ON public.group_access_events",
