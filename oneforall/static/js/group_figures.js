@@ -80,6 +80,21 @@
     panel.hidden = false;
     const form = get('gfPropose');
     form.hidden = !views.can_restate;
+    // Bound before anything is awaited: a click while the lists load must never fall through to a native submit.
+    if (!form.dataset.bound) {
+      form.dataset.bound = '1';
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const data = new FormData(form);
+        try {
+          await ApiClient.request('/governance/api/group/figures/restatements', {method: 'POST', body: {
+            measure_key: data.get('measure_key'), new_value: Number(data.get('new_value')),
+            period: data.get('period'), reason: data.get('reason')}});
+          form.reset(); get('gfStatus').textContent = 'Correction proposed for review.';
+          loadCorrections(views);
+        } catch (error) { get('gfStatus').textContent = message(error); }
+      });
+    }
     try {
       if (views.can_restate && !form.measure_key.options.length) {
         const own = await ApiClient.request('/governance/api/group/figures?view=own');
@@ -116,20 +131,6 @@
       });
       if (!data.items.length) rows.append(el('p', 'No corrections yet.'));
     } catch (error) { get('gfStatus').textContent = message(error); }
-    if (!form.dataset.bound) {
-      form.dataset.bound = '1';
-      form.addEventListener('submit', async event => {
-        event.preventDefault();
-        const data = new FormData(form);
-        try {
-          await ApiClient.request('/governance/api/group/figures/restatements', {method: 'POST', body: {
-            measure_key: data.get('measure_key'), new_value: Number(data.get('new_value')),
-            period: data.get('period'), reason: data.get('reason')}});
-          form.reset(); get('gfStatus').textContent = 'Correction proposed for review.';
-          loadCorrections(views);
-        } catch (error) { get('gfStatus').textContent = message(error); }
-      });
-    }
   }
   const issueLabels = {breach_type: 'Type', severity: 'Severity', status: 'Status', discovery_date: 'Discovered',
     reported_date: 'Reported', affected_count: 'Affected', notification_required: 'Notification required',

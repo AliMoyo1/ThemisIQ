@@ -163,6 +163,14 @@ _add("sentinel.breaches_active", "Open breaches", "sentinel", _SEN,
      "Personal data breaches that are not closed or resolved.", "Breaches the viewer may open.",
      drilldown="/sentinel/breaches")
 
+# ── Framework register (group figures, plan 22, C7) ─────────────────────────
+
+_add("aria.framework_implemented", "Controls implemented, by framework", "aria", "modules/aria/framework_register.py",
+     "For each active framework, the share of its controls whose status is Implemented. Frameworks from the built-in "
+     "catalogue are named; an organization's own frameworks are added together as Other frameworks.",
+     "Controls of active frameworks the viewer may open.",
+     denominator="All controls of that framework the viewer may open.", drilldown="/aria/frameworks")
+
 # ── Evidence Vault ──────────────────────────────────────────────────────────
 
 _VAULT = "modules/evidence/routes.py"

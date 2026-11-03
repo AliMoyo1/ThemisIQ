@@ -44,12 +44,13 @@ _TEXT_DETAIL = {"module", "unit", "name"}
 _DETAIL_KEY = re.compile(r"[a-z0-9_ -]{1,40}")
 
 
-# The measures a child may publish: the Command Centre ones and the business continuity and privacy dashboards' own
-# (plan 22, C6), each built by the same code as its page, for the whole organization. Which of them cross to a parent
+# The measures a child may publish: the Command Centre ones, the business continuity and privacy dashboards' own
+# (plan 22, C6) and the framework register (C7), each built by the same code as its page, for the whole organization. Which of them cross to a parent
 # is decided per relationship, in its DPO-reviewed sharing terms (`figure_measures`); nothing crosses that the terms do
 # not list. The Vault claim metrics are registered but no code builds them yet, so they cannot be published.
-_MODULE_DASHBOARDS = ("modules.bcm.dashboard_metrics", "modules.sentinel.dashboard_metrics")
-PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.split(".", 1)[0] in ("cc", "bcm", "sentinel")))
+_MODULE_DASHBOARDS = ("modules.bcm.dashboard_metrics", "modules.sentinel.dashboard_metrics",
+                      "modules.aria.framework_register")
+PUBLISHABLE = tuple(sorted(k for k in registry.REGISTRY if k.split(".", 1)[0] in ("cc", "bcm", "sentinel", "aria")))
 
 
 def publishable_measures() -> "list[dict]":
@@ -379,7 +380,10 @@ def _figure(entry: dict) -> dict:
     row = entry["row"]
     definition = registry.REGISTRY.get(_base(row["measure_key"]))
     detail = json.loads(row["detail_json"] or "{}")
-    return {"key": row["measure_key"], "label": definition.label if definition else row["measure_key"],
+    label = definition.label if definition else row["measure_key"]
+    if ":" in row["measure_key"] and isinstance(detail.get("name"), str):
+        label = f"{label}: {detail['name']}"  # one figure per module or framework; the name is fixed by the code
+    return {"key": row["measure_key"], "label": label,
             "snapshot_id": row["id"], "module": row["module"], "state": row["state"], "value": row["value"], "window": row["window_text"],
             "as_of": row["as_of"], "method": row["method_version"], "previous": entry["previous"],
             "restated": bool(row.get("restates_snapshot_id")), "restatement_reason": row.get("restatement_reason"),

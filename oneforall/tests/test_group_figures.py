@@ -122,6 +122,28 @@ def test_the_continuity_and_privacy_dashboards_are_published_but_not_the_unbuilt
     assert families["bcm.plans"] == "bcm" and families["sentinel.dsr_open"] == "sentinel", "the DPO sees privacy only"
 
 
+def test_the_framework_register_names_catalogue_frameworks_and_never_a_typed_name(world):
+    db, parent, child, *_ = world
+    gdpr = db.execute("SELECT id FROM frameworks WHERE name='GDPR'").fetchone()[0]
+    db.execute("INSERT INTO frameworks (name, is_active) VALUES ('Acme secret programme', 1)")
+    own = db.execute("SELECT id FROM frameworks WHERE name='Acme secret programme'").fetchone()[0]
+    for framework, ref, status in ((gdpr, 'G-1', 'Implemented'), (gdpr, 'G-2', 'Not Started'),
+                                   (own, 'A-1', 'Implemented'), (own, 'A-2', 'Implemented')):
+        db.execute("INSERT INTO controls (framework_id, ref, name, status) VALUES (%s,%s,%s,%s)",
+                   (framework, ref, 'Control ' + ref, status))
+    db.commit()
+    gf.publish_tenant(child, "fig_child")
+    rows = {r["measure_key"]: r for r in db.execute(
+        "SELECT measure_key, value, detail_json, module FROM group_figure_snapshots WHERE source_org_id=%s "
+        "AND measure_key LIKE 'aria.framework_implemented%%'", (child,)).fetchall()}
+    gdpr_row, other = rows["aria.framework_implemented:gdpr"], rows["aria.framework_implemented:other"]
+    assert json.loads(gdpr_row["detail_json"])["name"] == "GDPR" and gdpr_row["module"] == "aria"
+    assert json.loads(other["detail_json"])["name"] == "Other frameworks"
+    assert json.loads(other["detail_json"])["implemented"] >= 2
+    stored = " ".join(r[0] for r in db.execute("SELECT detail_json FROM group_figure_snapshots").fetchall())
+    assert "Acme secret programme" not in stored, "a framework name typed by a person never crosses"
+
+
 def test_a_module_the_organization_is_not_licensed_for_publishes_nothing(world):
     db, parent, child, *_ = world
     db.execute("INSERT INTO licenses (org_id, module_keys, seats) VALUES (%s,'aria',10)", (child,))

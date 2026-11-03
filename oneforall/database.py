@@ -7593,27 +7593,32 @@ def _backfill_evidence_org_id(conn) -> None:
     )
 
 
+# The built-in framework catalogue: seeded into every database, and the only framework names that may be named in
+# a group figure (plan 22, C7). A tenant's own frameworks are counted as "other", never named.
+EXPECTED_FRAMEWORKS = [
+    ("ISO 27001:2022", "Information Security Management System", "#1E3A5F", "aria,grid"),
+    ("ISO 42001", "Artificial Intelligence Management System", "#6A0572", "aria,grid"),
+    ("SOC 2 Type II", "Service Organization Control 2", "#0B5345", "aria,grid"),
+    ("PCI DSS v4.0", "Payment Card Industry Data Security Standard", "#7D6608", "aria,grid"),
+    ("GDPR", "General Data Protection Regulation (EU) 2016/679", "#154360", "sentinel,aria"),
+    ("Zimbabwe CDPA", "Cyber and Data Protection Act [Chapter 12:07]", "#145A32", "sentinel"),
+    ("HIPAA", "Health Insurance Portability and Accountability Act", "#6E2F03", "sentinel,aria"),
+    ("ISO 9001:2015", "Quality Management System", "#1B4F72", "aria,grid"),
+    ("ISO 22301:2019", "Business Continuity Management System", "#7B241C", "bcm,aria,grid"),
+    ("ISO 27701:2019", "Privacy Information Management System", "#4A235A", "sentinel,aria"),
+    ("ISO 20000-1:2018", "IT Service Management System", "#0E6251", "aria,grid"),
+    ("ISO 27017:2015", "Cloud Security Controls", "#1A5276", "aria,grid"),
+    ("ISO 31000:2018", "Risk Management Guidelines", "#784212", "aria,bcm,grid"),
+    ("ISO 14001:2015", "Environmental Management System", "#1D8348", "aria,grid"),
+    ("ISO 50001:2018", "Energy Management System", "#117A65", "aria,grid"),
+    ("ISO 45001:2018", "Occupational Health and Safety Management System", "#D35400", "bcm,aria,grid"),
+]
+
+
 def _seed_baseline_data(conn):
     """Seed reference data — runs on both SQLite and PostgreSQL."""
     # ── Data migration: ensure all expected frameworks exist ──
-    _EXPECTED_FRAMEWORKS = [
-        ("ISO 27001:2022", "Information Security Management System", "#1E3A5F", "aria,grid"),
-        ("ISO 42001", "Artificial Intelligence Management System", "#6A0572", "aria,grid"),
-        ("SOC 2 Type II", "Service Organization Control 2", "#0B5345", "aria,grid"),
-        ("PCI DSS v4.0", "Payment Card Industry Data Security Standard", "#7D6608", "aria,grid"),
-        ("GDPR", "General Data Protection Regulation (EU) 2016/679", "#154360", "sentinel,aria"),
-        ("Zimbabwe CDPA", "Cyber and Data Protection Act [Chapter 12:07]", "#145A32", "sentinel"),
-        ("HIPAA", "Health Insurance Portability and Accountability Act", "#6E2F03", "sentinel,aria"),
-        ("ISO 9001:2015", "Quality Management System", "#1B4F72", "aria,grid"),
-        ("ISO 22301:2019", "Business Continuity Management System", "#7B241C", "bcm,aria,grid"),
-        ("ISO 27701:2019", "Privacy Information Management System", "#4A235A", "sentinel,aria"),
-        ("ISO 20000-1:2018", "IT Service Management System", "#0E6251", "aria,grid"),
-        ("ISO 27017:2015", "Cloud Security Controls", "#1A5276", "aria,grid"),
-        ("ISO 31000:2018", "Risk Management Guidelines", "#784212", "aria,bcm,grid"),
-        ("ISO 14001:2015", "Environmental Management System", "#1D8348", "aria,grid"),
-        ("ISO 50001:2018", "Energy Management System", "#117A65", "aria,grid"),
-        ("ISO 45001:2018", "Occupational Health and Safety Management System", "#D35400", "bcm,aria,grid"),
-    ]
+    _EXPECTED_FRAMEWORKS = EXPECTED_FRAMEWORKS
     # Seed unified frameworks table
     try:
         existing = {}
