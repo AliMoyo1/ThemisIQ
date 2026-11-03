@@ -231,6 +231,9 @@ CAPABILITIES: dict[str, set[str]] = {
 
     # ── Evidence Vault capabilities ─────────────────────────────
     "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
+    # Changing what a Vault file is linked to through Related Items (plan 25): everyone who files evidence, which is
+    # everyone but an outside auditor, who only reads.
+    "evidence.item.change":       set(ALL_ROLES) - {EXTERNAL_AUDITOR},
     "evidence.file.org_wide":     {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "evidence.company.manage":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "evidence.company.review":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},

@@ -324,6 +324,35 @@ def test_a_neighbourhood_is_bounded_and_never_steps_through_a_hidden_record(grap
 
 # ── Through the routes ──────────────────────────────────────────────────────
 
+def test_every_linkable_kind_names_a_write_capability_that_exists():
+    from core.rbac import CAPABILITIES
+    assert set(linkable_keys()) <= set(relationships.CHANGE), sorted(set(linkable_keys()) - set(relationships.CHANGE))
+    named = {cap for caps in relationships.CHANGE.values() for cap in caps}
+    assert named <= set(CAPABILITIES), sorted(named - set(CAPABILITIES))
+
+
+def test_seeing_two_records_is_not_enough_to_link_them(graph):
+    """Plan 25 (PLAN-37 Slice 1): a person who may open both records but change neither cannot link them."""
+    asset, process = _ref(graph, ASSET, "A"), _ref(graph, PROCESS, "A")
+    reader = graph.users["employee_a"]
+    assert describe_record(graph.db, ASSET, asset[2], reader) and describe_record(graph.db, PROCESS, process[2], reader)
+    made, error = _link(graph, reader, asset, process)
+    assert made is None and error.status == 403 and "change neither" in error.message
+    made, error = _link(graph, graph.users["owner_a"], asset, process)
+    assert error is None and made["created"], "a person who may change the asset links it"
+
+
+def test_a_vault_file_picked_from_search_links_as_the_vault_file_it_is(graph):
+    """Search names a Vault file platform/evidence; the relationship service knows it as evidence/item."""
+    item = _insert(graph.db, "evidence_items", title="needle vault file", status="current", org_id=1,
+                   business_unit_id=graph.unit["A"])
+    owner = graph.users["owner_a"]
+    made, error = _link(graph, owner, ("platform", "evidence", item), _ref(graph, PROCESS, "A"))
+    assert error is None and made["created"]
+    listed = relationships.list_links(graph.db, owner, PROCESS, graph.rec2[(PROCESS, "A")])
+    assert [(l["module"], l["entity_type"], l["title"]) for l in listed] == [("evidence", "item", "needle vault file")]
+
+
 @pytest.fixture
 def http(graph, monkeypatch):
     from fastapi import FastAPI

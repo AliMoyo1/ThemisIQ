@@ -174,7 +174,9 @@ def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list
 # ── Showing a record to someone who may open it ─────────────────────────────
 
 _MAX_ID = 2 ** 31 - 1  # an INTEGER primary key; a larger number is not a record and would only raise in PostgreSQL
-_KEY_ALIASES = {("grid", "non_conformance"): ("grid", "nc")}  # another spelling of a registered kind
+# Other spellings of a registered kind. Search names Vault files platform/evidence (search_service.RESULT_NAME), so
+# a file picked from search must link as the Vault file it is (plan 25, the PLAN-37 picker mismatch).
+_KEY_ALIASES = {("grid", "non_conformance"): ("grid", "nc"), ("platform", "evidence"): ("evidence", "item")}
 
 
 def canonical_key(module, entity_type) -> tuple:
