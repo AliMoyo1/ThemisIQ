@@ -46,6 +46,7 @@
     row[name] = value;
     row[`${name}Edited`] = true;
     if (name === 'scope') {
+      if (value) keep(row);
       row.replaceId = '';
       row.replaceVerified = null;
       row.versionResults = [];
@@ -58,6 +59,40 @@
     row.reviewed = false;
     refresh();
   };
+  // A file is kept on the server as soon as it has a filing scope (plan 22, C10), so a reload or a lost connection
+  // loses nothing. The server checks it as an upload would; a file that fails is quarantined and cannot be filed.
+  async function keep(row) {
+    if (row.stagedId || row.keeping || !row.scope || !(row.file instanceof Blob) || row.file.size > 100 * 1024 * 1024) return;
+    row.keeping = true;
+    const body = new FormData(); body.append('file', row.file); body.append('filing_scope', row.scope);
+    try {
+      const kept = await ApiClient.request('/evidence/api/batch/staged', {method: 'POST', body, timeoutMs: 120000,
+        actionId: 'evidence.batch_stage'});
+      if (!rows.includes(row) || ['uploading', 'uploaded'].includes(row.state)) {
+        ApiClient.request(`/evidence/api/batch/staged/${kept.id}/discard`, {method: 'POST', actionId: 'evidence.batch_discard'}).catch(() => {});
+        return;
+      }
+      row.stagedId = kept.id;
+      if (kept.status === 'quarantined') {
+        row.state = 'failed'; row.reviewed = false; row.message = `Quarantined: ${kept.reason} It cannot be filed.`;
+      } else if (row.state === 'staged') row.message = 'Kept on the server until you file it. Review before filing.';
+    } catch (error) {
+      if (rows.includes(row) && row.state === 'staged') row.message = error.detail || 'Could not keep a server copy. Keep this page open until you file it.';
+    } finally {
+      row.keeping = false;
+      refresh();
+    }
+  }
+  function restoredRow(item) {
+    return {file: {name: item.file_name, size: item.file_size}, stagedId: item.id,
+      title: item.file_name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim(),
+      scope: scopes.some(([key]) => key === item.filing_scope) ? item.filing_scope : '', category: 'general', reviewDue: '',
+      versionMode: 'new', replaceId: '', replaceVerified: null, versionSearch: '', versionResults: [],
+      controlCandidates: [], controlSelections: [], reviewed: false,
+      state: item.status === 'quarantined' ? 'failed' : 'staged',
+      message: item.status === 'quarantined' ? `Quarantined: ${item.reason} It cannot be filed.` :
+        `Kept on the server since ${String(item.created_at).slice(0, 16).replace('T', ' ')}. Review before filing.`};
+  }
   async function searchVersions(row) {
     const term = (row.versionSearch || '').trim();
     if (!row.scope) { row.message = 'Choose a filing scope first.'; refresh(); return; }
@@ -277,19 +312,23 @@
         card.appendChild(link);
       }
       if (row.state !== 'uploaded' && !['extracting', 'checking', 'searching'].includes(row.state) && !busy) {
-        if (row.file.size <= 100 * 1024 * 1024) {
+        if (row.file instanceof Blob && row.file.size <= 100 * 1024 * 1024) {
           const duplicate = element('button', 'Check identical file', 'btn btn-secondary');
           duplicate.type = 'button'; duplicate.addEventListener('click', () => checkDuplicate(row));
           card.appendChild(duplicate);
         }
-        if (/\.(docx|pdf)$/i.test(row.file.name) && row.file.size <= 25 * 1024 * 1024 && row.state !== 'extracting') {
+        if (row.file instanceof Blob && /\.(docx|pdf)$/i.test(row.file.name) && row.file.size <= 25 * 1024 * 1024 && row.state !== 'extracting') {
           const extract = element('button', 'Extract suggestions', 'btn btn-secondary');
           extract.type = 'button'; extract.addEventListener('click', () => suggest(row));
           card.appendChild(extract);
         }
         const remove = element('button', 'Remove from queue', 'btn btn-secondary');
         remove.type = 'button';
-        remove.addEventListener('click', () => { rows.splice(index, 1); refresh(); });
+        remove.addEventListener('click', () => {
+          if (row.stagedId) ApiClient.request(`/evidence/api/batch/staged/${row.stagedId}/discard`, {method: 'POST',
+            actionId: 'evidence.batch_discard'}).catch(() => {});
+          rows.splice(index, 1); refresh();
+        });
         card.appendChild(remove);
       }
       if (row.state === 'uploaded' || ['extracting', 'checking', 'searching'].includes(row.state) || busy)
@@ -326,6 +365,7 @@
     });
     picker.value = '';
     refresh();
+    rows.filter(row => row.scope && !row.stagedId).forEach(keep);
   });
   upload.addEventListener('click', async () => {
     if (busy) return;
@@ -335,7 +375,8 @@
           (row.versionMode === 'replace' && row.replaceVerified?.id !== Number(row.replaceId))) continue;
       row.state = 'uploading'; row.message = 'Uploading and checking…'; refresh();
       const body = new FormData();
-      body.append('file', row.file); body.append('title', row.title.trim());
+      if (row.stagedId) body.append('staged_id', row.stagedId); else body.append('file', row.file);
+      body.append('title', row.title.trim());
       body.append('category', row.category); body.append('filing_scope', row.scope);
       if (row.versionMode === 'replace') body.append('replace_id', row.replaceId);
       if (row.reviewDue) body.append('review_due_date', row.reviewDue);
@@ -387,6 +428,12 @@
       (data.units || []).forEach(unit => scopes.push([`unit:${unit.id}`, unit.name]));
       picker.disabled = !scopes.length;
       summary.textContent = scopes.length ? 'Choose files, then check each filing scope.' : 'No authorized filing scope is available.';
+      return ApiClient.request('/evidence/api/batch/staged', {actionId: 'evidence.batch_staged'});
+    })
+    .then(staged => {
+      if (!staged || !staged.items || !staged.items.length) return;
+      staged.items.forEach(item => rows.push(restoredRow(item)));
+      refresh();
     })
     .catch(error => { picker.disabled = true; summary.textContent = error.detail || 'Filing scopes are unavailable.'; });
 })();

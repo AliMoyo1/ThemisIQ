@@ -4,6 +4,20 @@ from playwright.sync_api import expect
 from docx import Document
 import io
 
+import database
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _empty_staging(live_app):
+    """Staged files now survive a reload (plan 22, C10), so one test's leftover would appear in the next test's queue."""
+    db = database.get_db()
+    try:
+        db.execute("DELETE FROM evidence_staging")
+        db.commit()
+    finally:
+        db.close()
+
 
 def test_batch_upload_requires_review_and_files_one_document(login_as, live_app):
     page = login_as("compliance_manager")
@@ -21,6 +35,39 @@ def test_batch_upload_requires_review_and_files_one_document(login_as, live_app)
     expect(page.locator("#ebUpload")).to_be_enabled()
     page.locator("#ebUpload").click()
     expect(page.locator("#ebQueue .eb-state")).to_contain_text("Filed in the Vault")
+
+
+def test_a_staged_file_survives_a_reload_and_is_filed_from_the_server(login_as, live_app):
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence/batch/")
+    expect(page.locator("#ebSummary")).to_contain_text("Choose files")
+    page.locator("#ebFiles").set_input_files({
+        "name": "Synthetic_Reload_Test.txt", "mimeType": "text/plain",
+        "buffer": b"Synthetic evidence kept across a reload."
+    })
+    page.locator("#ebQueue select").first.select_option(index=1)
+    expect(page.locator("#ebQueue .eb-state")).to_contain_text("Kept on the server")
+    page.reload()
+    expect(page.locator("#ebQueue .eb-row")).to_have_count(1)
+    expect(page.locator("#ebQueue .eb-name")).to_contain_text("Synthetic_Reload_Test.txt")
+    expect(page.locator("#ebQueue .eb-state")).to_contain_text("Kept on the server since")
+    page.get_by_label("Checked for filing").check()
+    page.locator("#ebUpload").click()
+    expect(page.locator("#ebQueue .eb-state")).to_contain_text("Filed in the Vault")
+    page.reload()
+    expect(page.locator("#ebQueue .eb-row")).to_have_count(0)
+
+
+def test_a_blocked_file_is_quarantined_and_cannot_be_filed(login_as, live_app):
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence/batch/")
+    expect(page.locator("#ebSummary")).to_contain_text("Choose files")
+    page.locator("#ebFiles").set_input_files({"name": "payload.html", "mimeType": "text/html", "buffer": b"<script>"})
+    page.locator("#ebQueue select").first.select_option(index=1)
+    expect(page.locator("#ebQueue .eb-state")).to_contain_text("Quarantined")
+    page.locator("#ebQueue").get_by_role("button", name="Remove from queue").click()
+    page.reload()
+    expect(page.locator("#ebQueue .eb-row")).to_have_count(0)
 
 
 def test_duplicate_in_batch_does_not_stop_later_files(login_as, live_app):

@@ -1383,6 +1383,26 @@ CREATE TABLE IF NOT EXISTS evidence_items (
     updated_at      TEXT DEFAULT (datetime('now'))
 );
 
+-- A file staged for the batch queue (plan 22, C10): kept on the server outside the Vault until a person files it,
+-- so a reload or a lost connection loses nothing. A file that fails a check is quarantined: its bytes are not kept.
+CREATE TABLE IF NOT EXISTS evidence_staging (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    filing_scope TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    stored_name TEXT,
+    status TEXT NOT NULL CHECK(status IN ('staged','quarantined','filed','discarded','expired')),
+    reason TEXT,
+    evidence_id INTEGER,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_staging_user ON evidence_staging(org_id, user_id, status);
+
 CREATE TABLE IF NOT EXISTS evidence_links (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     evidence_id     INTEGER NOT NULL REFERENCES evidence_items(id) ON DELETE CASCADE,
