@@ -10,6 +10,16 @@ from playwright.sync_api import expect
 
 
 @pytest.fixture(autouse=True)
+def _synthetic_group_on_sqlite(monkeypatch):
+    """Exercise the browser flow with synthetic organizations in the disposable SQLite harness.
+
+    Production's multi-organization SQLite guard is checked separately in
+    test_group_figures_sqlite_isolation.py; real tenant isolation is checked on PostgreSQL.
+    """
+    monkeypatch.setattr(gf, "require_isolated_figures", lambda db=None: None)
+
+
+@pytest.fixture(autouse=True)
 def _remove_seeded_group(live_app):
     """The browser tests share one database: take this module's organizations, grants and figures away afterwards so
     the other group pages see an empty tenant."""

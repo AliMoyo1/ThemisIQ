@@ -125,6 +125,15 @@ def test_applying_adds_suggestions_only_once_and_a_changed_source_needs_a_fresh_
     assert second == {"decision_id": None, "applied": 0, "links": 0, "notes": 0}, "a rerun adds nothing"
 
 
+def test_one_target_cannot_be_selected_twice_in_a_reuse_request(world):
+    db, people, earlier, new, _hidden, _e, n, _files, _mapping = world
+    row = _rows(db, people, new, earlier)["A.1"]
+    pick = {"target_control_id": n["A.1"], "fingerprint": row["fingerprint"]}
+    _expect(422, lambda: reuse.apply(db, people["lead"], new, earlier, [pick, pick]))
+    assert db.execute("SELECT COUNT(*) FROM grid_reuse_decisions").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM grid_control_comments WHERE control_id=%s", (n["A.1"],)).fetchone()[0] == 0
+
+
 def test_a_mapping_reviewed_as_equivalent_becomes_a_full_match(world):
     db, people, earlier, new, hidden, e, n, files, mapping = world
     _expect(403, lambda: reuse.review_mapping(db, people["employee"], mapping, "equivalent"))

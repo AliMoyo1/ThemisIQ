@@ -378,9 +378,10 @@ def add_proof(db, actor: dict, assignment_id, item_id, version, evidence_id) -> 
         db, "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s)",
         (evidence_id, "grid", "control", item["control_id"], actor["id"]))
     proof_id = insert_returning_id(
-        db, "INSERT INTO grid_assignment_proof (item_id, evidence_id, evidence_version, file_hash, link_id, added_by, "
-            "added_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-        (item["id"], evidence_id, found["version"], found["file_hash"], link_id, actor["id"], _now()))
+        db, "INSERT INTO grid_assignment_proof (item_id, evidence_id, evidence_version, file_hash, link_id, "
+            "created_link, added_by, added_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+        (item["id"], evidence_id, found["version"], found["file_hash"], link_id, int(link is None),
+         actor["id"], _now()))
     _event(db, row["id"], actor, "proof_added", item_id=item["id"], detail={"evidence_id": evidence_id})
     return {"id": proof_id, "version": version + 1}
 
@@ -395,10 +396,14 @@ def remove_proof(db, actor: dict, assignment_id, item_id, version, proof_id) -> 
     _bump(db, row, version)
     now = _now()
     db.execute("UPDATE grid_assignment_proof SET removed_at=%s WHERE id=%s", (now, chosen["id"]))
-    # The Vault link goes too when this person made it and nobody has reviewed it; a link someone else relies on stays.
-    db.execute("UPDATE evidence_links SET deleted_at=%s, deleted_by=%s WHERE id=%s AND linked_by=%s "
-               "AND COALESCE(review_status,'pending')='pending' AND deleted_at IS NULL",
-               (now, actor["id"], chosen["link_id"], actor["id"]))
+    # Only remove a pending link this assignment created. A pre-existing Vault link may have been selected as proof,
+    # and another active assignment may still rely on a link this one created.
+    if chosen["created_link"] and not db.execute(
+            "SELECT 1 FROM grid_assignment_proof WHERE link_id=%s AND removed_at IS NULL LIMIT 1",
+            (chosen["link_id"],)).fetchone():
+        db.execute("UPDATE evidence_links SET deleted_at=%s, deleted_by=%s WHERE id=%s AND linked_by=%s "
+                   "AND COALESCE(review_status,'pending')='pending' AND deleted_at IS NULL",
+                   (now, actor["id"], chosen["link_id"], actor["id"]))
     _event(db, row["id"], actor, "proof_removed", item_id=item["id"], detail={"evidence_id": chosen["evidence_id"]})
     return {"version": version + 1}
 

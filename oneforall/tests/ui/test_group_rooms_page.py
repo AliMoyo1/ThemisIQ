@@ -9,6 +9,12 @@ from modules.governance import group_packs as gp
 from playwright.sync_api import expect
 
 
+@pytest.fixture(autouse=True)
+def _synthetic_group_on_sqlite(monkeypatch):
+    """Use synthetic group fixtures for UI behavior; keep the production SQLite guard unchanged."""
+    monkeypatch.setattr(gf, "require_isolated_figures", lambda db=None: None)
+
+
 def _stamp(days=0):
     return (datetime.now(timezone.utc) + timedelta(days=days)).replace(tzinfo=None, microsecond=0).isoformat()
 

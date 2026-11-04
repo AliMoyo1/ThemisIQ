@@ -584,6 +584,33 @@ def test_connected_module_tables_upgrade_existing_tenant_on_real_postgres(pg):
         conn.close()
 
 
+def test_assignment_proof_link_origin_upgrades_an_existing_tenant_on_real_postgres(pg):
+    pg.init_db()
+    pg.provision_tenant_schema("prooforigin")
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.set_tenant("prooforigin")
+        conn.execute("ALTER TABLE grid_assignment_proof DROP COLUMN created_link")
+        conn.commit()
+    finally:
+        conn.close()
+
+    pg.init_db()
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.set_tenant("prooforigin")
+        column = conn.execute(
+            "SELECT column_default, is_nullable FROM information_schema.columns "
+            "WHERE table_schema=current_schema() AND table_name='grid_assignment_proof' "
+            "AND column_name='created_link'"
+        ).fetchone()
+        assert column is not None
+        assert column["is_nullable"] == "NO"
+        assert column["column_default"] == "0"
+    finally:
+        conn.close()
+
+
 def test_reinit_repairs_existing_projection_columns_after_workflow_loss(pg):
     """CASCADE can remove FKs while leaving their source columns in place."""
     pg.init_db()
