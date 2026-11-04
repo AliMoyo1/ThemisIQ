@@ -50,13 +50,20 @@ import modules.sentinel.data_service  # noqa: F401
 def test_db(tmp_path, monkeypatch):
     """Fresh, fully-migrated SQLite DB per test. Yields a get_db() connection."""
     import database
-    monkeypatch.setattr(database, "_DB_PATH", str(tmp_path / "test.db"))
-    database.init_db()
-    conn = database.get_db()
+    path = tmp_path / "test.db"
+    monkeypatch.setattr(database, "_DB_PATH", str(path))
+    conn = None
     try:
+        database.init_db()
+        conn = database.get_db()
         yield conn
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
+        # Pytest retains tmp_path directories for the entire run. Thousands of
+        # migrated SQLite databases can exceed the CI runner's disk quota.
+        for suffix in ("-wal", "-shm", ""):
+            (tmp_path / f"test.db{suffix}").unlink(missing_ok=True)
 
 
 @pytest.fixture(autouse=True)
