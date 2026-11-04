@@ -2,7 +2,7 @@
 
 **Status:** Design documents 01 to 06 were written 2026-10-14 and still describe behavior and acceptance gates: they do not mark a feature built or a release approved. What was built from them, how it was checked and what was left is in the implementation records below (07 to 14).
 
-**Historical build status, 2026-10-15:** plans 01 to 03 were merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 were then on `claude/plan-04-platform-truth`, awaiting a pull request. Pull request 11 has since merged that branch. Pull request 14 removed AI literacy application surfaces. Neither merge records a production deployment or a signed specialist pilot; see [10](10-completion-record.md) for the release gates.
+**Build status, 2026-10-21:** plans 01 to 03 are merged to `master` (pull request 10). Plans 04 to 06, follow-ups 11 to 13 and the connected governance build that followed are merged to `master` as pull request 11 (`790ce1c`, 2026-10-20). Pull request 14 then removed the AI literacy application surfaces. What was verified on the pull request 11 head, what was not done and the open owner decisions are in [07](07-implementation-ledger.md); the release gates are in [10](10-completion-record.md). Neither merge records a production deployment or a signed specialist pilot.
 
 **Policy intake extension, 2026-10-26:** [18 Existing-policy intake and document composition](18-policy-intake-and-document-composition.md) now has an isolated, uncommitted implementation slice for reviewed import, original preservation, control suggestions, composition, diagrams and scoped references. Its implementation ledger lists the release gates and remaining design work; it is not a deployment record.
 
