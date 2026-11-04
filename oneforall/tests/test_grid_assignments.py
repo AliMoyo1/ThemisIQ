@@ -151,6 +151,26 @@ def test_answers_keep_to_their_version_and_proof_comes_from_the_persons_own_vaul
         == "Audit answers are waiting for your review"
 
 
+def test_removing_assignment_proof_preserves_a_preexisting_vault_link(world):
+    db, people, audit, controls, _foreign, files = world
+    assignment = _draft(db, people, audit, controls[:1])
+    ga.launch(db, people["lead"], assignment, _version(db, assignment))
+    item_id = ga.detail(db, people["owner"], assignment)["items"][0]["id"]
+    existing_link = _id(db, "evidence_links", evidence_id=files["ours"], module="grid",
+                        entity_type="control", entity_id=controls[0], linked_by=people["owner"]["id"])
+
+    choice = ga.add_proof(db, people["owner"], assignment, item_id, _version(db, assignment), files["ours"])
+    ga.remove_proof(db, people["owner"], assignment, item_id, choice["version"], choice["id"])
+    db.commit()
+    assert db.execute("SELECT deleted_at FROM evidence_links WHERE id=%s", (existing_link,)).fetchone()[0] is None
+
+    fresh = ga.add_proof(db, people["owner"], assignment, item_id, _version(db, assignment), files["second"])
+    new_link = db.execute("SELECT link_id FROM grid_assignment_proof WHERE id=%s", (fresh["id"],)).fetchone()[0]
+    ga.remove_proof(db, people["owner"], assignment, item_id, fresh["version"], fresh["id"])
+    db.commit()
+    assert db.execute("SELECT deleted_at FROM evidence_links WHERE id=%s", (new_link,)).fetchone()[0] is not None
+
+
 def _submitted(db, people, audit, controls, files):
     assignment = _draft(db, people, audit, controls[:2])
     ga.launch(db, people["lead"], assignment, _version(db, assignment))

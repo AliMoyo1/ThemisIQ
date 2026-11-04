@@ -4486,6 +4486,7 @@ CREATE TABLE IF NOT EXISTS grid_assignment_proof (
     evidence_version INTEGER,
     file_hash        TEXT,
     link_id          INTEGER,
+    created_link     INTEGER NOT NULL DEFAULT 0,
     added_by         INTEGER NOT NULL REFERENCES users(id),
     added_at         TEXT NOT NULL,
     removed_at       TEXT
@@ -7467,6 +7468,8 @@ _COLUMN_MIGRATIONS = [
         ("bcm_incidents", "acknowledged_at", "TEXT"),
         ("bcm_incidents", "acknowledged_by", "INTEGER REFERENCES users(id)"),
         ("bcm_incidents", "escalated_at", "TEXT"),
+        # Existing proof may reuse a Vault link. Legacy rows conservatively retain their link on removal.
+        ("grid_assignment_proof", "created_link", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

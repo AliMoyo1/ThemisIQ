@@ -219,9 +219,12 @@ def apply(db, user, target_id, source_id, selected) -> dict:
     if target["is_locked"]:
         raise HTTPException(409, "This audit is locked")
     if (not isinstance(selected, list) or not 1 <= len(selected) <= 500 or not all(
-            isinstance(s, dict) and isinstance(s.get("target_control_id"), int) and isinstance(s.get("fingerprint"), str)
+            isinstance(s, dict) and isinstance(s.get("target_control_id"), int)
+            and not isinstance(s.get("target_control_id"), bool) and isinstance(s.get("fingerprint"), str)
             for s in selected)):
         raise HTTPException(422, "Choose the rows to apply")
+    if len({s["target_control_id"] for s in selected}) != len(selected):
+        raise HTTPException(422, "Choose each target control once")
     rows = {r["target"]["id"]: r for r in _rows(db, user, target, source)}
     chosen = []
     for s in selected:
