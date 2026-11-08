@@ -5,8 +5,8 @@
 <div class="topbar">
   <span class="page-title">Framework Management</span>
   <div class="topbar-actions">
-    <button class="btn" onclick="seedControls()" style="font-size:12px; padding:7px 14px;" id="seedBtn">Seed Controls</button>
-    <button class="btn btn-primary" onclick="ModalManager.open('newFwModal')" style="font-size:12px; padding:7px 14px;">+ Custom Framework</button>
+    <button class="btn" style="font-size:12px; padding:7px 14px;" id="seedBtn">Seed Controls</button>
+    <button class="btn btn-primary" id="newFwOpenBtn" style="font-size:12px; padding:7px 14px;">+ Custom Framework</button>
   </div>
 </div>
 
@@ -56,8 +56,7 @@
       </thead>
       <tbody>
         {% for fw in frameworks %}
-        <tr id="fw-row-{{ fw.id }}" style="border-bottom:1px solid var(--border-soft); transition:background 0.15s;"
-            onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='transparent'">
+        <tr id="fw-row-{{ fw.id }}" class="fw-row" style="border-bottom:1px solid var(--border-soft); transition:background 0.15s;">
           <td style="padding:14px 18px;">
             <div style="display:flex; align-items:center; gap:12px;">
               <span style="width:10px; height:10px; border-radius:50%; background:{{ fw.color }}; flex-shrink:0; box-shadow:0 0 0 3px {{ fw.color }}22;"></span>
@@ -97,7 +96,7 @@
             <label style="display:inline-flex; align-items:center; cursor:pointer; gap:8px; user-select:none;">
               <input type="checkbox" id="fw-toggle-{{ fw.id }}"
                      {% if fw.is_active %}checked{% endif %}
-                     data-framework-id="{{ fw.id | int }}" onchange="toggleFramework(Number(this.dataset.frameworkId), this.checked)"
+                     data-framework-id="{{ fw.id | int }}"
                      style="display:none;">
               <span class="toggle-track" id="fw-track-{{ fw.id }}" style="
                 position:relative; width:40px; height:22px; border-radius:11px;
@@ -136,10 +135,10 @@
   <div class="modal" style="max-width:500px">
     <div class="modal-header">
       <h3 id="newFwModal-title" style="margin:0;font-size:17px;font-weight:700;color:var(--text);">Create Custom Framework</h3>
-      <button class="modal-close" onclick="ModalManager.close('newFwModal')" aria-label="Close">&times;</button>
+      <button class="modal-close js-close-fw-modal" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
-      <form id="newFwForm" onsubmit="createFramework(event)">
+      <form id="newFwForm">
         <div style="margin-bottom:14px;">
           <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Framework Name *</label>
           <input type="text" name="name" required maxlength="100" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="e.g. NIST CSF 2.0">
@@ -164,7 +163,7 @@
           </div>
         </div>
         <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);">
-          <button type="button" onclick="ModalManager.close('newFwModal')" class="btn" style="padding:8px 18px;font-size:13px;">Cancel</button>
+          <button type="button" class="btn js-close-fw-modal" style="padding:8px 18px;font-size:13px;">Cancel</button>
           <button type="submit" class="btn btn-primary" id="createFwBtn" style="padding:8px 18px;font-size:13px;">Create Framework</button>
         </div>
       </form>
@@ -173,132 +172,10 @@
 </div>
 <style>
 .fw-ai-btn:hover{background:linear-gradient(135deg, rgba(124,58,237,0.15), rgba(124,58,237,0.25)) !important; transform:translateY(-1px);}
+.fw-row:hover{background:var(--surface2);}
 </style>
 
-<script>
-function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-
-async function createFramework(e) {
-  e.preventDefault();
-  var form = document.getElementById('newFwForm');
-  var fd = new FormData(form);
-  var modules = Array.from(form.querySelectorAll('input[name="modules"]:checked')).map(function(c){return c.value;}).join(',');
-  var body = {
-    name: fd.get('name'),
-    description: fd.get('description'),
-    color: fd.get('color'),
-    relevant_modules: modules,
-  };
-  var btn = document.getElementById('createFwBtn');
-  btn.textContent = 'Creating...';
-  btn.disabled = true;
-  try {
-    var resp = await fetch('/admin/api/frameworks', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-    });
-    if (!resp.ok) { var d = await resp.json(); throw new Error(d.error || 'Failed'); }
-    showToast('Framework created successfully', 'success');
-    ModalManager.close('newFwModal');
-    setTimeout(function(){ location.reload(); }, 600);
-  } catch (err) {
-    showToast('Error: ' + err.message, 'error');
-    btn.textContent = 'Create Framework';
-    btn.disabled = false;
-  }
-}
-
-async function toggleFramework(fwId, active) {
-  var toggle = document.getElementById('fw-toggle-' + fwId);
-  var track = document.getElementById('fw-track-' + fwId);
-  var thumb = document.getElementById('fw-thumb-' + fwId);
-  var label = document.getElementById('fw-label-' + fwId);
-
-  var endpoint = active ? '/api/frameworks/' + fwId + '/activate' : '/api/frameworks/' + fwId + '/deactivate';
-  try {
-    var resp = await fetch(endpoint, { method: 'POST' });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
-    track.style.background = active ? '#22c55e' : 'var(--surface3)';
-    thumb.style.left = active ? '20px' : '2px';
-    label.textContent = active ? 'Active' : 'Inactive';
-    label.style.color = active ? '#22c55e' : 'var(--muted)';
-    toggle.checked = active;
-    showToast((active ? 'Activated' : 'Deactivated') + ' framework', 'success');
-  } catch (err) {
-    toggle.checked = !active;
-    showToast('Failed: ' + err.message, 'error');
-  }
-}
-
-async function aiGenerateControls(fwId, fwName) {
-  var btn = document.getElementById('fw-ai-btn-' + fwId);
-  if (!btn) return;
-  btn.textContent = 'Generating...';
-  btn.disabled = true;
-  btn.style.opacity = '0.6';
-  btn.style.cursor = 'wait';
-
-  try {
-    var resp = await fetch('/api/frameworks/' + fwId + '/controls/ai-generate', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({count: 15}),
-    });
-    var data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Failed');
-
-    var cell = document.getElementById('fw-controls-' + fwId);
-    cell.innerHTML = '<span style="font-size:14px; font-weight:700; color:var(--text);">' + esc(data.inserted) + '</span>';
-    showToast('Generated ' + data.inserted + ' controls for ' + esc(fwName), 'success');
-  } catch (err) {
-    btn.textContent = 'AI Generate';
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-    showToast('Error: ' + err.message, 'error');
-  }
-}
-document.querySelectorAll('.js-generate-controls').forEach(function (button) {
-  button.addEventListener('click', function () {
-    aiGenerateControls(Number(button.dataset.frameworkId), button.dataset.frameworkName);
-  });
-});
-
-async function seedControls() {
-  var btn = document.getElementById('seedBtn');
-  btn.textContent = 'Seeding...';
-  btn.disabled = true;
-  try {
-    var resp = await fetch('/admin/api/frameworks/seed-controls', {method: 'POST'});
-    var data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Failed');
-    showToast('Seeded ' + data.seeded + ' controls', 'success');
-    if (data.seeded > 0) setTimeout(function(){ location.reload(); }, 800);
-    else { btn.textContent = 'Seed Controls'; btn.disabled = false; }
-  } catch (err) {
-    btn.textContent = 'Seed Controls';
-    btn.disabled = false;
-    showToast('Error: ' + err.message, 'error');
-  }
-}
-
-function showToast(msg, type) {
-  var existing = document.querySelectorAll('.ofa-toast');
-  existing.forEach(function(t){ t.remove(); });
-  var t = document.createElement('div');
-  t.className = 'ofa-toast';
-  t.style.cssText = 'position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:500; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.15); animation:toastIn 0.3s ease;';
-  t.style.background = type === 'success' ? '#f0fdf4' : '#fef2f2';
-  t.style.color = type === 'success' ? '#16a34a' : '#dc2626';
-  t.style.border = '1px solid ' + (type === 'success' ? 'rgba(22,163,74,0.2)' : 'rgba(220,38,38,0.2)');
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(function(){ t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; }, 2500);
-  setTimeout(function(){ t.remove(); }, 2800);
-}
-</script>
+<script src="/static/js/admin_frameworks.js" defer></script>
 <style>
 @keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 </style>

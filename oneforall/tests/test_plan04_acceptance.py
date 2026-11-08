@@ -128,8 +128,11 @@ def test_2_no_dashboard_template_carries_sample_data():
 
 def test_3_no_report_button_ends_in_a_timer_and_every_type_it_asks_for_is_registered():
     aria = (ROOT / "modules/aria/templates/dashboard.html").read_text(encoding="utf-8")
+    aria_script = (ROOT / "static/js/aria_dashboard.js").read_text(encoding="utf-8")
     assert "Report generated successfully" not in aria
-    assert re.search(r"/api/reports/quick-run", aria)
+    assert 'id="ariaGenerateReport"' in aria
+    assert '/static/js/aria_dashboard.js' in aria
+    assert re.search(r"/api/reports/quick-run", aria_script)
 
     bcm = (ROOT / "modules/bcm/templates/index.html").read_text(encoding="utf-8")
     kinds = re.search(r"var kinds=\{([^}]*)\}", bcm).group(1)

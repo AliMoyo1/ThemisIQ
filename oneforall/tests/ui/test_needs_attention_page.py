@@ -31,7 +31,7 @@ def test_a_specialist_sees_why_a_control_needs_attention_and_records_a_review(lo
                                                                                run_axe):
     page = login_as("compliance_manager")
     page.goto(f"{live_app}/")
-    page.get_by_role("link", name="Needs attention").click()
+    page.get_by_role("link", name="Needs attention", exact=True).click()
     expect(page.get_by_role("heading", name="Needs attention", level=1)).to_be_visible()
     issue = page.locator("#naList article", has_text=unproved_control["title"])
     expect(issue).to_contain_text("It is marked Complete with no accepted, current proof.")
@@ -53,6 +53,6 @@ def test_a_specialist_sees_why_a_control_needs_attention_and_records_a_review(lo
 def test_a_person_without_the_role_sees_no_link_and_no_page(login_as, live_app):
     page = login_as("employee")
     page.goto(f"{live_app}/")
-    expect(page.get_by_role("link", name="Needs attention")).to_have_count(0)
+    expect(page.get_by_role("link", name="Needs attention", exact=True)).to_have_count(0)
     response = page.goto(f"{live_app}/governance/attention/")
     assert response.status == 404

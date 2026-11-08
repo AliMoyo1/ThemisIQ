@@ -1,5 +1,5 @@
 {
-  "route_count": 1301,
+  "route_count": 1309,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -436,6 +436,58 @@
       },
       "license_modules_required": [],
       "name": "api_assessment_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/assessments/{assessment_id}/control-suggestions",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_assessment.view"
+      ],
+      "roles_by_capability": {
+        "ai_assessment.view": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_aiia_control_suggestions",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/assessments/{assessment_id}/control-suggestions/{control_id}",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_assessment.manage"
+      ],
+      "roles_by_capability": {
+        "ai_assessment.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_aiia_control_decision",
       "maturity": "",
       "notes": ""
     },
@@ -1535,6 +1587,66 @@
       },
       "license_modules_required": [],
       "name": "api_platform_feature_save",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/platform-features/{feature_key}/evaluations",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_platform_feature_evaluations",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/platform-features/{feature_key}/evaluations",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_platform_feature_evaluation_run",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/platform-features/{feature_key}/evaluations/{run_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_platform_feature_evaluation_review",
       "maturity": "",
       "notes": ""
     },
@@ -21368,6 +21480,20 @@
       "notes": ""
     },
     {
+      "path": "/api/command-centre/attention",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_command_centre_attention",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/command-centre/first-screen",
       "methods": [
         "GET"
@@ -26642,6 +26768,50 @@
       },
       "license_modules_required": [],
       "name": "api_dpia_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/dpias/{dpia_id}/control-suggestions",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.dpia.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.dpia.manage": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_dpia_control_suggestions",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/dpias/{dpia_id}/control-suggestions/{control_id}",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.dpia.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.dpia.manage": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_dpia_control_decision",
       "maturity": "",
       "notes": ""
     },

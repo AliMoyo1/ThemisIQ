@@ -1,6 +1,6 @@
 # VerifyWise-inspired feature plans for ThemisIQ
 
-**Status:** Planning only, 2026-10-07. These are proposals grounded in the current checkout and VerifyWise's public product guides, not shipped features or evidence of production state. Implement independently; do not copy VerifyWise code, copy, or branding.
+**Historical planning status (2026-10-07):** These proposals informed later AI Governance builds. See [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md) for implemented journeys and open gates. The AI literacy page was removed at the owner's request; its old plan is superseded in this product. Shadow-AI gateway remains conditional discovery. Do not copy VerifyWise code, copy or branding.
 
 **Cross-plan navigation:** [ThemisIQ portfolio and dependency map](../ROADMAP-2026-10.md) places these plans alongside [PLAN-37](../PLAN-37-connected-compliance-experience.md), the [Evidence Vault plan](../../design/evidence-vault/PLAN.md), and the [CISO Assistant-inspired assurance plans](../ciso-assistant-features/README.md). Review that map before starting a slice so relationship, task, approval and evidence work is built once.
 

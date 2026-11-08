@@ -1,6 +1,6 @@
 # Plan 25: reusing earlier assessments (CISO 02), the rest of PLAN-37 Slice 1, and old AI impact assessments
 
-**Status:** In progress on branch `claude/ciso-reuse`, stacked on `claude/ciso-assurance` (plan 24), started 2026-11-03.
+**Historical status (2026-11-03):** In progress on a feature branch. **Current code status:** assessment reuse, write-scope link rule and old AIIA suggestions merged in PR #44, follow-up fixes in PR #45. New GRID report provenance is uncommitted in the current worktree; see [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md).
 
 **Owner's words (chat, 2026-11-03):** "finish CISO 02, Plan 37 and older AI impact assessments".
 

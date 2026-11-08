@@ -104,14 +104,14 @@ body.tb-select-mode .task-card{padding-right:34px}
     Task Board
   </span>
   <div class="topbar-actions" style="display:flex;gap:8px">
-    <button class="btn btn-secondary" id="aiPriBtn" onclick="aiPrioritize()" title="AI-powered priority suggestions">
+    <button class="btn btn-secondary" id="aiPriBtn" title="AI-powered priority suggestions">
       <span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Prioritize
     </button>
-    <button class="btn btn-secondary" id="selectModeBtn" onclick="toggleSelectMode()">
+    <button class="btn btn-secondary" id="selectModeBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>
       Select
     </button>
-    <button class="btn btn-primary" onclick="openNewTaskModal()">
+    <button class="btn btn-primary" id="tbNewTask">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Task
     </button>
@@ -131,12 +131,12 @@ body.tb-select-mode .task-card{padding-right:34px}
 
   <!-- Filters -->
   <div class="tb-filters">
-    <button class="tb-mine-btn" id="mineBtn" onclick="toggleMine()" aria-pressed="false">
+    <button class="tb-mine-btn" id="mineBtn" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Tasks
     </button>
     <label class="sr-only" for="filterModule">Filter by module</label>
-    <select id="filterModule" class="tb-select" onchange="applyFilters()">
+    <select id="filterModule" class="tb-select">
       <option value="">All Modules</option>
       <option value="aria">ARIA</option>
       <option value="sentinel">Sentinel</option>
@@ -145,27 +145,26 @@ body.tb-select-mode .task-card{padding-right:34px}
       <option value="evidence">Evidence</option>
       <option value="platform">Platform</option>
     </select>
-    <input type="search" id="filterSearch" class="tb-search" placeholder="Search tasks…" oninput="applyFilters()">
+    <input type="search" id="filterSearch" class="tb-search" placeholder="Search tasks…">
   </div>
   <div class="tb-pri-row">
     <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Priority:</span>
-    <button type="button" class="tb-pri-chip pc-all active" data-pri="" onclick="setPri('',this)">All</button>
-    <button type="button" class="tb-pri-chip pc-critical" data-pri="critical" onclick="setPri('critical',this)">● Critical</button>
-    <button type="button" class="tb-pri-chip pc-high" data-pri="high" onclick="setPri('high',this)">● High</button>
-    <button type="button" class="tb-pri-chip pc-medium" data-pri="medium" onclick="setPri('medium',this)">● Medium</button>
-    <button type="button" class="tb-pri-chip pc-low" data-pri="low" onclick="setPri('low',this)">● Low</button>
+    <button type="button" class="tb-pri-chip pc-all active" data-pri="">All</button>
+    <button type="button" class="tb-pri-chip pc-critical" data-pri="critical">● Critical</button>
+    <button type="button" class="tb-pri-chip pc-high" data-pri="high">● High</button>
+    <button type="button" class="tb-pri-chip pc-medium" data-pri="medium">● Medium</button>
+    <button type="button" class="tb-pri-chip pc-low" data-pri="low">● Low</button>
   </div>
 
   <!-- Kanban board -->
-  <div class="kanban-board">
+  <div class="kanban-board" data-current-user-id="{{ user.id | int }}">
 
     <div class="kanban-col-wrap">
       <div class="kanban-col-header">
         <span class="kanban-col-title">To Do</span>
         <span class="kanban-col-count" id="count-todo">0</span>
       </div>
-      <div id="col-todo" class="kanban-cards"
-           ondrop="onDrop(event,'todo')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"></div>
+      <div id="col-todo" class="kanban-cards" data-status="todo"></div>
     </div>
 
     <div class="kanban-col-wrap">
@@ -173,8 +172,7 @@ body.tb-select-mode .task-card{padding-right:34px}
         <span class="kanban-col-title" style="color:var(--info)">In Progress</span>
         <span class="kanban-col-count" id="count-in_progress">0</span>
       </div>
-      <div id="col-in_progress" class="kanban-cards"
-           ondrop="onDrop(event,'in_progress')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"></div>
+      <div id="col-in_progress" class="kanban-cards" data-status="in_progress"></div>
     </div>
 
     <div class="kanban-col-wrap">
@@ -182,8 +180,7 @@ body.tb-select-mode .task-card{padding-right:34px}
         <span class="kanban-col-title" style="color:var(--amber)">Review</span>
         <span class="kanban-col-count" id="count-review">0</span>
       </div>
-      <div id="col-review" class="kanban-cards"
-           ondrop="onDrop(event,'review')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"></div>
+      <div id="col-review" class="kanban-cards" data-status="review"></div>
     </div>
 
     <div class="kanban-col-wrap">
@@ -191,8 +188,7 @@ body.tb-select-mode .task-card{padding-right:34px}
         <span class="kanban-col-title" style="color:var(--green-status)">Done</span>
         <span class="kanban-col-count" id="count-done">0</span>
       </div>
-      <div id="col-done" class="kanban-cards"
-           ondrop="onDrop(event,'done')" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"></div>
+      <div id="col-done" class="kanban-cards" data-status="done"></div>
     </div>
 
   </div>
@@ -202,21 +198,21 @@ body.tb-select-mode .task-card{padding-right:34px}
 <div class="bulk-bar" id="bulkBar">
   <span class="bb-count" id="bbCount">0 selected</span>
   <div class="bb-sep"></div>
-  <select id="bbStatus" class="tb-select" style="font-size:12px" onchange="bulkSetField('status',this.value);this.selectedIndex=0">
+  <select id="bbStatus" class="tb-select" style="font-size:12px">
     <option value="">Move to...</option>
     <option value="todo">To Do</option>
     <option value="in_progress">In Progress</option>
     <option value="review">Review</option>
     <option value="done">Done</option>
   </select>
-  <select id="bbPriority" class="tb-select" style="font-size:12px" onchange="bulkSetField('priority',this.value);this.selectedIndex=0">
+  <select id="bbPriority" class="tb-select" style="font-size:12px">
     <option value="">Set Priority...</option>
     <option value="critical">Critical</option>
     <option value="high">High</option>
     <option value="medium">Medium</option>
     <option value="low">Low</option>
   </select>
-  <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px" onclick="bulkDeselectAll()">Deselect All</button>
+  <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px" id="tbDeselectAll">Deselect All</button>
 </div>
 
 
@@ -225,10 +221,10 @@ body.tb-select-mode .task-card{padding-right:34px}
   <div class="modal" style="max-width:520px;">
     <div class="modal-header">
       <h3 id="newTaskModal-title" style="margin:0;font-size:16px;font-weight:700">New Task</h3>
-      <button class="modal-close" onclick="ModalManager.close('newTaskModal')" aria-label="Close">&times;</button>
+      <button class="modal-close" id="tbCloseNewTask" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
-      <form id="taskForm" onsubmit="submitNewTask(event)">
+      <form id="taskForm">
         <div class="fm-field">
           <label class="fm-label">Title *</label>
           <input class="fm-input" type="text" id="ntTitle" required placeholder="Task title…">
@@ -280,597 +276,21 @@ body.tb-select-mode .task-card{padding-right:34px}
 
 
 <!-- ── Task Detail Drawer ─────────────────────────────────────────────────── -->
-<div class="td-overlay" id="tdOverlay" onclick="closeDrawer()"></div>
+<div class="td-overlay" id="tdOverlay"></div>
 <div class="task-drawer" id="taskDrawer">
   <div class="td-hdr">
     <span class="td-hdr-title" id="tdHdrTitle">Task Detail</span>
-    <button class="td-hdr-close" onclick="closeDrawer()">×</button>
+    <button class="td-hdr-close" id="tbCloseDrawer" aria-label="Close task detail">×</button>
   </div>
   <div class="td-body" id="tdBody"><!-- populated dynamically --></div>
   <div class="td-footer">
-    <button class="btn btn-primary" style="flex:1" onclick="saveDrawer()">Save Changes</button>
-    <button class="td-delete-btn" onclick="confirmDeleteTask()">Delete</button>
+    <button class="btn btn-primary" style="flex:1" id="tbSaveDrawer">Save Changes</button>
+    <button class="td-delete-btn" id="tbDeleteTask">Delete</button>
   </div>
 </div>
 
 
 <!-- ── Scripts ────────────────────────────────────────────────────────────── -->
-<script>
-(function(){
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const CURRENT_USER_ID = {{ user.id }};
-
-const PRI_COLOR = {
-  critical: 'var(--red)',
-  high:     '#f97316',
-  medium:   'var(--amber)',
-  low:      'var(--green-status)',
-};
-const MOD_COLOR = {
-  aria:     '#7c3aed',
-  grid:     '#1a6b3a',
-  bcm:      '#d97706',
-  sentinel: '#0891b2',
-  evidence: '#059669',
-  ai_governance: '#334155',
-  platform: '#64748b',
-};
-const MOD_LABEL = {
-  aria:'ARIA', grid:'GRID', bcm:'BCM', sentinel:'Sentinel', evidence:'Evidence', platform:'Platform',
-  ai_governance:'AI Governance',
-};
-const MOD_HREF = {
-  aria:'/aria/', grid:'/grid/', bcm:'/bcm/', sentinel:'/sentinel/', evidence:'/evidence/', platform:'/',
-  ai_governance:'/ai-governance/',
-};
-
-// ── State ─────────────────────────────────────────────────────────────────────
-let allTasks    = [];
-let usersList   = [];
-let filterMine  = false;
-let filterModule = '';
-let filterPri   = '';
-let filterSearch = '';
-let currentTaskId = null;
-let isDragging  = false;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-
-function today(){ return new Date().toISOString().slice(0,10); }
-
-function fmtDate(ds){
-  if(!ds) return null;
-  const d = new Date(ds.length===10 ? ds+'T00:00:00' : ds);
-  if(isNaN(d)) return ds;
-  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-}
-
-function isOverdue(due, status){
-  return due && due < today() && status !== 'done' && status !== 'cancelled';
-}
-
-function initials(name){
-  if(!name) return '?';
-  return name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
-}
-
-function avatarColor(name){
-  if(!name) return 'var(--accent)';
-  const colors = ['#7c3aed','#0891b2','#059669','#d97706','#dc2626','#2563eb'];
-  let h = 0;
-  for(let i=0;i<name.length;i++) h = (h*31+name.charCodeAt(i)) & 0xffff;
-  return colors[h % colors.length];
-}
-
-// ── Users ─────────────────────────────────────────────────────────────────────
-async function loadUsers(){
-  try{
-    usersList = await ApiClient.request('/api/platform/users', { actionId: 'task_board.users.load' });
-  }catch(e){
-    if(typeof showToast==='function')showToast(e.detail || 'Failed to load users','error');
-  }
-  populateUserDropdowns();
-}
-
-function populateUserDropdowns(){
-  ['ntAssignTo','ddAssignTo'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(!el) return;
-    const cur = el.value;
-    while(el.options.length > 1) el.remove(1);
-    usersList.forEach(u=>{
-      const o = new Option(u.full_name || u.username, u.id);
-      el.add(o);
-    });
-    el.value = cur;
-  });
-}
-
-function usersSelectHtml(selectedId){
-  const base = `<option value="">Unassigned</option>`;
-  return base + usersList.map(u=>
-    `<option value="${u.id}"${u.id==selectedId?' selected':''}>${esc(u.full_name||u.username)}</option>`
-  ).join('');
-}
-
-// ── Load & render ─────────────────────────────────────────────────────────────
-async function loadTasks(){
-  try{
-    allTasks = await ApiClient.request('/api/tasks', { actionId: 'task_board.tasks.load' });
-  }catch(e){
-    if(typeof showToast==='function')showToast(e.detail || 'Failed to load tasks','error');
-  }
-  renderBoard();
-  updateStats();
-}
-
-function getFiltered(){
-  return allTasks.filter(t=>{
-    if(filterMine && t.assigned_to != CURRENT_USER_ID) return false;
-    if(filterModule && t.module !== filterModule) return false;
-    if(filterPri && t.priority !== filterPri) return false;
-    if(filterSearch){
-      const hay = ((t.title||'')+' '+(t.description||'')+' '+(t.tags||'')).toLowerCase();
-      if(!hay.includes(filterSearch)) return false;
-    }
-    return true;
-  });
-}
-
-function renderBoard(){
-  const filtered = getFiltered();
-  const cols = {todo:[],in_progress:[],review:[],done:[]};
-  filtered.forEach(t=>{ (cols[t.status]||cols.todo).push(t); });
-
-  Object.entries(cols).forEach(([status,items])=>{
-    const col   = document.getElementById('col-'+status);
-    const count = document.getElementById('count-'+status);
-    if(!col) return;
-    if(count) count.textContent = items.length;
-    if(!items.length){
-      col.innerHTML = '<div style="padding:28px 12px;text-align:center;color:var(--muted);font-size:11px;opacity:.5">Drop tasks here</div>';
-      return;
-    }
-    col.innerHTML = items.map(renderCard).join('');
-  });
-}
-
-function renderCard(t){
-  const over    = isOverdue(t.due_date, t.status);
-  const mc      = MOD_COLOR[t.module] || '#64748b';
-  const ml      = MOD_LABEL[t.module] || t.module || '';
-  const priCls  = 'p-'+(t.priority||'medium');
-  const init    = initials(t.assigned_name);
-  const avColor = avatarColor(t.assigned_name);
-
-  var sel = selectedTasks.has(t.id) ? ' selected' : '';
-  return `<div class="task-card ${esc(priCls)}${sel}"
-               data-id="${t.id}"
-               draggable="true"
-               ondragstart="onDragStart(event,${t.id})"
-               onclick="onCardClick(event,${t.id})">
-    <input type="checkbox" class="tc-checkbox" ${selectedTasks.has(t.id)?'checked':''} onclick="event.stopPropagation();toggleTaskSelect(${t.id},this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
-    <div class="tc-title">${esc(t.title)}</div>
-    <div class="tc-meta">
-      ${ml ? `<span class="tc-mod" style="background:${mc}18;color:${mc}">${esc(ml)}</span>` : ''}
-      ${t.due_date ? `<span class="tc-due${over?' overdue':''}">${over?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> ':''}${fmtDate(t.due_date)||t.due_date}</span>` : ''}
-    </div>
-    ${t.assigned_name ? `<div class="tc-assignee">
-      <span class="tc-avatar" style="background:${avColor}">${esc(init)}</span>
-      ${esc(t.assigned_name)}
-    </div>` : ''}
-  </div>`;
-}
-
-// ── Stats ─────────────────────────────────────────────────────────────────────
-async function updateStats(){
-  try{
-    const r = await fetch('/api/tasks/stats');
-    if(!r.ok) return;
-    const s = await r.json();
-    const total = Object.values(s.by_status||{}).reduce((a,b)=>a+b,0);
-    document.getElementById('stTotal').textContent  = total;
-    document.getElementById('stPending').textContent = s.my_pending;
-    document.getElementById('stOverdue').textContent = s.overdue;
-  }catch(e){}
-  // Critical + High from local data (no extra round trip)
-  const openTasks = allTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled');
-  document.getElementById('stCritical').textContent = openTasks.filter(t=>t.priority==='critical').length;
-  document.getElementById('stHigh').textContent     = openTasks.filter(t=>t.priority==='high').length;
-}
-
-// ── Filters ───────────────────────────────────────────────────────────────────
-window.toggleMine = function(){
-  filterMine = !filterMine;
-  const btn = document.getElementById('mineBtn');
-  btn.classList.toggle('active', filterMine);
-  btn.setAttribute('aria-pressed', String(filterMine));
-  renderBoard();
-};
-
-window.setPri = function(pri, chip){
-  filterPri = pri;
-  document.querySelectorAll('.tb-pri-chip').forEach(c=>c.classList.remove('active'));
-  chip.classList.add('active');
-  renderBoard();
-};
-
-window.applyFilters = function(){
-  filterModule = document.getElementById('filterModule').value;
-  filterSearch = (document.getElementById('filterSearch').value||'').trim().toLowerCase();
-  renderBoard();
-};
-
-// ── Bulk Select Mode ─────────────────────────────────────────────────────────
-var selectedTasks = new Set();
-
-window.toggleSelectMode = function(){
-  document.body.classList.toggle('tb-select-mode');
-  var btn = document.getElementById('selectModeBtn');
-  var active = document.body.classList.contains('tb-select-mode');
-  btn.style.borderColor = active ? 'var(--accent)' : '';
-  btn.style.color = active ? 'var(--accent)' : '';
-  if(!active){
-    selectedTasks.clear();
-    updateBulkBar();
-    renderBoard();
-  }
-};
-
-window.toggleTaskSelect = function(id, cb){
-  if(cb.checked) selectedTasks.add(id);
-  else selectedTasks.delete(id);
-  var card = cb.closest('.task-card');
-  if(card) card.classList.toggle('selected', cb.checked);
-  updateBulkBar();
-};
-
-function updateBulkBar(){
-  var bar = document.getElementById('bulkBar');
-  var count = selectedTasks.size;
-  document.getElementById('bbCount').textContent = count + ' selected';
-  bar.classList.toggle('visible', count > 0);
-}
-
-window.bulkDeselectAll = function(){
-  selectedTasks.clear();
-  updateBulkBar();
-  renderBoard();
-};
-
-window.bulkSetField = async function(field, value){
-  if(!value || selectedTasks.size === 0) return;
-  try{
-    var result = await ApiClient.request('/api/tasks/bulk', {
-      method: 'PUT',
-      body: {ids: Array.from(selectedTasks), updates: {[field]: value}},
-      actionId: 'task_board.bulk_set_field',
-    });
-    if(typeof showToast === 'function') showToast('Updated ' + result.updated + ' tasks');
-    selectedTasks.clear();
-    updateBulkBar();
-    await loadTasks();
-  }catch(e){
-    if(typeof showToast === 'function') showToast(e.detail || 'Bulk update failed', 'error');
-  }
-};
-
-// ── AI Prioritize ────────────────────────────────────────────────────────────
-window.aiPrioritize = async function(){
-  var btn=document.getElementById('aiPriBtn');
-  btn.disabled=true;btn.textContent='Analyzing...';
-  try{
-    var data=await ApiClient.request('/api/tasks/ai-prioritize', {method:'POST', actionId: 'task_board.ai_prioritize'});
-    var ranked=data.ranked||[];
-    if(!ranked.length){if(typeof showToast==='function')showToast('No prioritization suggestions','info');return;}
-    showAiPriPanel(ranked);
-  }catch(e){
-    if(typeof showToast==='function')showToast(e.detail || 'AI prioritization failed','error');
-  }finally{
-    btn.disabled=false;btn.innerHTML='<span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Prioritize';
-  }
-};
-
-function showAiPriPanel(ranked){
-  var existing=document.getElementById('aiPriPanel');
-  if(existing)existing.remove();
-  var panel=document.createElement('div');
-  panel.id='aiPriPanel';
-  panel.className='card';
-  panel.style.cssText='padding:16px 20px;margin-bottom:16px;border-left:3px solid var(--accent)';
-  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-    '<div style="font-size:14px;font-weight:700;color:var(--text)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> AI Priority Suggestions</div>'+
-    '<div style="display:flex;gap:8px">'+
-      '<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="applyAiPriorities()">Apply All</button>'+
-      '<button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="document.getElementById(\'aiPriPanel\').remove()">Dismiss</button>'+
-    '</div></div>';
-  html+='<div style="max-height:200px;overflow-y:auto">';
-  ranked.forEach(function(r,i){
-    var task=allTasks.find(function(t){return t.id===r.task_id;});
-    var priColor={'critical':'var(--red)','high':'#f97316','medium':'var(--amber)','low':'var(--green-status)'}[r.suggested_priority]||'var(--muted)';
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:12px" data-ai-task="'+r.task_id+'" data-ai-pri="'+esc(r.suggested_priority)+'">'+
-      '<span style="width:20px;font-weight:800;color:var(--accent)">#'+(r.rank||i+1)+'</span>'+
-      '<span style="flex:1;font-weight:600;color:var(--text)">'+esc(task?task.title:'Task #'+r.task_id)+'</span>'+
-      '<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+priColor+'18;color:'+priColor+'">'+esc(r.suggested_priority)+'</span>'+
-      '<span style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.rationale||'')+'">'+esc(r.rationale||'')+'</span>'+
-    '</div>';
-  });
-  html+='</div>';
-  panel.innerHTML=html;
-  window._aiRanked=ranked;
-  var board=document.querySelector('.kanban-board');
-  board.parentNode.insertBefore(panel,board);
-}
-
-window.applyAiPriorities = async function(){
-  var ranked=window._aiRanked||[];
-  if(!ranked.length)return;
-  var updates=ranked.map(function(r){return{id:r.task_id,priority:r.suggested_priority};});
-  try{
-    for(var i=0;i<updates.length;i++){
-      await ApiClient.request('/api/tasks/'+updates[i].id, {
-        method: 'PUT', body: {priority:updates[i].priority}, actionId: 'task_board.apply_ai_priority',
-      });
-    }
-    if(typeof showToast==='function')showToast('Applied AI priorities to '+updates.length+' tasks');
-    document.getElementById('aiPriPanel').remove();
-    await loadTasks();
-  }catch(e){
-    if(typeof showToast==='function')showToast(e.detail || 'Failed to apply priorities','error');
-  }
-};
-
-// ── Task Detail Drawer ────────────────────────────────────────────────────────
-window.onCardClick = function(e, taskId){
-  if(isDragging) return;
-  if(document.body.classList.contains('tb-select-mode')) return;
-  openDrawer(taskId);
-};
-
-function openDrawer(taskId){
-  const t = allTasks.find(x=>x.id===taskId);
-  if(!t) return;
-  currentTaskId = taskId;
-
-  document.getElementById('tdHdrTitle').textContent = 'Task #'+t.id;
-
-  const entityHtml = buildEntityLink(t);
-  const creatorHtml = t.creator_name
-    ? `Created by <strong>${esc(t.creator_name)}</strong>`
-    : '';
-  const createdAtHtml = t.created_at
-    ? ` on ${fmtDate(t.created_at.slice(0,10))||t.created_at.slice(0,10)}`
-    : '';
-
-  document.getElementById('tdBody').innerHTML = `
-    <div class="td-field">
-      <div class="td-label">Title</div>
-      <input class="td-input" id="ddTitle" value="${esc(t.title)}">
-    </div>
-    <div class="td-field">
-      <div class="td-label">Description</div>
-      <textarea class="td-textarea" id="ddDesc" rows="4">${esc(t.description||'')}</textarea>
-    </div>
-    <div class="td-two">
-      <div class="td-field">
-        <div class="td-label">Status</div>
-        <select class="td-select" id="ddStatus">
-          ${['todo','in_progress','review','done','cancelled'].map(s=>
-            `<option value="${s}"${t.status===s?' selected':''}>${s.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`
-          ).join('')}
-        </select>
-      </div>
-      <div class="td-field">
-        <div class="td-label">Priority</div>
-        <select class="td-select" id="ddPriority">
-          ${['low','medium','high','critical'].map(p=>
-            `<option value="${p}"${t.priority===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
-          ).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="td-two">
-      <div class="td-field">
-        <div class="td-label">Module</div>
-        <select class="td-select" id="ddModule">
-          <option value="">None</option>
-          ${Object.entries(MOD_LABEL).map(([v,l])=>
-            `<option value="${v}"${t.module===v?' selected':''}>${l}</option>`
-          ).join('')}
-        </select>
-      </div>
-      <div class="td-field">
-        <div class="td-label">Due Date</div>
-        <input class="td-input" type="date" id="ddDue" value="${t.due_date||''}">
-      </div>
-    </div>
-    <div class="td-field">
-      <div class="td-label">Assign To</div>
-      <select class="td-select" id="ddAssignTo">${usersSelectHtml(t.assigned_to)}</select>
-    </div>
-    ${t.tags ? `<div class="td-field"><div class="td-label">Tags</div>
-      <div style="font-size:12px;color:var(--muted);padding:6px 0">${esc(t.tags)}</div></div>` : ''}
-    ${entityHtml ? `<div class="td-field"><div class="td-label">Source</div>${entityHtml}</div>` : ''}
-    <div class="td-meta-footer">
-      ${creatorHtml}${createdAtHtml}
-      ${t.updated_at && t.updated_at!==t.created_at ? `<span>Last updated ${fmtDate(t.updated_at.slice(0,10))||t.updated_at.slice(0,10)}</span>` : ''}
-    </div>
-  `;
-
-  document.getElementById('tdOverlay').classList.add('open');
-  document.getElementById('taskDrawer').classList.add('open');
-}
-
-function buildEntityLink(t){
-  if(!t.module || !t.entity_type || !t.entity_id) return '';
-  const base  = MOD_HREF[t.module] || '/';
-  const label = (MOD_LABEL[t.module]||t.module) + ' / ' +
-                t.entity_type.replace(/_/g,' ') + ' #' + t.entity_id;
-  return `<a class="td-source-link" href="${esc(base)}" target="_blank" rel="noopener noreferrer">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-      <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-    </svg>
-    ${esc(label)}
-  </a>`;
-}
-
-window.closeDrawer = function(){
-  document.getElementById('tdOverlay').classList.remove('open');
-  document.getElementById('taskDrawer').classList.remove('open');
-  currentTaskId = null;
-};
-
-window.saveDrawer = async function(){
-  if(!currentTaskId) return;
-  const body = {
-    title:       document.getElementById('ddTitle').value,
-    description: document.getElementById('ddDesc').value,
-    module:      document.getElementById('ddModule').value,
-    priority:    document.getElementById('ddPriority').value,
-    status:      document.getElementById('ddStatus').value,
-    due_date:    document.getElementById('ddDue').value,
-    assigned_to: document.getElementById('ddAssignTo').value || null,
-  };
-  try{
-    await ApiClient.request('/api/tasks/'+currentTaskId, {
-      method: 'PUT', body: body, actionId: 'task_board.task.save',
-    });
-    showToast('Task saved','success');
-    closeDrawer();
-    await loadTasks();
-  }catch(e){ showToast(e.detail || 'Save failed','error'); }
-};
-
-window.confirmDeleteTask = async function(){
-  if(!currentTaskId) return;
-  if(!confirm('Delete this task? This cannot be undone.')) return;
-  try{
-    await ApiClient.request('/api/tasks/'+currentTaskId, { method: 'DELETE', actionId: 'task_board.task.delete' });
-    showToast('Task deleted','success');
-    allTasks = allTasks.filter(t=>t.id!==currentTaskId);
-    closeDrawer();
-    renderBoard();
-    updateStats();
-  }catch(e){ showToast(e.detail || 'Delete failed','error'); }
-};
-
-// ── New Task Modal ────────────────────────────────────────────────────────────
-window.openNewTaskModal = function(){
-  ModalManager.open('newTaskModal');
-};
-
-window.submitNewTask = async function(e){
-  e.preventDefault();
-  const body = {
-    title:       document.getElementById('ntTitle').value,
-    description: document.getElementById('ntDesc').value,
-    module:      document.getElementById('ntModule').value,
-    priority:    document.getElementById('ntPriority').value,
-    due_date:    document.getElementById('ntDue').value,
-    assigned_to: document.getElementById('ntAssignTo').value || null,
-  };
-  try{
-    await ApiClient.request('/api/tasks', { method: 'POST', body: body, actionId: 'task_board.task.create' });
-    ModalManager.close('newTaskModal');
-    document.getElementById('taskForm').reset();
-    showToast('Task created','success');
-    await loadTasks();
-  }catch(e){ showToast(e.detail || 'Failed to create task','error'); }
-};
-
-// ── Drag and Drop ─────────────────────────────────────────────────────────────
-let draggedId = null;
-
-window.onDragStart = function(e, id){
-  isDragging = true;
-  draggedId  = id;
-  e.dataTransfer.setData('text/plain', String(id));
-  e.dataTransfer.effectAllowed = 'move';
-  requestAnimationFrame(()=>{
-    const el = document.querySelector('.task-card[data-id="'+id+'"]');
-    if(el) el.classList.add('dragging');
-  });
-};
-
-window.onDragOver = function(e){
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  e.currentTarget.classList.add('drag-over');
-};
-
-window.onDragLeave = function(e){
-  if(!e.currentTarget.contains(e.relatedTarget)){
-    e.currentTarget.classList.remove('drag-over');
-  }
-};
-
-window.onDrop = async function(e, status){
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  const id = parseInt(e.dataTransfer.getData('text/plain')||draggedId, 10);
-  draggedId = null;
-  if(!id) return;
-
-  // Optimistic local update
-  const task = allTasks.find(t=>t.id===id);
-  if(task) task.status = status;
-  renderBoard();
-  updateStats();
-
-  try{
-    // PLAN-36 T06 (findings.md F08): raw fetch() doesn't reject on a
-    // non-2xx status, so a rejected status transition (invalid state,
-    // permission denied) previously left the optimistic UI update in place
-    // as if it had succeeded, with nothing to catch and revert it.
-    // ApiClient.request throws for that case too, not just a network error.
-    await ApiClient.request('/api/tasks/'+id, { method: 'PUT', body: {status}, actionId: 'task_board.task.move' });
-  }catch(err){
-    showToast(err.detail || 'Failed to move task','error');
-    await loadTasks(); // revert on error
-  }
-};
-
-document.addEventListener('dragend',()=>{
-  document.querySelectorAll('.task-card.dragging').forEach(el=>el.classList.remove('dragging'));
-  document.querySelectorAll('.kanban-cards.drag-over').forEach(el=>el.classList.remove('drag-over'));
-  draggedId = null;
-  // Reset isDragging after click events have a chance to fire
-  setTimeout(()=>{ isDragging = false; }, 50);
-});
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async ()=>{
-  await loadUsers();   // populate assignee dropdowns
-  await loadTasks();   // load tasks + render board
-  const url = new URL(window.location.href);
-  const openId = url.searchParams.get('open');
-  if(openId === null) return;
-  url.searchParams.delete('open');
-  window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-  if(!/^[1-9]\d*$/.test(openId)) return;
-  const taskId = Number(openId);
-  if(!Number.isSafeInteger(taskId)) return;
-  try{
-    let task = allTasks.find(t => t.id === taskId);
-    if(!task){
-      task = await ApiClient.request('/api/tasks/' + taskId, { actionId: 'task_board.task.open' });
-      allTasks.push(task);
-    }
-    openDrawer(taskId);
-  }catch(e){
-    if(typeof showToast === 'function') showToast(e.detail || 'Task unavailable', 'error');
-  }
-});
-
-// Keyboard: Escape closes drawer
-document.addEventListener('keydown', e=>{
-  if(e.key==='Escape') closeDrawer();
-});
-
-})();
-</script>
+<script src="/static/js/task_board.js" defer></script>
 
 {% endblock %}

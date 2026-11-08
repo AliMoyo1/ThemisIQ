@@ -23,7 +23,12 @@ def main() -> int:
     if source.stat().st_size > 25 * 1024 * 1024:
         return 2
     result = extract(source.read_bytes(), extension, filename)
-    sys.stdout.write(json.dumps(result, ensure_ascii=True))
+    payload = json.dumps(result, ensure_ascii=True)
+    # The parent rejects responses above this size. Check before writing so a
+    # large but valid source cannot fill the parent's stdout pipe first.
+    if len(payload) > 1_500_000:
+        return 3
+    sys.stdout.write(payload)
     return 0
 
 

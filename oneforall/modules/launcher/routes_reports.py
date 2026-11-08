@@ -136,9 +136,26 @@ def _envelope(db, user, definition_id, name, report_type, parameters, previous=N
         "period": {"basis": "as_of", "as_of": now,
                    "note": "Every figure is read at the moment the report is generated. There is no period filter."},
         "result": built.result, "sources": built.sources, "inputs": built.inputs,
-        "limitations": built.limitations, "exclusions": built.exclusions, "complete": built.complete,
+        "limitations": list(built.limitations), "exclusions": built.exclusions, "complete": built.complete,
         "decision_status": snap.DECISION_STATUS, "narrative": None, "changes": None,
     }
+    if has_capability(user, "assurance.attention.view"):
+        from modules.launcher.routes_dashboard import _attention_summary
+        env["assurance"] = _attention_summary(db, user)
+        env["assurance"]["scope_note"] = (
+            "Open issues in the author's accessible organization and business-unit scope at generation; "
+            "not filtered to this report's subject or framework.")
+        if env["assurance"]["state"] == "partial":
+            env["limitations"].append(
+                "Needs attention was only partly checked at generation. Its open count is a lower bound "
+                "for the author's accessible scope, not a conclusion about this report's subject.")
+        elif (env["assurance"]["open"] or 0) > 0:
+            env["limitations"].append(
+                f"{env['assurance']['open']} open Needs attention issues existed in the author's accessible "
+                "scope at generation; they were not filtered to this report's subject.")
+    else:
+        env["assurance"] = {"state": "not_authorized", "open": None,
+                            "note": "Needs attention was outside the report author's access."}
     if previous and previous[1] is not None:
         env["changes"] = snap.change_summary(previous[1], previous[0], built.result, scope, version)
     return env
@@ -265,7 +282,7 @@ def _retention_days(db):
 
 def _signoffs(db, run_id):
     return [dict(r) for r in db.execute(
-        "SELECT id,signer_id,decision,reason,snapshot_hash,narrative_reviewed,last_note_id,signed_at "
+        "SELECT id,signer_id,decision,reason,snapshot_hash,narrative_reviewed,assurance_reviewed,last_note_id,signed_at "
         "FROM report_run_signoffs WHERE run_id=%s ORDER BY id", (run_id,),
     ).fetchall()]
 
@@ -325,7 +342,7 @@ def _open(db, user, run_id, request, action):
     verdict = snap.decide(user, row["triggered_by"], run_scope_key(user))
     if verdict == snap.ALLOW:
         retention = _retention(db, run_id)
-        if retention["purged_at"] or (retention["delete_after"] and
+        if retention["purged_at"] or (action != "retention" and retention["delete_after"] and
                                       retention["delete_after"] <= _now() and not retention["hold_reason"]):
             return None, _JSONResp({"error": "This saved report has reached its retention date."}, status_code=410)
         if (snap.actor_id(row["triggered_by"]) == user["id"] and
@@ -897,6 +914,7 @@ async def api_report_signoff(request: Request, run_id: int):
     decision = data.get("decision")
     reason = str(data.get("reason") or "").strip()
     narrative_reviewed = data.get("narrative_reviewed") is True
+    assurance_reviewed = data.get("assurance_reviewed") is True
     if decision not in ("approved", "rejected") or not 10 <= len(reason) <= 2000:
         return _JSONResp({"error": "Choose approve or reject and record a reason of 10 to 2000 characters"},
                          status_code=400)
@@ -912,13 +930,21 @@ async def api_report_signoff(request: Request, run_id: int):
         env = json_lib.loads(row["result_json"])
         if decision == "approved" and env.get("narrative") and not narrative_reviewed:
             return _JSONResp({"error": "Review the draft AI narrative explicitly before approving"}, status_code=400)
+        assurance = env.get("assurance") or {}
+        if decision == "approved" and assurance.get("state") not in ("measured", "partial"):
+            return _JSONResp({"error": "This report has no measured Needs attention review; generate it with an authorized specialist before approval"}, status_code=400)
+        if (decision == "approved" and
+                (assurance.get("state") == "partial" or (assurance.get("open") or 0) > 0) and
+                not assurance_reviewed):
+            return _JSONResp({"error": "Review the frozen Needs attention state before approving"}, status_code=400)
         last_note_id = db.execute("SELECT COALESCE(MAX(id),0) FROM report_run_notes WHERE run_id=%s",
                                   (run_id,)).fetchone()[0]
         signoff_id = insert_returning_id(
             db, "INSERT INTO report_run_signoffs "
-                "(run_id,signer_id,decision,reason,snapshot_hash,narrative_reviewed,last_note_id) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-            (run_id, user["id"], decision, reason, row["snapshot_hash"], int(narrative_reviewed), last_note_id),
+                "(run_id,signer_id,decision,reason,snapshot_hash,narrative_reviewed,assurance_reviewed,last_note_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            (run_id, user["id"], decision, reason, row["snapshot_hash"], int(narrative_reviewed),
+             int(assurance_reviewed), last_note_id),
         )
         db.commit()
     finally:
@@ -950,6 +976,14 @@ async def api_report_retention(request: Request, run_id: int):
         row, refusal = _open(db, user, run_id, request, "retention")
         if refusal:
             return refusal
+        from config import settings
+        locked = db.execute(
+            "SELECT purged_at FROM report_run_retention WHERE run_id=%s" +
+            (" FOR UPDATE" if settings.is_postgres() else ""), (run_id,),
+        ).fetchone()
+        current = db.execute("SELECT status FROM report_runs WHERE id=%s", (run_id,)).fetchone()
+        if (locked and locked["purged_at"]) or not current or current["status"] == "purged":
+            return _JSONResp({"error": "This report has already been purged"}, status_code=409)
         if row["file_path"]:
             return _JSONResp({"error": "This run has an external file that needs a separate retention process"},
                              status_code=409)
@@ -1044,6 +1078,7 @@ async def api_report_run_export(request: Request, run_id: int):
         rows[8:8] = [["Latest independent review", latest["decision"], latest["signed_at"]],
                      ["Reviewer", snap._cell(reviewer), snap._cell(latest["reason"])],
                      ["Draft AI narrative reviewed", "yes" if latest["narrative_reviewed"] else "no", ""]]
+        rows.insert(11, ["Needs attention snapshot reviewed", "yes" if latest["assurance_reviewed"] else "no", ""])
     csv.writer(buffer).writerows(rows)
     log_audit(user, "platform", "report_run_export", entity_type="report_run", entity_id=run_id,
               details=f"format=csv; sha256={row['snapshot_hash'][:16]}", ip=_ip(request))

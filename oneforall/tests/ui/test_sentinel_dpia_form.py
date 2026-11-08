@@ -27,7 +27,10 @@ def _seed_dpia(title, due_date, status="draft"):
 
 
 def _open_dpia_page(page, live_app):
-    page.goto(f"{live_app}/sentinel/dpia")
+    response = page.goto(f"{live_app}/sentinel/dpia")
+    policy = response.headers["content-security-policy"]
+    assert "script-src-attr 'none'" in policy
+    assert "'unsafe-inline'" not in policy.split("script-src ", 1)[1].split(";", 1)[0]
     page.wait_for_selector("#snDpiaBody tr")
 
 
@@ -40,6 +43,50 @@ def _shown_date(page, iso):
     return page.evaluate(
         "iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'})",
         iso)
+
+
+def test_a_dpo_reviews_a_suggested_control_before_it_becomes_a_link(login_as, live_app, page):
+    login_as("dpo")
+    title = "Review a control " + uuid.uuid4().hex[:8]
+    category = "unique" + uuid.uuid4().hex[:12]
+    db = database.get_db()
+    try:
+        framework = db.execute("INSERT INTO frameworks (name) VALUES (%s) RETURNING id", (title,)).fetchone()[0]
+        control = db.execute(
+            "INSERT INTO controls (framework_id, ref, name) VALUES (%s,%s,%s) RETURNING id",
+            (framework, "T1", "Personal data handling " + category),
+        ).fetchone()[0]
+        dpia = db.execute(
+            "INSERT INTO sentinel_dpias (ref_number,title,data_categories) VALUES (%s,%s,%s) RETURNING id",
+            ("DPIA-UI-" + uuid.uuid4().hex[:10], title, category),
+        ).fetchone()[0]
+        db.commit()
+    finally:
+        db.close()
+
+    _open_dpia_page(page, live_app)
+    _row(page, title).locator("button[title='Edit']").click()
+    assert page.locator("#snDpiaDrawerWrap [onclick]").count() == 0
+    page.click(".ropa-drawer-tab[data-tab='review']")
+    panel = page.locator("#snDpiaControlSuggestions")
+    panel.get_by_text("Personal data handling " + category).wait_for()
+    assert "unverified" in panel.inner_text().lower()
+    check = database.get_db()
+    try:
+        assert check.execute("SELECT COUNT(*) FROM cross_module_links WHERE source_module='sentinel' "
+                             "AND source_type='dpia' AND source_id=%s AND target_id=%s", (dpia, control)).fetchone()[0] == 0
+    finally:
+        check.close()
+    panel.get_by_role("button", name="Accept link").click()
+    panel.get_by_text("No reviewable control suggestions").wait_for()
+    check = database.get_db()
+    try:
+        row = check.execute("SELECT status, confirmed_by FROM cross_module_links WHERE source_module='sentinel' "
+                            "AND source_type='dpia' AND source_id=%s AND target_module='aria' "
+                            "AND target_type='control' AND target_id=%s", (dpia, control)).fetchone()
+        assert row["status"] == "confirmed" and row["confirmed_by"] is not None
+    finally:
+        check.close()
 
 
 def test_a_privacy_officer_types_a_dpia_saves_it_and_sees_every_field_again(login_as, live_app, page):

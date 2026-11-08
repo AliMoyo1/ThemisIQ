@@ -1,0 +1,3302 @@
+(function(){
+  'use strict';
+  var snStaticActions={
+    s0:function(event){snExportReport()},
+    s1:function(event){event.preventDefault();snShowRopaGaps()},
+    s2:function(event){snLoadDashboard()},
+    s3:function(event){this.closest('#snOnboardBanner').style.display='none';localStorage.setItem('hide_sn_onboard','1')},
+    s4:function(event){this.parentElement.style.opacity=this.checked?.5:1},
+    s5:function(event){event.preventDefault();sentinelRouter.navigate('/sentinel/ropa')},
+    s6:function(event){event.preventDefault();sentinelRouter.navigate('/sentinel/dpia')},
+    s7:function(event){event.preventDefault();sentinelRouter.navigate('/sentinel/vendors')},
+    s8:function(event){snFilterDsr('all',this)},
+    s9:function(event){snFilterDsr('open',this)},
+    s10:function(event){snFilterDsr('in_progress',this)},
+    s11:function(event){snFilterDsr('completed',this)},
+    s12:function(event){snAiScoreAllRopa()},
+    s13:function(event){snOpenRopaDrawer(null)},
+    s14:function(event){snLoadRopa()},
+    s15:function(event){snLoadRopa()},
+    s16:function(event){snSetRopaRisk('',this)},
+    s17:function(event){snSetRopaRisk('critical',this)},
+    s18:function(event){snSetRopaRisk('high',this)},
+    s19:function(event){snSetRopaRisk('medium',this)},
+    s20:function(event){snSetRopaRisk('low',this)},
+    s21:function(event){snOpenDpiaDrawer()},
+    s22:function(event){snFilterDpiaLocal()},
+    s23:function(event){snSetDpiaStatus('',this)},
+    s24:function(event){snSetDpiaStatus('draft',this)},
+    s25:function(event){snSetDpiaStatus('in_progress',this)},
+    s26:function(event){snSetDpiaStatus('completed',this)},
+    s27:function(event){snSetDpiaStatus('approved',this)},
+    s28:function(event){snOpenModal('breach')},
+    s29:function(event){snOpenModal('dsr')},
+    s30:function(event){snFilterDsrView('all',this)},
+    s31:function(event){snFilterDsrView('open',this)},
+    s32:function(event){snFilterDsrView('in_progress',this)},
+    s33:function(event){snFilterDsrView('completed',this)},
+    s34:function(event){snOpenModal('vendor')},
+    s35:function(event){snOpenModal('consent')},
+    s36:function(event){snDownload('/sentinel/api/audit/export')},
+    s37:function(event){snGenerateReport('ropa')},
+    s38:function(event){event.stopPropagation();snGenerateReport('ropa','xlsx')},
+    s39:function(event){snGenerateReport('compliance')},
+    s40:function(event){event.stopPropagation();snGenerateReport('compliance','xlsx')},
+    s41:function(event){snGenerateReport('breach')},
+    s42:function(event){event.stopPropagation();snGenerateReport('breach','xlsx')},
+    s43:function(event){if(event.key==='Enter')snSendChat()},
+    s44:function(event){snSendChat()},
+    s45:function(event){snOpenLiaModal()},
+    s46:function(event){snOpenModal('transfer')},
+    s47:function(event){snOpenModal('retention')},
+    s48:function(event){snOpenModal('security')},
+    s49:function(event){snOpenDraftPolicyModal()},
+    s50:function(event){snOpenModal('policy')},
+    s51:function(event){snOpenGenerateNoticeModal()},
+    s52:function(event){snOpenModal('notice')},
+    s53:function(event){snSetFlowView('diagram',this)},
+    s54:function(event){snSetFlowView('table',this)},
+    s55:function(event){snOpenModal('dataflow',{})},
+    s56:function(event){snOpenModal('controller',{})},
+    s57:function(event){document.getElementById('snTrainingUpload').click()},
+    s58:function(event){snImportTraining(this)},
+    s59:function(event){snOpenModal('training',{})},
+    s60:function(event){snOpenAddJurisdictionModal()},
+  };
+  ['click','change','input','keydown','submit'].forEach(function(kind){
+    document.addEventListener(kind,function(event){
+      var element=event.target instanceof Element?event.target.closest('[data-sn-static-'+kind+']'):null;
+      if(!element)return;
+      var action=snStaticActions[element.getAttribute('data-sn-static-'+kind)];
+      if(action&&action.call(element,event)===false)event.preventDefault();
+    });
+  });
+  document.addEventListener('click',function(event){
+    var subject=event.target instanceof Element?event.target.closest('[data-sn-subject]'):null;
+    if(subject)snAppendSubject('dd_data_subjects',subject.dataset.snSubject);
+  });
+
+  // Generated controls carry inert action names. Only this fixed list of
+  // Sentinel functions can be dispatched; attribute text is never evaluated.
+  var snDynamicActions=new Set((
+    'snAcceptRisk snAiGenerateDpia snAiResearchDpia snAiScoreRopa snAiSuggestRisks '+
+    'snApplyLegalBasis snCloseConfirm snCloseModal snConfirmDelete snCopyDpiaDoc snDeleteRecord '+
+    'snDpiaDrawerTab snDpiaLinkRopa snDpiaRefillFromRopa snDpiaUpdateJurisHint snEditBreach '+
+    'snEditDpia snFilterTraining snOpenAddJurisdictionModal snOpenBreachObligations '+
+    'snOpenRopaDrawer snRopaDrawerTab snSaveDpiaDrawer snSaveJurisdictions snSaveLia '+
+    'snSaveRopaDrawer snSetDpiaStatus snSetRopaRisk snSpawnDpia snSubmitDraftPolicy '+
+    'snSubmitGenerateNotice snSubmitModal snSuggestLegalBasis snToggleChip snViewDpiaDoc '+
+    'snEditConsent snEditController snEditDsr snEditFlow snEditLia snEditNotice snEditPolicy '+
+    'snEditRetention snEditSecurity snEditTraining snEditTransfer snEditVendor snDeleteLia '+
+    'snDeleteTransfer snDeleteRetention snDeleteSecurity snDeletePolicy snDeleteNotice '+
+    'snDeleteFlow snDeleteController snDeleteTraining snShowJurisInfo snSaveJurisdictions'
+  ).trim().split(/\s+/));
+  var snRemovableDialogs=new Set(['snRopaDrawerWrap','snDpiaDrawerWrap','liaModal',
+    'snGenNoticeModal','snDraftPolicyModal','jurisAddModal','jurisEditModal']);
+  function snParseActionArgs(raw,element,event){
+    if(!raw.trim())return [];
+    var parts=raw.match(/'(?:[^'\\]|\\.)*'|[^,]+/g);
+    if(!parts||parts.join(',')!==raw)return null;
+    var args=[];
+    for(var part of parts){
+      part=part.trim();
+      if(/^\d+$/.test(part)){args.push(Number(part));continue;}
+      if(part==='true'||part==='false'){args.push(part==='true');continue;}
+      if(part==='null'){args.push(null);continue;}
+      if(part==='this'){args.push(element);continue;}
+      if(part==='this.value'){args.push(element.value);continue;}
+      if(part==='event'){args.push(event);continue;}
+      if(/^'[a-zA-Z0-9_./ -]*'$/.test(part)){args.push(part.slice(1,-1));continue;}
+      return null;
+    }
+    return args;
+  }
+  function snRunAction(raw,element,event){
+    raw=raw.trim().replace(/^return\s+/, '');
+    var close=/^document\.getElementById\('([a-zA-Z]+)'\)\.remove\(\)$/.exec(raw);
+    if(close&&snRemovableDialogs.has(close[1])){
+      var dialog=document.getElementById(close[1]);if(dialog)dialog.remove();return;
+    }
+    if(raw==='if(event.target===this)this.remove()'){
+      if(event.target===element)element.remove();return;
+    }
+    var overlay=/^if\(event\.target===this\)(snClose(?:Modal|Confirm))\(\)$/.exec(raw);
+    if(overlay){if(event.target===element)window[overlay[1]]();return;}
+    var overlayRemove=/^if\(event\.target===this\)document\.getElementById\('([a-zA-Z]+)'\)\.remove\(\)$/.exec(raw);
+    if(overlayRemove&&snRemovableDialogs.has(overlayRemove[1])){
+      if(event.target===element)document.getElementById(overlayRemove[1])?.remove();return;
+    }
+    if(raw==="if(event.target===this)document.getElementById('snDocViewerRoot').innerHTML=''"){
+      if(event.target===element)document.getElementById('snDocViewerRoot').replaceChildren();return;
+    }
+    if(raw==="document.getElementById('snDocViewerRoot').innerHTML=''"){
+      document.getElementById('snDocViewerRoot').replaceChildren();return;
+    }
+    if(raw==="document.getElementById('snLegalBasisSuggestion').style.display='none'"){
+      document.getElementById('snLegalBasisSuggestion').style.display='none';return;
+    }
+    if(raw==="this.closest('.sn-suggestion-banner').style.display='none'"){
+      element.closest('.sn-suggestion-banner').style.display='none';return;
+    }
+    var route=/^(?:event\.preventDefault\(\);)?sentinelRouter\.navigate\('(\/sentinel\/[a-z-]+)'\)$/.exec(raw);
+    if(route){event.preventDefault();sentinelRouter.navigate(route[1]);return;}
+    if(raw==="sentinelRouter.navigate('/sentinel/dpia');document.getElementById('snRopaDrawerWrap').remove()"){
+      sentinelRouter.navigate('/sentinel/dpia');document.getElementById('snRopaDrawerWrap')?.remove();return;
+    }
+    var riskChip=/^snSetRopaRisk\('high',document\.querySelector\('#snRopaRiskChips \.filter-chip:nth-child\(3\)'\)\)$/.exec(raw);
+    if(riskChip){snSetRopaRisk('high',document.querySelector('#snRopaRiskChips .filter-chip:nth-child(3)'));return;}
+    var statusChip=/^snSetDpiaStatus\('in_progress',document\.querySelector\('#snDpiaStatusChips \.filter-chip:nth-child\(3\)'\)\)$/.exec(raw);
+    if(statusChip){snSetDpiaStatus('in_progress',document.querySelector('#snDpiaStatusChips .filter-chip:nth-child(3)'));return;}
+    var call=/^([a-zA-Z_]\w*)\((.*)\)$/.exec(raw);
+    if(!call||!snDynamicActions.has(call[1]))return;
+    var args=snParseActionArgs(call[2],element,event);
+    if(args===null)return;
+    var fn=window[call[1]];
+    if(typeof fn==='function')fn.apply(element,args);
+  }
+  ['click','change','input','keydown','submit'].forEach(function(kind){
+    document.addEventListener(kind,function(event){
+      var element=event.target instanceof Element?event.target.closest('[data-sn-'+kind+']'):null;
+      if(!element)return;
+      if(kind==='submit')event.preventDefault();
+      snRunAction(element.getAttribute('data-sn-'+kind),element,event);
+    });
+  });
+
+
+  /* ════════════════════════════════════════════════════════════════════════
+     HELPERS
+     ════════════════════════════════════════════════════════════════════════ */
+  function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  /* Country code chip for a jurisdiction (emoji flags are not used). */
+  function snFlag(code){return code?'<span class="flag-chip">'+esc(code)+'</span>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-globe></use></svg>';}
+  function snSafeUrl(value, external){
+    if(typeof value!=='string'||!value)return '';
+    try{
+      var url=new URL(value,window.location.origin);
+      if(url.username||url.password)return '';
+      if(external)return url.protocol==='https:'?url.href:'';
+      return url.origin===window.location.origin?url.pathname+url.search+url.hash:'';
+    }catch(_){return '';}
+  }
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('.sn-transfer-from-flow');
+    if (button) {
+      snOpenModal('transfer', {
+        destination: button.dataset.destination,
+        recipient_name: button.dataset.recipientName
+      });
+      return;
+    }
+    button=event.target.closest('.sn-download-dpia');
+    if (button) { snDownloadDpiaDoc(button.dataset.title); return; }
+    button=event.target.closest('.sn-add-aria-control');
+    if (button) { snAddAriaCtrlToSecurity(button.dataset.control); return; }
+    button=event.target.closest('.sn-filter-training-dept');
+    if (button) { snFilterTraining(button.dataset.department); return; }
+    button=event.target.closest('.sn-edit-jurisdiction');
+    if (button) { snEditJurisdiction(button.dataset.jurisdictionKey); return; }
+    button=event.target.closest('.sn-toggle-jurisdiction');
+    if (button) { snToggleJurisdiction(button.dataset.jurisdictionKey,button); return; }
+    button=event.target.closest('.sn-deactivate-jurisdiction');
+    if (button) { snDeactivateJurisdiction(button.dataset.jurisdictionKey); return; }
+    button=event.target.closest('.sn-save-jurisdiction');
+    if (button) { snSaveJurisdictionConfig(button.dataset.jurisdictionKey); return; }
+    button=event.target.closest('.sn-retention-from-ropa');
+    if (button) snOpenModal('retention',{category:button.dataset.category});
+  });
+  function fmtDate(ts){
+    if(!ts) return '—';
+    var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));
+    if(isNaN(d.getTime()))return 'Invalid date';
+    return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }
+  function timeAgoShort(ts){
+    if(!ts) return '';
+    var d=new Date(ts.includes('T')?ts:ts+'Z');
+    var s=Math.floor((Date.now()-d.getTime())/1000);
+    if(s<60) return 'just now';
+    if(s<3600) return Math.floor(s/60)+' min ago';
+    if(s<86400) return Math.floor(s/3600)+' hr ago';
+    if(s<172800) return 'Yesterday';
+    return Math.floor(s/86400)+' days ago';
+  }
+  function statusBadge(status){
+    var map={open:'badge-high',new:'badge-high',in_progress:'badge-progress',completed:'badge-complete',closed:'badge-complete',resolved:'badge-complete',active:'badge-progress',draft:'badge-medium',archived:'badge-low',approved:'badge-complete',pending:'badge-high',expired:'badge-high',reported:'badge-high',investigating:'badge-progress',contained:'badge-progress',notified:'badge-progress'};
+    var cls=map[(status||'').toLowerCase()]||'badge-medium';
+    var label=(status||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+    return '<span class="badge '+cls+'">'+esc(label)+'</span>';
+  }
+  function riskBadge(level){
+    var map={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};
+    if(!level)return '<span class="badge" style="color:var(--muted)">Not rated</span>';
+    var cls=map[(level||'').toLowerCase()]||'badge-low';
+    return '<span class="badge '+cls+'">'+esc((level||'N/A').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span>';
+  }
+  function actionBtns(editFn, deleteFn){
+    return '<div style="display:flex;gap:4px">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="'+esc(editFn)+'" title="Edit" style="padding:4px 8px">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
+      '</button>'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="'+esc(deleteFn)+'" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
+      '</button>'+
+    '</div>';
+  }
+  function spinner(colspan){return '<tr><td colspan="'+colspan+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
+  function emptyRow(colspan,msg){return '<tr><td colspan="'+colspan+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
+
+  /* ── Regulatory countdown helpers (SENT-15, SENT-16) ── */
+  function breachCountdown(notify_deadline, status, clock){
+    if(status&&(status==='resolved'||status==='closed'||status==='contained'))
+      return '<span class="cd-ok">Resolved</span>';
+    // No trigger or no rule: say so, and never show a running countdown.
+    if(clock&&(clock.state==='no_trigger'||clock.state==='no_rule'))
+      return '<span style="color:var(--muted);font-size:11px" title="'+esc(clock.label).replace(/"/g,'&quot;')+'">Clock not started</span>';
+    if(!notify_deadline) return '<span style="color:var(--muted);font-size:11px">—</span>';
+    var now=new Date();
+    var due=new Date(notify_deadline);
+    var diffH=(due-now)/3600000;
+    if(diffH<0){
+      return '<span class="cd-overdue">Indicative window passed '+Math.abs(Math.floor(diffH))+'h ago</span>';
+    } else if(diffH<=6){
+      var h=Math.floor(diffH),m=Math.floor((diffH-h)*60);
+      return '<span class="cd-crit">Indicative '+h+'h '+m+'m left</span>';
+    } else if(diffH<=24){
+      return '<span class="cd-crit">Indicative '+Math.floor(diffH)+'h remaining</span>';
+    } else {
+      return '<span class="cd-warn">Indicative '+Math.floor(diffH)+'h remaining</span>';
+    }
+  }
+
+  function dsrCountdown(deadline, status){
+    if(status&&(status==='completed'||status==='closed'))
+      return '<span class="cd-ok">Closed</span>';
+    if(!deadline) return '<span style="color:var(--muted);font-size:11px">—</span>';
+    var now=new Date(); now.setHours(0,0,0,0);
+    var due=new Date(deadline.substring(0,10)+'T00:00:00');
+    var days=Math.round((due-now)/86400000);
+    if(days<0){
+      return '<span class="cd-overdue">OVERDUE '+Math.abs(days)+'d</span>';
+    } else if(days<=3){
+      return '<span class="cd-crit">'+days+'d remaining</span>';
+    } else if(days<=7){
+      return '<span class="cd-warn">'+days+'d remaining</span>';
+    } else {
+      return '<span class="cd-ok">'+days+'d</span>';
+    }
+  }
+
+  async function apiFetch(url,opts){
+    // PLAN-36 T06 (findings.md F08, this module named explicitly): was
+    // discarding the server's real error detail entirely (always threw a
+    // constant 'API error <status>'); delegates to the shared ApiClient now.
+    opts=opts||{};
+    return ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SPA ROUTER (follows GRID pattern)
+     ════════════════════════════════════════════════════════════════════════ */
+  var routes={
+    '/sentinel/':'dashboard', '/sentinel':'dashboard',
+    '/sentinel/ropa':'ropa',
+    '/sentinel/dpia':'dpia',
+    '/sentinel/breaches':'breaches',
+    '/sentinel/dsr':'dsr',
+    '/sentinel/vendors':'vendors',
+    '/sentinel/consent':'consent',
+    '/sentinel/reports':'reports',
+    '/sentinel/chat':'chat',
+    '/sentinel/lia':'lia',
+    '/sentinel/transfers':'transfers',
+    '/sentinel/retention':'retention',
+    '/sentinel/security':'security',
+    '/sentinel/policies':'policies',
+    '/sentinel/notices':'notices',
+    '/sentinel/dataflows':'dataflows',
+    '/sentinel/controllers':'controllers',
+    '/sentinel/training':'training',
+    '/sentinel/jurisdictions':'jurisdictions'
+  };
+
+  var breadcrumbNames={
+    dashboard:'Dashboard', ropa:'RoPA Records', dpia:'DPIA Assessments',
+    breaches:'Data Breaches', dsr:'Subject Requests', vendors:'Vendor Management',
+    consent:'Consent Management', reports:'Reports', chat:'Ask Sentinel AI',
+    lia:'Legitimate Interest Assessments',
+    transfers:'International Transfers', retention:'Retention Schedules',
+    security:'Security Measures', policies:'Privacy Policies',
+    notices:'Privacy Notices', dataflows:'Data Flows',
+    controllers:'Controllers', training:'Training Records',
+    jurisdictions:'Jurisdiction Manager'
+  };
+
+  var sentinelRouter={
+    current:null,
+    navigate:function(path,replace){
+      if(replace) history.replaceState(null,'',path);
+      else history.pushState(null,'',path);
+      this.resolve();
+    },
+    resolve:function(){
+      var path=location.pathname.replace(/\/$/,'') || '/sentinel';
+      var view=routes[path]||'dashboard';
+      if(view===this.current) return;
+      this.current=view;
+
+      // Toggle active spa-view
+      document.querySelectorAll('.spa-view').forEach(function(v){v.classList.remove('active');});
+      var el=document.getElementById('view-'+view);
+      if(el) el.classList.add('active');
+
+      // Update breadcrumb
+      var bc=document.getElementById('snBreadcrumb');
+      if(bc) bc.textContent=breadcrumbNames[view]||'Dashboard';
+
+      // Update sidebar active
+      document.querySelectorAll('[data-spa]').forEach(function(a){
+        a.classList.remove('active');
+        var target=a.getAttribute('data-spa').replace(/\/$/,'') || '/sentinel';
+        if(target===path || (target==='/sentinel/' && path==='/sentinel'))
+          a.classList.add('active');
+      });
+
+      // Load view data
+      this.load(view);
+    },
+    load:function(view){
+      switch(view){
+        case 'dashboard': loadDashboard(); break;
+        case 'ropa': snLoadRopa(); break;
+        case 'dpia': snLoadDpia(); break;
+        case 'breaches': snLoadBreaches(); break;
+        case 'dsr': snLoadDsrView(); break;
+        case 'vendors': snLoadVendors(); break;
+        case 'consent': snLoadConsent(); break;
+        case 'reports': snLoadReports(); break;
+        case 'chat': /* chat is always ready */ break;
+        case 'lia': snLoadLia(); break;
+        case 'transfers': snLoadTransfers(); break;
+        case 'retention': snLoadRetention(); break;
+        case 'security': snLoadSecurity(); break;
+        case 'policies': snLoadPolicies(); break;
+        case 'notices': snLoadNotices(); break;
+        case 'dataflows': snLoadDataflows(); break;
+        case 'controllers': snLoadControllers(); break;
+        case 'training': snLoadTraining(); break;
+        case 'jurisdictions': snLoadJurisdictions(); break;
+      }
+    }
+  };
+
+  // Intercept sidebar clicks via data-spa
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('[data-spa]');
+    if(a){e.preventDefault();sentinelRouter.navigate(a.getAttribute('data-spa'));}
+  });
+  window.addEventListener('popstate',function(){sentinelRouter.resolve();});
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DASHBOARD
+     ════════════════════════════════════════════════════════════════════════ */
+  // A figure is shown only when it was measured. When it could not be read, or there is nothing to measure, the card shows
+  // a dash and says which: never a zero or a sample in its place.
+  var snFailed=false;
+  function mHas(m){return !!m&&(m.state==='measured'||m.state==='partial'||m.state==='stale')&&m.value!==null&&m.value!==undefined;}
+  function mWords(m){
+    if(!m) return snFailed?'Unavailable just now. This is not a count of zero.':'Not available to you.';
+    if(m.state==='unavailable') return 'Unavailable just now. This is not a count of zero.';
+    if(m.state==='not_measured') return 'Not measured. '+(m.note||'');
+    if(m.state==='partial') return 'Partial: '+((m.sources&&m.sources.missing)||['a source']).join(', ')+' could not be read.';
+    return '';
+  }
+  var allDsrItems=[];
+
+  function populateStats(mt){
+    var ropa=mt['sentinel.ropa_records'],cov=mt['sentinel.ropa_coverage'],dpia=mt['sentinel.dpia_active'],dsr=mt['sentinel.dsr_open'],br=mt['sentinel.breaches_active'];
+    var set=function(id,text){var el=document.getElementById(id);if(el)el.textContent=text;};
+    set('snRopaCount',mHas(ropa)?ropa.value:'n/a');
+    var pct=mHas(cov)?cov.value:0;
+    set('snRopaSub',mHas(cov)?pct+'% of business processes have a processing record ('+cov.detail.covered+' of '+cov.detail.total+')':'Coverage: '+mWords(cov));
+    document.getElementById('snRopaBar').style.width=pct+'%';
+    set('snDpiaCount',mHas(dpia)?dpia.value:'n/a');
+    set('snDpiaSub',mHas(dpia)?dpia.detail.total+' total assessments':mWords(dpia));
+    set('snDsrCount',mHas(dsr)?dsr.value:'n/a');
+    var trendEl=document.getElementById('snDsrTrend');
+    if(trendEl) trendEl.querySelector('span').textContent=mHas(dsr)?dsr.detail.total+' requests in total':mWords(dsr);
+    var bc=mHas(br)?br.value:0;
+    set('snBreachCount',mHas(br)?bc:'n/a');
+    var card=document.getElementById('snBreachCard');
+    if(mHas(br)&&bc>0){card.classList.add('stat-card-alert');set('snBreachSub','Requires immediate attention');}
+    else{card.classList.remove('stat-card-alert');set('snBreachSub',mHas(br)?'No active incidents':mWords(br));}
+    // Sidebar counts
+    var nr=document.getElementById('sideNavRopa');if(nr)nr.textContent=mHas(ropa)?ropa.value:'';
+    var nd=document.getElementById('sideNavDpia');if(nd)nd.textContent=mHas(dpia)?dpia.detail.total:'';
+    var ns=document.getElementById('sideNavDsr');if(ns)ns.textContent=mHas(dsr)?dsr.value:'';
+    var nb=document.getElementById('sideNavBreaches');if(nb){if(mHas(br)&&bc>0){nb.textContent=bc;nb.style.display='inline-block';}else{nb.style.display='none';}}
+    // Onboarding banner: only when everything it rests on was read and is zero
+    var ob=document.getElementById('snOnboardBanner');
+    if(ob&&!localStorage.getItem('hide_sn_onboard')){
+      ob.style.display=(mHas(ropa)&&ropa.value===0&&mHas(dpia)&&dpia.detail.total===0&&mHas(dsr)&&dsr.detail.total===0)?'':'none';
+    }
+    // Quick-add link on zero-count hero card
+    var qa=document.getElementById('snRopaCount');
+    if(qa&&mHas(ropa)&&ropa.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-sn-click="event.preventDefault();sentinelRouter.navigate(\'/sentinel/ropa\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first record</a>');}
+    // The processes behind the coverage figure
+    var gap=document.getElementById('snRopaGapLink');
+    if(gap) gap.style.display=(mHas(cov)&&cov.detail.total>cov.detail.covered)?'':'none';
+  }
+  window.snShowRopaGaps=async function(){
+    var el=document.getElementById('snRopaGapList');
+    if(!el) return;
+    try{
+      var r=await apiFetch('/sentinel/api/ropa/coverage-gaps');
+      var items=(r&&r.items)||[];
+      el.innerHTML=items.length
+        ? '<ul style="margin:0;padding-left:18px">'+items.map(function(i){var url=snSafeUrl(i.url,false);return '<li>'+(url?'<a style="color:inherit" href="'+esc(url)+'">'+esc(i.name)+'</a>':esc(i.name))+'</li>';}).join('')+'</ul>'
+        : 'Every business process you may open has a processing record.';
+      el.style.display='';
+    }catch(e){ el.textContent='The list could not be read just now.'; el.style.display=''; }
+  };
+
+  function populateDsrStatus(m){
+    var el=document.getElementById('snDsrStatus');
+    if(!mHas(m)){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+esc(mWords(m))+'</div>';return;}
+    var dsr=m.detail;
+    var rows=[{label:'Open',count:dsr.open||0,color:'var(--amber)'},{label:'In Progress',count:dsr.in_progress||0,color:'var(--blue)'},{label:'Completed',count:dsr.completed||0,color:'var(--green-status)'}];
+    el.innerHTML=rows.map(function(r){return '<div class="sn-status-row"><div class="sn-status-dot" style="background:'+r.color+'"></div><div class="sn-status-label">'+r.label+'</div><div class="sn-status-val">'+r.count+'</div></div>';}).join('')+
+    '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted);font-weight:600">Total Requests</span><span style="font-family:var(--mono);font-weight:700;color:var(--text)">'+dsr.total+'</span></div>';
+  }
+  function populateRiskDonut(m){
+    var known=mHas(m);
+    var dpia=known?m.detail:{};
+    var counts=[Math.max(0,dpia.high||0),Math.max(0,dpia.medium||0),Math.max(0,dpia.low||0)];
+    var unrated=Math.max(0,dpia.unrated||0);
+    var total=counts.reduce(function(sum,n){return sum+n;},0)+unrated;
+    var circ=2*Math.PI*42;
+    document.getElementById('snRiskTotal').textContent=known?total:'\u2014';
+    document.getElementById('snRiskHighVal').textContent=known?counts[0]:'\u2014';
+    document.getElementById('snRiskMedVal').textContent=known?counts[1]:'\u2014';
+    document.getElementById('snRiskLowVal').textContent=known?counts[2]:'\u2014';
+    document.getElementById('snRiskUnratedVal').textContent=known?unrated:'\u2014';
+    function paint(){
+      var angle=-90;
+      ['snRiskHigh','snRiskMed','snRiskLow'].forEach(function(id,i){
+        var arc=document.getElementById(id);
+        arc.querySelector('title').textContent=['High risk: ','Medium risk: ','Low risk: '][i]+counts[i]+' DPIAs';
+        var fraction=total?counts[i]/total:0;
+        arc.style.visibility=counts[i]?'visible':'hidden';
+        arc.setAttribute('transform','rotate('+angle+' 55 55)');
+        arc.setAttribute('stroke-dashoffset',String(circ*(1-fraction)));
+        angle+=fraction*360;
+      });
+    }
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)paint();
+    else requestAnimationFrame(function(){requestAnimationFrame(paint);});
+  }
+  function populateActivity(items){
+    var el=document.getElementById('snRecentActivity');
+    if(items===null||items===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(snFailed?'Not read just now':'The activity could not be read just now')+'</div>';return;}
+    if(!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
+    el.innerHTML=items.map(function(a,i){
+      var isLast=i===items.length-1;
+      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
+    }).join('');
+  }
+  function renderDashDsrTable(items){
+    var body=document.getElementById('snDsrBody');
+    if(items===null||items===undefined){body.innerHTML=emptyRow(5,snFailed?'The requests could not be read just now. This is not an empty list.':'Not available to you');return;}
+    if(!items.length){body.innerHTML=emptyRow(5,'No data subject requests found');return;}
+    body.innerHTML=items.slice(0,10).map(function(d){
+      var statusCls={open:'badge-high',new:'badge-high',in_progress:'badge-progress',completed:'badge-complete',closed:'badge-complete'}[d.status]||'badge-medium';
+      var sl=(d.status||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+      return '<tr style="cursor:pointer" data-sn-click="sentinelRouter.navigate(\'/sentinel/dsr\')"><td><span class="item-id">'+esc(String(d.id||''))+'</span></td><td>'+esc(d.type||'')+'</td><td><span class="badge '+statusCls+'">'+esc(sl)+'</span></td><td>'+fmtDate(d.submitted)+'</td><td>'+fmtDate(d.due)+'</td></tr>';
+    }).join('');
+  }
+  window.snFilterDsr=function(status,chip){
+    document.querySelectorAll('#snDsrFilters .filter-chip').forEach(function(c){c.classList.remove('active');});
+    chip.classList.add('active');
+    var list=allDsrItems||[];
+    renderDashDsrTable(status==='all'?list:list.filter(function(d){return status==='open'?(d.status==='open'||d.status==='new'):status==='completed'?(d.status==='completed'||d.status==='closed'):d.status===status;}));
+  };
+  window.snExportReport=function(){window.open('/sentinel/api/audit-export','_blank');};
+
+  async function loadDashboard(){
+    var data=null;
+    snFailed=false;
+    try{var resp=await fetch('/sentinel/api/dashboard');if(resp.ok) data=await resp.json();}catch(e){}
+    var banner=document.getElementById('snUnavailable');
+    if(!data||!data.metrics){
+      snFailed=true;
+      if(banner) banner.style.display='flex';
+      populateStats({});
+      populateDsrStatus(null);
+      populateRiskDonut(null);
+      populateActivity(null);
+      allDsrItems=null;
+      renderDashDsrTable(null);
+      document.getElementById('snLastUpdated').textContent='not read';
+    } else {
+      if(banner) banner.style.display='none';
+      var mt=data.metrics;
+      populateStats(mt);
+      populateDsrStatus(mt['sentinel.dsr_open']);
+      populateRiskDonut(mt['sentinel.dpia_active']);
+      populateActivity(data.activity===null||data.activity===undefined?null:data.activity.map(function(a){return{text:a.text,created_at:a.created_at};}));
+      allDsrItems=data.dsr_items;
+      renderDashDsrTable(allDsrItems);
+      document.getElementById('snLastUpdated').textContent='just now';
+    }
+
+    // ── Regulatory Alert Banners ──────────────────────────────────────────
+    // Legacy indicative window: each approved obligation has its own clock.
+    try{
+      var bdata=await apiFetch('/sentinel/api/breaches?status=open');
+      var blist=Array.isArray(bdata)?bdata:bdata.records||bdata.items||[];
+      var urgent=blist.filter(function(b){
+        if(!b.notify_deadline||b.status==='resolved'||b.status==='closed') return false;
+        var h=(new Date(b.notify_deadline)-new Date())/3600000;
+        return h>=0&&h<=48;
+      });
+      var alertEl=document.getElementById('snBreachAlert');
+      if(alertEl&&urgent.length>0){
+        alertEl.classList.add('visible');
+        var minH=Math.min.apply(null,urgent.map(function(b){return (new Date(b.notify_deadline)-new Date())/3600000;}));
+        document.getElementById('snBreachAlertTitle').textContent=urgent.length+' breach'+(urgent.length>1?'es have':' has')+' an indicative window within 48h';
+        document.getElementById('snBreachAlertBody').textContent='Indicative legacy window: '+Math.floor(minH)+'h remaining. Open the breach obligations to confirm each jurisdiction, trigger and approved rule.';
+      }
+    }catch(e){}
+    // DSR 30d banner: check overdue or <3 days
+    try{
+      var ddata=await apiFetch('/sentinel/api/dsrs');
+      var dlist=Array.isArray(ddata)?ddata:ddata.records||ddata.items||[];
+      var urgentDsr=dlist.filter(function(d){
+        if(!d.deadline_date||d.status==='completed'||d.status==='closed') return false;
+        var now=new Date();now.setHours(0,0,0,0);
+        var days=Math.round((new Date(d.deadline_date.substring(0,10)+'T00:00:00')-now)/86400000);
+        return days<=3;
+      });
+      var dsrAlertEl=document.getElementById('snDsrAlert');
+      if(dsrAlertEl&&urgentDsr.length>0){
+        var overdue=urgentDsr.filter(function(d){var now=new Date();now.setHours(0,0,0,0);return new Date(d.deadline_date.substring(0,10)+'T00:00:00')<now;});
+        dsrAlertEl.classList.add('visible');
+        document.getElementById('snDsrAlertTitle').textContent=(overdue.length?overdue.length+' overdue DSR'+(overdue.length>1?'s':'')+', ':'')+urgentDsr.length+' request'+(urgentDsr.length>1?'s':'')+' due within 3 days';
+        document.getElementById('snDsrAlertBody').textContent='Response rules vary by jurisdiction and request type. Review the recorded target and its legal basis on each DSR before responding.';
+      }
+    }catch(e){}
+  }
+
+  window.snLoadDashboard=loadDashboard;
+
+  /* ════════════════════════════════════════════════════════════════════════
+     ROPA — Smart loader, risk filter, DPIA column, AI actions
+     ════════════════════════════════════════════════════════════════════════ */
+  var ropaCache=[];var ropaRiskFilter='';
+
+  window.snSetRopaRisk=function(risk,chip){
+    ropaRiskFilter=risk;
+    document.querySelectorAll('#snRopaRiskChips .filter-chip').forEach(function(c){c.classList.remove('active');});
+    chip.classList.add('active');
+    var filtered=risk?ropaCache.filter(function(r){return(r.risk_level||'low')===risk;}):ropaCache;
+    snRenderRopaRows(filtered);
+  };
+
+  window.snLoadRopa=async function(){
+    var body=document.getElementById('snRopaBody');
+    body.innerHTML=spinner(7);
+    try{
+      var q=document.getElementById('snRopaSearch')?document.getElementById('snRopaSearch').value:'';
+      var st=document.getElementById('snRopaStatus')?document.getElementById('snRopaStatus').value:'';
+      var url='/sentinel/api/ropa';var params=[];
+      if(q)params.push('q='+encodeURIComponent(q));
+      if(st)params.push('status='+encodeURIComponent(st));
+      if(params.length)url+='?'+params.join('&');
+      var data=await apiFetch(url);
+      var items=data.records||data.items||data||[];
+      ropaCache=items;
+      // Stats
+      var today=new Date();today.setHours(0,0,0,0);
+      var high=items.filter(function(r){return r.risk_level==='high'||r.risk_level==='critical';}).length;
+      var dpiaGap=items.filter(function(r){return (r.dpia_required||r.risk_level==='high'||r.risk_level==='critical')&&!r.dpia_id;}).length;
+      var overdue=items.filter(function(r){return r.review_date&&new Date(r.review_date)<now;}).length;
+      snPopulateTabStats('snRopaStats',[
+        {label:'Total Activities',value:items.length,sub:'processing records'},
+        {label:'High / Critical Risk',value:high,sub:'require attention',color:high>0?'var(--red)':null},
+        {label:'DPIA Gap',value:dpiaGap,sub:'high-risk, no DPIA',color:dpiaGap>0?'var(--amber)':null},
+        {label:'Overdue Reviews',value:overdue,sub:'past review date',color:overdue>0?'var(--red)':null}
+      ]);
+      // Gap banner
+      var banner=document.getElementById('snRopaGapBanner');
+      if(banner&&dpiaGap>0){
+        banner.style.display='flex';
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+dpiaGap+' high-risk activit'+(dpiaGap>1?'ies have':'y has')+' no DPIA.</strong>'+
+          '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" data-sn-click="snSetRopaRisk(\'high\',document.querySelector(\'#snRopaRiskChips .filter-chip:nth-child(3)\'))">Show high-risk →</button>';
+      }else if(banner){banner.style.display='none';}
+      var filtered=ropaRiskFilter?items.filter(function(r){return(r.risk_level||'low')===ropaRiskFilter;}):items;
+      snRenderRopaRows(filtered);
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load records');}
+  };
+
+  function snDpiaStatusCell(r){
+    if(r.dpia_id) return '<span class="dpia-badge-linked" data-sn-click="sentinelRouter.navigate(\'/sentinel/dpia\')" title="DPIA linked — click to view">✓ DPIA →</span>';
+    if(r.dpia_required||r.risk_level==='high'||r.risk_level==='critical') return '<span class="dpia-badge-required"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Required</span>';
+    return '<span style="color:var(--muted);font-size:11px">—</span>';
+  }
+
+  function snRopaRowActions(r){
+    return '<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snOpenRopaDrawer('+r.id+')" title="Edit" style="padding:4px 8px">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
+      '</button>'+
+      '<button class="btn-ai" data-sn-click="snAiScoreRopa('+r.id+',this)" title="AI: score risk level"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>'+
+      (!r.dpia_id?'<button class="btn-spawn" data-sn-click="snSpawnDpia('+r.id+')" title="Create DPIA from this record"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> DPIA</button>':'')+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snDeleteRecord(\'ropa\','+r.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
+      '</button>'+
+    '</div>';
+  }
+
+  function snRenderRopaRows(items){
+    var body=document.getElementById('snRopaBody');
+    if(!items.length){body.innerHTML=emptyRow(7,'No processing activities found');return;}
+    body.innerHTML=items.map(function(r){
+      return '<tr>'+
+        '<td><strong>'+esc(r.processing_name||r.name||'')+'</strong>'+(r.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(r.ref_number)+'</span>':'')+'</td>'+
+        '<td>'+esc(r.department||'—')+'</td>'+
+        '<td><span style="font-size:12px">'+esc(r.legal_basis||'—')+'</span></td>'+
+        '<td>'+riskBadge(r.risk_level)+'</td>'+
+        '<td>'+snDpiaStatusCell(r)+'</td>'+
+        '<td>'+statusBadge(r.status)+'</td>'+
+        '<td>'+snRopaRowActions(r)+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  window.snEditRopa=function(id){snOpenRopaDrawer(id);};
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DPIA — Smart loader, status filter, residual risk, DPO column, AI actions
+     ════════════════════════════════════════════════════════════════════════ */
+  var dpiaCache=[];var dpiaStatusFilter='';
+
+  window.snSetDpiaStatus=function(status,chip){
+    dpiaStatusFilter=status;
+    document.querySelectorAll('#snDpiaStatusChips .filter-chip').forEach(function(c){c.classList.remove('active');});
+    chip.classList.add('active');
+    snRenderDpiaRows(status?dpiaCache.filter(function(d){return d.status===status;}):dpiaCache);
+  };
+
+  window.snFilterDpiaLocal=function(){
+    var q=(document.getElementById('snDpiaSearch').value||'').toLowerCase();
+    var filtered=dpiaCache.filter(function(d){
+      return !q||((d.title||'')+(d.ropa_name||'')+(d.activity_type||'')).toLowerCase().indexOf(q)!==-1;
+    });
+    if(dpiaStatusFilter)filtered=filtered.filter(function(d){return d.status===dpiaStatusFilter;});
+    snRenderDpiaRows(filtered);
+  };
+
+  window.snLoadDpia=async function(){
+    var body=document.getElementById('snDpiaBody');
+    body.innerHTML=spinner(8);
+    try{
+      var data=await apiFetch('/sentinel/api/dpias');
+      var items=data.records||data.items||data||[];
+      dpiaCache=items;
+      var today=new Date();today.setHours(0,0,0,0);  // overdue means before today, as for subject requests
+      var inProg=items.filter(function(d){return d.status==='in_progress';}).length;
+      var done=items.filter(function(d){return d.status==='completed'||d.status==='approved';}).length;
+      var highRisk=items.filter(function(d){return d.overall_risk==='high';}).length;
+      var overdue=items.filter(function(d){
+        return d.due_date&&new Date(String(d.due_date).substring(0,10)+'T00:00:00')<today&&d.status!=='completed'&&d.status!=='approved';
+      }).length;
+      snPopulateTabStats('snDpiaStats',[
+        {label:'Total DPIAs',value:items.length,sub:'assessments'},
+        {label:'In Progress',value:inProg,sub:'active assessments',color:inProg>0?'var(--accent)':null},
+        {label:'Completed',value:done,sub:'approved / closed',color:done>0?'var(--good)':null},
+        {label:'Overdue',value:overdue,sub:'past due date',color:overdue>0?'var(--red)':null}
+      ]);
+      var banner=document.getElementById('snDpiaOverdueBanner');
+      if(banner&&overdue>0){
+        banner.style.display='flex';
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+overdue+' DPIA'+(overdue>1?'s are':' is')+' past their due date.</strong>'+
+          '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" data-sn-click="snSetDpiaStatus(\'in_progress\',document.querySelector(\'#snDpiaStatusChips .filter-chip:nth-child(3)\'))">Show in-progress →</button>';
+      }else if(banner){banner.style.display='none';}
+      snRenderDpiaRows(dpiaStatusFilter?items.filter(function(d){return d.status===dpiaStatusFilter;}):items);
+    }catch(e){body.innerHTML=emptyRow(8,'Failed to load DPIAs');}
+  };
+
+  function snDpiaRowActions(d){
+    var hasDoc=!!(d.ai_full_dpia||d.ai_research);
+    return '<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snEditDpia('+d.id+')" title="Edit" style="padding:4px 8px">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
+      '</button>'+
+      '<button class="btn-ai" data-sn-click="snAiResearchDpia('+d.id+',this)" title="AI: generate research report"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-microscope></use></svg></button>'+
+      '<button class="btn-ai" data-sn-click="snAiGenerateDpia('+d.id+',this)" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></button>'+
+      (hasDoc?'<button class="btn-ai" data-sn-click="snViewDpiaDoc('+d.id+')" title="View generated document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg></button>':'')+
+      '<a class="btn btn-sm btn-secondary" href="/sentinel/api/dpias/'+d.id+'/document" title="Download this assessment as a PDF" aria-label="Download PDF of '+esc(d.title||'this assessment')+'" style="padding:4px 8px;font-size:11px">PDF</a>'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snDeleteRecord(\'dpia\','+d.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
+      '</button>'+
+    '</div>';
+  }
+
+  function snRenderDpiaRows(items){
+    var body=document.getElementById('snDpiaBody');
+    if(!items.length){body.innerHTML=emptyRow(8,'No DPIAs found');return;}
+    body.innerHTML=items.map(function(d){
+      var residual=d.residual_risk?riskBadge(d.residual_risk):'<span style="color:var(--muted);font-size:11px">—</span>';
+      var dpoCell=Number(d.dpo_consulted)?'<span style="color:var(--good);font-size:12px;font-weight:700">✓</span>':'<span style="color:var(--muted);font-size:11px">—</span>';
+      return '<tr>'+
+        '<td><strong>'+esc(d.title||d.name||'')+'</strong>'+(d.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(d.ref_number)+'</span>':'')+'</td>'+
+        '<td>'+(d.ropa_ref?'<span class="item-id" style="cursor:pointer" data-sn-click="sentinelRouter.navigate(\'/sentinel/ropa\')" title="'+esc(d.ropa_name||'')+'">'+esc(d.ropa_ref)+'</span>':'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'+
+        '<td>'+riskBadge(d.overall_risk)+'</td>'+
+        '<td>'+residual+'</td>'+
+        '<td>'+dpoCell+'</td>'+
+        '<td>'+statusBadge(d.status)+'</td>'+
+        '<td>'+fmtDate(d.due_date||d.review_date)+'</td>'+
+        '<td>'+snDpiaRowActions(d)+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  window.snEditDpia=function(id){
+    snOpenDpiaDrawer(id);
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     ROPA / DPIA SMART ACTIONS
+     ════════════════════════════════════════════════════════════════════════ */
+
+  // Spawn DPIA from a RoPA record (uses existing backend endpoint)
+  window.snSpawnDpia=async function(ropaId){
+    if(!confirm('Create a new DPIA pre-filled from this processing activity?'))return;
+    if(typeof showToast==='function')showToast('Creating DPIA...');
+    try{
+      var r=await apiFetch('/sentinel/api/ropa/'+ropaId+'/spawn-dpia',{method:'POST'});
+      if(typeof showToast==='function')showToast('DPIA created and prefilled');
+      await snLoadRopa();
+      if(r&&r.dpia_id){
+        dpiaCache=dpiaCache||[];
+        if(r.dpia)dpiaCache.push(r.dpia);
+        sentinelRouter.navigate('/sentinel/dpia');
+        snOpenDpiaDrawer(r.dpia_id);
+      }else{
+        sentinelRouter.navigate('/sentinel/dpia');
+      }
+    }catch(e){
+      var msg=(e.message||'error');
+      if(msg.indexOf('409')!==-1||msg.toLowerCase().indexOf('already')!==-1){
+        if(typeof showToast==='function')showToast('This activity already has a linked DPIA — click the chip to open it','warn');
+        await snLoadRopa();
+      }else{
+        if(typeof showToast==='function')showToast('Failed: '+msg,'error');
+      }
+    }
+  };
+
+  // AI score a single RoPA
+  window.snDpiaLinkRopa=async function(dpiaId,ropaId){
+    if(!ropaId)return;
+    try{
+      var r=await apiFetch('/sentinel/api/dpias/'+dpiaId+'/link-ropa',{method:'POST',body:{ropa_id:parseInt(ropaId)}});
+      if(typeof showToast==='function')showToast('RoPA linked and empty fields backfilled');
+      var updated=r&&r.dpia;
+      if(updated){
+        var idx=dpiaCache.findIndex(function(d){return d.id===dpiaId;});
+        if(idx>=0)dpiaCache[idx]=updated;
+        else dpiaCache.push(updated);
+      }
+      document.getElementById('snDpiaDrawerWrap')&&document.getElementById('snDpiaDrawerWrap').remove();
+      await snLoadRopa();
+      await snLoadDpia();
+      snOpenDpiaDrawer(dpiaId);
+    }catch(e){
+      var msg=(e.message||'error');
+      if(msg.indexOf('409')!==-1||msg.toLowerCase().indexOf('already')!==-1){
+        if(typeof showToast==='function')showToast('That RoPA is already linked to a different DPIA','warn');
+      }else{
+        if(typeof showToast==='function')showToast('Link failed: '+msg,'error');
+      }
+    }
+  };
+
+  window.snDpiaRefillFromRopa=async function(dpiaId,ropaId){
+    if(!ropaId)return;
+    try{
+      var r=await apiFetch('/sentinel/api/dpias/'+dpiaId+'/link-ropa',{method:'POST',body:{ropa_id:ropaId}});
+      if(typeof showToast==='function')showToast('Empty fields refilled from RoPA');
+      var updated=r&&r.dpia;
+      if(updated){
+        var idx=dpiaCache.findIndex(function(d){return d.id===dpiaId;});
+        if(idx>=0)dpiaCache[idx]=updated;
+        else dpiaCache.push(updated);
+      }
+      document.getElementById('snDpiaDrawerWrap')&&document.getElementById('snDpiaDrawerWrap').remove();
+      snOpenDpiaDrawer(dpiaId);
+    }catch(e){
+      if(typeof showToast==='function')showToast('Refill failed: '+(e.message||'error'),'error');
+    }
+  };
+
+  window.snAiScoreRopa=async function(ropaId,btn){
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
+    try{
+      var r=await apiFetch('/sentinel/api/ai/score-ropa/'+ropaId,{method:'POST'});
+      var item=ropaCache.find(function(x){return x.id===ropaId;});
+      if(item&&r.risk_level)item.risk_level=r.risk_level;
+      if(item&&r.ai_risk_notes)item.ai_risk_notes=r.ai_risk_notes;
+      if(typeof showToast==='function')showToast('Risk scored: '+(r.risk_level||'updated'));
+      snLoadRopa();
+    }catch(e){
+      btn.innerHTML=orig;btn.disabled=false;
+      if(typeof showToast==='function')showToast('AI scoring failed','error');
+    }
+  };
+
+  // AI score all unscored RoPAs
+  window.snAiScoreAllRopa=async function(){
+    var unscored=ropaCache.filter(function(r){return !r.ai_risk_notes;});
+    if(!unscored.length){if(typeof showToast==='function')showToast('All activities already scored');return;}
+    if(!confirm('AI score '+unscored.length+' unscored activit'+(unscored.length>1?'ies':'y')+'? This may take a moment.'))return;
+    if(typeof showToast==='function')showToast('Scoring '+unscored.length+' activities...');
+    for(var i=0;i<unscored.length;i++){
+      try{await apiFetch('/sentinel/api/ai/score-ropa/'+unscored[i].id,{method:'POST'});}catch(e){}
+    }
+    snLoadRopa();
+    if(typeof showToast==='function')showToast('AI scoring complete');
+  };
+
+  // AI research for a DPIA
+  window.snAiResearchDpia=async function(dpiaId,btn){
+    var item=dpiaCache.find(function(d){return d.id===dpiaId;});if(!item)return;
+    var guidance=null;
+    if(window.openAiGuidanceDialog){
+      guidance=await window.openAiGuidanceDialog({
+        title:'Guide the DPIA Research',
+        placeholder:'e.g. Focus on cross-border transfer risk, reference our existing vendor contracts...'
+      });
+    }
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
+    try{
+      var r=await apiFetch('/sentinel/api/ai/research',{method:'POST',body:{
+        activity_type:item.activity_type||item.title||'',
+        regulation:item.regulation||'GDPR',
+        context:(item.description||item.purpose||'').substring(0,500),
+        custom_instructions:guidance||''
+      }});
+      var text=r.research||r.text||'';
+      await apiFetch('/sentinel/api/dpias/'+dpiaId,{method:'PUT',body:{ai_research:text}});
+      item.ai_research=text;
+      snViewDpiaDoc(dpiaId,'AI Research Report');
+      snLoadDpia();
+    }catch(e){
+      btn.innerHTML=orig;btn.disabled=false;
+      if(typeof showToast==='function')showToast('Research failed','error');
+    }
+  };
+
+  // AI generate full DPIA document
+  window.snAiGenerateDpia=async function(dpiaId,btn){
+    if(!confirm('Generate a full DPIA document with AI? Uses all current assessment data.'))return;
+    var guidance=null;
+    if(window.openAiGuidanceDialog){
+      guidance=await window.openAiGuidanceDialog({
+        title:'Guide the Full DPIA Generation',
+        placeholder:'e.g. Emphasise data minimisation measures, keep the risk section concise...'
+      });
+    }
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
+    try{
+      var r=await apiFetch('/sentinel/api/ai/generate/'+dpiaId,{method:'POST',body:{custom_instructions:guidance||''}});
+      var text=r.content||r.dpia||r.text||'';
+      var item=dpiaCache.find(function(d){return d.id===dpiaId;});
+      if(item)item.ai_full_dpia=text;
+      if(typeof showToast==='function')showToast('DPIA document generated');
+      snViewDpiaDoc(dpiaId,'Full DPIA Document');
+      snLoadDpia();
+    }catch(e){
+      btn.innerHTML=orig;btn.disabled=false;
+      if(typeof showToast==='function')showToast('Generation failed','error');
+    }
+  };
+
+  // Document viewer slide-out panel
+  window.snViewDpiaDoc=function(dpiaId,titleOverride){
+    var item=dpiaCache.find(function(d){return d.id===dpiaId;});if(!item)return;
+    var content=item.ai_full_dpia||item.ai_research||'No document generated yet.';
+    var title=titleOverride||(item.ai_full_dpia?'Full DPIA Document':'AI Research Report');
+    document.getElementById('snDocViewerRoot').innerHTML=
+      '<div class="doc-viewer-overlay" data-sn-click="if(event.target===this)document.getElementById(\'snDocViewerRoot\').innerHTML=\'\'">'+
+        '<div class="doc-viewer-panel">'+
+          '<div class="doc-viewer-head">'+
+            '<div class="doc-viewer-title">'+esc(title)+' — '+esc(item.title||'')+'</div>'+
+            '<button class="btn btn-sm btn-secondary" data-sn-click="snCopyDpiaDoc()">⧉ Copy</button>'+
+            '<button class="btn btn-sm btn-secondary sn-download-dpia" data-title="'+esc(item.title||'dpia')+'">↓ Download</button>'+
+            '<button data-sn-click="document.getElementById(\'snDocViewerRoot\').innerHTML=\'\'" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 8px;line-height:1">×</button>'+
+          '</div>'+
+          '<div class="doc-viewer-body" id="snDocViewerContent">'+esc(content)+'</div>'+
+        '</div>'+
+      '</div>';
+  };
+  window.snCopyDpiaDoc=function(){
+    var el=document.getElementById('snDocViewerContent');if(!el)return;
+    navigator.clipboard.writeText(el.innerText||el.textContent).then(function(){
+      if(typeof showToast==='function')showToast('Copied to clipboard');
+    });
+  };
+  window.snDownloadDpiaDoc=function(name){
+    var el=document.getElementById('snDocViewerContent');if(!el)return;
+    var blob=new Blob([el.innerText||el.textContent],{type:'text/plain'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=(name||'dpia').replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.txt';a.click();
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     RICH ROPA DRAWER — multi-tab form with all fields + ARIA cross-link
+     ════════════════════════════════════════════════════════════════════════ */
+  function snDrawerField(id,label,type,val,required,options,placeholder){
+    val=val||'';placeholder=placeholder||'';
+    var h='<div class="form-group"><label for="'+id+'">'+esc(label)+(required?' <span style="color:var(--red)">*</span>':'')+'</label>';
+    if(type==='select'){
+      h+='<select id="'+id+'"'+(required?' required':'')+'>';
+      if(!required)h+='<option value="">Select...</option>';
+      (options||[]).forEach(function(o){
+        var sel=(val&&(String(val).toLowerCase()===String(o).toLowerCase()||val===o))?' selected':'';
+        h+='<option value="'+esc(o)+'"'+sel+'>'+esc(typeof o==='string'?o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}):o)+'</option>';
+      });
+      h+='</select>';
+    }else if(type==='textarea'){
+      h+='<textarea id="'+id+'" rows="3"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box;resize:vertical">'+esc(val)+'</textarea>';
+    }else if(type==='datalist'){
+      var listId=id+'_list';
+      h+='<input type="text" id="'+id+'" list="'+listId+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">';
+      h+='<datalist id="'+listId+'">'+(options||[]).map(function(o){return '<option value="'+esc(o)+'">';}).join('')+'</datalist>';
+    }else{
+      h+='<input type="'+type+'" id="'+id+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">';
+    }
+    return h+'</div>';
+  }
+
+  var SN_DEPARTMENTS=['Marketing','HR','Finance','IT','Legal','Operations','Sales','Customer Support','Procurement','R&D','Executive / Management','Compliance','Security','Product'];
+
+  // Preset options unioned with distinct values already used in this org's RoPA
+  // records (case-insensitive dedupe) - no extra API call, ropaCache is already loaded.
+  function _snRopaFieldOptions(field, presets){
+    var seen={};var out=[];
+    presets.forEach(function(p){var k=p.toLowerCase();if(!seen[k]){seen[k]=1;out.push(p);}});
+    (ropaCache||[]).forEach(function(r){
+      var v=r[field];
+      if(v&&typeof v==='string'){var k=v.toLowerCase();if(!seen[k]){seen[k]=1;out.push(v);}}
+    });
+    return out;
+  }
+
+  window.snOpenRopaDrawer=function(id){
+    var r=(id!==null&&id!==undefined)?ropaCache.find(function(x){return x.id===id;}):null;
+    var isEdit=!!(r&&r.id);
+    var f=function(field,def){return r?(r[field]!==undefined&&r[field]!==null?r[field]:''):(def||'');};
+    var initialReg=f('regulation',snPrimaryJurisdiction||'GDPR');
+    var regs=['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR','Zimbabwe CDPA','UAE PDPL','Saudi PDPL','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','Japan APPI','South Korea PIPA'];
+
+    var html=
+    '<div class="ropa-drawer-overlay" id="snRopaDrawerWrap" data-sn-click="if(event.target===this)document.getElementById(\'snRopaDrawerWrap\').remove()">'+
+    '<div class="ropa-drawer">'+
+      '<div class="ropa-drawer-head">'+
+        '<div class="ropa-drawer-title">'+(isEdit?'Edit Processing Activity':'New Processing Activity')+'</div>'+
+        (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
+        (isEdit?'<button class="btn-ai" data-sn-click="snAiScoreRopa('+id+',this)" title="AI score risk"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Score</button>':'')+
+        (isEdit&&!r.dpia_id?'<button class="btn-spawn" data-sn-click="snSpawnDpia('+id+')" style="margin-left:4px" title="Create linked DPIA"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> Spawn DPIA</button>':'')+
+        (isEdit&&r.dpia_id?'<span style="font-size:11px;color:var(--good);font-weight:700;margin-left:4px" data-sn-click="sentinelRouter.navigate(\'/sentinel/dpia\');document.getElementById(\'snRopaDrawerWrap\').remove()">✓ DPIA Linked →</span>':'')+
+        '<button data-sn-click="document.getElementById(\'snRopaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
+      '</div>'+
+      '<div class="ropa-drawer-tabs">'+
+        '<span class="ropa-drawer-tab active" data-tab="basic" data-sn-click="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Basic Info</span>'+
+        '<span class="ropa-drawer-tab" data-tab="data" data-sn-click="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-database></use></svg> Data Details</span>'+
+        '<span class="ropa-drawer-tab" data-tab="systems" data-sn-click="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg> Systems & Processors</span>'+
+        '<span class="ropa-drawer-tab" data-tab="risk" data-sn-click="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Risk & Compliance</span>'+
+      '</div>'+
+      '<div class="ropa-drawer-body">'+
+
+        // Tab: Basic
+        '<div class="ropa-drawer-section active" id="snRopaTab_basic">'+
+          snDrawerField('rd_name','Activity Name','datalist',f('processing_name'),true,_snRopaFieldOptions('processing_name',SN_ACTIVITY_TYPES),'e.g. Customer marketing analytics')+
+          '<div class="form-row">'+snDrawerField('rd_dept','Department','datalist',f('department'),false,_snRopaFieldOptions('department',SN_DEPARTMENTS),'e.g. Marketing, HR, Finance')+snDrawerField('rd_owner','Owner / Responsible','text',f('owner'),false,null,'Name or team')+'</div>'+
+          snDrawerField('rd_purpose','Purpose of Processing','textarea',f('purpose'),false,null,'Why is this data being processed?')+
+          '<div class="form-group"><label for="rd_legal_basis" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Legal Basis'+
+          ' <button type="button" class="btn-ai" style="font-size:10px;padding:2px 7px;margin-left:6px" data-sn-click="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggest</button></label>'+
+          '<select id="rd_legal_basis" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box"><option value="">Select...</option>'+
+          (SN_LEGAL_BASES[initialReg]||[]).map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+
+          '</select><div id="snLegalBasisSuggestion" style="display:none;margin-top:8px"></div></div>'+
+          '<div class="form-row">'+snDrawerField('rd_status','Status','select',f('status','active'),false,['active','draft','archived'])+
+          '<div class="form-group"><label for="rd_regulation" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Jurisdiction</label>'+
+          '<select id="rd_regulation" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">'+
+          '<option value="">Select...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(initialReg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+
+          '</select></div>'+
+          '</div>'+
+          snDrawerField('rd_notes','Notes','textarea',f('notes'))+
+        '</div>'+
+
+        // Tab: Data
+        '<div class="ropa-drawer-section" id="snRopaTab_data">'+
+          '<div class="form-group"><label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Data Categories <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— select all that apply</span></label>'+
+          '<div id="snRopaDC"></div>'+
+          '<input type="text" id="rd_data_cats" value="'+esc(f('data_categories',''))+'" placeholder="Additional custom categories..." style="width:100%;margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">'+
+          '</div>'+
+          '<div class="form-group" style="margin-top:8px"><label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Special Categories <span style="color:var(--red);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— Art. 9 sensitive data</span></label>'+
+          '<div id="snRopaSC"></div>'+
+          '<input type="text" id="rd_special_cats" value="'+esc(f('special_categories',''))+'" placeholder="Additional custom special categories..." style="width:100%;margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">'+
+          '</div>'+
+          '<div class="form-row">'+snDrawerField('rd_subjects','Data Subjects','text',f('data_subjects'),false,null,'e.g. Customers, Employees, Website visitors')+snDrawerField('rd_subject_count','Approx. Subject Count','text',f('subject_count'),false,null,'e.g. ~5,000')+'</div>'+
+          snDrawerField('rd_recipients','Recipients / Disclosures','text',f('recipients'),false,null,'Who receives this data outside your org?')+
+          snDrawerField('rd_retention','Retention Period','text',f('retention_period'),false,null,'e.g. 7 years, 2 years after contract end')+
+        '</div>'+
+
+        // Tab: Systems & Processors
+        '<div class="ropa-drawer-section" id="snRopaTab_systems">'+
+          snDrawerField('rd_systems','IT Systems Used','textarea',f('systems'),false,null,'List the applications, databases, and cloud services involved')+
+          snDrawerField('rd_processors','Third-Party Processors (Art. 28)','textarea',f('processors'),false,null,'Name each processor and their role/service')+
+          '<div class="form-row">'+snDrawerField('rd_intl','International Transfers','text',f('intl_transfers'),false,null,'Yes / No / Countries')+snDrawerField('rd_transfer_dest','Transfer Destination','text',f('transfer_dest'),false,null,'e.g. USA (AWS), India (Support team)')+'</div>'+
+          snDrawerField('rd_transfer_safeguard','Transfer Safeguard','select',f('transfer_safeguard'),false,['','Adequacy Decision','SCCs','BCRs','Consent','Derogation'])+
+          // ARIA cross-module suggestions
+          '<div id="snAriaCtrlPanel" class="aria-suggestions" style="display:none">'+
+            '<div class="aria-suggestions-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Relevant ARIA Controls — click to add to Security Measures</div>'+
+            '<div id="snAriaCtrlList" style="line-height:2"></div>'+
+          '</div>'+
+        '</div>'+
+
+        // Tab: Risk & Compliance
+        '<div class="ropa-drawer-section" id="snRopaTab_risk">'+
+          '<div class="form-row">'+snDrawerField('rd_risk','Risk Level','select',f('risk_level'),false,['low','medium','high','critical'])+snDrawerField('rd_review_date','Next Review Date','date',f('review_date'))+'</div>'+
+          '<label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:14px">'+
+            '<input type="checkbox" id="rd_dpia_req"'+(f('dpia_required')?' checked':'')+' style="width:16px;height:16px">'+
+            '<strong>DPIA Required</strong> <span style="color:var(--muted);font-size:12px">(mark if Article 35 applies)</span>'+
+          '</label>'+
+          snDrawerField('rd_security','Security Measures Applied','textarea',f('security_measures'),false,null,'Technical and organisational measures protecting this processing activity')+
+          '<div id="snRopaProfileFields"></div>'+
+          (isEdit&&r.ai_risk_notes?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Risk Assessment</div>'+esc(r.ai_risk_notes)+'</div>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="ropa-drawer-footer">'+
+        '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'snRopaDrawerWrap\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" id="snRopaDrawerSaveBtn" disabled data-sn-click="snSaveRopaDrawer('+(isEdit?id:'null')+')">'+
+          'Loading fields…'+
+        '</button>'+
+      '</div>'+
+    '</div></div>';
+
+    document.body.insertAdjacentHTML('beforeend',html);
+    RecordProfileFields.mount(document.getElementById('snRopaProfileFields'),
+      '/sentinel/api/record-profile/ropa?regulation='+encodeURIComponent(initialReg),r||{})
+      .then(function(profile){
+        RecordProfileFields.fillRegulations(document.getElementById('rd_regulation'),profile,initialReg);
+        RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile,f('legal_basis'));
+        var btn=document.getElementById('snRopaDrawerSaveBtn');
+        if(btn&&document.getElementById('snRopaProfileFields').dataset.ready==='true'){
+          btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create Activity';
+        }
+      })
+      .catch(function(e){var host=document.getElementById('snRopaProfileFields');if(host)host.textContent=e.message;
+        var btn=document.getElementById('snRopaDrawerSaveBtn');if(btn)btn.textContent='Fields unavailable';});
+    document.getElementById('rd_regulation').addEventListener('change',function(){
+      var host=document.getElementById('snRopaProfileFields'),draft=Object.assign({},r||{});
+      if(host.dataset.ready==='true')Object.assign(draft,RecordProfileFields.values(host));
+      var btn=document.getElementById('snRopaDrawerSaveBtn');if(btn){btn.disabled=true;btn.textContent='Loading fields…';}
+      RecordProfileFields.mount(host,'/sentinel/api/record-profile/ropa?regulation='+encodeURIComponent(this.value),draft)
+        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('rd_legal_basis'),profile);
+          if(btn&&host.dataset.ready==='true'){btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create Activity';}})
+        .catch(function(e){host.textContent=e.message;if(btn)btn.textContent='Fields unavailable';});
+    });
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#snRopaDrawerWrap .ropa-drawer'));
+    snRenderChipPicker('snRopaDC',SN_DATA_CATEGORIES,f('data_categories'));
+    snRenderChipPicker('snRopaSC',SN_SPECIAL_CATS,f('special_categories'));
+    // Load ARIA cross-module suggestions when user opens Systems tab
+    if(isEdit) snLoadAriaControlSuggestions(r);
+  };
+
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape')return;
+    ['snRopaDrawerWrap','snDpiaDrawerWrap'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el)el.remove();
+    });
+  });
+  window.snRopaDrawerTab=function(tab){
+    var name=tab.dataset.tab;
+    document.querySelectorAll('#snRopaDrawerWrap .ropa-drawer-section').forEach(function(s){s.classList.remove('active');});
+    document.querySelectorAll('#snRopaDrawerWrap .ropa-drawer-tab').forEach(function(t){t.classList.remove('active');});
+    document.getElementById('snRopaTab_'+name).classList.add('active');
+    tab.classList.add('active');
+    if(name==='systems'){
+      var dc=document.getElementById('rd_data_cats');
+      var lb=document.getElementById('rd_legal_basis');
+      snLoadAriaControlSuggestions({data_categories:dc?dc.value:'',special_categories:'',legal_basis:lb?lb.value:''});
+    }
+  };
+
+  window.snSaveRopaDrawer=async function(id){
+    var btn=document.getElementById('snRopaDrawerSaveBtn');
+    var g=function(elId){var el=document.getElementById(elId);return el?el.value.trim():'';};
+    var data={
+      processing_name:g('rd_name'),department:g('rd_dept'),owner:g('rd_owner'),
+      purpose:g('rd_purpose'),legal_basis:g('rd_legal_basis'),
+      status:g('rd_status'),regulation:g('rd_regulation')||snPrimaryJurisdiction||'GDPR',notes:g('rd_notes'),
+      data_categories:snGetChips('snRopaDC').concat(g('rd_data_cats')?[g('rd_data_cats')]:[]),
+      special_categories:snGetChips('snRopaSC').concat(g('rd_special_cats')?[g('rd_special_cats')]:[]),
+      data_subjects:g('rd_subjects'),subject_count:g('rd_subject_count'),
+      recipients:g('rd_recipients'),retention_period:g('rd_retention'),
+      systems:g('rd_systems'),processors:g('rd_processors'),
+      intl_transfers:g('rd_intl'),transfer_dest:g('rd_transfer_dest'),
+      transfer_safeguard:g('rd_transfer_safeguard'),
+      risk_level:g('rd_risk'),review_date:g('rd_review_date'),
+      dpia_required:document.getElementById('rd_dpia_req')&&document.getElementById('rd_dpia_req').checked?1:0,
+      security_measures:g('rd_security')
+    };
+    try{Object.assign(data,RecordProfileFields.values(document.getElementById('snRopaProfileFields')));}
+    catch(e){if(typeof showToast==='function')showToast(e.message,'error');return;}
+    if(!data.processing_name){if(typeof showToast==='function')showToast('Activity name is required','error');return;}
+    if(btn){btn.disabled=true;btn.textContent='Saving...';}
+    try{
+      if(id){
+        await apiFetch('/sentinel/api/ropa/'+id,{method:'PUT',body:data});
+      }else{
+        var created=await apiFetch('/sentinel/api/ropa',{method:'POST',body:data});
+        if(created&&created.id)_snAutoScoreRopa(created.id);
+      }
+      document.getElementById('snRopaDrawerWrap').remove();
+      snLoadRopa();
+      if(typeof showToast==='function')showToast(id?'Activity updated':'Activity created');
+    }catch(e){
+      if(btn){btn.disabled=false;btn.textContent=id?'Save Changes':'Create Activity';}
+      if(typeof showToast==='function')showToast('Save failed: '+(e.message||''),'error');
+    }
+  };
+
+  // Fire-and-forget AI risk scoring right after a new RoPA is created, so the
+  // Risk/DPIA badges populate within seconds without a manual "Score" click.
+  // Bounded to create only (not every edit) to keep AI usage predictable.
+  function _snAutoScoreRopa(newId){
+    apiFetch('/sentinel/api/ai/score-ropa/'+newId,{method:'POST'}).then(function(r){
+      var item=(ropaCache||[]).find(function(x){return x.id===newId;});
+      if(item){
+        item.risk_level=r.risk_score||item.risk_level;
+        item.ai_risk_notes=r.rationale||item.ai_risk_notes;
+        if(r.dpia_required)item.dpia_required=1;
+        var filtered=ropaRiskFilter?ropaCache.filter(function(x){return(x.risk_level||'low')===ropaRiskFilter;}):ropaCache;
+        snRenderRopaRows(filtered);
+      }
+    }).catch(function(){
+      if(typeof showToast==='function')showToast('Auto risk-scoring unavailable. Use the AI score button to score manually','warn');
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     ARIA CROSS-MODULE — Suggest relevant controls based on RoPA data
+     Calls GET /aria/api/frameworks then GET /aria/api/controls/{fw_id}
+     Falls back silently if ARIA module not active
+     ════════════════════════════════════════════════════════════════════════ */
+  var _ariaFwCache=null;
+  window.snLoadAriaControlSuggestions=async function(item){
+    var panel=document.getElementById('snAriaCtrlPanel');
+    var list=document.getElementById('snAriaCtrlList');
+    if(!panel||!list)return;
+    var dc=((item&&item.data_categories)||'').toLowerCase();
+    var sc=((item&&item.special_categories)||'').toLowerCase();
+    var lb=((item&&item.legal_basis)||'').toLowerCase();
+    var combined=dc+' '+sc+' '+lb;
+    // Build search keywords from the RoPA data
+    var keywords=[];
+    if(combined.indexOf('health')!==-1||combined.indexOf('medical')!==-1)keywords.push('health','medical','clinical');
+    if(combined.indexOf('financial')!==-1||combined.indexOf('payment')!==-1||combined.indexOf('bank')!==-1)keywords.push('financial','payment');
+    if(combined.indexOf('biometric')!==-1)keywords.push('biometric','identity');
+    if(combined.indexOf('consent')!==-1)keywords.push('consent','notice');
+    if(combined.indexOf('legitimate')!==-1)keywords.push('legitimate');
+    if(combined.indexOf('personal')!==-1||keywords.length===0)keywords.push('privacy','personal data','access control','encryption');
+    try{
+      if(!_ariaFwCache){
+        var fwData=await apiFetch('/aria/api/frameworks');
+        _ariaFwCache=fwData.items||fwData||[];
+      }
+      if(!_ariaFwCache.length)return;
+      // Prefer ISO 27001 or first available framework
+      var fw=_ariaFwCache.find(function(f){return(f.name||'').toLowerCase().indexOf('iso 27001')!==-1;})||_ariaFwCache[0];
+      var ctrlData=await apiFetch('/aria/api/controls/'+fw.id);
+      var controls=ctrlData.controls||ctrlData.items||ctrlData||[];
+      var relevant=controls.filter(function(c){
+        var text=((c.name||'')+(c.description||'')+(c.ref||'')).toLowerCase();
+        return keywords.some(function(k){return text.indexOf(k)!==-1;});
+      }).slice(0,8);
+      if(relevant.length>0){
+        panel.style.display='block';
+        list.innerHTML=relevant.map(function(c){
+          return '<button type="button" class="aria-ctrl-chip sn-add-aria-control" title="'+esc((c.description||c.name||'').substring(0,120))+'" data-control="'+esc((c.ref||'')+': '+(c.name||''))+'">'+
+            (c.ref?'<span style="font-family:var(--mono);font-size:10px;color:var(--accent)">'+esc(c.ref)+'</span> ':'')+
+            esc((c.name||'').substring(0,40))+
+          '</button>';
+        }).join('');
+      }else{
+        panel.style.display='none';
+      }
+    }catch(e){panel.style.display='none';/* ARIA not active — fail silently */}
+  };
+
+  window.snAddAriaCtrlToSecurity=function(text){
+    var el=document.getElementById('rd_security');
+    if(!el)return;
+    var cur=el.value.trim();
+    el.value=cur?cur+'\n'+text:text;
+    if(typeof showToast==='function')showToast('Control added to security measures');
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     CHIP PICKER UTILITIES + DPIA SMART DRAWER
+     ════════════════════════════════════════════════════════════════════════ */
+  var SN_ACTIVITY_TYPES=['Automated decision-making / AI','Biometric data processing','CCTV / video surveillance','Children\'s data processing','Cloud migration of personal data','Credit scoring / financial profiling','Criminal record processing','Cross-border data transfers','Customer analytics & profiling','Employee monitoring','Fraud detection / prevention','Health data processing','Identity verification (KYC/AML)','IoT / smart device data collection','Location tracking','Loyalty programme management','Marketing & direct communications','Mobile app data collection','Online behavioural advertising','Payroll & HR data processing','Recruitment & background checks','Research & statistical analysis','Social media monitoring','Third-party data sharing','Other (describe below)'];
+  var SN_DATA_CATEGORIES=['Basic identifiers (name, address, ID numbers)','Contact data (email, phone)','Financial data (bank details, payment info)','Employment & HR data','Location data','Online identifiers (IP, cookies, device IDs)','Behavioural / usage data','Communications data','Academic / education records','Criminal records','Immigration / nationality data'];
+  var SN_SPECIAL_CATS=['Racial or ethnic origin','Political opinions','Religious or philosophical beliefs','Trade union membership','Genetic data','Biometric data (for identification)','Health / medical data','Sex life or sexual orientation','Criminal convictions and offences','Financial distress / insolvency data','Children\'s personal data'];
+  var SN_SUBJECTS=['Customers','Employees','Job applicants','Website visitors','Contractors / Suppliers','Children','Patients','Students','Members','Business contacts'];
+  var SN_LEGAL_BASES={
+    'GDPR':['Consent — Art. 6(1)(a)','Contract performance — Art. 6(1)(b)','Legal obligation — Art. 6(1)(c)','Vital interests — Art. 6(1)(d)','Public task — Art. 6(1)(e)','Legitimate interests — Art. 6(1)(f)'],
+    'UK GDPR':['Consent — Art. 6(1)(a)','Contract performance — Art. 6(1)(b)','Legal obligation — Art. 6(1)(c)','Vital interests — Art. 6(1)(d)','Public task — Art. 6(1)(e)','Legitimate interests — Art. 6(1)(f)'],
+    'Zimbabwe CDPA':['Consent','Contract necessity','Legal obligation','Vital interests','Public interest','Legitimate interests of the controller'],
+    'South Africa POPIA':['Consent — Condition 1','Contractual necessity','Legal obligation','Vital interests of the data subject','Public law duty','Legitimate interests of the responsible party'],
+    'Kenya DPA':['Consent','Contract performance','Legal obligation','Vital interests','Public interest or official authority','Legitimate interests of the controller'],
+    'Nigeria NDPR':['Consent','Contract performance','Legal obligation','Vital interests','Public interest','Legitimate interests'],
+    'UAE PDPL':['Explicit consent','Contractual necessity','Legal obligation','Vital interests','Public interest','Legitimate interests'],
+    'Saudi PDPL':['Explicit consent','Legal or regulatory requirement','Contract conclusion or execution','Protection of vital interests','Data made publicly available by the subject','Judicial and security purposes'],
+    'Qatar DPL':['Consent of the data subject','Contract with the data subject','Legal obligation','Vital interests','Public interest or government task','Legitimate interests'],
+    'Bahrain PDPL':['Explicit consent','Contract necessity','Legal obligation','Vital interests','Public interest','Legitimate interests of the controller'],
+    'Ghana DPA':['Consent','Contract necessity','Legal obligation','Vital interests','Public interest'],
+    'Canada PIPEDA':['Expressed consent','Implied consent','Legal requirement','Contractual necessity','Public interest'],
+    'Canada Bill C-11':['Consent (express or implied)','Legitimate interests (with risk assessment)','Sensitive information — explicit consent','Legal requirement','Employment purposes'],
+    'USA CCPA/CPRA':['Notice and opt-out opportunity','Opt-in (sensitive personal information)','Business purpose necessity','Service provider disclosure','Legal obligation'],
+    'Brazil LGPD':['Consent — Art. 7(I)','Legal or regulatory compliance — Art. 7(II)','Public policy execution — Art. 7(III)','Research studies — Art. 7(IV)','Contract execution — Art. 7(V)','Legitimate interests — Art. 7(IX)'],
+    'India DPDP':['Consent — s. 6','Legitimate uses — s. 7 (state functions)','Legal obligation','Medical emergencies / epidemic response','Employment purposes'],
+    'Singapore PDPA':['Consent — Part IV','Legitimate interests — Second Schedule','Business improvement purposes','Legal requirement','Research purposes'],
+    'Australia Privacy Act':['Consent','Direct relationship with the individual','Required or authorised by law','Necessary for enforcement body functions','Necessary for a health situation'],
+    'New Zealand Privacy Act':['Directly related purpose','Consent','Legal requirement','Publicly available information','Serious threat to safety'],
+    'Japan APPI':['Consent','Necessary for contract','Necessary for compliance with laws','Necessary to protect vital interests','Necessary for public interest','Legitimate interests of the business operator'],
+    'South Korea PIPA':['Consent — Art. 15(1)(1)','Special laws/regulations — Art. 15(1)(2)','Contract performance — Art. 15(1)(4)','Vital interests — Art. 15(1)(5)','Legitimate interests — Art. 15(1)(6)']
+  };
+
+  function snRenderChipPicker(containerId,opts,selected){
+    var sel;
+    if(Array.isArray(selected))sel=selected;
+    else if(typeof selected==='string'&&selected)sel=selected.split(',').map(function(s){return s.trim();}).filter(Boolean);
+    else sel=[];
+    var el=document.getElementById(containerId);if(!el)return;
+    el.innerHTML='<div class="chip-picker-wrap">'+opts.map(function(o){
+      var active=sel.some(function(s){return s.toLowerCase()===o.toLowerCase();});
+      return '<button type="button" class="chip-pick'+(active?' active':'')+'" data-sn-click="snToggleChip(this)" data-val="'+esc(o)+'">'+esc(o)+'</button>';
+    }).join('')+'</div>';
+  }
+  window.snToggleChip=function(el){el.classList.toggle('active');};
+  function snGetChips(containerId){
+    var el=document.getElementById(containerId);if(!el)return[];
+    return Array.from(el.querySelectorAll('.chip-pick.active')).map(function(c){return c.dataset.val;});
+  }
+
+  window.snDpiaUpdateLegalBasis=function(reg){
+    var sel=document.getElementById('dd_legal_basis');if(!sel)return;
+    var opts=SN_LEGAL_BASES[reg]||SN_LEGAL_BASES['GDPR'];var cur=sel.value;
+    sel.innerHTML='<option value="">Select...</option>'+opts.map(function(o){return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o)+'</option>';}).join('');
+  };
+  window.snRopaUpdateLegalBasis=function(reg){
+    var sel=document.getElementById('rd_legal_basis');if(!sel)return;
+    var opts=SN_LEGAL_BASES[reg]||SN_LEGAL_BASES['GDPR'];var cur=sel.value;
+    sel.innerHTML='<option value="">Select...</option>'+opts.map(function(o){return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o)+'</option>';}).join('');
+  };
+
+  // AI: suggest legal basis from Purpose of Processing. Never auto-applies -
+  // shows the suggestion + rationale and requires an explicit Apply click.
+  var _snLegalBasisSuggestion=null;
+  window.snSuggestLegalBasis=async function(btn){
+    var purpose=document.getElementById('rd_purpose')?document.getElementById('rd_purpose').value.trim():'';
+    var regulation=document.getElementById('rd_regulation')?document.getElementById('rd_regulation').value:'';
+    var activityName=document.getElementById('rd_name')?document.getElementById('rd_name').value:'';
+    if(!purpose){if(typeof showToast==='function')showToast('Enter a Purpose of Processing first','warn');return;}
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg>';btn.disabled=true;
+    var box=document.getElementById('snLegalBasisSuggestion');
+    try{
+      var specialCats=(typeof snGetChips==='function')?snGetChips('snRopaSC').join(', '):'';
+      var r=await apiFetch('/sentinel/api/ai/suggest-legal-basis',{method:'POST',body:{
+        purpose:purpose, regulation:regulation||'GDPR', activity_name:activityName,
+        special_categories:specialCats
+      }});
+      _snLegalBasisSuggestion=r.legal_basis;
+      box.style.display='block';
+      box.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:12px">'+
+        '<div style="font-weight:700;margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI suggests: '+esc(r.legal_basis)+'</div>'+
+        '<div style="color:var(--muted);margin-bottom:8px">'+esc(r.rationale||'')+'</div>'+
+        '<button type="button" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 9px" data-sn-click="snApplyLegalBasis()">Apply</button> '+
+        '<button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:3px 9px" data-sn-click="document.getElementById(\'snLegalBasisSuggestion\').style.display=\'none\'">Dismiss</button>'+
+        '</div>';
+    }catch(e){
+      if(typeof showToast==='function')showToast('Legal basis suggestion failed','error');
+    }
+    btn.innerHTML=orig;btn.disabled=false;
+  };
+  window.snApplyLegalBasis=function(){
+    var sel=document.getElementById('rd_legal_basis');
+    if(sel&&_snLegalBasisSuggestion)sel.value=_snLegalBasisSuggestion;
+    var box=document.getElementById('snLegalBasisSuggestion');
+    if(box)box.style.display='none';
+  };
+  window.snDpiaUpdateJurisHint=function(reg){
+    var info=document.getElementById('ddJurisHint');if(!info)return;
+    var j=window._jurisRules[reg];
+    if(!j){info.classList.remove('visible');return;}
+    if(j.legal_status==='proposal_not_enacted'){
+      info.textContent='Historical proposal, not enacted. Reclassify this DPIA under an applicable law before relying on its legal basis or dates.';
+      info.classList.add('visible');
+      return;
+    }
+    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Indicative breach target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong> &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+
+      ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
+    info.classList.add('visible');
+  };
+  window.snAppendSubject=function(inputId,val){
+    var el=document.getElementById(inputId);if(!el)return;
+    var cur=el.value.trim();
+    if(cur&&cur.split(',').map(function(s){return s.trim().toLowerCase();}).indexOf(val.toLowerCase())!==-1)return;
+    el.value=cur?(cur+', '+val):val;
+  };
+
+  window.snOpenDpiaDrawer=function(id){
+    var r=(id!==null&&id!==undefined)?dpiaCache.find(function(x){return x.id===id;}):null;
+    window.ThemisSelectedRecord={page:r?'/sentinel/?open=dpia:'+r.id:null};
+    if(window.ThemisSelectRecord)window.ThemisSelectRecord(window.ThemisSelectedRecord.page);
+    var isEdit=!!(r&&r.id);
+    var f=function(field,def){return r?(r[field]!==undefined&&r[field]!==null?r[field]:''):(def||'');};
+    var reg=f('regulation',snPrimaryJurisdiction||'GDPR');
+    var regs=['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR','Zimbabwe CDPA','UAE PDPL','Saudi PDPL','Qatar DPL','Bahrain PDPL','Canada PIPEDA','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','New Zealand Privacy Act','Japan APPI','South Korea PIPA'];
+    if(isEdit&&reg==='Canada Bill C-11')regs.push(reg); // Preserve historical records for reclassification.
+    var fs='width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box';
+    var fsta=fs+';resize:vertical';
+    var lbl=function(t){return '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">'+t+'</label>';};
+    var fg=function(l,inner){return '<div class="form-group">'+lbl(l)+inner+'</div>';};
+    var lbOpts=SN_LEGAL_BASES[reg]||SN_LEGAL_BASES['GDPR'];
+    var html=
+    '<div class="ropa-drawer-overlay" id="snDpiaDrawerWrap" data-sn-click="if(event.target===this)document.getElementById(\'snDpiaDrawerWrap\').remove()">'+
+    '<div class="ropa-drawer">'+
+      '<div class="ropa-drawer-head">'+
+        '<div class="ropa-drawer-title">'+(isEdit?'Edit DPIA':'New DPIA Assessment')+'</div>'+
+        (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
+        (isEdit?'<button class="btn-ai" data-sn-click="snAiResearchDpia('+id+',this)" title="AI: generate research report"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-microscope></use></svg> Research</button>':'')+
+        (isEdit?'<button class="btn-ai" data-sn-click="snAiGenerateDpia('+id+',this)" style="margin-left:4px" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate</button>':'')+
+        '<button data-sn-click="document.getElementById(\'snDpiaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
+      '</div>'+
+      '<div class="ropa-drawer-tabs">'+
+        '<span class="ropa-drawer-tab active" data-tab="basics" data-sn-click="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Basics</span>'+
+        '<span class="ropa-drawer-tab" data-tab="data" data-sn-click="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-database></use></svg> Data</span>'+
+        '<span class="ropa-drawer-tab" data-tab="risks" data-sn-click="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Risks</span>'+
+        '<span class="ropa-drawer-tab" data-tab="review" data-sn-click="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg> Review</span>'+
+      '</div>'+
+      '<div class="ropa-drawer-body">'+
+
+        (isEdit&&r.ropa_ref&&r.ropa_updated_at&&r.ropa_updated_at>r.updated_at?
+          '<div id="snDpiaDriftBanner" style="margin:0 0 12px;padding:10px 14px;background:rgba(255,165,0,.12);border:1px solid rgba(255,165,0,.4);border-radius:var(--radius);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+            '<span>The linked RoPA changed after this DPIA was last edited. Review for drift.</span>'+
+            '<button type="button" class="btn btn-sm btn-secondary" data-sn-click="snDpiaRefillFromRopa('+id+','+r.ropa_id+')">Refill empty fields</button>'+
+          '</div>'
+        :'')+
+
+        '<div class="ropa-drawer-section active" id="snDpiaTab_basics">'+
+          fg('DPIA Title <span style="color:var(--red)">*</span>','<input type="text" id="dd_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer profiling: AI risk scoring" style="'+fs+'">')+
+          fg('Processing Activity Type','<select id="dd_activity_type" style="'+fs+'"><option value="">Select activity type...</option>'+SN_ACTIVITY_TYPES.map(function(a){return '<option value="'+esc(a)+'"'+(f('activity_type')===a?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select>')+
+          '<div class="form-row">'+
+            fg('Jurisdiction','<select id="dd_regulation" data-sn-change="snDpiaUpdateJurisHint(this.value)" style="'+fs+'"><option value="">Select jurisdiction...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(reg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+'</select>')+
+            fg('Status','<select id="dd_status" style="'+fs+'">'+['draft','in_progress','completed','approved'].map(function(s){return '<option value="'+s+'"'+(f('status','draft')===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select>')+
+          '</div>'+
+          '<div class="juris-info-banner" id="ddJurisHint" style="margin-bottom:12px"></div>'+
+          fg('Legal Basis','<select id="dd_legal_basis" style="'+fs+'"><option value="">Select...</option>'+lbOpts.map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>')+
+          '<div class="form-row">'+
+            fg('Assessor / Owner','<input type="text" id="dd_owner" value="'+esc(f('owner'))+'" placeholder="Name or team" style="'+fs+'">')+
+            fg('Due Date','<input type="date" id="dd_due_date" value="'+esc(f('due_date'))+'" style="'+fs+'">')+
+          '</div>'+
+          fg('Description','<textarea id="dd_description" rows="3" placeholder="Overview of this processing and why a DPIA is needed" style="'+fsta+'">'+esc(f('description'))+'</textarea>')+
+          fg('Processing operations','<textarea id="dd_activity_desc" rows="3" placeholder="Describe collection, analysis, disclosure and deletion" style="'+fsta+'">'+esc(f('activity_desc')||f('description'))+'</textarea>')+
+          fg('Linked RoPA'+(isEdit?'':' <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>'),
+            '<select id="dd_ropa_link" style="'+fs+'"'+(isEdit?' data-sn-change="snDpiaLinkRopa('+id+',this.value)"':'')+'>'+
+              '<option value="">— None —</option>'+
+              (ropaCache||[]).filter(function(rpa){return !rpa.dpia_id||rpa.dpia_id===id;}).map(function(rpa){
+                return '<option value="'+rpa.id+'"'+(f('ropa_id')&&parseInt(f('ropa_id'))===rpa.id?' selected':'')+'>'+esc(rpa.ref_number||'')+' '+esc(rpa.processing_name||'')+'</option>';
+              }).join('')+
+            '</select>'+
+            (r&&r.ropa_ref?'<span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">Currently linked: <strong>'+esc(r.ropa_ref)+'</strong>, '+esc(r.ropa_name||'')+'</span>':'')
+          )+
+        '</div>'+
+
+        '<div class="ropa-drawer-section" id="snDpiaTab_data">'+
+          '<div class="form-group">'+lbl('Data Categories <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— select all that apply</span>')+
+            '<div id="snDpiaDC"></div>'+
+          '</div>'+
+          '<div class="form-group" style="margin-top:8px">'+lbl('Special Categories <span style="color:var(--red);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— Art. 9 sensitive data</span>')+
+            '<div id="snDpiaSC"></div>'+
+          '</div>'+
+          '<div class="form-group" style="margin-top:8px">'+lbl('Data Subjects <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— click to add or type below</span>')+
+            '<div id="snDpiaDSub" class="chip-picker-wrap" style="margin-bottom:6px"></div>'+
+            '<input type="text" id="dd_data_subjects" value="'+esc(f('data_subjects'))+'" placeholder="Custom or edit above..." style="'+fs+'">'+
+          '</div>'+
+          '<div class="form-row">'+
+            fg('Approx. Subject Count','<input type="text" id="dd_subject_count" value="'+esc(f('subject_count'))+'" placeholder="e.g. ~5,000" style="'+fs+'">')+
+            fg('Retention Period','<input type="text" id="dd_retention" value="'+esc(f('retention'))+'" placeholder="e.g. 7 years" style="'+fs+'">')+
+          '</div>'+
+          fg('IT Systems','<textarea id="dd_systems" rows="2" placeholder="Applications, databases, cloud services involved" style="'+fsta+'">'+esc(f('systems'))+'</textarea>')+
+          fg('Third-Party Processors','<textarea id="dd_processors" rows="2" placeholder="Name each processor and their role" style="'+fsta+'">'+esc(f('processors'))+'</textarea>')+
+          '<div class="form-row">'+
+            fg('International Transfer','<select id="dd_intl_transfer" style="'+fs+'"><option value="">—</option>'+['Yes','No','Planned'].map(function(o){return '<option value="'+o+'"'+(f('intl_transfer')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
+            fg('Transfer Mechanism','<select id="dd_transfer_mech" style="'+fs+'"><option value="">—</option>'+['Adequacy Decision','SCCs','BCRs','Consent','Derogation','None'].map(function(o){return '<option value="'+o+'"'+(f('transfer_mech')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
+          '</div>'+
+          fg('Transfer destination','<input type="text" id="dd_transfer_dest" value="'+esc(f('transfer_dest'))+'" placeholder="Country or international organisation" style="'+fs+'">')+
+        '</div>'+
+
+        '<div class="ropa-drawer-section" id="snDpiaTab_risks">'+
+          fg('Purpose of Processing','<textarea id="dd_purpose" rows="3" placeholder="Why is this data processed? Is it necessary and proportionate?" style="'+fsta+'">'+esc(f('purpose'))+'</textarea>')+
+          fg('Necessity','<textarea id="dd_necessity" rows="3" placeholder="Why is the processing needed for this purpose?" style="'+fsta+'">'+esc(f('necessity'))+'</textarea>')+
+          fg('Proportionality','<textarea id="dd_proportionality" rows="3" placeholder="Why is the extent of processing justified? Consider less intrusive options." style="'+fsta+'">'+esc(f('proportionality'))+'</textarea>')+
+          '<div class="form-group">'+
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+              '<label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0">Identified Risks</label>'+
+              '<button type="button" class="btn-ai" id="snDpiaSuggestRisksBtn" data-sn-click="snAiSuggestRisks()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg> Suggest Risks with AI</button>'+
+            '</div>'+
+            '<div id="snDpiaRiskSuggestions" style="display:none;margin-bottom:10px"></div>'+
+            '<textarea id="dd_risks" rows="6" placeholder="Describe each risk, e.g. \'Unauthorised access (Likelihood: Medium, Impact: High)\'" style="'+fsta+'">'+esc(Array.isArray(f('risks'))?f('risks').join('\n'):f('risks'))+'</textarea>'+
+          '</div>'+
+        '</div>'+
+
+        '<div class="ropa-drawer-section" id="snDpiaTab_review">'+
+          fg('Mitigations & Controls','<textarea id="dd_mitigations" rows="4" placeholder="Technical and organisational measures to address identified risks" style="'+fsta+'">'+esc(f('mitigations'))+'</textarea>')+
+          (isEdit?'<div id="snDpiaControlSuggestions" data-dpia-id="'+id+'" aria-live="polite" style="margin-bottom:18px">Loading related controls...</div>':'')+
+          '<div class="form-row">'+
+            fg('Overall Risk Level','<select id="dd_overall_risk" style="'+fs+'"><option value="">Select...</option>'+['low','medium','high'].map(function(o){return '<option value="'+o+'"'+(f('overall_risk')===o?' selected':'')+'>'+o.charAt(0).toUpperCase()+o.slice(1)+'</option>';}).join('')+'</select>')+
+            fg('Residual Risk (post-mitigation)','<select id="dd_residual_risk" style="'+fs+'"><option value="">Select...</option>'+['low','medium','high'].map(function(o){return '<option value="'+o+'"'+(f('residual_risk')===o?' selected':'')+'>'+o.charAt(0).toUpperCase()+o.slice(1)+'</option>';}).join('')+'</select>')+
+          '</div>'+
+          '<label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:14px">'+
+            '<input type="checkbox" id="dd_dpo_consulted"'+(f('dpo_consulted')?' checked':'')+' style="width:16px;height:16px">'+
+            '<strong>DPO Consulted</strong>'+
+          '</label>'+
+          fg('Consultation Notes','<textarea id="dd_consult_notes" rows="3" placeholder="Notes from DPO or supervisory authority consultation" style="'+fsta+'">'+esc(f('consult_notes'))+'</textarea>')+
+          '<div id="snDpiaProfileFields"></div>'+
+          (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Document available</div><button class="btn-ai" data-sn-click="snViewDpiaDoc('+id+')" style="margin-top:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> View Document</button></div>':'')+
+          (isEdit?fg('Documents in the Evidence Vault','<div id="snDpiaDocs" style="font-size:13px;color:var(--muted)">Loading...</div>'):'')+
+        '</div>'+
+      '</div>'+
+      '<div class="ropa-drawer-footer">'+
+        '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'snDpiaDrawerWrap\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" id="snDpiaDrawerSaveBtn" disabled data-sn-click="snSaveDpiaDrawer('+(isEdit?id:'null')+')">'+
+          'Loading fields…'+
+        '</button>'+
+      '</div>'+
+    '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    RecordProfileFields.mount(document.getElementById('snDpiaProfileFields'),
+      '/sentinel/api/record-profile/dpia?regulation='+encodeURIComponent(reg),r||{})
+      .then(function(profile){
+        RecordProfileFields.fillRegulations(document.getElementById('dd_regulation'),profile,reg);
+        RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile,f('legal_basis'));
+        var btn=document.getElementById('snDpiaDrawerSaveBtn');
+        if(btn&&document.getElementById('snDpiaProfileFields').dataset.ready==='true'){
+          btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create DPIA';
+        }
+      })
+      .catch(function(e){var host=document.getElementById('snDpiaProfileFields');if(host)host.textContent=e.message;
+        var btn=document.getElementById('snDpiaDrawerSaveBtn');if(btn)btn.textContent='Fields unavailable';});
+    document.getElementById('dd_regulation').addEventListener('change',function(){
+      var host=document.getElementById('snDpiaProfileFields'),draft=Object.assign({},r||{});
+      if(host.dataset.ready==='true')Object.assign(draft,RecordProfileFields.values(host));
+      var btn=document.getElementById('snDpiaDrawerSaveBtn');if(btn){btn.disabled=true;btn.textContent='Loading fields…';}
+      RecordProfileFields.mount(host,'/sentinel/api/record-profile/dpia?regulation='+encodeURIComponent(this.value),draft)
+        .then(function(profile){RecordProfileFields.fillLegalBasis(document.getElementById('dd_legal_basis'),profile);
+          if(btn&&host.dataset.ready==='true'){btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Create DPIA';}})
+        .catch(function(e){host.textContent=e.message;if(btn)btn.textContent='Fields unavailable';});
+    });
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDpiaDrawerWrap').firstElementChild);
+    if(isEdit){snLoadDpiaDocuments(id);if(window.snLoadDpiaControlSuggestions)snLoadDpiaControlSuggestions(id);}
+    snRenderChipPicker('snDpiaDC',SN_DATA_CATEGORIES,f('data_categories'));
+    snRenderChipPicker('snDpiaSC',SN_SPECIAL_CATS,f('special_cats'));
+    var dsubEl=document.getElementById('snDpiaDSub');
+    if(dsubEl)dsubEl.innerHTML=SN_SUBJECTS.map(function(s){return '<button type="button" class="chip-pick" data-sn-subject="'+esc(s)+'">'+esc(s)+'</button>';}).join('');
+    if(reg)snDpiaUpdateJurisHint(reg);
+  };
+
+  // The documents a DPIA relies on are linked to it in the Evidence Vault. A report on the DPIA reads the same list
+  // (the connected view of the record), so what a person sees here is what the report points to.
+  window.snLoadDpiaDocuments=async function(id){
+    var box=document.getElementById('snDpiaDocs');
+    if(!box)return;
+    var local=function(u){return typeof u==='string'&&u.charAt(0)==='/'&&u.charAt(1)!=='/'?u:'#';};
+    var hint='<div style="margin-top:8px;font-size:12px">To add a document, link it to this DPIA in the <a href="/evidence/">Evidence Vault</a>.</div>'+
+      '<div style="margin-top:4px;font-size:12px"><a href="/governance/connected/sentinel/dpia/'+id+'">Open the connected view</a> to see every record and document connected to it.</div>';
+    try{
+      var data=await apiFetch('/governance/api/connected/sentinel/dpia/'+id);
+      var items=(data.proof&&data.proof.items)||[];
+      box.innerHTML=(items.length?items.map(function(d){
+        return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--border)">'+
+          '<a href="'+esc(local(d.url))+'" style="font-weight:600">'+esc(d.title)+'</a>'+
+          '<span style="font-size:11px">'+esc(d.state)+(d.expiry_date?', expires '+esc(fmtDate(d.expiry_date)):'')+'</span></div>';
+      }).join(''):'<div>No document is linked to this DPIA yet.</div>')+hint;
+    }catch(e){box.innerHTML='<div>The linked documents could not be read just now.</div>'+hint;}
+  };
+
+  window.snDpiaDrawerTab=function(tab){
+    var name=tab.dataset.tab;
+    document.querySelectorAll('#snDpiaDrawerWrap .ropa-drawer-section').forEach(function(s){s.classList.remove('active');});
+    document.querySelectorAll('#snDpiaDrawerWrap .ropa-drawer-tab').forEach(function(t){t.classList.remove('active');});
+    document.getElementById('snDpiaTab_'+name).classList.add('active');
+    tab.classList.add('active');
+  };
+
+  window.snSaveDpiaDrawer=async function(id){
+    var btn=document.getElementById('snDpiaDrawerSaveBtn');
+    var g=function(elId){var el=document.getElementById(elId);return el?el.value.trim():'';};
+    var title=g('dd_title');
+    if(!title){if(typeof showToast==='function')showToast('Title is required','error');return;}
+    var data={
+      title:title,activity_type:g('dd_activity_type'),regulation:g('dd_regulation')||'GDPR',
+      status:g('dd_status')||'draft',legal_basis:g('dd_legal_basis'),
+      owner:g('dd_owner'),due_date:g('dd_due_date'),description:g('dd_description'),
+      activity_desc:g('dd_activity_desc'),proportionality:g('dd_proportionality'),
+      data_categories:snGetChips('snDpiaDC'),
+      special_cats:snGetChips('snDpiaSC'),
+      data_subjects:g('dd_data_subjects'),subject_count:g('dd_subject_count'),
+      retention:g('dd_retention'),systems:g('dd_systems'),processors:g('dd_processors'),
+      intl_transfer:g('dd_intl_transfer'),transfer_mech:g('dd_transfer_mech'),transfer_dest:g('dd_transfer_dest'),
+      purpose:g('dd_purpose'),necessity:g('dd_necessity'),
+      risks:[g('dd_risks')].filter(Boolean),
+      mitigations:g('dd_mitigations'),overall_risk:g('dd_overall_risk'),
+      residual_risk:g('dd_residual_risk'),risk_level:g('dd_overall_risk'),
+      dpo_consulted:document.getElementById('dd_dpo_consulted')&&document.getElementById('dd_dpo_consulted').checked?1:0,
+      consult_notes:g('dd_consult_notes')
+    };
+    try{Object.assign(data,RecordProfileFields.values(document.getElementById('snDpiaProfileFields')));}
+    catch(e){if(typeof showToast==='function')showToast(e.message,'error');return;}
+    if(btn){btn.disabled=true;btn.textContent='Saving...';}
+    try{
+      if(id){
+        await apiFetch('/sentinel/api/dpias/'+id,{method:'PUT',body:data});
+        document.getElementById('snDpiaDrawerWrap').remove();
+        snLoadDpia();
+        if(typeof showToast==='function')showToast('DPIA updated');
+      }else{
+        var created=await apiFetch('/sentinel/api/dpias',{method:'POST',body:data});
+        var ropaSel=g('dd_ropa_link');
+        if(created&&created.id&&ropaSel){
+          if(typeof showToast==='function')showToast('DPIA created');
+          await snDpiaLinkRopa(created.id,ropaSel);
+        }else{
+          document.getElementById('snDpiaDrawerWrap').remove();
+          snLoadDpia();
+          if(typeof showToast==='function')showToast('DPIA created');
+        }
+      }
+    }catch(e){
+      if(btn){btn.disabled=false;btn.textContent=id?'Save Changes':'Create DPIA';}
+      if(typeof showToast==='function')showToast('Save failed: '+(e.message||''),'error');
+    }
+  };
+
+  window.snAiSuggestRisks=async function(){
+    var btn=document.getElementById('snDpiaSuggestRisksBtn');
+    var panel=document.getElementById('snDpiaRiskSuggestions');
+    if(!btn||!panel)return;
+    var at=document.getElementById('dd_activity_type');var actType=at?at.value:'';
+    var regEl=document.getElementById('dd_regulation');var reg=regEl?regEl.value:'GDPR';
+    var cats=snGetChips('snDpiaDC').concat(snGetChips('snDpiaSC'));
+    if(!actType&&!cats.length){if(typeof showToast==='function')showToast('Select an activity type or data categories first','error');return;}
+    var orig=btn.innerHTML;btn.innerHTML='<svg class=ic-spin aria-hidden=true><use href=/static/icons/sprite.svg#ic-loader></use></svg> Thinking...';btn.disabled=true;
+    panel.style.display='block';
+    panel.innerHTML='';
+    var trace=window.ThinkingTrace.open(panel,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the activity and data categories'},
+        {primary:'Checking applicable regulations'},
+        {primary:'Drafting risk scenarios'}
+      ]
+    });
+    try{
+      var r=await apiFetch('/sentinel/api/ai/risks',{method:'POST',body:{activity:actType||'Data processing',regulation:reg,categories:cats}});
+      var risks=Array.isArray(r)?r:(r.risks||[]);
+      trace.destroy();
+      if(!risks.length){panel.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">No suggestions returned.</div>';btn.innerHTML=orig;btn.disabled=false;return;}
+      var colMap={'High':'rgba(220,38,38,.06)','Medium':'rgba(245,158,11,.06)','Low':'rgba(16,185,129,.06)'};
+      var borMap={'High':'rgba(220,38,38,.2)','Medium':'rgba(245,158,11,.2)','Low':'rgba(16,185,129,.2)'};
+      panel.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Click a risk card to add it to your assessment</div>'+
+        risks.map(function(rk,i){
+          var bg=colMap[rk.likelihood]||colMap[rk.impact]||colMap['Low'];
+          var bo=borMap[rk.likelihood]||borMap[rk.impact]||borMap['Low'];
+          return '<div class="dpia-risk-card" id="dpiaRisk'+i+'" data-sn-click="snAcceptRisk('+i+')" style="background:'+bg+';border:1px solid '+bo+';border-radius:var(--radius);padding:10px 12px;margin-bottom:6px">'+
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+              '<strong style="font-size:13px">'+esc(rk.desc)+'</strong>'+
+              '<div style="display:flex;gap:4px;flex-shrink:0">'+
+                '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px;background:var(--surface2);color:var(--muted)">L: '+esc(rk.likelihood)+'</span>'+
+                '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px;background:var(--surface2);color:var(--muted)">I: '+esc(rk.impact)+'</span>'+
+              '</div>'+
+            '</div>'+
+            '<div style="font-size:11px;color:var(--muted);margin-top:4px">Mitigation: '+esc(rk.mitigation)+'</div>'+
+            '<div style="font-size:10px;color:var(--accent);margin-top:4px;font-weight:600">↵ Click to add to assessment</div>'+
+          '</div>';
+        }).join('');
+      window._dpiaSuggestedRisks=risks;
+      btn.innerHTML=orig;btn.disabled=false;
+    }catch(e){
+      trace.destroy();
+      panel.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px">AI suggestion failed: '+esc(e.message||'')+'</div>';
+      btn.innerHTML=orig;btn.disabled=false;
+    }
+  };
+
+  window.snAcceptRisk=function(i){
+    var card=document.getElementById('dpiaRisk'+i);
+    var rk=(window._dpiaSuggestedRisks||[])[i];if(!rk)return;
+    var ta=document.getElementById('dd_risks');
+    if(ta)ta.value=(ta.value.trim()?(ta.value.trim()+'\n'):'')+rk.desc+' (Likelihood: '+rk.likelihood+', Impact: '+rk.impact+')';
+    var mta=document.getElementById('dd_mitigations');
+    if(mta)mta.value=(mta.value.trim()?(mta.value.trim()+'\n'):'')+rk.mitigation;
+    if(card){card.style.opacity='0.35';card.style.pointerEvents='none';}
+    if(typeof showToast==='function')showToast('Risk added to assessment');
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     BREACHES CRUD
+     ════════════════════════════════════════════════════════════════════════ */
+  var breachCache=[];
+  window.snLoadBreaches=async function(){
+    var body=document.getElementById('snBreachBody');
+    body.innerHTML=spinner(6);
+    try{
+      var data=await apiFetch('/sentinel/api/breaches');
+      var items=data.records||data.items||data||[];
+      breachCache=items;
+      if(!items.length){body.innerHTML=emptyRow(6,'No breaches recorded');return;}
+      body.innerHTML=items.map(function(b){
+        return '<tr><td><span class="item-id">'+esc(b.reference||'BR-'+b.id)+'</span></td><td>'+esc(b.title||b.description||'')+'</td><td>'+riskBadge(b.severity||b.risk_level)+'</td><td>'+statusBadge(b.status)+'</td><td>'+fmtDate(b.reported_date||b.created_at)+'</td><td>'+breachCountdown(b.notify_deadline,b.status,b.clock)+'</td><td><button class="btn btn-sm btn-secondary" type="button" data-sn-click="snOpenBreachObligations('+b.id+')">Obligations</button> '+actionBtns('snEditBreach('+b.id+')','snDeleteRecord(\'breach\','+b.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(6,'Failed to load breaches');}
+  };
+  window.snEditBreach=function(id){
+    var item=breachCache.find(function(b){return b.id===id;});
+    if(item) snOpenModal('breach',item);
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DSR CRUD (full view)
+     ════════════════════════════════════════════════════════════════════════ */
+  var dsrViewCache=[];
+  var dsrViewFilter='all';
+  window.snLoadDsrView=async function(){
+    var body=document.getElementById('snDsrViewBody');
+    body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/dsrs');
+      var items=data.records||data.items||data||[];
+      dsrViewCache=items;
+      snRenderDsrView(items);
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load DSRs');}
+  };
+  function snRenderDsrView(items){
+    var filtered=dsrViewFilter==='all'?items:items.filter(function(d){return d.status===dsrViewFilter;});
+    var body=document.getElementById('snDsrViewBody');
+    if(!filtered.length){body.innerHTML=emptyRow(7,'No requests found');return;}
+    body.innerHTML=filtered.map(function(d){
+      return '<tr><td><span class="item-id">'+esc(d.reference||d.ref_number||'DSR-'+d.id)+'</span></td><td>'+esc(d.request_type||d.type||'')+'</td><td>'+esc(d.requester_name||d.requester||'')+'</td><td>'+statusBadge(d.status)+'</td><td>'+fmtDate(d.submitted_date||d.received_date||d.created_at)+'</td><td>'+dsrCountdown(d.deadline_date||d.due_date,d.status)+'</td><td>'+actionBtns('snEditDsr('+d.id+')','snDeleteRecord(\'dsr\','+d.id+')')+'</td></tr>';
+    }).join('');
+  }
+  window.snFilterDsrView=function(status,chip){
+    chip.parentElement.querySelectorAll('.filter-chip').forEach(function(c){c.classList.remove('active');});
+    chip.classList.add('active');
+    dsrViewFilter=status;
+    snRenderDsrView(dsrViewCache);
+  };
+  window.snEditDsr=function(id){
+    var item=dsrViewCache.find(function(d){return d.id===id;});
+    if(item) snOpenModal('dsr',item);
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     VENDORS CRUD
+     ════════════════════════════════════════════════════════════════════════ */
+  var vendorCache=[];
+  var _snVendorXm={};  // canonical_id → cross-module summary
+
+  function _snModulesBadge(v){
+    var cid=v.canonical_id;
+    if(!cid) return '<span style="font-size:10px;color:var(--muted)">—</span>';
+    var xm=_snVendorXm[cid];
+    if(!xm) return '<span style="font-size:10px;color:var(--muted)">…</span>';
+    var mods=xm.modules||{};
+    var flags=xm.flags||[];
+    var parts=[];
+    if(mods.grid) parts.push('<span title="Registered in Audit" style="padding:1px 5px;border-radius:4px;background:rgba(14,165,233,.12);color:#0ea5e9;font-size:10px;font-weight:700">Audit</span>');
+    if(mods.bcm){
+      var tier=mods.bcm.tier||3;
+      var tierCol=tier===1?'#dc2626':tier===2?'#f97316':'#16a34a';
+      parts.push('<span title="Registered in Resilience — Tier '+tier+'" style="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.12);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
+    }
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="padding:1px 5px;border-radius:4px;background:rgba(220,38,38,.1);color:#dc2626;font-size:10px;font-weight:700;cursor:help"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
+    return parts.length?parts.join(' '):'<span style="font-size:10px;color:var(--muted)">Privacy only</span>';
+  }
+
+  window.snLoadVendors=async function(){
+    var body=document.getElementById('snVendorBody');
+    body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/vendors');
+      var items=data.records||data.items||data||[];
+      vendorCache=items;
+
+      // Fetch cross-module directory in parallel
+      try{
+        var dir=await apiFetch('/api/vendors/directory');
+        (dir.items||[]).forEach(function(d){_snVendorXm[d.id]=d;});
+      }catch(e){}
+
+      if(!items.length){body.innerHTML=emptyRow(7,'No vendors found');return;}
+
+      // Alert banner: critical DPA gaps
+      var criticalGaps=items.filter(function(v){
+        var xm=v.canonical_id&&_snVendorXm[v.canonical_id];
+        return xm&&xm.risk_flag==='critical';
+      });
+      var banner=document.getElementById('snVendorAlertBanner');
+      if(criticalGaps.length&&banner){
+        banner.style.display='block';
+        banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:8px;font-size:12px;font-weight:600;color:#dc2626">'+
+          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+criticalGaps.length+' vendor'+(criticalGaps.length>1?'s':'')+' with critical risk flags — check cross-module coverage in <a href="/vendors" style="color:#dc2626;text-decoration:underline">Vendor Directory</a></span></div>';
+      }
+
+      body.innerHTML=items.map(function(v){
+        return '<tr>'+
+          '<td><strong>'+esc(v.name||'')+'</strong>'+(v.type?'<div style="font-size:10px;color:var(--muted);text-transform:capitalize">'+esc(v.type)+'</div>':'')+'</td>'+
+          '<td>'+esc(v.services||'—')+'</td>'+
+          '<td>'+statusBadge(v.dpa_status||'pending')+(v.dpa_expiry?'<div style="font-size:10px;color:var(--muted)">Exp: '+esc(v.dpa_expiry)+'</div>':'')+'</td>'+
+          '<td>'+riskBadge(v.risk_level||'medium')+'</td>'+
+          '<td>'+_snModulesBadge(v)+'</td>'+
+          '<td>'+fmtDate(v.review_date||v.dpa_expiry)+'</td>'+
+          '<td>'+actionBtns('snEditVendor('+v.id+')','snDeleteRecord(\'vendor\','+v.id+')')+'</td>'+
+        '</tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load vendors');}
+  };
+
+  window.snEditVendor=async function(id){
+    var item=vendorCache.find(function(v){return v.id===id;});
+    if(!item) return;
+    snOpenModal('vendor',item);
+    // Inject cross-module panel into open modal after render
+    if(item.canonical_id){
+      try{
+        var xm=await apiFetch('/sentinel/api/vendors/'+id+'/cross-module');
+        var mods=xm.modules||{};
+        var flags=xm.flags||[];
+        var panelHtml='<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px">'+
+          '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)">Cross-Module Coverage</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
+        // Audit badge
+        panelHtml+='<div style="padding:8px 12px;border-right:1px solid var(--border)">'+
+          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
+        if(mods.grid){
+          var ass=mods.grid.latest_assessment;
+          panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
+          if(ass) panelHtml+='<div style="font-size:10px;color:var(--muted)">Score: '+(ass.score||'—')+'%</div>';
+          panelHtml+='<a href="/grid/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
+        } else {
+          panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Audit</div>'+
+            '<a href="/grid/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
+        }
+        panelHtml+='</div>';
+        // Resilience badge
+        panelHtml+='<div style="padding:8px 12px">'+
+          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
+        if(mods.bcm){
+          var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
+          panelHtml+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
+            '<div style="font-size:10px;color:var(--muted);text-transform:capitalize">'+esc(mods.bcm.criticality||'—')+'</div>'+
+            '<a href="/bcm/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
+        } else {
+          panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Resilience</div>'+
+            '<a href="/bcm/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
+        }
+        panelHtml+='</div></div>';
+        if(flags.length){
+          panelHtml+='<div style="padding:8px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
+            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+
+          '</div>';
+        }
+        panelHtml+='</div>';
+        // Append panel after modal form actions
+        var form=document.getElementById('snModalForm');
+        if(form){
+          var wrap=document.createElement('div');
+          wrap.innerHTML=panelHtml;
+          form.insertBefore(wrap,form.querySelector('div[style*="justify-content:flex-end"]'));
+        }
+      }catch(e){}
+    }
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     CONSENT CRUD
+     ════════════════════════════════════════════════════════════════════════ */
+  var consentCache=[];
+  window.snLoadConsent=async function(){
+    var body=document.getElementById('snConsentBody');
+    body.innerHTML=spinner(6);
+    try{
+      var data=await apiFetch('/sentinel/api/consent');
+      var items=data.records||data.items||data||[];
+      consentCache=items;
+      if(!items.length){body.innerHTML=emptyRow(6,'No consent records found');return;}
+      body.innerHTML=items.map(function(c){
+        return '<tr><td>'+esc(c.purpose||'')+'</td><td>'+esc(c.legal_basis||'consent')+'</td><td>'+esc(c.collection_method||c.method||'')+'</td><td>'+statusBadge(c.status||'active')+'</td><td>'+fmtDate(c.expiry_date||c.expires_at)+'</td><td>'+actionBtns('snEditConsent('+c.id+')','snDeleteRecord(\'consent\','+c.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(6,'Failed to load consent records');}
+  };
+  window.snEditConsent=function(id){
+    var item=consentCache.find(function(c){return c.id===id;});
+    if(item) snOpenModal('consent',item);
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     REPORTS
+     ════════════════════════════════════════════════════════════════════════ */
+  window.snLoadReports=async function(){
+    var body=document.getElementById('snAuditBody');
+    body.innerHTML=spinner(5);
+    try{
+      var data=await apiFetch('/sentinel/api/audit?limit=50');
+      var items=data.records||data.items||data||[];
+      if(!items.length){
+        body.innerHTML=emptyRow(5,'No audit records found');
+      }else{
+        body.innerHTML=items.map(function(a){
+          return '<tr><td style="font-family:var(--mono);font-size:12px">'+esc(timeAgoShort(a.created_at||a.timestamp))+'</td><td>'+esc(a.user||a.username||'')+'</td><td>'+esc(a.action||'')+'</td><td>'+esc(a.entity_type||a.entity||'')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.details||a.description||'')+'</td></tr>';
+        }).join('');
+      }
+    }catch(e){body.innerHTML=emptyRow(5,'Failed to load audit log');}
+    // Load compliance score
+    try{
+      var score=await apiFetch('/sentinel/api/compliance-score');
+      var el=document.getElementById('snCompScore');
+      if(el) el.textContent=(score.overall===null||score.overall===undefined)?'Not measured':score.overall+'%';
+    }catch(e){}
+  };
+  window.snDownload=function(url){window.open(url,'_blank');};
+  /* type: ropa | breach | compliance; format: pdf (the default) or xlsx */
+  window.snGenerateReport=function(type,format){
+    window.snDownload('/sentinel/api/reports/'+encodeURIComponent(type)+'?format='+encodeURIComponent(format||'pdf'));
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     AI CHAT
+     ════════════════════════════════════════════════════════════════════════ */
+  window.snSendChat=async function(){
+    var input=document.getElementById('snChatInput');
+    var msg=input.value.trim();
+    if(!msg) return;
+    input.value='';
+    var container=document.getElementById('snChatMessages');
+    // insertAdjacentHTML, not innerHTML+=: the trace mounted below attaches
+    // live listeners/timers to real DOM nodes -- innerHTML+= would reserialize
+    // and reparse the whole container on every later append, silently
+    // detaching those nodes (trace would freeze expanded, header would stop
+    // responding to clicks).
+    container.insertAdjacentHTML('beforeend','<div class="chat-msg user">'+esc(msg)+'</div>');
+    container.scrollTop=container.scrollHeight;
+    var traceId='thinking-'+Date.now();
+    container.insertAdjacentHTML('beforeend','<div class="chat-msg ai" id="'+traceId+'"></div>');
+    container.scrollTop=container.scrollHeight;
+    var trace=window.ThinkingTrace.open(document.getElementById(traceId),{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing your privacy programme'},
+        {primary:'Checking the relevant regulations'},
+        {primary:'Writing the answer'}
+      ]
+    });
+    try{
+      var data=await apiFetch('/sentinel/api/ai/chat',{method:'POST',body:{message:msg}});
+      var reply=data.response||data.reply||data.message||data.answer||'I could not generate a response.';
+      trace.settle();
+      container.insertAdjacentHTML('beforeend','<div class="chat-msg ai">'+esc(reply).replace(/\n/g,'<br>')+'</div>');
+    }catch(e){
+      trace.destroy();
+      var traceEl=document.getElementById(traceId);
+      if(traceEl) traceEl.remove();
+      container.insertAdjacentHTML('beforeend','<div class="chat-msg ai">Sorry, I encountered an error. Please try again.</div>');
+    }
+    container.scrollTop=container.scrollHeight;
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     MODAL SYSTEM
+     ════════════════════════════════════════════════════════════════════════ */
+  var modalDefs={
+    ropa:{
+      title:'Processing Activity',
+      apiBase:'/sentinel/api/ropa',
+      fields:[
+        {name:'processing_name',label:'Activity Name',type:'text',required:true},
+        {name:'department',label:'Department',type:'text'},
+        {name:'owner',label:'Owner',type:'text'},
+        {name:'purpose',label:'Purpose',type:'textarea'},
+        {name:'legal_basis',label:'Legal Basis',type:'select',options:['Consent','Contract','Legal Obligation','Vital Interests','Public Task','Legitimate Interests']},
+        {name:'data_categories',label:'Data Categories',type:'text',placeholder:'e.g. Name, Email, Address'},
+        {name:'data_subjects',label:'Data Subjects',type:'text',placeholder:'e.g. Customers, Employees'},
+        {name:'retention_period',label:'Retention Period',type:'text'},
+        {name:'risk_level',label:'Risk Level',type:'select',options:['low','medium','high','critical']},
+        {name:'status',label:'Status',type:'select',options:['active','draft','archived']}
+      ]
+    },
+    dpia:{
+      title:'DPIA Assessment',
+      apiBase:'/sentinel/api/dpias',
+      fields:[
+        {name:'title',label:'Title',type:'text',required:true},
+        {name:'activity_type',label:'Activity / Processing Type',type:'text',placeholder:'e.g. Customer profiling, HR processing'},
+        {name:'description',label:'Description',type:'textarea'},
+        {name:'purpose',label:'Purpose of Processing',type:'textarea'},
+        {name:'legal_basis',label:'Legal Basis',type:'select',options:['Consent','Contract','Legal Obligation','Vital Interests','Public Task','Legitimate Interests']},
+        {name:'data_categories',label:'Data Categories',type:'text',placeholder:'e.g. Names, email addresses, financial data'},
+        {name:'necessity',label:'Necessity & Proportionality',type:'textarea'},
+        {name:'risks',label:'Identified Risks',type:'textarea',placeholder:'Describe each risk and its likelihood/impact'},
+        {name:'mitigations',label:'Mitigations / Controls',type:'textarea',placeholder:'Controls applied to reduce risks'},
+        {name:'overall_risk',label:'Overall Risk Level',type:'select',options:['low','medium','high']},
+        {name:'residual_risk',label:'Residual Risk (post-mitigation)',type:'select',options:['low','medium','high']},
+        {name:'risk_level',label:'Assessment Risk Level',type:'select',options:['low','medium','high']},
+        {name:'status',label:'Status',type:'select',options:['draft','in_progress','completed','approved']},
+        {name:'owner',label:'Assessor / Owner',type:'text'},
+        {name:'due_date',label:'Due Date',type:'date'},
+        {name:'dpo_consulted',label:'DPO Consulted',type:'select',options:['0','1']},
+        {name:'consult_notes',label:'Consultation Notes',type:'textarea'},
+        {name:'regulation',label:'Jurisdiction',type:'select',options:['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR','Zimbabwe CDPA','UAE PDPL','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act']}
+      ]
+    },
+    breach:{
+      title:'Data Breach',
+      apiBase:'/sentinel/api/breaches',
+      fields:[
+        {name:'title',label:'Incident Title',type:'text',required:true},
+        {name:'regulation',label:'Jurisdiction / Regulation',type:'select',options:['GDPR','UK GDPR','Zimbabwe CDPA','South Africa POPIA','Kenya DPA','Nigeria NDPR','Ghana DPA','UAE PDPL','Saudi PDPL','Qatar DPL','Bahrain PDPL','Canada PIPEDA','Canada Bill C-11','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','New Zealand Privacy Act','Japan APPI','South Korea PIPA'],onchange:'snShowJurisInfo(this)'},
+        {name:'description',label:'Description',type:'textarea',required:true},
+        {name:'severity',label:'Severity',type:'select',options:['low','medium','high','critical']},
+        {name:'status',label:'Status',type:'select',options:['reported','investigating','contained','resolved','closed']},
+        {name:'affected_count',label:'Affected Individuals',type:'number'},
+        {name:'data_types',label:'Data Types Affected',type:'text'},
+        {name:'discovery_date',label:'Discovery Date',type:'date'},
+        {name:'root_cause',label:'Root Cause',type:'textarea'}
+      ]
+    },
+    dsr:{
+      title:'Data Subject Request',
+      apiBase:'/sentinel/api/dsrs',
+      fields:[
+        {name:'request_type',label:'Request Type',type:'select',options:['Access Request','Erasure Request','Rectification','Portability','Objection','Restriction'],required:true},
+        {name:'regulation',label:'Jurisdiction / Regulation',type:'select',options:['GDPR','UK GDPR','Zimbabwe CDPA','South Africa POPIA','Kenya DPA','Nigeria NDPR','Ghana DPA','UAE PDPL','Saudi PDPL','Qatar DPL','Bahrain PDPL','Canada PIPEDA','Canada Bill C-11','USA CCPA/CPRA','Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','New Zealand Privacy Act','Japan APPI','South Korea PIPA'],onchange:'snShowJurisInfo(this)'},
+        {name:'requester_name',label:'Requester Name',type:'text',required:true},
+        {name:'requester_email',label:'Requester Email',type:'text'},
+        {name:'received_date',label:'Date Received',type:'date'},
+        {name:'deadline_date',label:'Response Deadline',type:'date'},
+        {name:'status',label:'Status',type:'select',options:['open','in_progress','completed','closed']},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    vendor:{
+      title:'Vendor',
+      apiBase:'/sentinel/api/vendors',
+      fields:[
+        {name:'name',label:'Vendor Name',type:'text',required:true},
+        {name:'services',label:'Service Provided',type:'text'},
+        {name:'contact_name',label:'Contact Person',type:'text'},
+        {name:'contact_email',label:'Contact Email',type:'text'},
+        {name:'dpa_status',label:'DPA Status',type:'select',options:['pending','signed','expired','not_required']},
+        {name:'risk_level',label:'Risk Level',type:'select',options:['low','medium','high','critical']},
+        {name:'review_date',label:'Next Review Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    consent:{
+      title:'Consent Record',
+      apiBase:'/sentinel/api/consent',
+      fields:[
+        {name:'subject_name',label:'Data Subject Name',type:'text'},
+        {name:'subject_id',label:'Data Subject ID',type:'text',placeholder:'e.g. customer or employee ID'},
+        {name:'subject_email',label:'Data Subject Email',type:'text'},
+        {name:'purpose',label:'Purpose',type:'text',required:true},
+        {name:'legal_basis',label:'Legal Basis',type:'select',options:['consent','legitimate_interest','contract','legal_obligation']},
+        {name:'consent_date',label:'Consent Date',type:'date'},
+        {name:'collection_method',label:'Collection Method',type:'text',placeholder:'e.g. Web form, In-person'},
+        {name:'status',label:'Status',type:'select',options:['active','expired','withdrawn','pending']},
+        {name:'expiry_date',label:'Expiry Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    // ── 8 secondary tabs ──────────────────────────────────────────────────
+    transfer:{
+      title:'International Transfer',
+      apiBase:'/sentinel/api/transfers',
+      fields:[
+        {name:'destination',label:'Destination Country / Region',type:'text',required:true},
+        {name:'recipient_name',label:'Recipient Organisation',type:'text'},
+        {name:'transfer_type',label:'Transfer Type',type:'select',options:['recurring','one-time','permanent']},
+        {name:'legal_basis',label:'Legal Basis',type:'select',options:['adequacy_decision','sccs','bcrs','derogation','legitimate_interests']},
+        {name:'safeguard',label:'Safeguards',type:'textarea'},
+        {name:'risk_level',label:'Risk Level',type:'select',options:['low','medium','high']},
+        {name:'status',label:'Status',type:'select',options:['active','inactive','under_review']},
+        {name:'review_date',label:'Review Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    retention:{
+      title:'Retention Schedule',
+      apiBase:'/sentinel/api/retention',
+      fields:[
+        {name:'category',label:'Data Category',type:'text',required:true},
+        {name:'data_type',label:'Data Type',type:'text',placeholder:'e.g. Email addresses, Phone numbers'},
+        {name:'retention_period',label:'Retention Period',type:'text',placeholder:'e.g. 3 years, 7 years + 6 months'},
+        {name:'legal_basis',label:'Legal Basis',type:'select',options:['contract','legal_obligation','vital_interests','legitimate_interests','consent']},
+        {name:'disposal_method',label:'Deletion Method',type:'select',options:['secure_delete','anonymise','archive']},
+        {name:'trigger_event',label:'Trigger Event',type:'text',placeholder:'e.g. Contract end, Customer exit'},
+        {name:'owner',label:'Responsible Owner',type:'text'},
+        {name:'review_date',label:'Review Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    security:{
+      title:'Security Measure',
+      apiBase:'/sentinel/api/security',
+      fields:[
+        {name:'measure_name',label:'Measure Name',type:'text',required:true},
+        {name:'category',label:'Category',type:'select',options:['technical','organisational','physical','administrative']},
+        {name:'description',label:'Description',type:'textarea'},
+        {name:'status',label:'Status',type:'select',options:['planned','in_progress','implemented','needs_review']},
+        {name:'implementation_date',label:'Implementation Date',type:'date'},
+        {name:'evidence',label:'Evidence Reference',type:'text',placeholder:'e.g. ISO cert, audit report ref'},
+        {name:'owner',label:'Responsible Owner',type:'text'},
+        {name:'review_date',label:'Review Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    policy:{
+      title:'Privacy Policy',
+      apiBase:'/sentinel/api/policies',
+      fields:[
+        {name:'title',label:'Title',type:'text',required:true},
+        {name:'policy_type',label:'Type',type:'select',options:['policy','procedure','guideline','standard']},
+        {name:'version',label:'Version',type:'text',placeholder:'e.g. 1.0'},
+        {name:'status',label:'Status',type:'select',options:['draft','in_review','approved','published','superseded']},
+        {name:'owner',label:'Owner',type:'text'},
+        {name:'department',label:'Department',type:'text'},
+        {name:'approved_by',label:'Approved By',type:'text'},
+        {name:'tags',label:'Tags (comma-separated)',type:'text',placeholder:'e.g. gdpr, hr, mandatory'},
+        {name:'next_review',label:'Next Review Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    notice:{
+      title:'Privacy Notice',
+      apiBase:'/sentinel/api/notices',
+      fields:[
+        {name:'title',label:'Title',type:'text',required:true},
+        {name:'notice_type',label:'Type',type:'select',options:['external','internal','cookie_banner','employee']},
+        {name:'audience',label:'Audience',type:'text',placeholder:'e.g. Website visitors, Employees'},
+        {name:'version',label:'Version',type:'text',placeholder:'e.g. 1.0'},
+        {name:'status',label:'Status',type:'select',options:['draft','in_review','published','archived']},
+        {name:'published_url',label:'Published URL',type:'text',placeholder:'https://'},
+        {name:'content',label:'Content Summary',type:'textarea'},
+        {name:'review_date',label:'Review Date',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    dataflow:{
+      title:'Data Flow',
+      apiBase:'/sentinel/api/dataflows',
+      fields:[
+        {name:'name',label:'Flow Name',type:'text',required:true},
+        {name:'source',label:'Source System',type:'text',placeholder:'e.g. CRM, HR System'},
+        {name:'destination',label:'Destination',type:'text',placeholder:'e.g. Cloud Storage, Third Party'},
+        {name:'data_types',label:'Data Types',type:'text',placeholder:'e.g. Names, Emails, Phone numbers'},
+        {name:'purpose',label:'Purpose',type:'textarea'},
+        {name:'legal_basis',label:'Legal Basis',type:'select',options:['consent','contract','legal_obligation','legitimate_interests','vital_interests']},
+        {name:'safeguards',label:'Safeguards',type:'text'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    controller:{
+      title:'Controller / DPO',
+      apiBase:'/sentinel/api/controllers',
+      fields:[
+        {name:'org_name',label:'Organisation Name',type:'text',required:true},
+        {name:'country',label:'Country',type:'text'},
+        {name:'sector',label:'Sector / Industry',type:'text'},
+        {name:'role',label:'Role',type:'select',options:['controller','joint_controller','processor','dpo','regulator']},
+        {name:'is_primary',label:'Primary organisation',type:'select',options:['0','1']},
+        {name:'registration_number',label:'Registration Number',type:'text'},
+        {name:'address',label:'Registered address',type:'textarea'},
+        {name:'controller_name',label:'Controller Contact Name',type:'text'},
+        {name:'controller_email',label:'Controller Contact Email',type:'text'},
+        {name:'controller_phone',label:'Controller Contact Phone',type:'text'},
+        {name:'dpo_name',label:'DPO Name',type:'text'},
+        {name:'dpo_email',label:'DPO Email',type:'text'},
+        {name:'dpo_phone',label:'DPO Phone',type:'text'},
+        {name:'representative',label:'Representative',type:'text'},
+        {name:'representative_contact',label:'Representative Contact',type:'text'},
+        {name:'contact_name',label:'Joint Controller Contact Name',type:'text'},
+        {name:'contact_email',label:'Joint Controller Contact Email',type:'text'},
+        {name:'regulator_name',label:'Regulator',type:'text'},
+        {name:'regulator_ref',label:'Regulator Reference',type:'text'},
+        {name:'regulation',label:'Regulation',type:'text'},
+        {name:'agreement_date',label:'Agreement Date',type:'date'},
+        {name:'agreement_ref',label:'Agreement Reference',type:'text'},
+        {name:'responsibilities',label:'Agreed Responsibilities',type:'textarea'},
+        {name:'record_owner',label:'Register Owner',type:'text'},
+        {name:'last_full_review',label:'Last Full Review',type:'date'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    },
+    training:{
+      title:'Training Record',
+      apiBase:'/sentinel/api/training',
+      fields:[
+        {name:'staff_name',label:'Staff Name',type:'text',required:true},
+        {name:'training_name',label:'Training Name',type:'text'},
+        {name:'training_type',label:'Training Type',type:'select',options:['awareness','mandatory','optional','role_specific']},
+        {name:'department',label:'Department',type:'text'},
+        {name:'completion_date',label:'Completion Date',type:'date'},
+        {name:'expiry_date',label:'Expiry / Renewal Date',type:'date'},
+        {name:'passed',label:'Passed',type:'select',options:['1','0']},
+        {name:'score',label:'Score (%)',type:'number'},
+        {name:'certificate_no',label:'Certificate Number',type:'text'},
+        {name:'trainer',label:'Trainer / Provider',type:'text'},
+        {name:'notes',label:'Notes',type:'textarea'}
+      ]
+    }
+  };
+
+  window.snOpenModal=function(type,existing){
+    var def=modalDefs[type];
+    if(!def) return;
+    window.ThemisSelectedRecord={page:type==='breach'&&existing&&existing.id?'/sentinel/?open=breach:'+existing.id:null};
+    if(window.ThemisSelectRecord)window.ThemisSelectRecord(window.ThemisSelectedRecord.page);
+    var isEdit=!!(existing&&existing.id);
+    var html='<div class="modal-overlay" data-sn-click="if(event.target===this)snCloseModal()">'+
+      '<div class="modal-box">'+
+      '<button class="modal-close" data-sn-click="snCloseModal()">&times;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'New')+' '+esc(def.title)+'</div>'+
+      '<form id="snModalForm" data-sn-submit="return snSubmitModal(event,\''+type+'\','+(isEdit?existing.id:'null')+')">';
+
+    // Inject jurisdiction info banner after first select with onchange
+    var hasJurisBanner=def.fields.some(function(f){return f.onchange&&f.onchange.includes('snShowJurisInfo');});
+    if(hasJurisBanner){
+      html+='<div class="juris-info-banner" id="jurisInfoBanner"></div>';
+    }
+
+    def.fields.forEach(function(f){
+      var val=isEdit?(existing[f.name]||''):'';
+      html+='<div class="form-group"><label for="snf_'+f.name+'">'+esc(f.label)+'</label>';
+      if(f.type==='select'){
+        var onchangeAttr=f.onchange?' data-sn-change="'+f.onchange+'"':'';
+        html+='<select id="snf_'+f.name+'" name="'+f.name+'"'+(f.required?' required':'')+onchangeAttr+'>';
+        html+='<option value="">Select...</option>';
+        (f.options||[]).forEach(function(o){
+          if(!isEdit&&o==='Canada Bill C-11')return;
+          var sel=(String(val).toLowerCase()===String(o).toLowerCase()||val===o)?' selected':'';
+          html+='<option value="'+esc(o)+'"'+sel+'>'+esc(o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</option>';
+        });
+        html+='</select>';
+      } else if(f.type==='textarea'){
+        html+='<textarea id="snf_'+f.name+'" name="'+f.name+'" rows="3"'+(f.required?' required':'')+'>'+esc(val)+'</textarea>';
+      } else {
+        html+='<input type="'+(f.type||'text')+'" id="snf_'+f.name+'" name="'+f.name+'" value="'+esc(val)+'"'+(f.required?' required':'')+(f.placeholder?' placeholder="'+esc(f.placeholder)+'"':'')+'>';
+      }
+      html+='</div>';
+    });
+
+    html+='<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+      '<button type="button" class="btn btn-secondary" data-sn-click="snCloseModal()">Cancel</button>'+
+      '<button type="submit" class="btn btn-primary">'+(isEdit?'Update':'Create')+'</button>'+
+    '</div></form></div></div>';
+
+    document.getElementById('snModalRoot').innerHTML=html;
+    // Pre-select the primary jurisdiction in regulation fields for new entities
+    if(!isEdit && snPrimaryJurisdiction){
+      var _regSel=document.getElementById('snf_regulation');
+      if(_regSel && _regSel.tagName==='SELECT') _regSel.value=snPrimaryJurisdiction;
+    }
+  };
+
+  window.snCloseModal=function(){document.getElementById('snModalRoot').innerHTML='';};
+
+  window.snSubmitModal=function(e,type,id){
+    e.preventDefault();
+    var def=modalDefs[type];
+    var form=document.getElementById('snModalForm');
+    var formData=new FormData(form);
+    var body={};
+    formData.forEach(function(v,k){if(v)body[k]=v;});
+
+    var url=def.apiBase;
+    var method='POST';
+    if(id){url=def.apiBase+'/'+id;method='PUT';}
+
+    apiFetch(url,{method:method,body:body}).then(function(){
+      snCloseModal();
+      sentinelRouter.load(sentinelRouter.current);
+    }).catch(function(err){
+      alert('Error saving record: '+err.message);
+    });
+    return false;
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DELETE CONFIRMATION
+     ════════════════════════════════════════════════════════════════════════ */
+  var apiMap={ropa:'/sentinel/api/ropa',dpia:'/sentinel/api/dpias',breach:'/sentinel/api/breaches',dsr:'/sentinel/api/dsrs',vendor:'/sentinel/api/vendors',consent:'/sentinel/api/consent'};
+
+  window.snDeleteRecord=function(type,id){
+    document.getElementById('snConfirmRoot').innerHTML=
+      '<div class="confirm-overlay" data-sn-click="if(event.target===this)snCloseConfirm()">'+
+      '<div class="confirm-box">'+
+      '<div class="confirm-title">Delete Record</div>'+
+      '<div class="confirm-text">Are you sure you want to delete this record? This action cannot be undone.</div>'+
+      '<div class="confirm-actions">'+
+        '<button class="btn btn-secondary" data-sn-click="snCloseConfirm()">Cancel</button>'+
+        '<button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" data-sn-click="snConfirmDelete(\''+type+'\','+id+')">Delete</button>'+
+      '</div></div></div>';
+  };
+  window.snCloseConfirm=function(){document.getElementById('snConfirmRoot').innerHTML='';};
+  window.snConfirmDelete=function(type,id){
+    var url=(apiMap[type]||'/sentinel/api/'+type)+'/'+id;
+    apiFetch(url,{method:'DELETE'}).then(function(){
+      snCloseConfirm();
+      sentinelRouter.load(sentinelRouter.current);
+    }).catch(function(err){
+      alert('Error deleting record: '+err.message);
+      snCloseConfirm();
+    });
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     NEW SECTION LOADERS (Items 4 + 5 + 6)
+     ════════════════════════════════════════════════════════════════════════ */
+
+  // ── LIA (SENT-14) ─────────────────────────────────────────────────────────
+  var liaCache=[];
+  window.snLoadLia=async function(){
+    var body=document.getElementById('snLiaBody');body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/lia');
+      var items=Array.isArray(data)?data:data.items||[];
+      liaCache=items;
+      if(!items.length){body.innerHTML=emptyRow(7,'No LIAs found — create one to document a legitimate interest justification');return;}
+      var badge=function(v,y,n){return v?'<span class="badge badge-complete">'+y+'</span>':'<span class="badge badge-draft">'+n+'</span>';};
+      var resBadge=function(r){var m={passed:'badge-complete',failed:'badge-critical',review_needed:'badge-progress',pending:'badge-draft'};return '<span class="badge '+(m[r]||'badge-draft')+'">'+(r||'pending').replace(/_/g,' ')+'</span>';};
+      body.innerHTML=items.map(function(l){
+        return '<tr><td>'+esc(l.title)+'</td><td>'+esc(l.ropa_name||'—')+'</td><td>'+badge(l.purpose_legit,'Pass','Fail')+'</td><td>'+badge(l.necessity_pass,'Pass','Fail')+'</td><td>'+badge(l.override_ok,'Pass','Fail')+'</td><td>'+resBadge(l.overall_result)+'</td><td>'+actionBtns('snEditLia('+l.id+')','snDeleteLia('+l.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load LIAs');}
+  };
+  window.snEditLia=function(id){var l=liaCache.find(function(x){return x.id===id;});if(l)snOpenLiaModal(l);};
+  window.snDeleteLia=async function(id){if(!confirm('Delete this LIA?'))return;try{await apiFetch('/sentinel/api/lia/'+id,{method:'DELETE'});snLoadLia();}catch(e){}};
+  window.snOpenLiaModal=function(existing){
+    var isEdit=!!(existing&&existing.id);
+    var html='<div class="modal-overlay" id="liaModal" data-sn-click="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:700px">'+
+        '<button class="modal-close" data-sn-click="document.getElementById(\'liaModal\').remove()">&#10005;</button>'+
+        '<div class="modal-title">Legitimate Interest Assessment</div>'+
+        '<div class="form-row"><div class="form-group" style="grid-column:1/-1"><label>Title / Processing Activity</label>'+
+          '<input id="lia_title" value="'+esc(isEdit?existing.title:'')+'"></div></div>'+
+
+        '<div class="lia-part'+(isEdit&&existing.purpose_legit?' passed':isEdit?' failed':'')+'">'+
+          '<div class="lia-part-title">Part 1: Purpose Test</div>'+
+          '<div class="lia-part-desc">Is there a legitimate purpose? Is it clearly defined and real?</div>'+
+          '<div class="form-group"><label>Describe the legitimate interest</label>'+
+            '<textarea id="lia_p1_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.purpose_desc||''):'')+'</textarea></div>'+
+          '<label class="lia-toggle"><input type="checkbox" id="lia_p1_pass"'+(isEdit&&existing.purpose_legit?' checked':'')+'>'+
+            '<span style="font-size:13px;font-weight:600">Purpose is legitimate and clearly defined</span></label>'+
+        '</div>'+
+
+        '<div class="lia-part'+(isEdit&&existing.necessity_pass?' passed':isEdit?' failed':'')+'">'+
+          '<div class="lia-part-title">Part 2: Necessity Test</div>'+
+          '<div class="lia-part-desc">Is the processing necessary? Could a less intrusive means achieve the same goal?</div>'+
+          '<div class="form-group"><label>Describe why processing is necessary</label>'+
+            '<textarea id="lia_p2_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.necessity_desc||''):'')+'</textarea></div>'+
+          '<div class="form-group"><label>Less intrusive alternatives considered (and why rejected)</label>'+
+            '<textarea id="lia_p2_alt" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.alternatives||''):'')+'</textarea></div>'+
+          '<label class="lia-toggle"><input type="checkbox" id="lia_p2_pass"'+(isEdit&&existing.necessity_pass?' checked':'')+'>'+
+            '<span style="font-size:13px;font-weight:600">Processing is necessary and proportionate</span></label>'+
+        '</div>'+
+
+        '<div class="lia-part'+(isEdit&&existing.override_ok?' passed':isEdit?' failed':'')+'">'+
+          '<div class="lia-part-title">Part 3: Balancing Test</div>'+
+          '<div class="lia-part-desc">Do the data subject\'s interests override the legitimate interest?</div>'+
+          '<div class="form-group"><label>Impact on data subjects</label>'+
+            '<textarea id="lia_p3_impact" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.subject_impact||''):'')+'</textarea></div>'+
+          '<div class="form-group"><label>Safeguards applied to protect data subject interests</label>'+
+            '<textarea id="lia_p3_safe" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.safeguards||''):'')+'</textarea></div>'+
+          '<label class="lia-toggle"><input type="checkbox" id="lia_p3_pass"'+(isEdit&&existing.override_ok?' checked':'')+'>'+
+            '<span style="font-size:13px;font-weight:600">Controller interests prevail: data subjects would not be surprised or object</span></label>'+
+        '</div>'+
+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'+
+          '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'liaModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" data-sn-click="snSaveLia('+(isEdit?existing.id:'null')+')">Save LIA</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('liaModal').firstElementChild);
+  };
+  window.snSaveLia=async function(id){
+    var data={title:document.getElementById('lia_title').value.trim(),
+      purpose_desc:document.getElementById('lia_p1_desc').value.trim(),
+      purpose_legit:document.getElementById('lia_p1_pass').checked?1:0,
+      necessity_desc:document.getElementById('lia_p2_desc').value.trim(),
+      alternatives:document.getElementById('lia_p2_alt').value.trim(),
+      necessity_pass:document.getElementById('lia_p2_pass').checked?1:0,
+      subject_impact:document.getElementById('lia_p3_impact').value.trim(),
+      safeguards:document.getElementById('lia_p3_safe').value.trim(),
+      override_ok:document.getElementById('lia_p3_pass').checked?1:0};
+    if(!data.title){if(typeof showToast==='function')showToast('Title required','error');return;}
+    try{
+      if(id) await apiFetch('/sentinel/api/lia/'+id,{method:'PUT',body:data});
+      else await apiFetch('/sentinel/api/lia',{method:'POST',body:data});
+      document.getElementById('liaModal').remove();
+      snLoadLia();
+      if(typeof showToast==='function')showToast('LIA saved');
+    }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     SHARED HELPERS FOR SECONDARY TABS
+     ════════════════════════════════════════════════════════════════════════ */
+
+  // ── Stats strip populator ─────────────────────────────────────────────────
+  function snPopulateTabStats(elId,cards){
+    var el=document.getElementById(elId);if(!el)return;
+    el.innerHTML=cards.map(function(c){
+      var valStyle=c.color?' style="color:'+c.color+'"':'';
+      return '<div class="sn-tab-stat stat-card">'+
+        '<div class="sn-tab-stat-label">'+esc(c.label)+'</div>'+
+        '<div class="sn-tab-stat-val"'+valStyle+'>'+esc(String(c.value))+'</div>'+
+        (c.sub?'<div class="sn-tab-stat-sub">'+esc(c.sub)+'</div>':'')+
+      '</div>';
+    }).join('');
+    // Apply tilt to dynamically added stat cards
+    el.querySelectorAll('.sn-tab-stat').forEach(function(card){
+      card.addEventListener('mousemove',function(e){
+        var r=card.getBoundingClientRect();
+        var x=(e.clientX-r.left)/r.width-0.5,y=(e.clientY-r.top)/r.height-0.5;
+        card.style.transform='perspective(600px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg) translateY(-2px)';
+      });
+      card.addEventListener('mouseleave',function(){card.style.transform='';});
+    });
+  }
+
+  // ── EU/EEA Adequacy lookup (static, no backend) ───────────────────────────
+  var SN_ADEQUACY=['andorra','argentina','canada','faroe islands','faroe','guernsey',
+    'israel','isle of man','japan','jersey','new zealand','south korea','korea',
+    'switzerland','uk','united kingdom','great britain','uruguay',
+    'usa','united states','united states of america'];
+  var SN_EEA=['germany','france','italy','spain','netherlands','belgium','sweden',
+    'austria','denmark','finland','norway','iceland','liechtenstein','luxembourg',
+    'ireland','portugal','czech republic','poland','hungary','slovakia','slovenia',
+    'croatia','bulgaria','romania','estonia','latvia','lithuania','malta','cyprus','greece'];
+
+  function snIsAdequate(dest){
+    var d=(dest||'').toLowerCase();
+    return SN_ADEQUACY.some(function(c){return d.indexOf(c)!==-1;});
+  }
+  function snIsEEA(dest){
+    var d=(dest||'').toLowerCase();
+    return SN_EEA.some(function(c){return d.indexOf(c)!==-1;});
+  }
+  function snIsThirdCountry(dest){
+    return !snIsAdequate(dest)&&!snIsEEA(dest)&&(dest||'').trim()!=='';
+  }
+  function snAdequacyBadge(dest,safeguards){
+    if(!dest||dest.trim()==='') return '<span style="color:var(--muted)">—</span>';
+    if(snIsEEA(dest)) return '<span class="adeq-ok">✓ EEA</span>';
+    if(snIsAdequate(dest)) return '<span class="adeq-ok">✓ Adequate</span>';
+    if(safeguards&&safeguards.trim()) return '<span class="adeq-warn"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> SCCs</span>';
+    return '<span class="adeq-bad">✗ No safeguard</span>';
+  }
+
+  // ── Transfers ──────────────────────────────────────────────────────────────
+  var transferCache=[];
+  window.snLoadTransfers=async function(){
+    var body=document.getElementById('snTransfersBody');body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/transfers');
+      var items=Array.isArray(data)?data:data.items||[];
+      transferCache=items;
+      var now=new Date();
+      var active=items.filter(function(t){return(t.status||'active')==='active';}).length;
+      var thirdCountry=items.filter(function(t){return snIsThirdCountry(t.destination||'');}).length;
+      var overdue=items.filter(function(t){return t.review_date&&new Date(t.review_date)<now;}).length;
+      snPopulateTabStats('snTransfersStats',[
+        {label:'Total Transfers',value:items.length,sub:'cross-border records'},
+        {label:'Active',value:active,sub:'currently active'},
+        {label:'Third-Country',value:thirdCountry,sub:'non-adequate destinations',color:thirdCountry>0?'var(--amber)':null},
+        {label:'Overdue Reviews',value:overdue,sub:'past review date',color:overdue>0?'var(--red)':null}
+      ]);
+      if(!items.length){body.innerHTML=emptyRow(7,'No international transfers recorded');return;}
+      body.innerHTML=items.map(function(t){
+        var adeq=snAdequacyBadge(t.destination||'',t.safeguards||t.safeguard||'');
+        return '<tr><td><span class="item-id">'+esc(t.ref_number||'TRF-'+t.id)+'</span></td>'+
+          '<td>'+esc(t.destination||'—')+'</td>'+
+          '<td>'+esc(t.recipient||t.recipient_name||'—')+'</td>'+
+          '<td>'+esc(t.safeguards||t.safeguard||t.transfer_type||'—')+'</td>'+
+          '<td>'+adeq+'</td>'+
+          '<td>'+statusBadge(t.status||'active')+'</td>'+
+          '<td>'+actionBtns('snEditTransfer('+t.id+')','snDeleteTransfer('+t.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load transfers');}
+  };
+  window.snEditTransfer=function(id){var item=transferCache.find(function(x){return x.id===id;});if(item)snOpenModal('transfer',item);};
+  window.snDeleteTransfer=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/transfers/'+id,{method:'DELETE'});snLoadTransfers();}catch(e){}};
+
+  // ── Retention ──────────────────────────────────────────────────────────────
+  var retentionCache=[];
+  window.snLoadRetention=async function(){
+    var body=document.getElementById('snRetentionBody');body.innerHTML=spinner(8);
+    try{
+      var data=await apiFetch('/sentinel/api/retention');
+      var items=Array.isArray(data)?data:data.items||[];
+      retentionCache=items;
+      var now=new Date();
+      var overdue=items.filter(function(r){return r.review_date&&new Date(r.review_date)<now;}).length;
+      var cats=[];items.forEach(function(r){if(r.category&&cats.indexOf(r.category)===-1)cats.push(r.category);});
+      snPopulateTabStats('snRetentionStats',[
+        {label:'Total Schedules',value:items.length,sub:'retention rules defined'},
+        {label:'Overdue Reviews',value:overdue,sub:'past review date',color:overdue>0?'var(--red)':null},
+        {label:'Categories',value:cats.length,sub:'distinct data categories'}
+      ]);
+      // Cross-link: suggest categories from RoPA that have no retention schedule
+      try{
+        var ropaData=await apiFetch('/sentinel/api/ropa');
+        var ropaItems=Array.isArray(ropaData)?ropaData:ropaData.records||ropaData.items||[];
+        var ropaCats=[];
+        ropaItems.forEach(function(r){
+          if(r.data_categories){r.data_categories.split(',').forEach(function(c){var t=c.trim();if(t&&ropaCats.indexOf(t)===-1)ropaCats.push(t);});}
+        });
+        var missing=ropaCats.filter(function(c){return cats.indexOf(c)===-1;});
+        var banner=document.getElementById('snRetentionBanner');
+        if(banner&&missing.length>0){
+          banner.style.display='flex';
+          banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> <strong style="margin-right:4px">Suggested from your RoPA:</strong>'+
+            missing.slice(0,4).map(function(c){
+              return '<button class="btn btn-sm btn-secondary sn-retention-from-ropa" data-category="'+esc(c)+'" style="font-size:11px;padding:2px 8px">'+esc(c)+'</button>';
+            }).join('')+
+            (missing.length>4?'<span style="font-size:12px;opacity:.7">+'+(missing.length-4)+' more</span>':'')+'<span style="opacity:.7;font-size:12px"> have no retention schedule yet.</span>'+
+            '<button data-sn-click="this.closest(\'.sn-suggestion-banner\').style.display=\'none\'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;color:currentColor;opacity:.6">×</button>';
+        }else if(banner){banner.style.display='none';}
+      }catch(e){}
+      if(!items.length){body.innerHTML=emptyRow(8,'No retention schedules defined');return;}
+      body.innerHTML=items.map(function(r){
+        var reviewDate=r.review_date;var reviewCell=fmtDate(reviewDate);
+        if(reviewDate&&new Date(reviewDate)<new Date())reviewCell='<span style="color:var(--red);font-weight:700">'+reviewCell+' OVERDUE</span>';
+        return '<tr><td>'+esc(r.category||'—')+'</td><td>'+esc(r.data_type||'—')+'</td>'+
+          '<td>'+esc(r.retention_period||'—')+'</td>'+
+          '<td><span style="font-size:11px;color:var(--muted)">'+esc(r.trigger_event||'—')+'</span></td>'+
+          '<td>'+esc(r.legal_basis||'—')+'</td>'+
+          '<td>'+esc(r.responsible||r.owner||'—')+'</td>'+
+          '<td>'+reviewCell+'</td>'+
+          '<td>'+actionBtns('snEditRetention('+r.id+')','snDeleteRetention('+r.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(8,'Failed to load retention schedules');}
+  };
+  window.snEditRetention=function(id){var item=retentionCache.find(function(x){return x.id===id;});if(item)snOpenModal('retention',item);};
+  window.snDeleteRetention=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/retention/'+id,{method:'DELETE'});snLoadRetention();}catch(e){}};
+
+  // ── Security Measures ──────────────────────────────────────────────────────
+  var securityCache=[];
+  window.snLoadSecurity=async function(){
+    var body=document.getElementById('snSecurityBody');body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/security');
+      var items=Array.isArray(data)?data:data.items||[];
+      securityCache=items;
+      var now=new Date();
+      var implemented=items.filter(function(s){return(s.status||'implemented')==='implemented';}).length;
+      var planned=items.filter(function(s){return s.status==='planned';}).length;
+      var overdue=items.filter(function(s){return s.review_date&&new Date(s.review_date)<now;}).length;
+      snPopulateTabStats('snSecurityStats',[
+        {label:'Total Measures',value:items.length,sub:'TOMs recorded'},
+        {label:'Implemented',value:implemented,sub:'active controls',color:implemented>0?'var(--good)':null},
+        {label:'Planned',value:planned,sub:'pending implementation',color:planned>0?'var(--amber)':null},
+        {label:'Overdue Reviews',value:overdue,sub:'past review date',color:overdue>0?'var(--red)':null}
+      ]);
+      if(!items.length){body.innerHTML=emptyRow(7,'No security measures recorded');return;}
+      body.innerHTML=items.map(function(s){
+        var evidenceCell=s.evidence
+          ?'<span style="font-family:var(--mono);font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px" title="'+esc(s.evidence)+'">'+esc(s.evidence.substring(0,18))+'</span>'
+          :'<span style="color:var(--muted)">—</span>';
+        return '<tr><td><strong>'+esc(s.measure_name)+'</strong></td>'+
+          '<td>'+esc(s.category||'—')+'</td>'+
+          '<td>'+statusBadge(s.status||'implemented')+'</td>'+
+          '<td>'+evidenceCell+'</td>'+
+          '<td>'+esc(s.responsible||s.owner||'—')+'</td>'+
+          '<td>'+fmtDate(s.review_date)+'</td>'+
+          '<td>'+actionBtns('snEditSecurity('+s.id+')','snDeleteSecurity('+s.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load security measures');}
+  };
+  window.snEditSecurity=function(id){var item=securityCache.find(function(x){return x.id===id;});if(item)snOpenModal('security',item);};
+  window.snDeleteSecurity=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/security/'+id,{method:'DELETE'});snLoadSecurity();}catch(e){}};
+
+  // ── Policies ───────────────────────────────────────────────────────────────
+  var policiesCache=[];
+  window.snLoadPolicies=async function(){
+    var body=document.getElementById('snPoliciesBody');body.innerHTML=spinner(8);
+    try{
+      var data=await apiFetch('/sentinel/api/policies');
+      var items=Array.isArray(data)?data:data.items||[];
+      policiesCache=items;
+      var now=new Date();
+      var published=items.filter(function(p){return p.status==='published';}).length;
+      var inReview=items.filter(function(p){return p.status==='in_review';}).length;
+      var expiring=items.filter(function(p){
+        var d=p.next_review||p.review_date;if(!d)return false;
+        var days=(new Date(d)-now)/86400000;return days>=0&&days<=30;
+      }).length;
+      snPopulateTabStats('snPoliciesStats',[
+        {label:'Total Policies',value:items.length,sub:'documents tracked'},
+        {label:'Published',value:published,sub:'live policies',color:published>0?'var(--good)':null},
+        {label:'In Review',value:inReview,sub:'awaiting approval',color:inReview>0?'var(--amber)':null},
+        {label:'Due Review',value:expiring,sub:'within 30 days',color:expiring>0?'var(--amber)':null}
+      ]);
+      if(!items.length){body.innerHTML=emptyRow(8,'No policies found');return;}
+      body.innerHTML=items.map(function(p){
+        var tags='';
+        if(p.tags){tags=p.tags.split(',').map(function(t){return t.trim();}).filter(Boolean).map(function(t){return '<span class="filter-chip" style="font-size:10px;padding:1px 6px;margin:1px">'+esc(t)+'</span>';}).join('');}
+        return '<tr><td><strong>'+esc(p.title)+'</strong></td>'+
+          '<td>'+esc(p.type||p.policy_type||'—')+'</td>'+
+          '<td>'+esc(p.version||'1.0')+'</td>'+
+          '<td>'+statusBadge(p.status||'draft')+'</td>'+
+          '<td>'+esc(p.owner||'—')+'</td>'+
+          '<td>'+(tags||'<span style="color:var(--muted)">—</span>')+'</td>'+
+          '<td>'+fmtDate(p.next_review||p.review_date)+'</td>'+
+          '<td>'+actionBtns('snEditPolicy('+p.id+')','snDeletePolicy('+p.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(8,'Failed to load policies');}
+  };
+  window.snEditPolicy=function(id){var item=policiesCache.find(function(x){return x.id===id;});if(item)snOpenModal('policy',item);};
+  window.snDeletePolicy=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/policies/'+id,{method:'DELETE'});snLoadPolicies();}catch(e){}};
+
+  // ── Privacy Notices ────────────────────────────────────────────────────────
+  var noticesCache=[];
+  window.snLoadNotices=async function(){
+    var body=document.getElementById('snNoticesBody');body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/notices');
+      var items=Array.isArray(data)?data:data.items||[];
+      noticesCache=items;
+      var now=new Date();
+      var published=items.filter(function(n){return n.status==='published';}).length;
+      var draft=items.filter(function(n){return !n.status||n.status==='draft';}).length;
+      var overdue=items.filter(function(n){return n.review_date&&new Date(n.review_date)<now;}).length;
+      snPopulateTabStats('snNoticesStats',[
+        {label:'Total Notices',value:items.length,sub:'privacy notices'},
+        {label:'Published',value:published,sub:'live notices',color:published>0?'var(--good)':null},
+        {label:'Draft',value:draft,sub:'not yet published',color:draft>0?'var(--amber)':null},
+        {label:'Overdue Reviews',value:overdue,sub:'past review date',color:overdue>0?'var(--red)':null}
+      ]);
+      if(!items.length){body.innerHTML=emptyRow(7,'No privacy notices found');return;}
+      body.innerHTML=items.map(function(n){
+        var noticeUrl=snSafeUrl(n.url,true);
+        var titleCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">'+esc(n.title)+'</a>':'<strong>'+esc(n.title)+'</strong>';
+        var urlCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent)">View →</a>':'<span style="color:var(--muted)">—</span>';
+        return '<tr><td>'+titleCell+'</td>'+
+          '<td>'+esc(n.audience||n.regulation||'—')+'</td>'+
+          '<td>'+esc(n.version||'1.0')+'</td>'+
+          '<td>'+statusBadge(n.status||'draft')+'</td>'+
+          '<td>'+urlCell+'</td>'+
+          '<td>'+fmtDate(n.review_date)+'</td>'+
+          '<td>'+actionBtns('snEditNotice('+n.id+')','snDeleteNotice('+n.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load notices');}
+  };
+  window.snEditNotice=function(id){var item=noticesCache.find(function(x){return x.id===id;});if(item)snOpenModal('notice',item);};
+  window.snDeleteNotice=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/notices/'+id,{method:'DELETE'});snLoadNotices();}catch(e){}};
+
+  // ── Data Flows + Visualization (SENT-12) ─────────────────────────────────
+  var flowsCache=[];var flowViewMode='diagram';
+  window.snSetFlowView=function(mode,chip){
+    flowViewMode=mode;
+    chip.parentElement.querySelectorAll('.filter-chip').forEach(function(c){c.classList.remove('active');});
+    chip.classList.add('active');
+    document.getElementById('snFlowDiagramWrap').style.display=mode==='diagram'?'':'none';
+    document.getElementById('snFlowTableWrap').style.display=mode==='table'?'':'none';
+    if(mode==='diagram'&&flowsCache.length) snRenderFlowDiagram(flowsCache);
+  };
+  window.snLoadDataflows=async function(){
+    var tableBody=document.getElementById('snFlowsBody');
+    try{
+      var data=await apiFetch('/sentinel/api/dataflows');
+      var items=Array.isArray(data)?data:data.items||[];
+      flowsCache=items;
+      // Stats
+      var srcs=[];var dsts=[];
+      items.forEach(function(f){
+        var s=f.source_system||f.source||'';var d=f.destination||'';
+        if(s&&srcs.indexOf(s)===-1)srcs.push(s);
+        if(d&&dsts.indexOf(d)===-1)dsts.push(d);
+      });
+      snPopulateTabStats('snFlowsStats',[
+        {label:'Total Flows',value:items.length,sub:'data flow records'},
+        {label:'Sources',value:srcs.length,sub:'unique source systems'},
+        {label:'Destinations',value:dsts.length,sub:'unique destinations'}
+      ]);
+      // Third-country banner
+      var thirdCountryFlows=items.filter(function(f){return snIsThirdCountry(f.destination||'');});
+      var banner=document.getElementById('snFlowsBanner');
+      if(banner&&thirdCountryFlows.length>0){
+        banner.style.display='flex';
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+thirdCountryFlows.length+' data flow'+(thirdCountryFlows.length>1?'s flow':' flows')+' to third countries.</strong> Ensure International Transfer records exist. '+
+          thirdCountryFlows.slice(0,2).map(function(f){
+            var dest=f.destination||'';
+            var src=f.source_system||f.source||'';
+            return '<button class="btn btn-sm btn-secondary sn-transfer-from-flow" data-destination="'+esc(dest)+'" data-recipient-name="'+esc(src)+'" style="font-size:11px;padding:2px 8px">+ Transfer for '+esc(dest.substring(0,20))+'</button>';
+          }).join(' ');
+      }else if(banner){banner.style.display='none';}
+      // Table view
+      if(!items.length){
+        tableBody.innerHTML=emptyRow(6,'No data flows mapped yet');
+        document.getElementById('snFlowDiagram').innerHTML='<div style="padding:48px;text-align:center;color:var(--muted)">No data flows to visualize yet. Add flows to see the diagram.</div>';
+        return;
+      }
+      tableBody.innerHTML=items.map(function(f){
+        return '<tr><td><strong>'+esc(f.flow_name||f.name||'')+'</strong></td>'+
+          '<td>'+esc(f.source_system||f.source||'—')+'</td>'+
+          '<td>'+esc(f.destination||'—')+'</td>'+
+          '<td>'+esc(f.data_types||'—')+'</td>'+
+          '<td>'+esc(f.safeguards||'—')+'</td>'+
+          '<td>'+actionBtns('snEditFlow('+f.id+')','snDeleteFlow('+f.id+')')+'</td></tr>';
+      }).join('');
+      // Diagram view
+      if(flowViewMode==='diagram') snRenderFlowDiagram(items);
+    }catch(e){tableBody.innerHTML=emptyRow(6,'Failed to load data flows');}
+  };
+  window.snEditFlow=function(id){var item=flowsCache.find(function(x){return x.id===id;});if(item)snOpenModal('dataflow',item);};
+  window.snDeleteFlow=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/dataflows/'+id,{method:'DELETE'});snLoadDataflows();}catch(e){}};
+
+  function snRenderFlowDiagram(flows){
+    var wrap=document.getElementById('snFlowDiagram');
+    if(!flows.length){wrap.innerHTML='<div style="padding:48px;text-align:center;color:var(--muted)">No flows to visualize</div>';return;}
+    var sources={},dests={};
+    flows.forEach(function(f){
+      var src=f.source_system||f.source||'Unknown';var dst=f.destination||'Unknown';
+      if(!sources[src])sources[src]={name:src,flows:[]};
+      sources[src].flows.push(f);
+      if(!dests[dst])dests[dst]={name:dst};
+    });
+    var srcList=Object.values(sources);var dstList=Object.values(dests);
+    var W=Math.max(700,wrap.clientWidth||700);var H=Math.max(300,srcList.length*70+80,dstList.length*70+80);
+    var srcX=80,dstX=W-160;
+    var srcGap=Math.max(70,(H-80)/Math.max(srcList.length,1));var dstGap=Math.max(70,(H-80)/Math.max(dstList.length,1));
+    var positionedSrc={};srcList.forEach(function(s,i){positionedSrc[s.name]={x:srcX,y:60+i*srcGap};});
+    var positionedDst={};dstList.forEach(function(d,i){positionedDst[d.name]={x:dstX,y:60+i*dstGap};});
+    var nodeW=140,nodeH=36;
+    var sensitiveTerms=['health','biometric','financial','special category','political','religion','criminal','sexual'];
+    var svgParts=['<svg width="'+W+'" height="'+H+'" xmlns="http://www.w3.org/2000/svg">',
+      '<defs>',
+      '<marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border)"/></marker>',
+      '<marker id="arrow-risk" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(220,38,38,0.7)"/></marker>',
+      '</defs>'];
+    // Draw edges
+    flows.forEach(function(f){
+      var src=f.source_system||f.source||'Unknown';var dst=f.destination||'Unknown';
+      var sp=positionedSrc[src];var dp=positionedDst[dst];
+      if(!sp||!dp)return;
+      var x1=sp.x+nodeW,y1=sp.y+nodeH/2;var x2=dp.x,y2=dp.y+nodeH/2;var mx=(x1+x2)/2;
+      var dt=(f.data_types||'').toLowerCase();
+      var isRisky=sensitiveTerms.some(function(t){return dt.indexOf(t)!==-1;});
+      var edgeColor=isRisky?'rgba(220,38,38,0.5)':'var(--border)';
+      var marker=isRisky?'url(#arrow-risk)':'url(#arrow)';
+      var sw=isRisky?'2':'1.5';
+      svgParts.push('<path d="M'+x1+','+y1+' C'+mx+','+y1+' '+mx+','+y2+' '+x2+','+y2+'" fill="none" stroke="'+edgeColor+'" stroke-width="'+sw+'" marker-end="'+marker+'" opacity="0.85"/>');
+      if(f.data_types){var lx=(x1+x2)/2;var ly=(y1+y2)/2;svgParts.push('<text x="'+lx+'" y="'+(ly-6)+'" text-anchor="middle" font-size="10" fill="var(--muted)">'+esc(f.data_types.substring(0,20))+'</text>');}
+    });
+    // Source nodes
+    srcList.forEach(function(s){
+      var p=positionedSrc[s.name];
+      svgParts.push('<rect x="'+p.x+'" y="'+p.y+'" width="'+nodeW+'" height="'+nodeH+'" rx="6" fill="rgba(79,142,247,.1)" stroke="var(--accent)" stroke-width="1.5"/>');
+      svgParts.push('<text x="'+(p.x+nodeW/2)+'" y="'+(p.y+nodeH/2+4)+'" text-anchor="middle" font-size="12" font-weight="600" fill="var(--accent)">'+esc(s.name.substring(0,18))+'</text>');
+    });
+    // Destination nodes — amber border if third country
+    dstList.forEach(function(d){
+      var p=positionedDst[d.name];
+      var isTC=snIsThirdCountry(d.name);
+      var fill=isTC?'rgba(245,158,11,.06)':'var(--surface2)';
+      var stroke=isTC?'var(--amber,#d97706)':'var(--border)';
+      svgParts.push('<rect x="'+p.x+'" y="'+p.y+'" width="'+nodeW+'" height="'+nodeH+'" rx="6" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.5"/>');
+      svgParts.push('<text x="'+(p.x+nodeW/2)+'" y="'+(p.y+nodeH/2+4)+'" text-anchor="middle" font-size="12" fill="var(--text)">'+esc(d.name.substring(0,18))+'</text>');
+    });
+    if(srcList.length)svgParts.push('<text x="'+(srcX+nodeW/2)+'" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="var(--muted)">SOURCES</text>');
+    if(dstList.length)svgParts.push('<text x="'+(dstX+nodeW/2)+'" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="var(--muted)">DESTINATIONS</text>');
+    svgParts.push('</svg>');
+    wrap.innerHTML=svgParts.join('');
+  }
+
+  // ── Controllers ────────────────────────────────────────────────────────────
+  var controllersCache=[];
+  window.snLoadControllers=async function(){
+    var body=document.getElementById('snControllersBody');body.innerHTML=spinner(7);
+    try{
+      var data=await apiFetch('/sentinel/api/controllers');
+      var items=Array.isArray(data)?data:data.items||[];
+      controllersCache=items;
+      var primary=items.filter(function(c){return c.is_primary;}).length;
+      var processors=items.filter(function(c){return(c.role||'')==='processor';}).length;
+      snPopulateTabStats('snControllersStats',[
+        {label:'Total Registered',value:items.length,sub:'controller entities'},
+        {label:'Primary Controller',value:primary,sub:'your organisation',color:primary>0?'var(--good)':null},
+        {label:'Processors',value:processors,sub:'data processors'}
+      ]);
+      if(!items.length){body.innerHTML=emptyRow(7,'No controllers registered');return;}
+      body.innerHTML=items.map(function(c){
+        var dpoCell=(c.dpo_name||'—')+(c.dpo_email?'<br><small><a href="mailto:'+esc(c.dpo_email)+'" style="color:var(--accent)">'+esc(c.dpo_email)+'</a></small>':'');
+        var orgCell='<strong>'+esc(c.org_name)+'</strong>'+(c.controller_email?'<br><small><a href="mailto:'+esc(c.controller_email)+'" style="color:var(--muted)">'+esc(c.controller_email)+'</a></small>':'');
+        return '<tr><td>'+orgCell+'</td>'+
+          '<td>'+esc(c.country||'—')+'</td><td>'+esc(c.sector||'—')+'</td>'+
+          '<td>'+dpoCell+'</td>'+
+          '<td>'+esc(c.regulator_name||'—')+'</td>'+
+          '<td>'+(c.is_primary?'<span class="badge badge-complete">Primary</span>':'—')+'</td>'+
+          '<td>'+actionBtns('snEditController('+c.id+')','snDeleteController('+c.id+')')+'</td></tr>';
+      }).join('');
+    }catch(e){body.innerHTML=emptyRow(7,'Failed to load controllers');}
+  };
+  window.snEditController=function(id){var item=controllersCache.find(function(x){return x.id===id;});if(item)snOpenModal('controller',item);};
+  window.snDeleteController=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/controllers/'+id,{method:'DELETE'});snLoadControllers();}catch(e){}};
+
+  // ── Training Records ───────────────────────────────────────────────────────
+  var trainingCache=[];var trainingDeptFilter='all';
+  window.snLoadTraining=async function(){
+    var body=document.getElementById('snTrainingBody');body.innerHTML=spinner(8);
+    try{
+      var data=await apiFetch('/sentinel/api/training');
+      var items=Array.isArray(data)?data:data.items||[];
+      trainingCache=items;
+      var now=new Date();
+      var passed=items.filter(function(t){return t.passed;}).length;
+      var expiring=items.filter(function(t){
+        if(!t.expiry_date)return false;var days=(new Date(t.expiry_date)-now)/86400000;return days>=0&&days<=30;
+      }).length;
+      var expired=items.filter(function(t){return t.expiry_date&&new Date(t.expiry_date)<now;}).length;
+      snPopulateTabStats('snTrainingStats',[
+        {label:'Total Records',value:items.length,sub:'training entries'},
+        {label:'Passed',value:passed,sub:'certifications passed',color:passed>0?'var(--good)':null},
+        {label:'Expiring Soon',value:expiring,sub:'within 30 days',color:expiring>0?'var(--amber)':null},
+        {label:'Expired',value:expired,sub:'need renewal',color:expired>0?'var(--red)':null}
+      ]);
+      // Expiry alert banner
+      var banner=document.getElementById('snTrainingExpiryBanner');
+      if(banner&&expiring>0){
+        banner.style.display='flex';
+        banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+expiring+' certification'+(expiring>1?'s expire':' expires')+' within 30 days.</strong>'+
+          '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" data-sn-click="snFilterTraining(\'expiring\')">Show expiring →</button>';
+      }else if(banner){banner.style.display='none';}
+      // Dept filter chips
+      var deptEl=document.getElementById('snTrainingDeptFilters');
+      if(deptEl){
+        var depts=[];
+        items.forEach(function(t){if(t.department&&depts.indexOf(t.department)===-1)depts.push(t.department);});
+        if(depts.length>0){
+          deptEl.innerHTML='<button type="button" class="filter-chip'+(trainingDeptFilter==='all'?' active':'')+'" data-sn-click="snFilterTraining(\'all\')">All</button>'+
+            depts.map(function(d){return '<button type="button" class="filter-chip sn-filter-training-dept'+(trainingDeptFilter===d?' active':'')+'" data-department="'+esc(d)+'">'+esc(d)+'</button>';}).join('');
+        }else{deptEl.innerHTML='';}
+      }
+      snRenderTrainingRows(trainingDeptFilter==='all'?items:items.filter(function(t){return t.department===trainingDeptFilter;}));
+    }catch(e){body.innerHTML=emptyRow(8,'Failed to load training records');}
+  };
+  window.snFilterTraining=function(filter){
+    trainingDeptFilter=filter;
+    var filtered=trainingCache;
+    var now=new Date();
+    if(filter==='expiring'){filtered=trainingCache.filter(function(t){if(!t.expiry_date)return false;var days=(new Date(t.expiry_date)-now)/86400000;return days>=0&&days<=30;});}
+    else if(filter!=='all'){filtered=trainingCache.filter(function(t){return t.department===filter;});}
+    document.querySelectorAll('#snTrainingDeptFilters .filter-chip').forEach(function(c){
+      c.classList.toggle('active',c.textContent===filter||(filter==='all'&&c.textContent==='All'));
+    });
+    snRenderTrainingRows(filtered);
+  };
+  function snRenderTrainingRows(items){
+    var body=document.getElementById('snTrainingBody');
+    if(!items.length){body.innerHTML=emptyRow(8,'No training records match');return;}
+    var now=new Date();
+    body.innerHTML=items.map(function(t){
+      var expired=t.expiry_date&&new Date(t.expiry_date)<now;
+      var soon=!expired&&t.expiry_date&&(new Date(t.expiry_date)-now)/86400000<=30;
+      var expCell=expired?'<span style="color:var(--red);font-weight:700">'+fmtDate(t.expiry_date)+' <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>':
+        soon?'<span style="color:var(--amber);font-weight:700">'+fmtDate(t.expiry_date)+' !</span>':fmtDate(t.expiry_date);
+      return '<tr><td>'+esc(t.staff_name||'—')+'</td><td>'+esc(t.training_name||'—')+'</td>'+
+        '<td>'+esc(t.training_type||t.type||'—')+'</td><td>'+esc(t.department||'—')+'</td>'+
+        '<td>'+fmtDate(t.completion_date)+'</td><td>'+expCell+'</td>'+
+        '<td>'+(t.passed?'<span class="badge badge-complete">Pass</span>':'<span class="badge badge-draft">—</span>')+'</td>'+
+        '<td>'+actionBtns('snEditTraining('+t.id+')','snDeleteTraining('+t.id+')')+'</td></tr>';
+    }).join('');
+  }
+  window.snEditTraining=function(id){var item=trainingCache.find(function(x){return x.id===id;});if(item)snOpenModal('training',item);};
+  window.snDeleteTraining=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/sentinel/api/training/'+id,{method:'DELETE'});snLoadTraining();}catch(e){}};
+  window.snImportTraining=async function(input){
+    var file=input.files[0];if(!file)return;
+    var res=document.getElementById('snTrainingImportResult');
+    res.style.display='block';res.innerHTML='<div class="spinner" style="margin:0 auto;width:24px;height:24px"></div><div style="text-align:center;margin-top:8px;font-size:13px;color:var(--muted)">Analysing Excel file...</div>';
+    var fd=new FormData();fd.append('file',file);
+    try{
+      var r=await fetch('/sentinel/api/training/analyse-excel',{method:'POST',body:fd});
+      if(!r.ok) throw new Error('Upload failed: '+r.status);
+      var d=await r.json();
+      var s=d.summary||{};
+      res.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--green-status)">&#10003; Import Complete</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:13px">'+
+        '<div><div style="color:var(--muted);font-size:11px">Staff</div><div style="font-weight:700">'+s.total_staff+'</div></div>'+
+        '<div><div style="color:var(--muted);font-size:11px">Sessions</div><div style="font-weight:700">'+s.total_sessions+'</div></div>'+
+        '<div><div style="color:var(--muted);font-size:11px">Attendance</div><div style="font-weight:700">'+s.overall_attendance_pct+'%</div></div>'+
+        '<div><div style="color:var(--muted);font-size:11px">Pass Rate</div><div style="font-weight:700">'+s.overall_pass_rate+'%</div></div>'+
+        '</div>';
+      snLoadTraining();
+    }catch(e){res.innerHTML='<div style="color:var(--red)">Import failed: '+esc(e.message)+'</div>';}
+    input.value='';
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     AI GENERATION — PRIVACY NOTICES & POLICIES
+     ════════════════════════════════════════════════════════════════════════ */
+  var REGULATION_LIST=['GDPR','UK GDPR','South Africa POPIA','Kenya DPA','Nigeria NDPR',
+    'Zimbabwe CDPA','Ghana DPA','UAE PDPL','Saudi PDPL','Canada PIPEDA','USA CCPA/CPRA',
+    'Brazil LGPD','India DPDP','Singapore PDPA','Australia Privacy Act','Japan APPI','South Korea PIPA'];
+
+  window.snOpenGenerateNoticeModal=function(){
+    var html='<div class="modal-overlay" id="snGenNoticeModal" data-sn-click="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:480px">'+
+        '<button class="modal-close" data-sn-click="document.getElementById(\'snGenNoticeModal\').remove()">×</button>'+
+        '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Privacy Notice with AI</div>'+
+        '<div class="form-group"><label>Jurisdiction / Regulation</label>'+
+          '<select id="snGenNoticeReg"><option value="">Select...</option>'+
+          REGULATION_LIST.map(function(r){return '<option>'+r+'</option>';}).join('')+
+          '</select></div>'+
+        '<div class="form-group"><label>Audience</label>'+
+          '<input id="snGenNoticeAudience" placeholder="e.g. Website visitors, Employees"></div>'+
+        '<div class="form-group"><label>Organisation Name (optional)</label>'+
+          '<input id="snGenNoticeOrg" placeholder="Leave blank to use platform default"></div>'+
+        '<div id="snGenNoticeStatus" style="display:none;padding:10px;border-radius:var(--radius);margin-bottom:12px;font-size:13px"></div>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+          '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'snGenNoticeModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" data-sn-click="snSubmitGenerateNotice()">Generate Notice</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snGenNoticeModal').firstElementChild);
+  };
+  window.snSubmitGenerateNotice=async function(){
+    var reg=document.getElementById('snGenNoticeReg').value;
+    var audience=document.getElementById('snGenNoticeAudience').value.trim();
+    var org=document.getElementById('snGenNoticeOrg').value.trim();
+    if(!reg){if(typeof showToast==='function')showToast('Select a regulation','error');return;}
+    var status=document.getElementById('snGenNoticeStatus');
+    status.style.display='block';status.style.background='var(--surface2)';status.style.color='var(--muted)';
+    status.innerHTML='';
+    var trace=window.ThinkingTrace.open(status,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:"Reviewing the regulation's notice requirements"},
+        {primary:'Drafting the notice'},
+        {primary:'Checking required disclosures'}
+      ]
+    });
+    document.querySelectorAll('#snGenNoticeModal button').forEach(function(b){b.disabled=true;});
+    try{
+      var r=await apiFetch('/sentinel/api/ai/privacy-notice',{method:'POST',body:{regulation:reg,audience:audience,org_name:org}});
+      var noticeText=r.notice||r.text||'';
+      trace.destroy();
+      // Save as draft notice
+      await apiFetch('/sentinel/api/notices',{method:'POST',body:{
+        title:(audience||reg)+' Privacy Notice',
+        type:'external',audience:audience,regulation:reg,
+        version:'1.0',status:'draft',content_summary:noticeText.substring(0,300),content:noticeText
+      }});
+      document.getElementById('snGenNoticeModal').remove();
+      snLoadNotices();
+      if(typeof showToast==='function')showToast('Privacy notice generated and saved as draft');
+    }catch(e){
+      trace.destroy();
+      status.style.background='rgba(220,38,38,.06)';status.style.color='var(--red)';
+      status.innerHTML='Generation failed: '+(e.message||'Unknown error');
+      document.querySelectorAll('#snGenNoticeModal button').forEach(function(b){b.disabled=false;});
+    }
+  };
+
+  window.snOpenDraftPolicyModal=function(){
+    var html='<div class="modal-overlay" id="snDraftPolicyModal" data-sn-click="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:480px">'+
+        '<button class="modal-close" data-sn-click="document.getElementById(\'snDraftPolicyModal\').remove()">×</button>'+
+        '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Draft Policy with AI</div>'+
+        '<div class="form-group"><label>Policy Type</label>'+
+          '<select id="snDraftPolicyType">'+
+          ['Data Protection Policy','Acceptable Use Policy','Data Retention Policy',
+           'Incident Response Policy','BYOD Policy','Access Control Policy','Privacy by Design Policy']
+           .map(function(t){return '<option>'+t+'</option>';}).join('')+
+          '</select></div>'+
+        '<div class="form-group"><label>Topic / Focus Area</label>'+
+          '<input id="snDraftPolicyTopic" placeholder="e.g. employee personal data, customer records"></div>'+
+        '<div class="form-group"><label>Jurisdiction / Regulation</label>'+
+          '<select id="snDraftPolicyReg"><option value="">Select...</option>'+
+          REGULATION_LIST.map(function(r){return '<option>'+r+'</option>';}).join('')+
+          '</select></div>'+
+        '<div id="snDraftPolicyStatus" style="display:none;padding:10px;border-radius:var(--radius);margin-bottom:12px;font-size:13px"></div>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+          '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'snDraftPolicyModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" data-sn-click="snSubmitDraftPolicy()">Draft Policy</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDraftPolicyModal').firstElementChild);
+  };
+  window.snSubmitDraftPolicy=async function(){
+    var ptype=document.getElementById('snDraftPolicyType').value;
+    var topic=document.getElementById('snDraftPolicyTopic').value.trim();
+    var reg=document.getElementById('snDraftPolicyReg').value||'GDPR';
+    var status=document.getElementById('snDraftPolicyStatus');
+    status.style.display='block';status.style.background='var(--surface2)';status.style.color='var(--muted)';
+    status.innerHTML='';
+    var trace=window.ThinkingTrace.open(status,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the topic and regulation'},
+        {primary:'Drafting the policy'},
+        {primary:'Checking for required clauses'}
+      ]
+    });
+    document.querySelectorAll('#snDraftPolicyModal button').forEach(function(b){b.disabled=true;});
+    try{
+      var r=await apiFetch('/sentinel/api/ai/generate-policy',{method:'POST',body:{
+        policy_type:ptype,topic:topic,regulation:reg
+      }});
+      var content=r.content||r.text||'';
+      trace.destroy();
+      document.getElementById('snDraftPolicyModal').remove();
+      // Open edit modal pre-filled with generated content
+      snOpenModal('policy',{title:ptype+(topic?': '+topic:''),status:'draft',policy_type:'policy',notes:content,regulation:reg});
+      if(typeof showToast==='function')showToast('Policy draft ready, review and save');
+    }catch(e){
+      trace.destroy();
+      status.style.background='rgba(220,38,38,.06)';status.style.color='var(--red)';
+      status.innerHTML='Draft failed: '+(e.message||'Unknown error');
+      document.querySelectorAll('#snDraftPolicyModal button').forEach(function(b){b.disabled=false;});
+    }
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     JURISDICTION MANAGER
+     ════════════════════════════════════════════════════════════════════════ */
+  var _allJurisdictions=[];    // full registry (from /api/jurisdictions/rules)
+  var _activeJurisdictions=[]; // org's active jurisdictions
+  var snPrimaryJurisdiction='GDPR'; // org's primary jurisdiction key — used to pre-select regulation fields
+
+  // Eagerly fetch primary jurisdiction so modals pre-select correctly before user visits Jurisdictions tab
+  (async function(){
+    try{
+      var d=await apiFetch('/sentinel/api/jurisdictions/active');
+      var items=d.items||[];
+      var p=items.find(function(j){return j.is_primary;});
+      if(p) snPrimaryJurisdiction=p.jurisdiction_key||p.key||'GDPR';
+    }catch(e){}
+  })();
+
+  // Cache rules for dynamic form hints
+  window._jurisRules={};
+
+  async function _loadJurisRules(){
+    if(Object.keys(window._jurisRules).length) return;
+    try{
+      var d=await apiFetch('/sentinel/api/jurisdictions/rules');
+      (d.items||[]).forEach(function(j){window._jurisRules[j.key]=j;});
+      _allJurisdictions=d.items||[];
+    }catch(e){}
+  }
+
+  window.snLoadJurisdictions=async function(){
+    if(window.snLivingLawRefresh) window.snLivingLawRefresh();
+    var container=document.getElementById('snActiveJurisdictions');
+    var statsBody=document.getElementById('snJurisStatsBody');
+    container.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+
+    await _loadJurisRules();
+
+    try{
+      var activeData=await apiFetch('/sentinel/api/jurisdictions/active');
+      _activeJurisdictions=activeData.items||[];
+      var _primaryJ=_activeJurisdictions.find(function(j){return j.is_primary;});
+      if(_primaryJ) snPrimaryJurisdiction=_primaryJ.jurisdiction_key||_primaryJ.key||'GDPR';
+
+      // Update sidebar count
+      var nb=document.getElementById('sideNavJuris');
+      if(nb) nb.textContent=_activeJurisdictions.length;
+
+      if(!_activeJurisdictions.length){
+        container.innerHTML='<div class="empty-state"><div class="empty-state-title">No jurisdictions configured</div><div class="empty-state-text">Add at least one jurisdiction to enable compliance tracking.</div><button class="btn btn-primary" data-sn-click="snOpenAddJurisdictionModal()">+ Add Jurisdiction</button></div>';
+      } else {
+        container.innerHTML='<div class="juris-grid">'+_activeJurisdictions.map(function(j){
+          var isPrimary=j.is_primary;
+          var historical=j.legal_status==='proposal_not_enacted';
+          var breachPill=historical?'<span class="juris-pill warn">No legal rule</span>':j.breach_asap
+            ? '<span class="juris-pill warn">ASAP review target</span>'
+            : '<span class="juris-pill info">'+esc(j.breach_hours?j.breach_hours+'h breach review target':'No numeric breach target')+'</span>';
+          var dsrPill=historical?'':'<span class="juris-pill info">'+esc(j.dsr_days?j.dsr_days+'d DSR review target':'No numeric DSR target')+'</span>';
+          var sourcePill='<span class="juris-pill warn">'+(historical?'Historical proposal, not enacted':j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
+          return '<div class="juris-card sn-edit-jurisdiction'+(isPrimary?' primary':'')+'" data-jurisdiction-key="'+esc(j.jurisdiction_key||j.key)+'">'+
+            '<div class="juris-flag">'+snFlag(j.flag)+'</div>'+
+            '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span style="font-size:10px;background:var(--accent);color:white;padding:1px 6px;border-radius:100px;margin-left:4px">Primary</span>':'')+'</div>'+
+            '<div class="juris-region">'+esc(j.region||'')+'</div>'+
+            '<div class="juris-pills">'+breachPill+dsrPill+sourcePill+'</div>'+
+            '<div class="juris-authority">Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong></div>'+
+            (j.registration_number?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Reg: '+esc(j.registration_number)+'</div>':'')+
+          '</div>';
+        }).join('')+'</div>';
+      }
+    }catch(e){container.innerHTML='<div style="color:var(--red);padding:16px">Failed to load jurisdictions</div>';}
+
+    // Load stats table
+    try{
+      var sd=await apiFetch('/sentinel/api/jurisdiction-stats');
+      var items=sd.items||[];
+      if(!items.length){
+        statsBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">No records found</td></tr>';
+      } else {
+        statsBody.innerHTML=items.map(function(s){
+          var j=window._jurisRules[s.regulation]||{};
+          return '<tr><td><span style="font-size:16px">'+snFlag(j.flag)+'</span> '+esc(s.regulation)+'</td>'+
+            '<td data-label="RoPA">'+s.ropa+'</td><td data-label="DPIAs">'+s.dpias+'</td><td data-label="Breaches">'+s.breaches+'</td><td data-label="DSRs">'+s.dsrs+'</td>'+
+            '<td data-label="Total"><strong>'+s.total+'</strong></td></tr>';
+        }).join('');
+      }
+    }catch(e){statsBody.innerHTML='<tr><td colspan="6" style="color:var(--red);padding:12px">Failed to load stats</td></tr>';}
+  };
+
+  window.snOpenAddJurisdictionModal=async function(){
+    await _loadJurisRules();
+    var activeKeys=new Set(_activeJurisdictions.map(function(j){return j.jurisdiction_key||j.key;}));
+
+    // Group by region
+    var regions={};
+    _allJurisdictions.forEach(function(j){
+      if(j.legal_status==='proposal_not_enacted')return;
+      var r=j.region||'Other';
+      regions[r]=regions[r]||[];
+      regions[r].push(j);
+    });
+
+    var gridHtml='';
+    Object.keys(regions).sort().forEach(function(region){
+      gridHtml+='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;grid-column:1/-1">'+esc(region)+'</div>';
+      regions[region].forEach(function(j){
+        var isActive=activeKeys.has(j.key);
+        gridHtml+='<div class="juris-add-card sn-toggle-jurisdiction'+(isActive?' active-j':'')+'" data-jurisdiction-key="'+esc(j.key)+'" data-key="'+esc(j.key)+'" data-active="'+(isActive?'1':'0')+'">'+
+          '<div class="juris-add-flag">'+snFlag(j.flag)+'</div>'+
+          '<div><div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(j.key)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted)">'+esc(j.authority_short||'')+'</div></div>'+
+          (isActive?'<span style="margin-left:auto;font-size:18px;color:var(--accent)">&#10003;</span>':'')+
+        '</div>';
+      });
+    });
+
+    var html='<div class="modal-overlay" id="jurisAddModal" data-sn-click="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:680px">'+
+        '<button class="modal-close" data-sn-click="document.getElementById(\'jurisAddModal\').remove()">&#10005;</button>'+
+        '<div class="modal-title">Configure Active Jurisdictions</div>'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">Select all jurisdictions your organisation must comply with. Tick a jurisdiction to activate it.</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:60vh;overflow-y:auto" id="jurisAddGrid">'+gridHtml+'</div>'+
+        '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">'+
+          '<label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Primary Jurisdiction (for default deadlines)</label>'+
+          '<select id="jurisPrimarySelect" style="width:100%;margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px">'+
+            _activeJurisdictions.map(function(j){var k=j.jurisdiction_key||j.key;return '<option value="'+esc(k)+'"'+(j.is_primary?' selected':'')+'>'+esc(k)+'</option>';}).join('')+
+          '</select>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'+
+          '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'jurisAddModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" data-sn-click="snSaveJurisdictions()">Save Configuration</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('jurisAddModal').firstElementChild);
+  };
+
+  window.snToggleJurisdiction=function(key,card){
+    var isActive=card.getAttribute('data-active')==='1';
+    card.setAttribute('data-active',isActive?'0':'1');
+    card.classList.toggle('active-j',!isActive);
+    var check=card.querySelector('[data-check]')||card.querySelector('span[style*="color:var(--accent)"]');
+    if(!isActive){
+      if(!check) card.insertAdjacentHTML('beforeend','<span style="margin-left:auto;font-size:18px;color:var(--accent)">&#10003;</span>');
+      // Add to primary select
+      var sel=document.getElementById('jurisPrimarySelect');
+      if(sel&&!sel.querySelector('option[value="'+key+'"]')){
+        sel.insertAdjacentHTML('beforeend','<option value="'+key+'">'+key+'</option>');
+      }
+    } else {
+      if(check) check.remove();
+      // Remove from primary select
+      var sel2=document.getElementById('jurisPrimarySelect');
+      if(sel2){var op=sel2.querySelector('option[value="'+key+'"]');if(op)op.remove();}
+    }
+  };
+
+  window.snSaveJurisdictions=async function(){
+    var cards=document.querySelectorAll('#jurisAddGrid [data-key]');
+    var keys=[];
+    cards.forEach(function(c){if(c.getAttribute('data-active')==='1') keys.push(c.getAttribute('data-key'));});
+    var primary=document.getElementById('jurisPrimarySelect');
+    var primaryVal=primary?primary.value:'GDPR';
+    try{
+      await apiFetch('/sentinel/api/jurisdictions/active',{method:'POST',body:{keys:keys,primary:primaryVal}});
+      document.getElementById('jurisAddModal').remove();
+      if(typeof showToast==='function') showToast('Jurisdiction configuration saved');
+      snLoadJurisdictions();
+    }catch(e){if(typeof showToast==='function') showToast('Save failed','error');}
+  };
+
+  window.snEditJurisdiction=async function(key){
+    var j=window._jurisRules[key]||{};
+    var configs=_activeJurisdictions.find(function(c){return (c.jurisdiction_key||c.key)===key;})||{};
+
+    var html='<div class="modal-overlay" id="jurisEditModal" data-sn-click="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:560px">'+
+        '<button class="modal-close" data-sn-click="document.getElementById(\'jurisEditModal\').remove()">&#10005;</button>'+
+        '<div style="font-size:24px;margin-bottom:4px">'+snFlag(j.flag)+'</div>'+
+        '<div class="modal-title">'+esc(key)+'</div>'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">'+esc(j.name||'')+'</div>'+
+
+        '<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px">'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Authority</div><div style="font-weight:700">'+esc(j.authority_short||'DPA')+'</div></div>'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Breach review target</div><div style="font-weight:700">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</div></div>'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">DSR Review Target</div><div style="font-weight:700">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':(j.dsr_days?j.dsr_days+' days':'Not set'))+'</div></div>'+
+        '</div>'+
+        '<p style="font-size:11px;color:var(--muted)">'+(j.legal_status==='proposal_not_enacted'?'Historical proposal that was not enacted. Reclassify this record under an applicable law.':
+          (j.breach_source_status==='unverified'?'Legal notification period unverified.':'Source researched; legal rule still needs approval.')+' The displayed numbers are internal review targets.')+'</p>'+
+        (j.breach_source_url&&/^https:\/\//.test(j.breach_source_url)?'<p><a href="'+esc(j.breach_source_url)+'" target="_blank" rel="noopener noreferrer">'+esc(j.breach_source_title||'Breach source')+'</a></p>':'')+
+        (j.dsr_source_url&&/^https:\/\//.test(j.dsr_source_url)?'<p><a href="'+esc(j.dsr_source_url)+'" target="_blank" rel="noopener noreferrer">'+esc(j.dsr_source_title||'Rights-request source')+'</a></p>':'')+
+
+        '<div class="form-row">'+
+          '<div class="form-group"><label>Registration Number</label><input id="jurisRegNo" value="'+esc(configs.registration_number||'')+'"></div>'+
+          '<div class="form-group"><label>Regulator Contact</label><input id="jurisRegContact" value="'+esc(configs.regulator_contact||'')+'"></div>'+
+        '</div>'+
+        '<div class="form-row">'+
+          '<div class="form-group"><label>DPO Name</label><input id="jurisDpoName" value="'+esc(configs.dpo_name||'')+'"></div>'+
+          '<div class="form-group"><label>DPO Email</label><input id="jurisDpoEmail" value="'+esc(configs.dpo_email||'')+'"></div>'+
+        '</div>'+
+        '<div class="form-group"><label>Notes</label><textarea id="jurisNotes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">'+esc(configs.notes||'')+'</textarea></div>'+
+
+        '<div style="display:flex;gap:8px;justify-content:space-between;margin-top:20px">'+
+          '<button class="btn btn-secondary sn-deactivate-jurisdiction" data-jurisdiction-key="'+esc(key)+'" style="color:var(--red)">Remove</button>'+
+          '<div style="display:flex;gap:8px">'+
+            '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'jurisEditModal\').remove()">Cancel</button>'+
+            '<button class="btn btn-primary sn-save-jurisdiction" data-jurisdiction-key="'+esc(key)+'">Save</button>'+
+          '</div>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('jurisEditModal').firstElementChild);
+  };
+
+  window.snSaveJurisdictionConfig=async function(key){
+    var data={
+      registration_number:document.getElementById('jurisRegNo').value.trim(),
+      regulator_contact:document.getElementById('jurisRegContact').value.trim(),
+      dpo_name:document.getElementById('jurisDpoName').value.trim(),
+      dpo_email:document.getElementById('jurisDpoEmail').value.trim(),
+      notes:document.getElementById('jurisNotes').value.trim()
+    };
+    try{
+      await apiFetch('/sentinel/api/jurisdictions/'+encodeURIComponent(key)+'/config',{method:'PUT',body:data});
+      document.getElementById('jurisEditModal').remove();
+      if(typeof showToast==='function') showToast('Configuration saved');
+      snLoadJurisdictions();
+    }catch(e){if(typeof showToast==='function') showToast('Save failed','error');}
+  };
+
+  window.snDeactivateJurisdiction=async function(key){
+    if(!confirm('Remove '+key+' from active jurisdictions?')) return;
+    try{
+      await apiFetch('/sentinel/api/jurisdictions/'+encodeURIComponent(key),{method:'DELETE'});
+      var modal=document.getElementById('jurisEditModal');if(modal)modal.remove();
+      if(typeof showToast==='function') showToast(key+' removed');
+      snLoadJurisdictions();
+    }catch(e){if(typeof showToast==='function') showToast('Failed to remove','error');}
+  };
+
+  // ── Dynamic jurisdiction info in breach/DSR forms ─────────────────────────
+  // Called by modalDefs after a regulation select changes
+  window.snShowJurisInfo=function(selectEl){
+    var reg=selectEl.value;
+    var info=document.getElementById('jurisInfoBanner');
+    if(!info) return;
+    var j=window._jurisRules[reg];
+    if(!j){info.classList.remove('visible');return;}
+    if(j.legal_status==='proposal_not_enacted'){
+      info.textContent='Historical proposal, not enacted. Reclassify this record under an applicable law; no legal deadline is calculated.';
+      info.classList.add('visible');
+      return;
+    }
+    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong>'+
+      ' &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong>'+
+      ' &nbsp;|&nbsp; Breach review target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong>'+
+      ' &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+
+      ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
+    info.classList.add('visible');
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     INIT
+     ════════════════════════════════════════════════════════════════════════ */
+  // Pre-load jurisdiction rules for dynamic form hints
+  _loadJurisRules();
+  sentinelRouter.resolve();
+  setInterval(function(){if(sentinelRouter.current==='dashboard')loadDashboard();},300000);
+
+})();
+
+/* ── PLAN-06 deep-link boot handler ── */
+(function(){
+  var openParam = new URLSearchParams(window.location.search).get('open');
+  if(!openParam) return;
+  var sep = openParam.indexOf(':');
+  if(sep < 1) return;
+  var etype = openParam.slice(0, sep);
+  var eid = parseInt(openParam.slice(sep + 1), 10);
+  if(!eid) return;
+  window.history.replaceState({}, '', window.location.pathname);
+  var tries = 0;
+  function attempt(){
+    tries++;
+    try { _plan06_fn(eid); } catch(e){ if(tries < 20) setTimeout(attempt, 250); }
+  }
+  var _plan06_openers = {
+    'ropa': function(id){
+      if(ropaCache.length < 1){ if(tries < 20) setTimeout(attempt, 250); return; }
+      snOpenRopaDrawer(id);
+    },
+    'dpia': function(id){
+      if(dpiaCache.length < 1){ if(tries < 20) setTimeout(attempt, 250); return; }
+      snOpenDpiaDrawer(id);
+    },
+    'breach': async function(id){
+      try { snOpenModal('breach', await ApiClient.request('/sentinel/api/breaches/'+id)); }
+      catch(e){ if(window.showToast) showToast('Breach is unavailable or outside your scope.','error'); }
+    },
+    'dsr': async function(id){
+      try { snOpenModal('dsr', await ApiClient.request('/sentinel/api/dsrs/'+id)); }
+      catch(e){ if(window.showToast) showToast('Request is unavailable or outside your scope.','error'); }
+    }
+    // 'vendor': no detail view available
+  };
+  var _plan06_fn = _plan06_openers[etype];
+  if(!_plan06_fn) return;
+  attempt();
+})();

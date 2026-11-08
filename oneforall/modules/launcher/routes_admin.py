@@ -867,54 +867,49 @@ async def admin_logs_page(request: Request):
     return shell_templates.TemplateResponse(request, "admin_logs.html", ctx)
 
 
+def _audit_log_filters(caller, query):
+    """One scope and filter contract for the page and its CSV export."""
+    clauses, params = [], []
+    if not caller.get("is_super_admin"):
+        if caller.get("org_id") is not None:
+            clauses.append("al.org_id = %s")
+            params.append(caller["org_id"])
+        else:
+            clauses.append("al.user_id = %s")
+            params.append(caller.get("id"))
+    module = query.get("module", "")
+    action = query.get("action", "")
+    user_filter = query.get("user", "")
+    date_from = query.get("from", "")
+    date_to = query.get("to", "")
+    if module:
+        clauses.append("al.module = %s")
+        params.append(module)
+    if action:
+        clauses.append(ci_like("al.action"))
+        params.append(like_pattern(action))
+    if user_filter:
+        clauses.append(f"({ci_like('al.username')} OR {ci_like('u.full_name')})")
+        params.extend([like_pattern(user_filter)] * 2)
+    if date_from:
+        clauses.append("al.created_at >= %s")
+        params.append(date_from)
+    if date_to:
+        clauses.append("al.created_at <= %s")
+        params.append(date_to + " 23:59:59")
+    return " AND ".join(clauses) if clauses else "1=1", params
+
+
 @router.get("/admin/api/logs")
 @_require_cap("platform.view_audit_log")
 async def admin_api_logs(request: Request):
     """JSON API for audit logs with filtering and pagination."""
     db = get_db()
     try:
-        # Filters
-        module = request.query_params.get("module", "")
-        action = request.query_params.get("action", "")
-        user_filter = request.query_params.get("user", "")
-        date_from = request.query_params.get("from", "")
-        date_to = request.query_params.get("to", "")
         page = max(1, int(request.query_params.get("page", "1")))
         per_page = min(500, max(1, int(request.query_params.get("per_page", "50"))))
-
         caller = getattr(request.state, "user", {}) or {}
-        is_super = caller.get("is_super_admin")
-        caller_org_id = caller.get("org_id")
-
-        where_clauses = []
-        params = []
-
-        # Org isolation: non-super-admins only see their own org's logs.
-        if not is_super:
-            if caller_org_id is not None:
-                where_clauses.append("al.org_id = %s")
-                params.append(caller_org_id)
-            else:
-                where_clauses.append("al.user_id = %s")
-                params.append(caller.get("id"))
-
-        if module:
-            where_clauses.append("al.module = %s")
-            params.append(module)
-        if action:
-            where_clauses.append(ci_like("al.action"))
-            params.append(like_pattern(action))
-        if user_filter:
-            where_clauses.append(f"({ci_like('al.username')} OR {ci_like('u.full_name')})")
-            params.extend([like_pattern(user_filter)] * 2)
-        if date_from:
-            where_clauses.append("al.created_at >= %s")
-            params.append(date_from)
-        if date_to:
-            where_clauses.append("al.created_at <= %s")
-            params.append(date_to + " 23:59:59")
-
-        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        where_sql, params = _audit_log_filters(caller, request.query_params)
 
         total = db.execute(
             f"SELECT COUNT(*) FROM audit_log al LEFT JOIN users u ON al.user_id = u.id WHERE {where_sql}",
@@ -954,37 +949,8 @@ async def admin_api_logs_export(request: Request):
     """Export audit logs as CSV."""
     db = get_db()
     try:
-        module = request.query_params.get("module", "")
-        date_from = request.query_params.get("from", "")
-        date_to = request.query_params.get("to", "")
-
         caller = getattr(request.state, "user", {}) or {}
-        is_super = caller.get("is_super_admin")
-        caller_org_id = caller.get("org_id")
-
-        where_clauses = []
-        params = []
-
-        # Org isolation: non-super-admins only see their own org's logs.
-        if not is_super:
-            if caller_org_id is not None:
-                where_clauses.append("al.org_id = %s")
-                params.append(caller_org_id)
-            else:
-                where_clauses.append("al.user_id = %s")
-                params.append(caller.get("id"))
-
-        if module:
-            where_clauses.append("al.module = %s")
-            params.append(module)
-        if date_from:
-            where_clauses.append("al.created_at >= %s")
-            params.append(date_from)
-        if date_to:
-            where_clauses.append("al.created_at <= %s")
-            params.append(date_to + " 23:59:59")
-
-        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        where_sql, params = _audit_log_filters(caller, request.query_params)
 
         rows = db.execute(
             f"SELECT al.*, u.full_name FROM audit_log al "

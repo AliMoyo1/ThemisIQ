@@ -536,6 +536,7 @@ async def api_plan_detail(request: Request, plan_id: int):
     # Attach linked evidence from vault
     from modules.evidence.scope import evidence_scope_sql
     evidence_scope, evidence_params = evidence_scope_sql(request.state.user)
+    from modules.bcm.control_dependencies import for_plan
     db = get_db()
     try:
         ev = [dict(r) for r in db.execute(
@@ -546,10 +547,12 @@ async def api_plan_detail(request: Request, plan_id: int):
             f"AND el.deleted_at IS NULL AND e.status != 'archived' AND {evidence_scope} ORDER BY e.created_at DESC",
             (plan_id, *evidence_params),
         ).fetchall()]
+        dependencies = for_plan(db, request.state.user, plan_id) or []
     finally:
         db.close()
     p["evidence"] = ev
     p["evidence_count"] = len(ev)
+    p["control_dependencies"] = dependencies
     return JSONResponse(p)
 
 
@@ -638,14 +641,46 @@ async def api_plan_activate(request: Request, plan_id: int):
     body = await _json_body(request)
     reason = body.get("reason", "")
     incident_id = body.get("incident_id")
+    if plan.get("status") != "approved" or plan.get("is_active_plan"):
+        raise HTTPException(409, "Only an approved, inactive plan can be activated")
+    if incident_id is not None:
+        if isinstance(incident_id, bool) or not isinstance(incident_id, int) or incident_id < 1:
+            raise HTTPException(400, "Choose a valid incident")
+        incident = ds.get_incident(incident_id, bu_scope=bu_scope_ids(request.state.user))
+        if incident is None:
+            raise HTTPException(404, "Incident not found")
+        if (incident.get("business_unit_id") is not None and plan.get("business_unit_id") is not None
+                and incident["business_unit_id"] != plan["business_unit_id"]):
+            raise HTTPException(400, "Plan and incident must belong to the same business unit")
+        if incident.get("status") in ("resolved", "closed", "draft"):
+            raise HTTPException(409, "Choose an open incident")
 
-    ds.activate_plan(
-        plan_id=plan_id,
-        activated_by=_uname(request),
-        activated_by_id=_uid(request),
-        reason=reason,
-        incident_id=incident_id,
-    )
+    try:
+        review_snapshot = ds.activate_plan(plan_id=plan_id, activated_by=_uname(request), activated_by_id=_uid(request),
+                         reason=reason, incident_id=incident_id,
+                         bu_scope=bu_scope_ids(request.state.user), user=request.state.user,
+                         control_review=body.get("control_review"))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+    if any(item["result"] == "not_working" for item in review_snapshot):
+        from modules.governance import change_signals
+        db = get_db()
+        try:
+            for item in review_snapshot:
+                if item["result"] == "not_working":
+                    change_signals.publish(
+                        db, source=("aria", "control", item["id"]),
+                        kind="control_check_failed",
+                        before={"activation_check": "unverified"},
+                        after={"activation_check": f"reported not working for plan {plan_id}"},
+                        fields={"activation_check": "Activation check"},
+                        actor_id=_uid(request), org_id=request.state.user.get("org_id"),
+                        extra_targets=(("bcm", "plan", plan_id),),
+                    )
+            db.commit()
+        finally:
+            db.close()
 
     emit(
         BCM_PLAN_ACTIVATED,

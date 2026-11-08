@@ -57,11 +57,11 @@
     <div class="section-sub">Governance, Risk & Compliance overview &middot; {{ fw_stats|length }} active framework{{ 's' if fw_stats|length != 1 else '' }}</div>
   </div>
   <div class="header-actions">
-    <button class="btn btn-secondary" onclick="exportAriaReport()">
+    <button type="button" class="btn btn-secondary" id="ariaExportReport">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export Report
     </button>
-    <button class="btn btn-primary" onclick="generateAriaReport()">
+    <button type="button" class="btn btn-primary" id="ariaGenerateReport">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Generate Report
     </button>
@@ -109,15 +109,14 @@
 <div id="ariaOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
     <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with ARIA</h3>
-    <button onclick="this.closest('#ariaOnboardBanner').style.display='none';localStorage.setItem('hide_aria_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+    <button type="button" id="ariaDismissOnboard" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
   </div>
   <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-    <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Add a compliance framework <a href="/aria/frameworks" style="color:var(--accent)">Browse frameworks</a></label>
-    <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Map controls to your organisation <a href="/aria/mapping" style="color:var(--accent)">Control mapping</a></label>
-    <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Generate your first compliance report <a href="#" onclick="event.preventDefault();generateAriaReport()" style="color:var(--accent)">Generate report</a></label>
+    <label style="display:block;cursor:pointer"><input type="checkbox" class="aria-onboard-check"> Add a compliance framework <a href="/aria/frameworks" style="color:var(--accent)">Browse frameworks</a></label>
+    <label style="display:block;cursor:pointer"><input type="checkbox" class="aria-onboard-check"> Map controls to your organisation <a href="/aria/mapping" style="color:var(--accent)">Control mapping</a></label>
+    <label style="display:block;cursor:pointer"><input type="checkbox" class="aria-onboard-check"> Generate your first compliance report <button type="button" id="ariaOnboardReport" style="border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font:inherit">Generate report</button></label>
   </div>
 </div>
-<script>if(localStorage.getItem('hide_aria_onboard')){var ab=document.getElementById('ariaOnboardBanner');if(ab)ab.style.display='none';}</script>
 {% endif %}
 
 <!-- 3-Column Cards: Framework Health, Control Status, Recent Activity -->
@@ -145,7 +144,7 @@
     <div class="panel-title">Control Status</div>
     <div class="aria-chart-content">
       <div class="aria-donut-wrap">
-        <svg viewBox="0 0 140 140" id="ariaStatusDonut" aria-hidden="true">
+        <svg viewBox="0 0 140 140" id="ariaStatusDonut" aria-hidden="true" data-implemented="{{ totals.implemented | int }}" data-in-progress="{{ totals.in_progress | int }}" data-not-started="{{ totals.not_started | int }}">
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="11"/>
           <!-- Implemented arc -->
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--green-status)" stroke-width="10"
@@ -271,99 +270,5 @@
 
 {% block extra_scripts %}
 {{ super() }}
-<script>
-(function(){
-  // ── Animate the Control Status donut ──
-  const totals = {{ totals_json | safe }};
-  const circ = 2 * Math.PI * 56;
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function paintStatusRing(values){
-    const counts = [
-      Math.max(0, Number(values.implemented) || 0),
-      Math.max(0, Number(values.in_progress) || 0),
-      Math.max(0, Number(values.not_started) || 0)
-    ];
-    const total = counts.reduce((sum, value) => sum + value, 0);
-    const ids = ['ariaArcImpl', 'ariaArcProg', 'ariaArcNotStarted'];
-    let angle = -90;
-    function draw(){
-      counts.forEach((count, index) => {
-        const arc = document.getElementById(ids[index]);
-        if(!arc) return;
-        const fraction = total ? count / total : 0;
-        arc.style.visibility = count ? 'visible' : 'hidden';
-        arc.setAttribute('transform', 'rotate(' + angle + ' 70 70)');
-        arc.setAttribute('stroke-dashoffset', String(circ * (1 - fraction)));
-        angle += fraction * 360;
-      });
-    }
-    if(reduceMotion) draw();
-    else requestAnimationFrame(() => requestAnimationFrame(draw));
-  }
-  paintStatusRing(totals);
-
-  // Live refresh from API
-  async function refreshDashboard(){
-    try {
-      const resp = await fetch('/aria/api/dashboard');
-      if(!resp.ok) return;
-      const data = await resp.json();
-
-      // Update stat cards
-      if(data.totals){
-        const t = data.totals;
-        const pct = t.overall_pct || 0;
-        const pctEl = document.getElementById('ariaCompliancePct');
-        if(pctEl) pctEl.textContent = pct + '%';
-        const barEl = document.getElementById('ariaComplianceBar');
-        if(barEl) barEl.style.width = pct + '%';
-      }
-    } catch(e){
-      // Silently fall back to server-rendered data
-    }
-  }
-
-  // Refresh every 5 minutes
-  setInterval(refreshDashboard, 300000);
-})();
-
-// ── Button handlers ──
-function exportAriaReport(){
-  if(typeof showToast === 'function') showToast('Generating export...', 'info');
-  window.location = '/aria/export/excel';
-}
-// Success is shown only when a saved run exists: one call makes it, and the Reports page opens it.
-async function generateAriaReport(){
-  if(typeof showToast === 'function') showToast('Generating compliance report...', 'info');
-  try{
-    var resp = await fetch('/api/reports/quick-run', {method:'POST', headers:{'Content-Type':'application/json'},
-                                                      body: JSON.stringify({report_type: 'compliance_summary'})});
-    var data = await resp.json().catch(function(){ return {}; });
-    if(!resp.ok || !data.run_id) throw new Error(data.error || 'The report could not be generated');
-    if(typeof showToast === 'function') showToast('Report ready, opening Reports', 'success');
-    window.location.href = '/reports?run=' + encodeURIComponent(data.run_id);
-  }catch(e){
-    if(typeof showToast === 'function') showToast(e.message || 'The report could not be generated', 'error');
-  }
-}
-
-/* ── PLAN-06 deep-link boot handler ── */
-/* ARIA uses an SPA router (navigate) rather than simple drawer openers.
-   Deep-linking a 'control' entity requires also knowing the framework_id
-   to generate the correct route path. Not feasible with id alone.
-   Skipping for now, add a control→framework lookup when available. */
-(function(){
-  var openParam = new URLSearchParams(window.location.search).get('open');
-  if(!openParam) return;
-  var sep = openParam.indexOf(':');
-  if(sep < 1) return;
-  window.history.replaceState({}, '', window.location.pathname);
-  // No supported entity types for deep-link yet.
-  var _plan06_openers = {};
-  var etype = openParam.slice(0, sep);
-  var _plan06_fn = _plan06_openers[etype];
-  if(!_plan06_fn) return;
-})();
-</script>
+<script src="/static/js/aria_dashboard.js"></script>
 {% endblock %}

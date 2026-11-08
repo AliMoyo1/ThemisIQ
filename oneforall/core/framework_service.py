@@ -7,6 +7,7 @@ maintaining separate framework tables.
 """
 import json
 import logging
+import re
 from datetime import datetime
 from core.timeutils import utcnow
 from typing import Optional
@@ -15,6 +16,13 @@ from database import get_db, insert_returning_id
 from core.events import emit
 
 log = logging.getLogger("oneforall.frameworks")
+
+_FRAMEWORK_COLOR = re.compile(r"#[0-9a-fA-F]{6}\Z")
+
+
+def safe_framework_color(value: object) -> str:
+    """Return a CSS color token safe for templates and API consumers."""
+    return value if isinstance(value, str) and _FRAMEWORK_COLOR.fullmatch(value) else "#1E3A5F"
 
 
 # ── Framework CRUD ──────────────────────────────────────────────────────────
@@ -39,7 +47,7 @@ def list_frameworks(module: Optional[str] = None, active_only: bool = True) -> l
         ).fetchall()
         return [
             {
-                "id": r[0], "name": r[1], "description": r[2], "color": r[3],
+                "id": r[0], "name": r[1], "description": r[2], "color": safe_framework_color(r[3]),
                 "type": r[4], "relevant_modules": r[5], "is_active": bool(r[6]),
                 "total_controls": r[7], "created_at": r[8], "updated_at": r[9],
             }
@@ -62,7 +70,7 @@ def get_framework(framework_id: int) -> Optional[dict]:
         if not row:
             return None
         return {
-            "id": row[0], "name": row[1], "description": row[2], "color": row[3],
+            "id": row[0], "name": row[1], "description": row[2], "color": safe_framework_color(row[3]),
             "type": row[4], "relevant_modules": row[5], "is_active": bool(row[6]),
             "total_controls": row[7], "created_at": row[8], "updated_at": row[9],
         }

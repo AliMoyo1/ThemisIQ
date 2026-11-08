@@ -658,8 +658,6 @@ def test_purge_expired_trash_leaves_recent_entries():
 
 def test_published_handler_skips_legacy_vault_copy_for_a_managed_publication(test_db, monkeypatch):
     from core import event_handlers
-    monkeypatch.setattr(event_handlers, "get_db", lambda: test_db)
-    monkeypatch.setattr(test_db, "close", lambda: None)  # handler closes its db; keep it open for assertions
 
     # user_id=1 below is a real FK (task_board.created_by -> users.id): this
     # was always required for _insert_task to actually succeed, just never
@@ -672,12 +670,15 @@ def test_published_handler_skips_legacy_vault_copy_for_a_managed_publication(tes
         "policy_workflow_managed) VALUES ('DOC-0050','ISO 27001','A.1','Managed Policy','1.0','Approved',1)", ())
     test_db.commit()
 
-    event_handlers.policy_published_handler(
-        event_type="aria.policy.published", source_module="aria", entity_type="document",
-        entity_id=doc_pk, payload={"title": "Managed Policy", "framework": "ISO 27001",
-                                    "control_ref": "A.1", "version": "1.0", "version_id": 999},
-        user_id=1,
-    )
+    with monkeypatch.context() as handler_patch:
+        handler_patch.setattr(event_handlers, "get_db", lambda: test_db)
+        handler_patch.setattr(test_db, "close", lambda: None)  # the fixture closes it after this call
+        event_handlers.policy_published_handler(
+            event_type="aria.policy.published", source_module="aria", entity_type="document",
+            entity_id=doc_pk, payload={"title": "Managed Policy", "framework": "ISO 27001",
+                                        "control_ref": "A.1", "version": "1.0", "version_id": 999},
+            user_id=1,
+        )
 
     # The legacy path dedups/creates by tag=f"aria_doc_id={entity_id}" -- it
     # must not have run at all for a managed-version payload.
@@ -689,8 +690,6 @@ def test_published_handler_skips_legacy_vault_copy_for_a_managed_publication(tes
 
 def test_published_handler_still_runs_legacy_vault_copy_without_a_version_id(test_db, monkeypatch):
     from core import event_handlers
-    monkeypatch.setattr(event_handlers, "get_db", lambda: test_db)
-    monkeypatch.setattr(test_db, "close", lambda: None)
 
     _org(test_db)
     _user(test_db, 1, username="author")
@@ -699,11 +698,14 @@ def test_published_handler_still_runs_legacy_vault_copy_without_a_version_id(tes
         "policy_workflow_managed) VALUES ('DOC-0051','ISO 27001','A.1','Legacy Policy','1.0','Approved',0)", ())
     test_db.commit()
 
-    event_handlers.policy_published_handler(
-        event_type="aria.policy.published", source_module="aria", entity_type="document",
-        entity_id=doc_pk, payload={"title": "Legacy Policy", "framework": "ISO 27001", "control_ref": "A.1"},
-        user_id=1,
-    )
+    with monkeypatch.context() as handler_patch:
+        handler_patch.setattr(event_handlers, "get_db", lambda: test_db)
+        handler_patch.setattr(test_db, "close", lambda: None)
+        event_handlers.policy_published_handler(
+            event_type="aria.policy.published", source_module="aria", entity_type="document",
+            entity_id=doc_pk, payload={"title": "Legacy Policy", "framework": "ISO 27001", "control_ref": "A.1"},
+            user_id=1,
+        )
 
     count = test_db.execute(
         "SELECT COUNT(*) AS c FROM evidence_items WHERE tags LIKE %s", (f"%aria_doc_id={doc_pk}%",)

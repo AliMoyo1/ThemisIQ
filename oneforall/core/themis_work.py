@@ -23,6 +23,10 @@ _USE = re.compile(r"\b(?:model|tool|system|use|chatbot|copilot|application)\b", 
 _CASE = re.compile(r"\b(?:status|state|why|next|block\w*|outstand\w*|miss\w*|ready|"
                    r"decision|approv\w*|assess\w*|evidence|review|explain|submit|progress)\b", re.I)
 _RELATED = re.compile(r"\b(?:relat\w*|linked|connected|relationship|evidence|proof|document|changes?|changed|signal)\b", re.I)
+_DOCUMENT_TEXT = re.compile(
+    r"\b(?:what does|where does|quote|search|find|show me|locate)\b.*"
+    r"\b(?:document|policy|file|evidence|text|section|passage|say|state)\b|"
+    r"\b(?:document|policy|file)\b.*\b(?:say|state|require|mention)\b", re.I)
 _PROOF = re.compile(r"\b(?:evidence|proof|document|file)\b", re.I)
 _CHANGES = re.compile(r"\b(?:changes?|changed|signal)\b", re.I)
 _DRAFT = re.compile(r"^(?:draft|prepare|write)\b", re.I)
@@ -392,6 +396,44 @@ def _request_related_answer(db, user, request_id, question):
                                 record_id=request_id)]}
 
 
+def _document_answer(db, user, key, record_id, question):
+    from core import themis_retrieval
+
+    passages = themis_retrieval.search(db, user, key, record_id, question)
+    if passages is None:
+        return _unavailable()
+    if not passages:
+        return {"answer": "I can't verify an answer from current, indexed documents I can open for this record. "
+                          "Check the Vault links, reviews and text indexing, or open the source directly.",
+                "source": "records", "actions": [], "sources": []}
+    sources = [_source(_brief(p["title"], 100), p["path"], version=p["version"],
+                       record_id=p["evidence_id"], section=p["section"], quote=p["quote"],
+                       start=p["start"], end=p["end"], file_hash=p["file_hash"])
+               for p in passages]
+    answer = "These exact excerpts occur in the current indexed documents I can open. They do not by themselves establish compliance:\n"
+    answer += "\n".join(f"[{number}] “{p['quote']}”" for number, p in enumerate(passages, 1))
+    return {"answer": answer, "source": "records", "actions": [_action("Open the cited document", passages[0]["path"])],
+            "sources": sources}
+
+
+def _request_document_answer(db, user, request_id, question):
+    from modules.ai_governance import service
+
+    if not (has_capability(user, "ai_use.submit") or has_capability(user, "ai_use.review")):
+        return _unavailable()
+    try:
+        intake = service.get_intake(db, user, request_id)
+    except service.ServiceError as exc:
+        if exc.status in (403, 404):
+            return _unavailable()
+        raise
+    application_id = intake.get("application_id")
+    if not application_id or not has_capability(user, "ai_use.view"):
+        return {"answer": "I can't verify a current document from this request. Open its review record to check what is linked.",
+                "source": "records", "actions": [], "sources": []}
+    return _document_answer(db, user, ("governance", "application"), application_id, question)
+
+
 def _draft_result(question, result, selected):
     """Deterministic private preview. The browser may copy it; no record or mail is written."""
     if result.get("source") != "records" or not result.get("sources"):
@@ -456,7 +498,8 @@ def maybe_answer(question, page, user, areas, db_factory):
     other = _selected_other(page)
     drafting = bool(_DRAFT.search(question))
     related = bool(_RELATED.search(question))
-    if not ((system or intake or other) and (_CASE.search(question) or related or drafting)):
+    document_text = bool(_DOCUMENT_TEXT.search(question)) and not drafting
+    if not ((system or intake or other) and (_CASE.search(question) or related or drafting or document_text)):
         if _AI.search(question) and _ONBOARD.search(question) and _USE.search(question):
             return _onboard(user, areas)
         return None
@@ -465,7 +508,13 @@ def maybe_answer(question, page, user, areas, db_factory):
     db = None
     try:
         db = db_factory()
-        if related and system:
+        if document_text and system:
+            result = _document_answer(db, user, ("governance", "application"), int(system.group(1)), question)
+        elif document_text and intake:
+            result = _request_document_answer(db, user, int(intake.group(1)), question)
+        elif document_text and other:
+            result = _document_answer(db, user, other[0], other[1], question)
+        elif related and system:
             result = _related_answer(db, user, ("governance", "application"), int(system.group(1)), question)
         elif related and intake:
             result = _request_related_answer(db, user, int(intake.group(1)), question)

@@ -193,25 +193,37 @@ def _row_ends(row):
             (canonical_key(row["target_module"], row["target_type"]), row["target_id"]))
 
 
-def list_links(db, user, key, record_id, *, include_candidates=False, include_rejected=False, limit=MAX_LIST) -> list:
+def list_links(db, user, key, record_id, *, include_candidates=False, include_rejected=False,
+               limit=MAX_LIST, offset=0, with_raw_count=False,
+               before_id=None, with_raw_cursor=False) -> list:
     """The links of one record whose other end this user may also open, newest first. [] when the user may not
     open the record itself: the answer is the same as for a record that does not exist.
 
     Each link says what it is: `state` is recorded (somebody confirmed it), suggested (a rule or an import proposed it
-    and nobody has) or disputed (somebody declined it). Suggested and disputed ones are listed only when asked for."""
+    and nobody has) or disputed (somebody declined it). Suggested and disputed ones are listed only when asked for.
+    A caller paging all edges may request the raw page count or cursor because an entire page can have hidden
+    counterpart records. Cursor pages use immutable ids, so a deleted edge does not shift later pages."""
     key = canonical_key(*key)
     if not is_linkable(key) or not describe_record(db, key, record_id, user):
-        return []
+        if with_raw_cursor:
+            return [], 0, None
+        return ([], 0) if with_raw_count else []
     side_src, p_src = _side_sql("source", key)
     side_dst, p_dst = _side_sql("target", key)
     statuses = ("confirmed",) + (("candidate",) if include_candidates else ()) + (("rejected",) if include_rejected else ())
+    cursor_sql = " AND id < %s" if before_id is not None else ""
+    ordering = "ORDER BY id DESC LIMIT %s" if with_raw_cursor else "ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s"
+    paging = [max(1, min(int(limit), MAX_LIST))]
+    if not with_raw_cursor:
+        paging.append(max(0, int(offset)))
     rows = db.execute(
         "SELECT id, source_module, source_type, source_id, target_module, target_type, target_id, relationship, "
         "provenance, status, confirmed_at, created_at, note FROM cross_module_links "
         f"WHERE (({side_src} AND source_id = %s) OR ({side_dst} AND target_id = %s)) "
         f"AND COALESCE(status, 'confirmed') IN ({','.join(['%s'] * len(statuses))}) "
-        "ORDER BY created_at DESC, id DESC LIMIT %s",
-        [*p_src, record_id, *p_dst, record_id, *statuses, max(1, min(int(limit), MAX_LIST))],
+        f"{cursor_sql} {ordering}",
+        [*p_src, record_id, *p_dst, record_id, *statuses,
+         *([int(before_id)] if before_id is not None else []), *paging],
     ).fetchall()
 
     wanted = {}
@@ -238,7 +250,23 @@ def list_links(db, user, key, record_id, *, include_candidates=False, include_re
             "provenance": row["provenance"] or "legacy", "status": row["status"] or "confirmed",
             "state": STATE_WORDS.get(row["status"] or "confirmed", "recorded"),
         })
-    return results
+    if with_raw_cursor:
+        return results, len(rows), rows[-1]["id"] if rows else None
+    return (results, len(rows)) if with_raw_count else results
+
+
+def iter_visible_links(db, user, key, record_id, *, include_candidates=False, include_rejected=False):
+    """Yield every visible edge without a row cap or offset shifts; hidden pages still advance."""
+    before_id = None
+    while True:
+        shown, raw_count, last_id = list_links(
+            db, user, key, record_id, include_candidates=include_candidates,
+            include_rejected=include_rejected, with_raw_cursor=True, before_id=before_id,
+        )
+        yield from shown
+        if raw_count < MAX_LIST or last_id is None:
+            return
+        before_id = last_id
 
 
 def remove_link(db, user, link_id) -> dict:

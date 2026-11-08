@@ -11,6 +11,8 @@
 }
 
 .proj-card {
+  color: inherit;
+  text-decoration: none;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -281,11 +283,8 @@
   {% set pct_color = 'var(--green-status)' if pct >= 80 else ('var(--amber)' if pct >= 60 else 'var(--red)') %}
   {% set fw_color = fw.color or '#1e293b' %}
 
-  <div class="proj-card"
+  <a href="/aria/" class="proj-card"
        style="--proj-color:{{ fw_color }}"
-       onclick="window.location.href='/aria/'"
-       role="button"
-       tabindex="0"
        aria-label="Open {{ fw.name }} in ARIA">
 
     <!-- Arrow icon (appears on hover) -->
@@ -337,7 +336,7 @@
     </div>
     {% endif %}
 
-  </div>
+  </a>
   {% endfor %}
 </div>
 

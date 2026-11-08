@@ -19,6 +19,40 @@ assert SPEC and SPEC.loader
 SPEC.loader.exec_module(deploy)
 
 
+def test_policy_extract_preflight_rejects_missing_or_modified_units(tmp_path):
+    project = tmp_path / "project"
+    source = project / "oneforall" / "scripts" / "systemd"
+    installed = tmp_path / "units"
+    source.mkdir(parents=True)
+    installed.mkdir()
+    for name in deploy.POLICY_EXTRACT_UNITS:
+        (source / name).write_text(name, encoding="ascii")
+        (installed / name).write_text(name, encoding="ascii")
+    (installed / deploy.POLICY_EXTRACT_UNITS[1]).write_text("weakened", encoding="ascii")
+    with pytest.raises(RuntimeError, match="differs"):
+        deploy.verify_policy_extract_service(project, 1001, unit_root=installed)
+
+
+def test_policy_extract_preflight_rejects_a_non_socket_even_with_matching_units(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    source = project / "oneforall" / "scripts" / "systemd"
+    installed = tmp_path / "units"
+    source.mkdir(parents=True)
+    installed.mkdir()
+    for name in deploy.POLICY_EXTRACT_UNITS:
+        (source / name).write_text(name, encoding="ascii")
+        (installed / name).write_text(name, encoding="ascii")
+    fake_node = tmp_path / "not-a-socket"
+    fake_node.write_bytes(b"")
+    monkeypatch.setattr(deploy, "POLICY_EXTRACT_SOCKET", fake_node)
+    def fake_run(args, **_kwargs):
+        output = "no\n" if args[1] == "show" else "active\n"
+        return deploy.subprocess.CompletedProcess(args, 0, output, "")
+    monkeypatch.setattr(deploy, "_run", fake_run)
+    with pytest.raises(RuntimeError, match="wrong owner or mode"):
+        deploy.verify_policy_extract_service(project, 1001, unit_root=installed)
+
+
 def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
     selected = deploy.configured_environment(
         running={

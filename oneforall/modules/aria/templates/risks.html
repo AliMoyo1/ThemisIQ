@@ -14,7 +14,7 @@
     <div class="page-subtitle">Track and manage compliance risks across all frameworks</div>
   </div>
   <div class="page-actions">
-    <button class="btn btn-primary" onclick="document.getElementById('addRiskModal').classList.add('open')">
+    <button type="button" class="btn btn-primary" data-open-risk-modal>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Risk
     </button>
@@ -88,7 +88,7 @@
   <div class="modal">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div class="modal-title">Add Compliance Risk</div>
-      <button onclick="document.getElementById('addRiskModal').classList.remove('open')" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button type="button" data-close-risk-modal aria-label="Close" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
     </div>
     <form id="addRiskForm">
       <div class="grid-2">
@@ -133,25 +133,17 @@
         <textarea name="mitigation" rows="2" placeholder="Describe the mitigation plan..."></textarea>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('addRiskModal').classList.remove('open')">Cancel</button>
+        <button type="button" class="btn btn-ghost" data-close-risk-modal>Cancel</button>
         <button type="submit" class="btn btn-primary">Save Risk</button>
       </div>
     </form>
   </div>
 </div>
 
-<script>
-document.getElementById('addRiskForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = new FormData(e.target);
-  const res = await fetch('/aria/risks/add', { method: 'POST', body: form });
-  const data = await res.json();
-  if (data.ok) { showToast('Risk added'); setTimeout(() => location.reload(), 1000); }
-  else showToast(data.error || 'Error adding risk', 'error');
-});
-document.getElementById('addRiskModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('addRiskModal')) e.target.classList.remove('open');
-});
-</script>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script src="/static/js/aria_risks.js"></script>
 {% endblock %}
 

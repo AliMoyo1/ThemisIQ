@@ -61,6 +61,39 @@ def test_a_privacy_officer_records_an_assessment_and_reopens_it(login_as, live_a
     assert "Draft" in row.inner_text() and "Not linked" in row.inner_text()
 
 
+def test_assessor_reviews_a_control_linked_to_the_ai_system(login_as, live_app, page):
+    login_as("super_admin")
+    ref = "AIIA-CONTROL-" + uuid.uuid4().hex[:8]
+    db = database.get_db()
+    try:
+        app = db.execute("INSERT INTO applications (name,is_active) VALUES (%s,1)",
+                         ("Model " + ref,)).lastrowid
+        framework = db.execute("INSERT INTO frameworks (name) VALUES (%s)",
+                               ("Framework " + ref,)).lastrowid
+        control = db.execute("INSERT INTO controls (framework_id,ref,name) VALUES (%s,%s,%s)",
+                             (framework, "AI-1", "Human oversight " + ref)).lastrowid
+        assessment = db.execute("INSERT INTO sentinel_aiia (ref_number,title,application_id) VALUES (%s,%s,%s)",
+                                (ref, "Review " + ref, app)).lastrowid
+        db.execute("INSERT INTO cross_module_links (source_module,source_type,source_id,target_module,target_type,"
+                   "target_id,relationship,status) VALUES ('governance','application',%s,'aria','control',%s,"
+                   "'related','confirmed')", (app, control))
+        db.commit()
+    finally:
+        db.close()
+    page.goto(f"{live_app}/ai-governance/assessments/{assessment}")
+    context = page.locator("#as_control_context")
+    context.get_by_text("Human oversight " + ref).wait_for()
+    context.get_by_role("button", name="Accept link").click()
+    context.get_by_text("No new ARIA control suggestions").wait_for()
+    assert "Control AI-1 linked for review" in page.locator("#as_mitigation_measures").input_value()
+    db = database.get_db()
+    try:
+        assert db.execute("SELECT status FROM cross_module_links WHERE source_type='aiia' AND source_id=%s",
+                          (assessment,)).fetchone()[0] == "confirmed"
+    finally:
+        db.close()
+
+
 def test_hidden_system_and_ropa_links_survive_an_unrelated_browser_edit(login_as, live_app, page):
     login_as("dpo")
     ref = "AIIA-HIDDEN-" + uuid.uuid4().hex[:8]

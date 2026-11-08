@@ -465,6 +465,7 @@ def create_assessment(db, user, raw) -> dict:
     for flag in _BOOLS:
         values[flag] = fields.get(flag, 0)
     values.update(ref_number=_new_ref(db), created_by=user["id"], created_at=now, updated_at=now, version=1,
+                  ever_approved=1 if fields["status"] == "approved" else 0,
                   overall_classification=_classification(db, impacts) if impacts is not None else None)
     columns = list(values)
     new_id = insert_returning_id(
@@ -543,6 +544,8 @@ def update_assessment(db, user, assessment_id: int, raw, expected_version) -> di
     for field, value in changed.items():
         sets.append(f"{field} = %s")
         params.append(json.dumps(value) if field == "data_categories" else value)
+    if changed.get("status") == "approved":
+        sets.append("ever_approved = 1")
     if impacts_changed:
         sets.append("overall_classification = %s")
         params.append(_classification(db, impacts))
@@ -575,8 +578,8 @@ def delete_assessment(db, user, assessment_id: int) -> dict:
     row = _row(db, user, assessment_id)
     if not row:
         raise ServiceError(404, "Assessment not found.")
-    if row["status"] == "approved":
-        raise ServiceError(409, "An approved assessment cannot be deleted. Set it back to in progress first.")
+    if row["status"] == "approved" or row["ever_approved"]:
+        raise ServiceError(409, "An assessment approved at any time must stay in the record. Reassess it instead.")
     db.execute("DELETE FROM sentinel_aiia_impacts WHERE aiia_id = %s", (assessment_id,))
     db.execute("DELETE FROM sentinel_aiia WHERE id = %s", (assessment_id,))
     return {"events": [], "audit": [("ai_assessment_deleted", "ai_assessment", assessment_id, f"{row['ref_number']} {row['title'][:80]}")]}

@@ -1,6 +1,6 @@
 # 19. Evidence Vault and group oversight: one company view across permitted tenants
 
-**Status:** Unified implementation plan, 2026-10-28. This reconciles the earlier Vault company plan, group oversight plan and G0 inventory note. The branch in PR #40 now has the tenant-local company facet and an initial explicit relationship/publication service; it is not merged, released or a completed group pilot. The schema survey and optional read-only inventory script exist; no live tenant inventory or customer privacy approval is claimed complete.
+**Historical status (2026-10-28):** Unified implementation plan before PR #40 merged. **Current code status:** group relationship, figures, requests, synthetic PostgreSQL pilot and search timings are in master through PRs 40–43. See [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md). Customer privacy approval and real-user measures are still required.
 
 **Ledger reading note:** The dated updates below supersede earlier implementation summaries. In particular, local metadata extraction, exact-version filing and basic grant recertification were added after the initial ledger entry. The branch remains incomplete for customer group use.
 

@@ -143,5 +143,7 @@ def test_loading_buttons_show_a_spinner_not_an_hourglass(login_as, live_app):
     page.goto(f"{live_app}/sentinel/dpia")
     page.wait_for_load_state("networkidle")
     html = page.content()
-    assert "ic-spin" in html or "snAiScoreRopa" in html
-    assert "⏳" not in html
+    # The page's script moved to a static file for strict script policy; its loading states live there.
+    script = page.evaluate("fetch('/static/js/sentinel_index.js').then(r => r.text())")
+    assert "ic-spin" in html + script or "snAiScoreRopa" in html + script
+    assert "⏳" not in html and "⏳" not in script

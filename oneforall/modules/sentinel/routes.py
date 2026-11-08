@@ -38,6 +38,8 @@ from core.events import (
 from modules.sentinel import data_service as ds, dpia_document, export_reports as exp
 from modules.sentinel.record_profiles import RECORDS as RECORD_KINDS, RecordError, get_profile, regulations as record_regulations
 from modules.governance.data_service import bu_scope_ids
+from modules.governance import dpia_controls, relationships
+from database import get_db
 from core.best_effort import swallowed
 
 router = APIRouter(prefix="/sentinel", tags=["sentinel"])
@@ -495,6 +497,50 @@ async def api_dpia_update(request: Request, dpia_id: int):
             user_id=request.state.user["id"],
         )
     return JSONResponse(ds.get_dpia(dpia_id))
+
+
+@router.get("/api/dpias/{dpia_id}/control-suggestions")
+@require_capability("sentinel.dpia.manage")
+async def api_dpia_control_suggestions(request: Request, dpia_id: int):
+    _scoped_or_404(request, "dpia", dpia_id)
+    db = get_db()
+    try:
+        return JSONResponse(dpia_controls.suggestions(db, request.state.user, dpia_id))
+    finally:
+        db.close()
+
+
+@router.post("/api/dpias/{dpia_id}/control-suggestions/{control_id}")
+@require_capability("sentinel.dpia.manage")
+async def api_dpia_control_decision(request: Request, dpia_id: int, control_id: int):
+    _scoped_or_404(request, "dpia", dpia_id)
+    action = (await _json_body(request)).get("action")
+    if action not in ("accept", "dismiss"):
+        raise HTTPException(400, "Choose accept or dismiss")
+    db = get_db()
+    user = request.state.user
+    try:
+        available = {r["control_id"] for r in dpia_controls.suggestions(db, user, dpia_id)}
+        if control_id not in available:
+            raise HTTPException(404, "Control suggestion not found")
+        try:
+            result = relationships.create_link(
+                db, user, ("sentinel", "dpia", dpia_id), ("aria", "control", control_id),
+                "mitigates", provenance="system_candidate", note="Specialist review of DPIA control suggestion",
+            )
+            decision = relationships.set_link_status(
+                db, user, result["link_id"], "confirmed" if action == "accept" else "rejected"
+            )
+        except relationships.LinkError as exc:
+            db.rollback()
+            raise HTTPException(exc.status, exc.message) from None
+        db.commit()
+    finally:
+        db.close()
+    if result["created"]:
+        relationships.audit(user, result)
+    relationships.audit(user, decision)
+    return JSONResponse({"ok": True, "status": "confirmed" if action == "accept" else "rejected"})
 
 
 @router.delete("/api/dpias/{dpia_id}")

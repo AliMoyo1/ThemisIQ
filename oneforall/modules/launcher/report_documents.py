@@ -739,7 +739,7 @@ def _review_line(db, run_id, env) -> str:
         return status
     try:
         last = db.execute(
-            "SELECT s.decision, s.reason, s.signed_at, u.full_name, u.username FROM report_run_signoffs s "
+            "SELECT s.decision, s.reason, s.signed_at, s.assurance_reviewed, u.full_name, u.username FROM report_run_signoffs s "
             "LEFT JOIN users u ON u.id = s.signer_id WHERE s.run_id = %s ORDER BY s.id DESC LIMIT 1", (run_id,)).fetchone()
     except Exception:
         swallowed("report document: the sign off line")
@@ -747,8 +747,10 @@ def _review_line(db, run_id, env) -> str:
     if not last:
         return status
     who = last["full_name"] or last["username"] or "a reviewer"
+    assurance = (" Frozen Needs attention state acknowledged."
+                 if last["assurance_reviewed"] else " Frozen Needs attention state not acknowledged.")
     return (f"Independent review: {last['decision']} by {who} on {identity.format_day(last['signed_at'])}. "
-            f"Reason recorded: {identity.clean_text(last['reason'], keep_newlines=False)}")
+            f"Reason recorded: {identity.clean_text(last['reason'], keep_newlines=False)}{assurance}")
 
 
 def _figure(value) -> str:

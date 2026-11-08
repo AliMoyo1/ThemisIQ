@@ -1,15 +1,19 @@
 """Review-only intake for an existing document-control workbook.
 
 Workbook assertions are not controlled documents or accepted control links.
-The original XLSX is identified by hash; actual files enter through policy intake.
+The source XLSX is filed as unverified reference material only after confirmation.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import uuid
 from datetime import timedelta
+from pathlib import Path
 
+from config import settings
 from core.rbac import has_capability
 from core.timeutils import utcnow
 from database import insert_returning_id
@@ -68,6 +72,52 @@ def _match(db, user, code, version, unit):
     return visible[0]["id"] if len(visible) == 1 else None
 
 
+def _retain_source(db, user, batch, data):
+    """File exactly the confirmed workbook bytes; return (Vault id, new path)."""
+    if settings.is_postgres():
+        key = int.from_bytes(hashlib.sha256(
+            f"register:{batch['org_id']}:{batch['business_unit_id']}:{batch['file_sha256']}".encode()
+        ).digest()[:8], "big", signed=True)
+        db.execute("SELECT pg_advisory_xact_lock(%s)", (key,)).fetchone()
+    scope = "b.business_unit_id IS NULL" if batch["business_unit_id"] is None else "b.business_unit_id=%s"
+    params = [batch["org_id"], batch["file_sha256"]]
+    if batch["business_unit_id"] is not None:
+        params.append(batch["business_unit_id"])
+    existing = db.execute(
+        "SELECT b.source_evidence_id,e.file_path FROM aria_document_register_batches b "
+        "JOIN evidence_items e ON e.id=b.source_evidence_id "
+        f"WHERE b.org_id=%s AND b.file_sha256=%s AND {scope} "
+        "AND b.status='confirmed' AND e.status='current' ORDER BY b.id DESC LIMIT 1", params,
+    ).fetchone()
+    root = Path(os.getenv("EVIDENCE_DIR", "data/evidence"))
+    if existing:
+        path = (root / existing["file_path"]).resolve()
+        if path.is_relative_to(root.resolve()) and path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == batch["file_sha256"]:
+            return existing["source_evidence_id"], None
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    stored = f"{uuid.uuid4().hex}.xlsx"
+    path = root / stored
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as stream:
+        stream.write(data)
+    try:
+        evidence_id = insert_returning_id(
+            db, "INSERT INTO evidence_items "
+            "(title,description,file_path,file_name,file_size,file_hash,mime_type,category,tags,status,"
+            "uploaded_by,owner_user_id,org_id,business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (f"Document register: {batch['file_name']}",
+             "Confirmed source workbook; its entries and approval claims are unverified.",
+             stored, batch["file_name"], len(data), batch["file_sha256"],
+             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             "report", "aria,document-register,source-workbook", "current",
+             user["id"], user["id"], batch["org_id"], batch["business_unit_id"]),
+        )
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    return evidence_id, path
+
+
 def preview(db, user, data, filename, business_unit_id=None, org_wide=False):
     _gate(user)
     unit = _unit(user, business_unit_id, org_wide)
@@ -113,9 +163,10 @@ def preview(db, user, data, filename, business_unit_id=None, org_wide=False):
         digest = hashlib.sha256(data).hexdigest()
         batch_id = insert_returning_id(db,
             "INSERT INTO aria_document_register_batches "
-            "(org_id,business_unit_id,file_name,file_sha256,rows,warnings,created_by,created_at) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (user["org_id"], unit, filename[:200], digest, json.dumps(rows, ensure_ascii=False),
+            "(org_id,business_unit_id,file_name,file_sha256,source_bytes,rows,warnings,created_by,created_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (user["org_id"], unit, filename.replace("\\", "/").split("/")[-1][:200], digest, data,
+             json.dumps(rows, ensure_ascii=False),
              json.dumps(warnings, ensure_ascii=False), user["id"], now))
         return {"batch_id": batch_id, "version": 1, "rows": rows, "warnings": warnings,
                 "source_versions": versions, "file_sha256": digest}
@@ -127,7 +178,8 @@ def confirm(db, user, batch_id, version, acknowledged):
     _gate(user)
     if type(batch_id) is not int or type(version) is not int:
         raise RegisterError(422, "Choose a preview and version.")
-    batch = db.execute("SELECT * FROM aria_document_register_batches WHERE id=%s AND org_id=%s",
+    lock = " FOR UPDATE" if settings.is_postgres() else ""
+    batch = db.execute("SELECT * FROM aria_document_register_batches WHERE id=%s AND org_id=%s" + lock,
                        (batch_id, user["org_id"])).fetchone()
     if not batch or batch["created_by"] != user["id"] or not _visible(user, batch):
         raise RegisterError(404, "Preview not found.")
@@ -145,20 +197,31 @@ def confirm(db, user, batch_id, version, acknowledged):
     required = {f"{w['code']}:{w.get('ref','')}" for w in warnings}
     if not isinstance(acknowledged, list) or set(acknowledged) != required:
         raise RegisterError(422, "Review and acknowledge every workbook discrepancy.")
+    data = bytes(batch["source_bytes"] or b"")
+    if not data or hashlib.sha256(data).hexdigest() != batch["file_sha256"]:
+        raise RegisterError(409, "The preview source is missing or changed. Upload the workbook again.")
+    source_id, new_path = _retain_source(db, user, batch, data)
     rows = json.loads(batch["rows"])
-    for row in rows:
-        match_id = _match(db, user, row["code"], row["version"], batch["business_unit_id"])
-        db.execute("INSERT INTO aria_document_register_claims "
-                   "(batch_id,org_id,business_unit_id,document_code,document_version,title,source_json,matched_document_id) "
-                   "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                   (batch_id, user["org_id"], batch["business_unit_id"], row["code"], row["version"],
-                    row["title"], json.dumps(row, ensure_ascii=False), match_id))
-    changed = db.execute("UPDATE aria_document_register_batches SET status='confirmed',version=version+1,confirmed_at=%s "
-                         "WHERE id=%s AND status='previewed' AND version=%s",
-                         (utcnow().strftime("%Y-%m-%d %H:%M:%S"), batch_id, version)).rowcount
-    if changed != 1:
-        raise RegisterError(409, "The preview was already confirmed.")
-    return {"claims": len(rows), "matched": sum(bool(_match(db, user, r["code"], r["version"], batch["business_unit_id"])) for r in rows)}
+    try:
+        for row in rows:
+            match_id = _match(db, user, row["code"], row["version"], batch["business_unit_id"])
+            db.execute("INSERT INTO aria_document_register_claims "
+                       "(batch_id,org_id,business_unit_id,document_code,document_version,title,source_json,matched_document_id) "
+                       "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                       (batch_id, user["org_id"], batch["business_unit_id"], row["code"], row["version"],
+                        row["title"], json.dumps(row, ensure_ascii=False), match_id))
+        changed = db.execute("UPDATE aria_document_register_batches SET status='confirmed',version=version+1,"
+                             "source_evidence_id=%s,source_bytes=NULL,confirmed_at=%s "
+                             "WHERE id=%s AND status='previewed' AND version=%s",
+                             (source_id, utcnow().strftime("%Y-%m-%d %H:%M:%S"), batch_id, version)).rowcount
+        if changed != 1:
+            raise RegisterError(409, "The preview was already confirmed.")
+        return {"claims": len(rows), "matched": sum(bool(_match(db, user, r["code"], r["version"], batch["business_unit_id"])) for r in rows),
+                "source_evidence_id": source_id, "_created_source_path": new_path}
+    except Exception:
+        if new_path is not None:
+            new_path.unlink(missing_ok=True)
+        raise
 
 
 def claims(db, user, limit=200):
@@ -173,10 +236,31 @@ def claims(db, user, limit=200):
             params.extend(scope)
         where += ")"
     return [dict(r) for r in db.execute("SELECT c.id,c.document_code,c.document_version,c.title,c.matched_document_id,"
-                                      "c.state,c.version,b.created_by FROM aria_document_register_claims c "
+                                      "c.state,c.version,b.created_by,b.source_evidence_id FROM aria_document_register_claims c "
                                       "JOIN aria_document_register_batches b ON b.id=c.batch_id "
                                       f"WHERE {where} "
                                       "ORDER BY c.id DESC LIMIT %s", [*params, min(max(int(limit), 1), 1000)]).fetchall()]
+
+
+def expire_previews(org_id, *, db=None):
+    """Discard unconfirmed workbook bytes after the seven-day review window."""
+    from database import get_db_background
+
+    owned = db is None
+    db = db or get_db_background()
+    try:
+        cutoff = (utcnow() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        result = db.execute(
+            "UPDATE aria_document_register_batches SET status='expired',source_bytes=NULL,version=version+1 "
+            "WHERE org_id=%s AND status='previewed' AND created_at<%s", (org_id, cutoff))
+        db.commit()
+        return result.rowcount
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        if owned:
+            db.close()
 
 
 def review_claim(db, user, claim_id, version, decision):

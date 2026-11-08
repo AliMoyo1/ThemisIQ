@@ -2,6 +2,7 @@
 import io
 import json
 import hashlib
+import sys
 
 import pytest
 from docx import Document
@@ -10,6 +11,17 @@ from modules.aria import policy_intake as intake
 from modules.aria import policy_composition as composition
 from modules.aria import policy_pdf_rendition as pdf_rendition
 from modules.aria import policy_references
+
+
+def test_extract_worker_never_streams_an_oversized_result_to_the_web_process(monkeypatch, tmp_path, capsys):
+    from modules.aria import policy_extract_worker, policy_parser
+
+    source = tmp_path / "source.docx"
+    source.write_bytes(b"small test input")
+    monkeypatch.setattr(sys, "argv", ["worker", str(source), ".docx", "source.docx"])
+    monkeypatch.setattr(policy_parser, "extract", lambda *_: {"spans": [{"text": "x" * 1_500_001}]})
+    assert policy_extract_worker.main() == 3
+    assert capsys.readouterr().out == ""
 
 
 def _setup(db, monkeypatch, tmp_path):
@@ -130,6 +142,15 @@ def test_refresh_staged_import_updates_suggestions_without_changing_source_or_sc
     with pytest.raises(intake.IntakeError) as registered:
         intake.refresh_suggestions(test_db, actor, staged["id"])
     assert registered.value.status == 409
+
+
+def test_intake_does_not_parse_docx_archive_in_web_process(test_db, monkeypatch, tmp_path):
+    from modules.aria import policy_storage
+    _setup(test_db, monkeypatch, tmp_path)
+    monkeypatch.setattr(policy_storage, "validate_docx", lambda *_: (_ for _ in ()).throw(
+        AssertionError("web process opened the DOCX archive")))
+    staged = intake.stage_import(test_db, _actor(test_db, 101), _docx(), "policy.docx")
+    assert staged["state"] == "needs_review"
 
 
 def test_import_requires_review_and_independent_external_attestation(test_db, monkeypatch, tmp_path):
@@ -429,6 +450,7 @@ def test_annual_upload_updates_one_policy_only_after_independent_verification(te
     registered = intake.register_import(test_db, author, first["id"], {}, [])
     intake.verify_external(test_db, reviewer, first["id"],
                            approver="Policy board", approved_at="2026-10-01", proof="Signed original")
+    assert test_db.execute("SELECT COUNT(*) FROM change_signals").fetchone()[0] == 0
     current_before = test_db.execute("SELECT current_policy_version_id FROM aria_documents WHERE id=%s",
                                      (registered["document_id"],)).fetchone()[0]
     update = Document()
@@ -437,29 +459,43 @@ def test_annual_upload_updates_one_policy_only_after_independent_verification(te
     update.add_paragraph("Annual update with a changed data-handling clause")
     data = io.BytesIO(); update.save(data)
     staged = intake.stage_import(test_db, author, data.getvalue(), "security-policy-annual.docx")
+    anchor = staged["extracted"]["spans"][0]["anchor"]
+    linked = intake.add_manual_link(test_db, author, staged["id"], 801, anchor, "addresses")
+    accepted_link = next(item["id"] for item in linked["links"] if item["anchor"] == anchor)
     candidates = intake.version_candidates(test_db, author, staged["id"], "Information Security")
     assert [item["id"] for item in candidates] == [registered["document_id"]]
     with pytest.raises(intake.IntakeError) as hidden:
         intake.register_import(test_db, _actor(test_db, 103), staged["id"],
                                {"version": "3.0"}, [], registered["document_id"])
     assert hidden.value.status == 404
-    second = intake.register_import(test_db, author, staged["id"], {}, [], registered["document_id"])
+    second = intake.register_import(test_db, author, staged["id"], {}, [accepted_link], registered["document_id"])
     assert second["pending_replacement"] and second["document_id"] == registered["document_id"]
     assert test_db.execute("SELECT current_policy_version_id FROM aria_documents WHERE id=%s",
                            (registered["document_id"],)).fetchone()[0] == current_before
     assert test_db.execute("SELECT status FROM evidence_items WHERE id=%s",
                            (second["evidence_id"],)).fetchone()[0] == "draft"
+    from modules.ai_governance import review_packs
+    alerts = []
+    monkeypatch.setattr(review_packs, "alert_policy_replacement", lambda db, **kw: alerts.append(kw) or 0)
     intake.verify_external(test_db, reviewer, staged["id"],
                            approver="Policy board", approved_at="2026-10-15", proof="Signed annual review")
     current = test_db.execute("SELECT current_policy_version_id,version FROM aria_documents WHERE id=%s",
                               (registered["document_id"],)).fetchone()
     assert current["current_policy_version_id"] != current_before and current["version"] == "3.0"
+    assert alerts == [{"org_id": author["org_id"], "document_id": registered["document_id"],
+                       "old_version_id": current_before, "new_version_id": current["current_policy_version_id"]}]
     assert test_db.execute("SELECT status FROM evidence_items WHERE id=%s",
                            (registered["evidence_id"],)).fetchone()[0] == "superseded"
     assert test_db.execute("SELECT status FROM evidence_items WHERE id=%s",
                            (second["evidence_id"],)).fetchone()[0] == "current"
     assert test_db.execute("SELECT COUNT(*) FROM aria_documents WHERE id=%s",
                            (registered["document_id"],)).fetchone()[0] == 1
+    [signal] = test_db.execute("SELECT * FROM change_signals").fetchall()
+    assert (signal["source_module"], signal["source_type"], signal["source_id"], signal["change_kind"]) == (
+        "aria", "document", registered["document_id"], "policy_approved")
+    assert json.loads(signal["changes"]) == [{"field": "version", "label": "Version", "before": "2.1", "after": "3.0"}]
+    [target] = test_db.execute("SELECT target_module,target_type,target_id FROM change_signal_targets").fetchall()
+    assert (target["target_module"], target["target_type"], target["target_id"]) == ("aria", "control", 801)
 
 
 def test_policy_reference_hides_unverified_and_stale_clause_links(test_db, monkeypatch, tmp_path):

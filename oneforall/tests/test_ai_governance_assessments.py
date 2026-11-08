@@ -417,7 +417,17 @@ def test_an_approved_assessment_is_not_deleted(world):
     error = fail(lambda: assessments.delete_assessment(world.db, user(world, "dpo_a"), row["id"]), 409)
     assert "approved" in error.message.lower() and count(world, "sentinel_aiia", "id = %s", (row["id"],)) == 1
     edit(world, row, {"status": "in_progress"})
-    assessments.delete_assessment(world.db, user(world, "dpo_a"), row["id"])
+    fail(lambda: assessments.delete_assessment(world.db, user(world, "dpo_a"), row["id"]), 409)
+    assert world.db.execute("SELECT ever_approved FROM sentinel_aiia WHERE id=%s", (row["id"],)).fetchone()[0] == 1
+
+
+def test_an_assessment_approved_after_creation_keeps_its_history_on_reopen(world):
+    row = make(world, status="draft")
+    edit(world, row, {"status": "approved"})
+    current = assessments.get_assessment(world.db, user(world, "dpo_a"), row["id"])
+    edit(world, current, {"status": "in_progress"})
+    fail(lambda: assessments.delete_assessment(world.db, user(world, "dpo_a"), row["id"]), 409)
+    assert world.db.execute("SELECT ever_approved FROM sentinel_aiia WHERE id=%s", (row["id"],)).fetchone()[0] == 1
 
 
 # ── The pickers ─────────────────────────────────────────────────────────────

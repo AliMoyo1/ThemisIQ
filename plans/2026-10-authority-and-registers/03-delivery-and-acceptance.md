@@ -1,6 +1,6 @@
 # 03. Delivery sequence and acceptance
 
-**Status:** Planned, not built. Do not label the three registers or the shared source spine as shipped because existing fragments are present. Verify the target branch and production schema before writing migrations.
+**Historical design status:** Planned on 2026-10-26. The shared spine and registers are implemented on master; [04](04-implementation-and-release.md) records the build and [current status](../CURRENT-BUILD-STATUS-2026-11-05.md) distinguishes remaining release and specialist gates. A code merge is not a production attestation.
 
 ## 1. Dependencies and concrete implementation areas
 
@@ -77,7 +77,7 @@ Tests should exercise source services and route responses, not mirror implementa
 
 - **Legal/source owner:** A named governance or privacy specialist approves each new authority, source rights and interpretation; a DPO remains Sentinel's rule approver. No bulk publication of jurisdictions from research attachments.
 - **Auditor authority:** A report generator cannot sign their own issued register where independent sign-off is configured. Reuse `platform.report.signoff` initially; organization administrators may assign eligible reviewers without changing the truth of a source row.
-- **Retention:** Use the existing organization-editable report retention and hold controls. The default is a product setting, not a statement of statutory retention. Retain original import evidence and approved source versions under their separate Vault/source policies.
+- **Retention:** Use the existing organization-editable report retention and hold controls. The default is a product setting, not a statement of statutory retention. A confirmed document-register XLSX is now a scoped Vault reference artifact; duplicate identical current bytes in one scope reuse the artifact, unconfirmed preview bytes expire after seven days, and permanent deletion is refused while claims refer to it. Define the customer's separate source-workbook retention and legal-hold handling before automating any deletion. Approved source versions follow their separate Vault/source policy.
 - **AI data policy:** External model use starts disabled for source content that lacks rights or organization approval. No Gemini adapter, external auditor invitation or automatic framework-rule modification is part of the initial release.
 - **Backfill:** Existing ARIA/Vault, AI profiles and AIMS risk links need an inventory and reviewed crosswalk. Do not “fix” spreadsheet discrepancies or infer system links from names during migration.
 - **Operational reporting:** Source check failures, stale capture age, pending review, denied AI calls, report job failure, incomplete export and reconciliation backlog need separate observability. Alert people on actionable changes, not every raw byte diff.

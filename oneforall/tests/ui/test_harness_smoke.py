@@ -47,7 +47,7 @@ def test_login_navigation_modal_and_readonly_api(login_as, live_app):
     page.wait_for_selector("#addModal.open", timeout=5000)
     assert overlay.is_visible(), "#addModal did not become visible after Add Document click"
 
-    page.click("[onclick=\"closeModal('addModal')\"]")
+    page.locator('#addModal [data-doc-close="addModal"]').first.click()  # a listener now, under strict script policy
     page.wait_for_selector("#addModal", state="hidden", timeout=5000)
     assert "open" not in (overlay.get_attribute("class") or "")
 

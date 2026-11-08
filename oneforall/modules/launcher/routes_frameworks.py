@@ -2,6 +2,8 @@
 Launcher sub-router: Frameworks — Admin framework management, unified framework
 APIs, cross-module links.
 """
+import re
+
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -12,6 +14,8 @@ from modules.launcher._route_helpers import (
     _json_body,)
 
 router = APIRouter()
+
+_FRAMEWORK_COLOR = re.compile(r"#[0-9a-fA-F]{6}\Z")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -58,6 +62,8 @@ async def admin_create_framework(request: Request):
     relevant_modules = (body.get("relevant_modules") or "aria").strip()
     if not name or not description:
         return _JSONResp({"error": "Name and description required"}, status_code=400)
+    if not isinstance(color, str) or not _FRAMEWORK_COLOR.fullmatch(color):
+        return _JSONResp({"error": "Color must be a six-digit hex value"}, status_code=400)
     db = get_db()
     try:
         existing = db.execute("SELECT id FROM frameworks WHERE name = %s", (name,)).fetchone()

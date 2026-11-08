@@ -1,0 +1,31 @@
+[Unit]
+Description=ThemisIQ isolated policy extraction request
+
+[Service]
+Type=exec
+ExecStart=/project/oneforall/.venv/bin/python -I /project/oneforall/modules/aria/policy_extract_service.py
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+DynamicUser=yes
+User=themisiq-policy-extract
+Environment=PYTHONDONTWRITEBYTECODE=1
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+InaccessiblePaths=-/etc/themisiq -/project/backups -/project/data -/project/oneforall/data
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+UMask=0077
+MemoryMax=1G
+TasksMax=16
+RuntimeMaxSec=45s

@@ -323,6 +323,14 @@
   </div>
   <div id="ccFirstScreenGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"></div>
 </section>
+{% if can_view_attention %}
+<a class="stat-card cc-attention-card" href="/governance/attention/" aria-label="Open Needs attention"
+   style="display:block;margin:0 0 20px;text-decoration:none;max-width:360px">
+  <div class="stat-label">Needs attention</div>
+  <div class="stat-value" id="ccAttentionOpen" aria-live="polite">—</div>
+  <div class="stat-sub" id="ccAttentionNote">Checking the records in your scope…</div>
+</a>
+{% endif %}
 <div class="dash-section-heading"><h2>At a glance</h2><span>Enterprise position today</span></div>
 <div class="stats-row premium-kpi-grid cc-primary-metrics animate-fade-up anim-1">
   <!-- Hero: Overall Compliance — click to open ARIA -->
@@ -1579,4 +1587,5 @@ async function generateBoardReport(){
 }
 </script>
 <script src="{{ url_for('static', path='js/command_centre_layout.js') }}"></script>
+{% if can_view_attention %}<script src="{{ url_for('static', path='js/command_centre_attention.js') }}"></script>{% endif %}
 {% endblock %}

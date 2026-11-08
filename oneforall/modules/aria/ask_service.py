@@ -796,8 +796,19 @@ async def ask(question: str, user: Optional[dict] = None,
         result["log_id"] = _log_qa(user, question, result)
         return result
 
+    from modules.aria.ask_grounding import verified_citations
+
     answer_text, citations_json = _extract_json_block(raw)
-    citations = citations_json if isinstance(citations_json, list) else []
+    citations = verified_citations(citations_json, chunks)
+    if not answer_text or citations is None:
+        result = {
+            "success": True, "covered": False,
+            "answer": "I can't verify that answer against the policies and controls I found. Please check the source records or ask the Compliance team.",
+            "citations": [], "nearest_owner": None, "framework": None,
+            "chunks_retrieved": len(chunks), "latency_ms": ms(), "error": None,
+        }
+        result["log_id"] = _log_qa(user, question, result)
+        return result
     result = {
         "success": True, "covered": True,
         "answer": answer_text, "citations": citations,

@@ -101,6 +101,32 @@ def test_the_report_blocks_carry_those_figures_and_the_control_rows_say_what_evi
     assert len(controls.rows) == 8, "every control is listed (the old report cut the list at 60 without saying so)"
 
 
+def test_operational_report_names_only_visible_active_reuse_sources(audit):
+    from tests.test_platform_ownership import _insert
+
+    db, viewer = audit.db, audit.users["lead"]
+    target = db.execute("SELECT id FROM grid_controls WHERE audit_id=%s LIMIT 1", (audit.audit_id,)).fetchone()[0]
+    decisions = []
+    for unit, name in (("A", "Previous visible audit"), ("B", "Hidden sibling audit")):
+        source_audit = _insert(db, "grid_audits", name=name, business_unit_id=audit.unit[unit])
+        source_control = _insert(db, "grid_controls", audit_id=source_audit, control_id="SRC.1", name="Source")
+        decision = _insert(db, "grid_reuse_decisions", org_id=ORG, target_audit_id=audit.audit_id,
+                           source_audit_id=source_audit, applied_by=viewer["id"], applied_at="2026-11-05")
+        _insert(db, "grid_reuse_rows", decision_id=decision, target_control_id=target,
+                source_control_id=source_control, relation="full", basis="exact reference", fingerprint="test",
+                source_snapshot="{}", target_before="{}")
+        decisions.append(decision)
+    data = rpt.gather(audit.audit_id, viewer=viewer)
+    assert len(data["reused"]) == 1 and data["reused"][0]["source_audit"] == "Previous visible audit"
+    report = rpt.build_report(data, actor=viewer, tier="operational")
+    rows = next(t.rows for t in report.tables() if t.title == "Suggestions carried from earlier audits")
+    assert len(rows) == 1 and rows[0]["source"] == "Previous visible audit"
+    assert "Hidden sibling audit" not in str(report)
+    db.execute("UPDATE grid_reuse_decisions SET undone_at='2026-11-06' WHERE id=%s", (decisions[0],))
+    db.commit()
+    assert rpt.gather(audit.audit_id, viewer=viewer)["reused"] == []
+
+
 def test_the_board_summary_is_short_and_leads_with_the_decisions(audit):
     data, _ = _data(audit)
     board = rpt.build_report(data, actor=audit.users["lead"], tier="board")

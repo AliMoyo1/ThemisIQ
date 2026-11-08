@@ -1,6 +1,6 @@
 # Plan 24: respondent assignments (CISO 03) and Needs attention (CISO 01)
 
-**Status:** In progress on branch `claude/ciso-assurance` from master `ba071f8f`, started 2026-11-03.
+**Historical status (2026-11-03):** In progress on feature branch. **Current code status:** base assignment and Needs attention work merged in PR #44, follow-up fixes in PR #45. New overlap and Command Centre assurance work is uncommitted in the current worktree; see [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md).
 
 **Owner's words (chat, 2026-11-03):** "go, build CISO 03 and CISO 01".
 

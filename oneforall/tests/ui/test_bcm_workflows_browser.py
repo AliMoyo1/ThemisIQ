@@ -58,3 +58,31 @@ def test_bcm_viewer_sees_usable_read_only_workflows(live_app, page, login_as):
     page.locator("#commsGrid").wait_for()
     assert page.get_by_role("button", name="New Template").count() == 0
     assert page.get_by_role("button", name="Starter messages").count() == 0
+
+
+def test_bia_questionnaire_actions_work_with_strict_script_policy(live_app, page, login_as):
+    login_as("super_admin")
+    response = page.goto(f"{live_app}/bcm/bia")
+    policy = response.headers["content-security-policy"]
+    assert "script-src-attr 'none'" in policy
+    assert "'unsafe-inline'" not in policy.split("script-src ", 1)[1].split(";", 1)[0]
+
+    page.get_by_role("button", name="Add BIA Record").click()
+    page.locator("#bcmf_process_name").fill("Customer assistance")
+    page.locator("#bcmModalForm button[type=submit]").click()
+    row = page.locator("#bcmBiaBody tr:has-text('Customer assistance')")
+    row.wait_for()
+    row.get_by_role("button", name="Open BIA Questionnaire").click()
+    drawer = page.locator("#bcmBiaDrawerRoot")
+    drawer.get_by_text("Impact Over Time").click()
+    content = drawer.locator("#bcmBiaDrawerBody").inner_text()
+    assert "General Impact" in content or "Add Standard Rows" in content, content
+    if drawer.get_by_role("button", name="Add Standard Rows").count():
+        drawer.get_by_role("button", name="Add Standard Rows").click()
+    drawer.locator("[data-bcm-input]").first.wait_for()
+    drawer.get_by_role("button", name="+ Add Row").first.click()
+    label = drawer.locator("input[data-bcm-input*='_bcmBiaSetLabel']").last
+    label.fill("Customer calls")
+    drawer.get_by_role("button", name="Save Impact Rows").click()
+    assert page.locator("#bcmSpaRoot [onclick], #bcmBiaDrawerRoot [onclick]").count() == 0
+    assert not page.console_errors, page.console_errors

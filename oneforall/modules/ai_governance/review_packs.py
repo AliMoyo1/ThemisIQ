@@ -306,6 +306,23 @@ def _controls_section(rows) -> dict:
     return {"key": "controls", "title": "AI controls and their proof", "items": items}
 
 
+def _policy_section(db, user, application_id) -> dict:
+    """Freeze exact current policy versions that this author may cite."""
+    from modules.aria.policy_references import resolve_policy_references
+
+    refs = resolve_policy_references(db, user, ("governance", "application", application_id), limit=None)
+    items = []
+    for ref in refs:
+        detail = [f"Policy version: {ref['version']} (version ID {ref['version_id']})",
+                  f"Vault artifact ID: {ref['evidence_id']}", f"SHA-256: {ref['file_hash']}",
+                  "A policy reference is not operating proof."]
+        if ref["anchor"]:
+            detail.append(f"Source anchor: {ref['anchor']}")
+        items.append(_item(ref["title"], status=ref["approval"], detail=detail))
+    return {"key": "policy_references", "title": "Cited current policies", "items": items,
+            "note": None if items else "No authorized current policy version is linked to this use."}
+
+
 def _evaluations_section(listing) -> dict:
     items = []
     for run in listing["runs"][:10]:
@@ -405,6 +422,8 @@ def _collect(db, user, application_id: int) -> tuple:
             raise RuntimeError("hidden")
         return _controls_section(rows)
     sections.append(_guard("controls", "AI controls and their proof", proof))
+    sections.append(_guard("policy_references", "Cited current policies",
+                           lambda: _policy_section(db, user, application_id)))
 
     def runs():
         listing = evaluations.list_runs(db, user, application_id)
@@ -605,6 +624,63 @@ def changes_since(db, user, pack_id: int) -> dict:
     new = build(db, user, row["application_id"], options)
     return {"changed": changed_sections(old, new), "generated_at": service._text(row["generated_at"]),
             "same": content_hash(old) == content_hash(new)}
+
+
+def alert_policy_replacement(db, *, org_id: int, document_id: int, old_version_id: int,
+                             new_version_id: int) -> int:
+    """Tell current pack issuers that an exact cited policy version was replaced.
+
+    This is advisory only: the frozen pack and its recipient are unchanged. The
+    notification contains no policy title or content, and a revoked/expired pack
+    or an issuer who lost access never receives a new record-existence signal.
+    The caller owns the transaction; a failed alert must not undo an approval.
+    """
+    version_line = re.compile(rf"^Policy version: .+ \(version ID {int(old_version_id)}\)$")
+    reason = f"policy_version:{int(new_version_id)}"
+    now = service._now()
+    cursor = 0
+    alerted = 0
+    while True:
+        rows = db.execute(
+            "SELECT p.* FROM ai_review_packs p JOIN users u ON u.id = p.issued_by "
+            "WHERE p.id > %s AND p.status = 'issued' AND p.expires_at > %s "
+            "AND u.org_id = %s ORDER BY p.id LIMIT 100", (cursor, now, org_id),
+        ).fetchall()
+        if not rows:
+            return alerted
+        for row in rows:
+            cursor = row["id"]
+            manifest = verifies(row["manifest"], row["manifest_hash"])
+            if manifest is None:
+                continue
+            policies = next((part for part in manifest.get("sections", [])
+                             if part.get("key") == "policy_references" and part.get("state") == "ok"), None)
+            if not policies or not any(version_line.fullmatch(line)
+                                       for item in policies.get("items", []) for line in item.get("lines", [])):
+                continue
+            if _issuer_problem(db, row) is not None:
+                continue
+            issuer = _person(db, row["issued_by"])
+            if issuer is None or not describe_record(db, ("aria", "document"), document_id, issuer):
+                continue
+            prior = db.execute(
+                "SELECT 1 FROM ai_review_pack_events WHERE pack_id = %s AND action = 'source_changed' AND reason = %s",
+                (row["id"], reason),
+            ).fetchone()
+            if prior:
+                continue
+            db.execute(
+                "INSERT INTO ai_review_pack_events (pack_id, user_id, action, reason, created_at) "
+                "VALUES (%s, %s, 'source_changed', %s, %s)",
+                (row["id"], row["issued_by"], reason, now),
+            )
+            db.execute(
+                "INSERT INTO notifications (user_id, module, title, message, link) VALUES (%s, %s, %s, %s, %s)",
+                (row["issued_by"], "ai_governance", "Review pack source changed",
+                 "An approved policy version cited in a review pack was replaced. Review the pack's changes before using it again.",
+                 f"/ai-governance/packs/{row['id']}"),
+            )
+            alerted += 1
 
 
 def list_mine(db, user) -> dict:

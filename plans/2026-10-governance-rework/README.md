@@ -1,6 +1,6 @@
 # ThemisIQ specialist rework programme
 
-**Status:** Design documents 01 to 06 were written 2026-10-14 and still describe behavior and acceptance gates: they do not mark a feature built or a release approved. What was built from them, how it was checked and what was left is in the implementation records below (07 to 14).
+**Status:** Design documents 01 to 06 were written 2026-10-14 and still describe behavior and acceptance gates. The [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md) supersedes old `in progress` headers for work since PRs 40–45. Historical ledgers below retain their original test and decision records; a merge is not legal or customer approval.
 
 **Historical build status, 2026-10-15:** plans 01 to 03 were merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 were then on `claude/plan-04-platform-truth`, awaiting a pull request. Pull request 11 has since merged that branch. Pull request 14 removed AI literacy application surfaces. Neither merge records a production deployment or a signed specialist pilot; see [10](10-completion-record.md) for the release gates.
 

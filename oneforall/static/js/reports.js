@@ -350,12 +350,16 @@ function renderGovernance(data) {
     <h3 style="font-size:14px;margin:0 0 8px;">Review, sharing and retention</h3>
     <p style="font-size:12px;color:var(--muted);">The snapshot is frozen. Access is checked again when a recipient opens it. A sign-off records a human decision beside the saved figures.</p>
     <div style="font-size:12px;margin-bottom:10px;"><strong>Review:</strong> ${esc(data.signoff_state || 'not_reviewed')}</div>
+    <div style="font-size:12px;margin-bottom:10px;"><strong>Needs attention at generation:</strong> ${esc((data.snapshot || {}).assurance?.state || 'not recorded')} · ${esc((data.snapshot || {}).assurance?.open ?? 'not measured')} open</div>
+    ${!['measured', 'partial'].includes((data.snapshot || {}).assurance?.state) ? '<p style="font-size:12px;color:var(--muted);">Approval is unavailable because Needs attention was not measured for this snapshot. An authorized specialist can generate a new report.</p>' : ''}
+    ${(data.snapshot || {}).assurance?.scope_note ? `<p style="font-size:12px;color:var(--muted);">${esc(data.snapshot.assurance.scope_note)}</p>` : ''}
     ${signoffs.length ? `<ul style="font-size:12px;padding-left:18px;">${signoffs.map(s =>
       `<li>${esc(s.decision)} by user #${Number(s.signer_id)} on ${esc(s.signed_at || '')}: ${esc(s.reason)}</li>`).join('')}</ul>` : ''}
     ${data.can_signoff ? `<form id="reportSignoffForm" style="${formStyle}">
       <label>Decision <select id="reportSignoffDecision" style="${inputStyle}"><option value="approved">Approve</option><option value="rejected">Reject</option></select></label>
       <label>Reason <textarea id="reportSignoffReason" minlength="10" maxlength="2000" required style="${inputStyle}"></textarea></label>
       ${(data.snapshot || {}).narrative ? '<label><input id="reportNarrativeReviewed" type="checkbox"> I reviewed the draft AI narrative and its source figures</label>' : ''}
+      ${((data.snapshot || {}).assurance?.state === 'partial' || ((data.snapshot || {}).assurance?.open || 0) > 0) ? '<label><input id="reportAssuranceReviewed" type="checkbox"> I reviewed the frozen Needs attention count and its limitations</label>' : ''}
       <button type="submit" class="btn btn-primary">Record independent decision</button></form>` : ''}
     ${data.can_share ? `<form id="reportShareForm" style="${formStyle}">
       <label>Share with a colleague in this organization <input id="reportShareEmail" type="email" required style="${inputStyle}" placeholder="colleague@example.com"></label>
@@ -383,6 +387,7 @@ function renderGovernance(data) {
       decision: document.getElementById('reportSignoffDecision').value,
       reason: document.getElementById('reportSignoffReason').value,
       narrative_reviewed: !!document.getElementById('reportNarrativeReviewed')?.checked,
+      assurance_reviewed: !!document.getElementById('reportAssuranceReviewed')?.checked,
     });
   });
   document.getElementById('reportShareForm')?.addEventListener('submit', e => {

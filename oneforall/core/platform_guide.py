@@ -154,7 +154,8 @@ ENTRIES = [
     _e("admin.webhooks", None, "/admin/webhooks", "Send events to another system",
        "Open Webhooks under administration and press New Webhook, then use Test to check the receiving system.",
        keywords="webhook webhooks integration notify external system callback slack teams",
-       nav="Webhooks", labels=["New Webhook", "Test"], sources=[_PLATFORM, _T + "admin_webhooks.html"],
+       nav="Webhooks", labels=["New Webhook", "Test"],
+       sources=[_PLATFORM, _T + "admin_webhooks.html", "static/js/admin_webhooks.js"],
        caps=["platform.manage_users"], show="New Webhook"),
     _e("admin.email", None, "/admin/email", "Set up email sending",
        "Open email settings in the administration menu, enter the sender details, press Save Configuration, then "

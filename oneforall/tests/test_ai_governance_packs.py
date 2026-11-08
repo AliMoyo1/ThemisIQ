@@ -199,6 +199,75 @@ def test_issue_stores_a_frozen_pack_audits_it_and_tells_the_recipient(system):
     assert "Q4 AI review" in told[0][1]
 
 
+def test_issued_pack_freezes_exact_policy_citation_and_flags_revision(system, monkeypatch):
+    from modules.aria import policy_references
+
+    cited = [{"title": "AI use policy", "version": "1.0", "version_id": 101,
+              "evidence_id": 301, "file_hash": "a" * 64, "anchor": "section 4",
+              "approval": "external_verified"}]
+    monkeypatch.setattr(policy_references, "resolve_policy_references", lambda *_args, **_kw: cited)
+    pack, _ = issue(system)
+    frozen = opened(system, pack["id"])["manifest"]
+    lines = section(frozen, "policy_references")["items"][0]["lines"]
+    assert "Policy version: 1.0 (version ID 101)" in lines
+    assert "Vault artifact ID: 301" in lines
+    assert "SHA-256: " + "a" * 64 in lines
+    assert "Source anchor: section 4" in lines
+
+    cited[0] = {**cited[0], "version": "2.0", "version_id": 102,
+                "evidence_id": 302, "file_hash": "b" * 64}
+    assert "Cited current policies" in packs.changes_since(
+        system.db, user(system, "dpo_a"), pack["id"])["changed"]
+    assert section(opened(system, pack["id"])["manifest"], "policy_references")["items"][0]["lines"] == lines
+
+
+def test_policy_replacement_alerts_only_current_pack_issuer_with_exact_frozen_citation(system, monkeypatch):
+    from modules.aria import policy_references
+
+    issuer = user(system, "dpo_a")
+    document_id = _insert(system.db, "aria_documents", doc_id="POL-1", framework="AI",
+                          title="AI use policy", org_id=issuer["org_id"], status="Approved")
+    cited = [{"title": "AI use policy", "version": "1.0", "version_id": 101,
+              "evidence_id": 301, "file_hash": "a" * 64, "anchor": "section 4",
+              "approval": "external_verified"}]
+    monkeypatch.setattr(policy_references, "resolve_policy_references", lambda *_args, **_kw: cited)
+    matching, _ = issue(system, who="dpo_a")
+    # A different frozen citation must not receive an alert for this revision.
+    cited[0] = {**cited[0], "version_id": 201, "version": "2.0"}
+    other, _ = issue(system, who="dpo_a", name="Other review")
+    cited[0] = {**cited[0], "version_id": 101, "version": "1.0"}
+    revoked, _ = issue(system, who="dpo_a", name="Revoked review")
+    system.db.execute("UPDATE ai_review_packs SET status = 'revoked' WHERE id = %s", (revoked["id"],))
+    system.db.commit()
+
+    row = system.db.execute("SELECT * FROM ai_review_packs WHERE id = %s", (matching["id"],)).fetchone()
+    assert packs._issuer_problem(system.db, row) is None
+    assert packs.describe_record(system.db, ("aria", "document"), document_id, packs._person(system.db, issuer["id"]))
+    assert section(packs.verifies(row["manifest"], row["manifest_hash"]), "policy_references")["items"][0]["lines"][0] == "Policy version: 1.0 (version ID 101)"
+
+    assert packs.alert_policy_replacement(system.db, org_id=issuer["org_id"], document_id=document_id,
+                                          old_version_id=101, new_version_id=102) == 1
+    assert packs.alert_policy_replacement(system.db, org_id=issuer["org_id"], document_id=document_id,
+                                          old_version_id=101, new_version_id=102) == 0
+    system.db.commit()
+    notices = system.db.execute("SELECT user_id, title, message, link FROM notifications "
+                                "WHERE title = 'Review pack source changed'").fetchall()
+    assert len(notices) == 1
+    assert notices[0]["user_id"] == issuer["id"]
+    assert notices[0]["link"] == f"/ai-governance/packs/{matching['id']}"
+    assert "AI use policy" not in notices[0]["message"]
+    assert system.db.execute("SELECT COUNT(*) FROM ai_review_pack_events WHERE action = 'source_changed'").fetchone()[0] == 1
+    assert other["id"] != matching["id"]
+
+    # The replacement may no longer be visible to the issuer. In that case
+    # the alert itself must not reveal its existence.
+    system.db.execute("UPDATE aria_documents SET business_unit_id = %s WHERE id = %s",
+                      (system.unit["B"], document_id))
+    system.db.commit()
+    assert packs.alert_policy_replacement(system.db, org_id=issuer["org_id"], document_id=document_id,
+                                          old_version_id=101, new_version_id=103) == 0
+
+
 # ── Open ────────────────────────────────────────────────────────────────────
 
 def test_the_recipient_reads_a_frozen_account_and_the_open_is_recorded(system):

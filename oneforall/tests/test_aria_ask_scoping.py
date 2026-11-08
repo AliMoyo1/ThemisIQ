@@ -134,8 +134,14 @@ class _Model:
 
     async def __call__(self, system, user_msg, max_tokens=4000, messages=None, *, feature=None):
         self.calls.append({"system": system, "user_msg": user_msg, "messages": messages, "feature": feature})
-        cites = [{"title": t, "content_type": "x"}
-                 for t in re.findall(r"title=(.+?) \| section=", user_msg)]
+        cites = []
+        for kind, title, section, path in re.findall(
+            r"type=(.*?) \| title=(.*?) \| section=(.*?) \| framework=.*? \| owner=.*? \| url=([^\n]+)",
+            user_msg,
+        ):
+            cites.append({"content_type": kind, "title": title,
+                          "section": "" if section == "—" else section,
+                          "url_path": path})
         return "Stub answer.\n```json\n" + json.dumps(cites) + "\n```", {}
 
 

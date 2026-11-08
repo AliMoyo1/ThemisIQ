@@ -14,7 +14,7 @@
     <div class="page-subtitle">Upload company branding templates to apply to policy documents</div>
   </div>
   <div class="page-actions">
-    <button class="btn btn-primary" onclick="document.getElementById('uploadTplModal').classList.add('open')">
+    <button type="button" class="btn btn-primary" data-open-template-modal>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Upload Template
     </button>
@@ -78,9 +78,9 @@
   <div class="modal" style="max-width:480px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div class="modal-title">Upload Branding Template</div>
-      <button onclick="closeModal('uploadTplModal')" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button type="button" data-close-template-modal aria-label="Close" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
     </div>
-    <form id="tplUploadForm" onsubmit="submitTemplateUpload(event)">
+    <form id="tplUploadForm">
       <div style="margin-bottom:14px">
         <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Template File (.docx) *</label>
         <input type="file" id="tpl-file" accept=".docx" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
@@ -112,43 +112,9 @@
   </div>
 </div>
 
-<script>
-function closeModal(id){document.getElementById(id).classList.remove('open');}
-document.querySelectorAll('.modal-overlay').forEach(el=>{
-  el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('open');});
-});
+{% endblock %}
 
-async function submitTemplateUpload(e){
-  e.preventDefault();
-  var file=document.getElementById('tpl-file').files[0];
-  if(!file){showToast('Select a file','error');return;}
-  var form=new FormData();
-  form.append('file',file);
-  form.append('name',document.getElementById('tpl-name').value.trim());
-  form.append('description',document.getElementById('tpl-desc').value.trim());
-  form.append('doc_type',document.getElementById('tpl-doc-type').value);
-  form.append('is_default',document.getElementById('tpl-default').value);
-  var res=await fetch('/aria/api/templates',{method:'POST',body:form});
-  var data=await res.json();
-  if(data.ok){
-    showToast('Template uploaded');
-    setTimeout(function(){location.reload();},1000);
-  }else{
-    showToast(data.error||'Failed','error');
-  }
-}
-
-async function deleteTemplate(id,name){
-  if(!confirm('Delete template "'+name+'"? This cannot be undone.'))return;
-  var res=await fetch('/aria/api/templates/'+id,{method:'DELETE'});
-  var data=await res.json();
-  if(data.ok){showToast('Template deleted');setTimeout(function(){location.reload();},800);}
-  else showToast(data.error||'Failed','error');
-}
-document.querySelectorAll('.js-delete-template').forEach(function (button) {
-  button.addEventListener('click', function () {
-    deleteTemplate(Number(button.dataset.templateId), button.dataset.templateName);
-  });
-});
-</script>
+{% block extra_scripts %}
+{{ super() }}
+<script src="/static/js/aria_templates.js"></script>
 {% endblock %}

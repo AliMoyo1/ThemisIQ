@@ -2154,22 +2154,68 @@ def list_active_plans(bu_scope=None):
 
 
 def activate_plan(plan_id, activated_by: str, activated_by_id: int,
-                  reason: str = "", incident_id: int = None):
+                  reason: str = "", incident_id: int = None, bu_scope=None,
+                  user=None, control_review=None):
     """Mark a plan as actively deployed. Records the activation in the audit table."""
+    if user is None:
+        raise ValueError("Activation requires an authorized reviewer")
     db = get_db()
     try:
-        db.execute(
+        from config import settings
+        lock = " FOR UPDATE" if settings.is_postgres() else ""
+        plan = db.execute("SELECT status,is_active_plan,business_unit_id FROM bcm_plans WHERE id=%s" + lock,
+                          (plan_id,)).fetchone()
+        if (not plan or (bu_scope is not None and plan["business_unit_id"] is not None
+                         and plan["business_unit_id"] not in bu_scope)
+                or plan["status"] != "approved" or plan["is_active_plan"]):
+            raise ValueError("Only an approved, inactive plan in your scope can be activated")
+        if incident_id is not None:
+            incident = db.execute("SELECT status,business_unit_id FROM bcm_incidents WHERE id=%s" + lock,
+                                  (incident_id,)).fetchone()
+            if (not incident or (bu_scope is not None and incident["business_unit_id"] is not None
+                                 and incident["business_unit_id"] not in bu_scope)
+                    or (plan["business_unit_id"] is not None and incident["business_unit_id"] is not None
+                        and plan["business_unit_id"] != incident["business_unit_id"])
+                    or incident["status"] in ("resolved", "closed", "draft")):
+                raise ValueError("Choose an open incident in the plan's business unit")
+        review_snapshot = []
+        from modules.bcm.control_dependencies import for_plan
+        dependencies = for_plan(db, user, plan_id)
+        if dependencies is None:
+            raise ValueError("Plan is outside your scope")
+        if not isinstance(control_review, list) or len(control_review) != len(dependencies):
+            raise ValueError("Review the plan's current control dependencies before activation")
+        submitted = {}
+        for item in control_review:
+            if not isinstance(item, dict) or type(item.get("id")) is not int or item["id"] in submitted:
+                raise ValueError("Control review contains an invalid or duplicate control")
+            if item.get("result") not in ("still_working", "not_working", "not_checked"):
+                raise ValueError("Choose a valid review result for each control")
+            submitted[item["id"]] = item["result"]
+        if set(submitted) != {row["id"] for row in dependencies}:
+            raise ValueError("Control dependencies changed; reopen the activation checklist")
+        review_snapshot = [{"id": row["id"], "ref": row["ref"], "title": row["title"],
+                            "status_at_activation": row["status"], "result": submitted[row["id"]]}
+                           for row in dependencies]
+        changed = db.execute(
             "UPDATE bcm_plans SET is_active_plan=1, activated_at=%s, activated_by=%s, "
-            "activation_reason=%s, updated_at=%s WHERE id=%s",
+            "activation_reason=%s, updated_at=%s WHERE id=%s AND COALESCE(is_active_plan,0)=0 AND status='approved'",
             (_now(), activated_by, reason, _now(), plan_id),
-        )
+        ).rowcount
+        if changed != 1:
+            raise ValueError("Plan was already activated or is no longer approved")
         db.execute(
             "INSERT INTO bcm_plan_activations "
-            "(plan_id, action, reason, incident_id, activated_by, activated_by_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
-            (plan_id, "activated", reason, incident_id, activated_by, activated_by_id),
+            "(plan_id, action, reason, incident_id, activated_by, activated_by_id, control_review_json) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (plan_id, "activated", reason, incident_id, activated_by, activated_by_id,
+             json.dumps(review_snapshot)),
         )
         db.commit()
+        return review_snapshot
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

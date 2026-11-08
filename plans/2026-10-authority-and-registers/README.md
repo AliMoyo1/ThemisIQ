@@ -1,6 +1,6 @@
 # Authority intelligence and auditor registers
 
-**Status:** Proposed implementation plan, 26 October 2026. No application behavior or production configuration changes are made by these documents.
+**Status when written:** Proposed implementation plan, 26 October 2026. **Current code status (2026-11-05):** the shared source path and three registers are built on master; see [implementation and release](04-implementation-and-release.md) and the [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md) for remaining operational gates. These plans do not themselves authorize a source, legal rule, import or production configuration.
 
 ## Outcome
 

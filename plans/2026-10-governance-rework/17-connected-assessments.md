@@ -1,6 +1,6 @@
 # 17. Connecting DPIAs, AIIAs and continuity plans to ARIA controls, without forcing it
 
-Date: 2026-10-20. Status: assessment and plan for the owner, nothing built. Read on `master` (`790ce1c`).
+Date: 2026-10-20. Historical baseline: master `790ce1c`. **Current status (2026-11-05): partial build in an uncommitted worktree.** DPIA suggestion review, BCM activation checklist and AIIA review of already confirmed ARIA links are described in [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md). The AIIA provider draft and any AIMS-canonical-to-ARIA equivalence require separate verified data and privacy review. The original plan below remains its acceptance contract.
 
 ## 1. Principle
 
@@ -130,7 +130,7 @@ are recorded as adopted for planning; nothing is built.
    last because it is the newest flow and needs the new AI feature. Cost: AIIA users wait longest for help. How to
    change: run step 5 first; it does not depend on steps 1 to 4 except for the shared suggestion service.
 
-Status: planned only. No code, data or landing page change has been made.
+Historical status on 2026-10-20: planned only. See the current build status ledger for later implementation and remaining gates.
 
 ## Log
 

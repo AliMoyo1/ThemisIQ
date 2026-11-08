@@ -151,6 +151,12 @@ def test_the_platform_audit_log_export_is_the_callers_organization_and_formula_s
     assert "'" + FORMULA in text.replace('""', '"') or "'=HYPERLINK" in text
     assert "plain" in text and "another organization" not in text
     assert "another organization" in web("/admin/api/logs/export", name="super").text, "the positive twin: a super administrator reads all"
+    db.execute("INSERT INTO audit_log (username, module, action, entity_type, details, org_id) "
+               "VALUES ('another reviewer', 'platform', 'delete', 'y', 'different user and action', 1)")
+    db.commit()
+    filtered = web("/admin/api/logs/export?action=x&user=someone", name="dpo_a")
+    assert filtered.status_code == 200
+    assert "plain" in filtered.text and "different user and action" not in filtered.text
 
 
 def test_the_bulk_export_of_controls_is_the_register_the_app_shows(web):

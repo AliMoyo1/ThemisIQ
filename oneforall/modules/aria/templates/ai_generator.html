@@ -16,10 +16,7 @@
 <script src="/static/js/aria_markdown.js?v=3"></script>
 {# pdf.js ships only as an ES module in this pinned version -- see
    aria_pdf_viewer.js's own header comment for why this bridge is needed. #}
-<script type="module">
-  import * as pdfjsLib from '/static/vendor/aria-policy/pdfjs/pdf.min.mjs';
-  window.pdfjsLib = pdfjsLib;
-</script>
+<script type="module" src="/static/js/aria_pdf_bootstrap.mjs"></script>
 <script src="/static/js/aria_pdf_viewer.js?v=1"></script>
 <script src="/static/js/aria_policy_workflow.js?v=4"></script>
 <style>
@@ -278,7 +275,7 @@
 
       <div class="form-group">
         <label class="form-label">Framework</label>
-        <select id="fwSelect" onchange="loadControls()">
+        <select id="fwSelect">
           <option value="">Select Framework...</option>
           {% for fw in frameworks %}
           <option value="{{ fw.id }}" data-name="{{ fw.name }}">
@@ -304,7 +301,7 @@
       <!-- IMS: Integrated Policy option -->
       <div class="form-group">
         <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-          <input type="checkbox" id="imsToggle" onchange="toggleIms()" style="width:14px;height:14px;cursor:pointer;">
+          <input type="checkbox" id="imsToggle" style="width:14px;height:14px;cursor:pointer;">
           Integrated Policy (IMS)
           <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:2px;">(covers multiple frameworks)</span>
         </label>
@@ -322,7 +319,7 @@
       <div class="form-group ctrl-search-wrap">
         <label class="form-label">Control / Requirement</label>
         <input type="text" id="ctrlSearch" placeholder="Select a framework first..."
-               oninput="filterControls()" autocomplete="off" disabled>
+               autocomplete="off" disabled>
         <div id="ctrlResults" class="ctrl-search-results" style="display:none"></div>
         <input type="hidden" id="ctrlId">
         <div id="selectedCtrl" class="sel-ctrl" style="display:none">
@@ -333,12 +330,12 @@
         </div>
       </div>
 
-      <button type="button" class="btn btn-ghost" id="guideAiBtn" onclick="openAriaGuidance()"
+      <button type="button" class="btn btn-ghost" id="guideAiBtn" data-generator-action="guidance"
               style="width:100%;margin-bottom:8px;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:6px">
         <span id="guideAiBtnText"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guide the AI (optional)</span>
       </button>
 
-      <button class="btn-generate" id="generateBtn" onclick="generatePolicy()" disabled>
+      <button class="btn-generate" id="generateBtn" data-generator-action="generate" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span id="genBtnText">Generate Policy Document</span>
       </button>
@@ -351,7 +348,7 @@
            since these change without a page reload; server-rendered
            Recent Documents below is confirmed/published documents only. ── #}
       <div class="recent-section" id="myDraftsSection" style="display:none">
-        <div class="recent-header" id="myDraftsHeader" onclick="AriaPolicyWorkflow.ui.toggleMyDrafts()">
+        <div class="recent-header" id="myDraftsHeader" role="button" tabindex="0" data-generator-action="drafts">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           My Drafts
           <span class="recent-count" id="myDraftsCount">0</span>
@@ -363,7 +360,7 @@
       {# ── Recent Documents ── #}
       {% if recent_docs %}
       <div class="recent-section">
-        <div class="recent-header" id="recentHeader" onclick="toggleRecent()">
+        <div class="recent-header" id="recentHeader" role="button" tabindex="0" data-generator-action="recent">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recent Documents
           <span class="recent-count">{{ recent_docs|length }}</span>
@@ -392,11 +389,11 @@
     <div class="output-panel">
       {# Tab bar #}
       <div class="gen-tabs">
-        <button class="gen-tab active" data-tab="policy" onclick="switchTab('policy')">
+        <button class="gen-tab active" data-tab="policy" >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Policy Generator
         </button>
-        <button class="gen-tab" data-tab="gap" onclick="switchTab('gap')">
+        <button class="gen-tab" data-tab="gap" >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Gap Analysis
         </button>
@@ -407,11 +404,11 @@
         <div class="output-header">
           <span class="output-title" id="outputTitle">Generated Document</span>
           <div class="output-actions" id="outputActions" style="display:none">
-            <button class="btn btn-ghost" onclick="generatePolicy()" style="font-size:12px;padding:5px 10px" title="Regenerate this document">↻ Regenerate</button>
-            <button class="btn btn-ghost" onclick="copyToClipboard()" style="font-size:12px;padding:5px 10px">Copy</button>
-            <button class="btn btn-ghost" onclick="downloadMd()" style="font-size:12px;padding:5px 10px">Markdown</button>
-            <button class="btn btn-primary" onclick="downloadWord()" style="font-size:12px;padding:5px 10px">Word (.docx)</button>
-            <button class="btn btn-ghost" onclick="printPolicy()" style="font-size:12px;padding:5px 10px">Print</button>
+            <button class="btn btn-ghost" data-generator-action="generate" style="font-size:12px;padding:5px 10px" title="Regenerate this document">↻ Regenerate</button>
+            <button class="btn btn-ghost" data-generator-action="copy" style="font-size:12px;padding:5px 10px">Copy</button>
+            <button class="btn btn-ghost" data-generator-action="download-md" style="font-size:12px;padding:5px 10px">Markdown</button>
+            <button class="btn btn-primary" data-generator-action="download-word" style="font-size:12px;padding:5px 10px">Word (.docx)</button>
+            <button class="btn btn-ghost" data-generator-action="print" style="font-size:12px;padding:5px 10px">Print</button>
             <a href="/aria/documents" class="btn btn-ghost" style="font-size:12px;padding:5px 10px;text-decoration:none">Library →</a>
           </div>
         </div>
@@ -454,20 +451,19 @@
           <div class="aria-editor-toolbar">
             <div class="aria-editor-tabs" role="tablist" aria-label="Draft view">
               <button type="button" class="aria-editor-tab active" id="editorTabEdit"
-                      role="tab" aria-selected="true" onclick="AriaPolicyWorkflow.ui.switchEditorView('edit')">Edit</button>
+                      role="tab" aria-selected="true" data-editor-view="edit">Edit</button>
               <button type="button" class="aria-editor-tab" id="editorTabPreview"
-                      role="tab" aria-selected="false" onclick="AriaPolicyWorkflow.ui.switchEditorView('preview')">Reading preview</button>
+                      role="tab" aria-selected="false" data-editor-view="preview">Reading preview</button>
             </div>
             <div class="aria-editor-status">
               <span id="draftUnsavedIndicator" class="aria-unsaved-dot" style="display:none" title="Unsaved changes">● Unsaved changes</span>
               <span id="draftSavedIndicator" class="aria-saved-text" style="display:none">Saved</span>
               <button type="button" class="btn btn-primary" id="draftSaveBtn" style="font-size:12px;padding:5px 12px"
-                      onclick="AriaPolicyWorkflow.ui.saveDraft()">Save</button>
+                      data-generator-action="save-draft">Save</button>
             </div>
           </div>
           <textarea id="draftEditor" class="aria-draft-editor" spellcheck="true"
-                    aria-label="Policy document markdown source"
-                    oninput="AriaPolicyWorkflow.ui.onEditorInput()"></textarea>
+                    aria-label="Policy document markdown source"></textarea>
           <div class="policy-output" id="policyContent" style="display:none"></div>
         </div>
 
@@ -507,7 +503,7 @@
               <select id="workflowTemplateSelect"></select>
             </div>
             <button type="button" class="btn btn-primary" id="workflowBuildBtn" style="white-space:nowrap"
-                    onclick="AriaPolicyWorkflow.ui.buildDraft()">Apply template and preview</button>
+                    data-generator-action="build-draft">Apply template and preview</button>
           </div>
           <div id="workflowBuildProgress" class="aria-workflow-progress" style="display:none" aria-live="polite">
             Building preview…
@@ -520,12 +516,12 @@
                 Version <strong id="workflowPreviewVersion">—</strong>
               </span>
               <button type="button" class="btn btn-ghost" style="font-size:12px;padding:5px 10px"
-                      onclick="AriaPolicyWorkflow.ui.backToEditing()">← Back to editing</button>
+                      data-generator-action="back-edit">← Back to editing</button>
             </div>
             <div id="workflowPdfContainer" class="aria-pdf-container"></div>
             <div class="aria-workflow-row" style="justify-content:flex-end">
               <button type="button" class="btn btn-primary" id="workflowConfirmBtn" disabled
-                      onclick="AriaPolicyWorkflow.ui.confirmDraft()">Confirm version</button>
+                      data-generator-action="confirm-draft">Confirm version</button>
             </div>
             <p id="workflowConfirmHint" class="aria-workflow-hint" aria-live="polite">
               Confirming creates the library document (or a candidate revision) and takes you to it,
@@ -552,7 +548,7 @@
               {% endfor %}
             </select>
           </div>
-          <button class="btn btn-primary" style="gap:7px;display:inline-flex;align-items:center" onclick="generateGapAnalysis()">
+          <button class="btn btn-primary" style="gap:7px;display:inline-flex;align-items:center" data-generator-action="gap-analysis">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             <span id="gapBtnText">Run Gap Analysis</span>
           </button>
@@ -573,497 +569,12 @@
 </div>
 
 <div id="rawContent" style="display:none"></div>
+<div id="generatorPageData" hidden
+     data-doc-ctrl-refs="{{ doc_ctrl_refs_json|e }}"
+     data-controls-by-fw="{{ controls_by_fw_json|e }}"></div>
 {% endblock %}
 
 {% block extra_scripts %}
 {{ super() }}
-<script>
-/* ── Init data from server ─────────────────────────────────────────────── */
-var allControls     = [];
-var selectedControl = null;
-var lastGenerated   = '';
-var currentFwName   = '';
-var docCtrlRefs     = new Set({{ doc_ctrl_refs_json | safe }});
-var controlsByFw    = {{ controls_by_fw_json | safe }};
-
-/* ── Org name persistence ──────────────────────────────────────────────── */
-document.addEventListener('DOMContentLoaded', function () {
-  var stored = localStorage.getItem('aria_org_name');
-  if (stored) document.getElementById('orgName').value = stored;
-  document.getElementById('orgName').addEventListener('input', function () {
-    localStorage.setItem('aria_org_name', this.value);
-  });
-
-  // Pre-fill from query params (e.g. from Control Mapping page)
-  var params = new URLSearchParams(window.location.search);
-  var prefillFwId = params.get('fw_id');
-  var prefillRef  = params.get('control_ref');
-  if (prefillFwId) {
-    var fwSel = document.getElementById('fwSelect');
-    fwSel.value = prefillFwId;
-    if (fwSel.value === prefillFwId) {
-      loadControls().then(function() {
-        if (prefillRef) {
-          var match = allControls.find(function(c) { return c.ref === prefillRef; });
-          if (match) {
-            selectControl(match.id, match.ref, match.name, match.description || '');
-          }
-        }
-      });
-    }
-  }
-
-  // PLAN-35 T10: "resumed editor" -- /aria/ai-generator?draft=<id> (the
-  // resume_url a generation/revision-start response returns, and every
-  // My Drafts "Resume" link) loads straight into the editor instead of
-  // the pick-a-control flow.
-  var resumeDraftId = params.get('draft');
-  if (resumeDraftId) {
-    switchTab('policy');
-    AriaPolicyWorkflow.ui.loadDraftById(resumeDraftId);
-  }
-  AriaPolicyWorkflow.ui.refreshMyDrafts();
-});
-
-/* ── Tab switching ─────────────────────────────────────────────────────── */
-function switchTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(function (el) {
-    el.classList.remove('active');
-  });
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.querySelectorAll('.gen-tab').forEach(function (btn) {
-    btn.classList.toggle('active', btn.dataset.tab === tab);
-  });
-}
-
-/* ── Recent documents toggle ───────────────────────────────────────────── */
-function toggleRecent() {
-  var list    = document.getElementById('recentList');
-  var chevron = document.querySelector('.recent-chevron');
-  var hidden  = list.style.display === 'none';
-  list.style.display = hidden ? 'flex' : 'none';
-  if (chevron) chevron.classList.toggle('open', hidden);
-}
-
-/* ── Controls loading ──────────────────────────────────────────────────── */
-function esc(s) {
-  if (!s && s !== 0) return '';
-  var d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
-}
-
-async function loadControls() {
-  var sel   = document.getElementById('fwSelect');
-  var fwId  = sel.value;
-  currentFwName = sel.options[sel.selectedIndex]
-    ? (sel.options[sel.selectedIndex].dataset.name || '') : '';
-
-  var search = document.getElementById('ctrlSearch');
-  search.disabled = !fwId;
-  search.value = '';
-  document.getElementById('selectedCtrl').style.display = 'none';
-  document.getElementById('ctrlId').value = '';
-  document.getElementById('generateBtn').disabled = true;
-  document.getElementById('ctrlResults').style.display = 'none';
-  selectedControl = null;
-  if (!fwId) { allControls = []; return; }
-
-  /* Use pre-loaded controls from page context first */
-  allControls = controlsByFw[fwId] || [];
-
-  if (allControls.length === 0) {
-    search.placeholder = 'Seeding controls...';
-    try {
-      var seedResp = await fetch('/aria/api/force-seed-controls/' + fwId, { method: 'POST' });
-      var seedData = await seedResp.json();
-      if ((seedData.seeded || 0) + (seedData.existing || 0) > 0) {
-        var r2 = await fetch('/aria/api/controls/' + fwId);
-        allControls = await r2.json();
-      }
-    } catch (e) { console.error(e); }
-  }
-
-  search.placeholder = allControls.length > 0
-    ? 'Search ' + allControls.length + ' controls...'
-    : 'No controls available';
-
-  // Enrich with IMS status if multiple active frameworks are loaded
-  // (non-blocking, runs in background)
-  _enrichImsStatus(fwId);
-}
-
-var _imsStatusCache = {};  // fwId → {ctrl_id: {status, mapped_fw_names}}
-
-async function _enrichImsStatus(currentFwId) {
-  try {
-    // Collect all currently active framework IDs from the page context
-    var allFwIds = Object.keys(controlsByFw || {}).filter(id => (controlsByFw[id]||[]).length > 0);
-    if (allFwIds.length < 2) return;
-    var cacheKey = allFwIds.sort().join(',');
-    if (_imsStatusCache[cacheKey]) {
-      _applyImsStatus(_imsStatusCache[cacheKey]);
-      return;
-    }
-    var res = await fetch('/aria/api/control-mappings/ims-status?fw_ids=' + allFwIds.join(','));
-    if (!res.ok) return;
-    var data = await res.json();
-    var map = {};
-    ['integrated','partial','unique'].forEach(function(st){
-      (data[st]||[]).forEach(function(c){ map[c.id] = {status: st, mapped_fw_names: c.mapped_fw_names||[]}; });
-    });
-    _imsStatusCache[cacheKey] = map;
-    _applyImsStatus(map);
-  } catch(e) { /* non-critical */ }
-}
-
-function _applyImsStatus(map) {
-  if (!allControls || !allControls.length) return;
-  allControls.forEach(function(c) {
-    var s = map[c.id];
-    if (s) { c.ims_status = s.status; c.mapped_fw_names = s.mapped_fw_names; }
-  });
-}
-
-/* ── Control search / filter ───────────────────────────────────────────── */
-function statusClass(status) {
-  var s = (status || '').toLowerCase();
-  if (s === 'not started')  return 'warn';
-  if (s === 'in progress')  return 'info';
-  if (s === 'implemented')  return 'good';
-  return 'neutral';
-}
-
-/* ── IMS toggle ──────────────────────────────────────────────────────────── */
-function toggleIms() {
-  var on = document.getElementById('imsToggle').checked;
-  document.getElementById('imsPanel').style.display = on ? 'block' : 'none';
-  // Update generate button label
-  var btnText = document.getElementById('genBtnText');
-  if (btnText) btnText.textContent = on ? 'Generate Integrated IMS Policy' : 'Generate Policy Document';
-}
-
-function filterControls() {
-  var q       = document.getElementById('ctrlSearch').value.toLowerCase();
-  var results = document.getElementById('ctrlResults');
-  if (!allControls.length) { results.style.display = 'none'; return; }
-
-  var filtered = q
-    ? allControls.filter(function (c) {
-        return c.ref.toLowerCase().includes(q) ||
-               c.name.toLowerCase().includes(q) ||
-               (c.description || '').toLowerCase().includes(q);
-      }).slice(0, 20)
-    : allControls.slice(0, 20);
-
-  if (!filtered.length) {
-    results.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--muted)">No matching controls</div>';
-    results.style.display = 'block';
-    return;
-  }
-
-  results.innerHTML = filtered.map(function (c, idx) {
-    var sClass  = statusClass(c.status);
-    var hasDoc  = docCtrlRefs.has(currentFwName + '|' + c.ref);
-    var docBadge = hasDoc ? '<span class="ctrl-has-doc" title="Document exists in library"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg></span>' : '';
-    var statusLabel = c.status ? ('<span class="ctrl-status ctrl-status-' + sClass + '">' + esc(c.status) + '</span>') : '';
-    // IMS badge
-    var imsBadgeHtml = '';
-    if (c.ims_status === 'integrated') {
-      imsBadgeHtml = '<span style="background:#16a34a;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">INT</span>';
-    } else if (c.ims_status === 'partial') {
-      imsBadgeHtml = '<span style="background:#d97706;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">PARTIAL</span>';
-    } else if (c.ims_status === 'unique') {
-      imsBadgeHtml = '<span style="background:#dc2626;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">UNIQUE</span>';
-    }
-    return '<div class="ctrl-result" data-idx="' + idx + '">' +
-      '<div class="ctrl-result-top">' +
-        '<span class="ctrl-ref">' + esc(c.ref) + '</span>' +
-        statusLabel + docBadge + (imsBadgeHtml ? ' ' + imsBadgeHtml : '') +
-      '</div>' +
-      '<div class="ctrl-result-name">' + esc(c.name) + '</div>' +
-    '</div>';
-  }).join('');
-
-  results._filtered = filtered;
-  results.querySelectorAll('.ctrl-result').forEach(function (el) {
-    el.addEventListener('click', function () {
-      var ctrl = results._filtered[parseInt(el.dataset.idx, 10)];
-      selectControl(ctrl.id, ctrl.ref, ctrl.name, ctrl.description || '');
-    });
-  });
-  results.style.display = 'block';
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  var el = document.getElementById('ctrlSearch');
-  if (el) {
-    el.addEventListener('focus', filterControls);
-    el.addEventListener('click', filterControls);
-  }
-});
-document.addEventListener('click', function (e) {
-  if (!e.target.closest('#ctrlSearch') && !e.target.closest('#ctrlResults')) {
-    document.getElementById('ctrlResults').style.display = 'none';
-  }
-});
-
-function selectControl(id, ref, name, desc) {
-  document.getElementById('ctrlId').value = id;
-  document.getElementById('ctrlSearch').value = ref + ': ' + name;
-  document.getElementById('ctrlResults').style.display = 'none';
-  document.getElementById('selectedCtrl').style.display = 'block';
-  document.getElementById('selRef').textContent  = ref;
-  document.getElementById('selName').textContent = name;
-  document.getElementById('selDesc').textContent = desc;
-  document.getElementById('generateBtn').disabled = false;
-  selectedControl = { id: id, ref: ref, name: name };
-
-  // IMS status indicator
-  var ctrl = (allControls||[]).find(function(c){ return c.id == id; });
-  var imsEl = document.getElementById('selImsStatus');
-  if (imsEl && ctrl && ctrl.ims_status) {
-    var badges = {
-      integrated: { bg:'#16a34a', label:'✓ Integrated Control', msg:'Can generate one document covering all mapped frameworks' },
-      partial:    { bg:'#d97706', label:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Partial Match', msg:'Mapped to some but not all selected frameworks' },
-      unique:     { bg:'#dc2626', label:'✕ Framework-Specific', msg:'Unique to this framework, document will not be integrated' },
-    };
-    var b = badges[ctrl.ims_status];
-    if (b) {
-      imsEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:' + b.bg + '22;border:1px solid ' + b.bg + '44;border-radius:6px;margin-top:8px;">' +
-        '<span style="background:'+b.bg+';color:#fff;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.5px;">'+b.label+'</span>' +
-        '<span style="font-size:11px;color:var(--text-mid);">'+b.msg+'</span>' +
-        (ctrl.mapped_fw_names && ctrl.mapped_fw_names.length ? ' <span style="font-size:10px;color:var(--muted);">↔ ' + ctrl.mapped_fw_names.join(', ') + '</span>' : '') +
-        '</div>';
-      imsEl.style.display = 'block';
-      // Show/hide IMS toggle based on status
-      var imsToggleWrap = document.getElementById('imsToggle') ? document.getElementById('imsToggle').closest('.form-group') : null;
-      if (imsToggleWrap) {
-        imsToggleWrap.style.display = ctrl.ims_status !== 'unique' ? 'block' : 'none';
-      }
-    } else {
-      imsEl.style.display = 'none';
-    }
-  }
-}
-
-/* ── Policy generation ─────────────────────────────────────────────────── */
-var policyTrace = null;
-function setPolicyLoading(on, msg) {
-  document.getElementById('emptyState').style.display   = on ? 'none'  : 'none';
-  document.getElementById('outputBody').style.display   = on ? 'none'  : 'none';
-  document.getElementById('metaBar').style.display      = on ? 'none'  : 'none';
-  document.getElementById('outputActions').style.display = on ? 'none' : 'none';
-  document.getElementById('loadingState').classList.toggle('active', on);
-  if (policyTrace) { policyTrace.destroy(); policyTrace = null; }
-  if (on) {
-    policyTrace = window.ThinkingTrace.open(document.getElementById('loadingTraceMount'), {
-      variant: 'steps',
-      activeLabel: msg || 'Generating your policy document',
-      rows: [
-        { primary: 'Reading the control requirements' },
-        { primary: 'Drafting the document' },
-        { primary: 'Applying your formatting and tone' }
-      ]
-    });
-  }
-}
-
-/* ── Guide the AI (optional custom instructions) ───────────────────────── */
-var ariaCustomInstructions = '';
-
-async function openAriaGuidance() {
-  var guidance = await window.openAiGuidanceDialog({
-    title: 'Guide the AI Policy Generator',
-    placeholder: 'e.g. Emphasise remote work scenarios, keep it under 2 pages, reference our existing incident response policy...'
-  });
-  if (guidance === null) return; // skipped/cancelled - leave prior guidance (if any) untouched
-  ariaCustomInstructions = guidance;
-  var btnText = document.getElementById('guideAiBtnText');
-  if (btnText) {
-    btnText.innerHTML = guidance ? '<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guidance added ✓ (edit)' : '<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guide the AI (optional)';
-  }
-}
-
-async function generatePolicy() {
-  var ctrlId  = document.getElementById('ctrlId').value;
-  var orgName = document.getElementById('orgName').value || 'Your Organisation';
-  var docType = document.getElementById('docTypeOverride').value;
-  if (!ctrlId) { if (typeof showToast === 'function') showToast('Select a control first.', 'warn'); return; }
-
-  switchTab('policy');
-  setPolicyLoading(true, 'Generating your ' + (selectedControl ? selectedControl.ref : '') + ' policy document...');
-  document.getElementById('generateBtn').disabled = true;
-  document.getElementById('genBtnText').textContent = 'Generating...';
-
-  var form = new FormData();
-  form.append('control_id', ctrlId);
-  form.append('org_name', orgName);
-  if (docType) form.append('doc_type_override', docType);
-  if (ariaCustomInstructions) form.append('custom_instructions', ariaCustomInstructions);
-
-  // IMS: pass additional framework if integrated mode is enabled
-  var imsEnabled = document.getElementById('imsToggle') && document.getElementById('imsToggle').checked;
-  var imsFwId    = imsEnabled && document.getElementById('imsFramework') ? document.getElementById('imsFramework').value : '';
-  if (imsFwId) form.append('integrated_framework_id', imsFwId);
-
-  if (imsEnabled && imsFwId) {
-    var imsName = document.getElementById('imsFramework').options[document.getElementById('imsFramework').selectedIndex].text;
-    setPolicyLoading(true, 'Generating integrated IMS policy covering ' + (selectedControl ? selectedControl.ref : '') + ' across multiple frameworks…');
-  }
-
-  var start = Date.now();
-  try {
-    var resp = await fetch('/aria/api/generate-policy', { method: 'POST', body: form });
-    var data = await resp.json();
-    var elapsed = ((Date.now() - start) / 1000).toFixed(1);
-
-    setPolicyLoading(false);
-
-    if (data.success) {
-      document.getElementById('rawContent').textContent = data.content;
-      document.getElementById('metaBar').style.display      = 'flex';
-      document.getElementById('outputTitle').textContent    =
-        (selectedControl ? selectedControl.ref + ': ' + selectedControl.name : 'Generated Document');
-      document.getElementById('metaModel').textContent = data.model || '—';
-      document.getElementById('metaIn').textContent    = data.input_tokens || '—';
-      document.getElementById('metaOut').textContent   = data.output_tokens || '—';
-      document.getElementById('metaTime').textContent  = 'Generated in ' + elapsed + 's';
-      // Section 11: "do not show 'Saved to library' until confirmation
-      // succeeds" -- this is an editable draft, not a library document yet.
-      document.getElementById('metaSaved').textContent = '✓ Draft saved';
-      if (data.draft_id) {
-        await AriaPolicyWorkflow.ui.loadDraftById(data.draft_id);
-        AriaPolicyWorkflow.ui.refreshMyDrafts();
-      }
-      if (typeof showToast === 'function') showToast('Draft generated and saved. Review and edit below.');
-    } else {
-      document.getElementById('emptyState').style.display = 'flex';
-      if (typeof showToast === 'function') showToast(data.error || 'Generation failed', 'error');
-    }
-  } catch (e) {
-    setPolicyLoading(false);
-    document.getElementById('emptyState').style.display = 'flex';
-    if (typeof showToast === 'function') showToast('Network error. Is the server running?', 'error');
-  }
-  document.getElementById('generateBtn').disabled = false;
-  document.getElementById('genBtnText').textContent = 'Generate Policy Document';
-}
-
-/* ── Gap analysis ──────────────────────────────────────────────────────── */
-var gapTrace = null;
-function setGapLoading(on) {
-  document.getElementById('gapLoading').style.display = on ? 'block' : 'none';
-  if (gapTrace) { gapTrace.destroy(); gapTrace = null; }
-  if (on) {
-    gapTrace = window.ThinkingTrace.open(document.getElementById('gapTraceMount'), {
-      variant: 'steps',
-      activeLabel: 'Analysing compliance gaps',
-      rows: [
-        { primary: 'Comparing controls against the framework' },
-        { primary: 'Identifying gaps and partial coverage' },
-        { primary: 'Writing recommendations' }
-      ]
-    });
-  }
-}
-
-async function generateGapAnalysis() {
-  var fwId = document.getElementById('gapFwSelect').value;
-  if (!fwId) { if (typeof showToast === 'function') showToast('Select a framework first.', 'warn'); return; }
-
-  document.getElementById('gapEmpty').style.display   = 'none';
-  document.getElementById('gapContent').style.display = 'none';
-  setGapLoading(true);
-  document.getElementById('gapBtnText').textContent   = 'Analysing...';
-
-  var form = new FormData();
-  form.append('framework_id', fwId);
-
-  try {
-    var resp = await fetch('/aria/api/generate-gap-analysis', { method: 'POST', body: form });
-    var data = await resp.json();
-    setGapLoading(false);
-    document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
-
-    if (data.success) {
-      AriaMarkdown.renderInto(document.getElementById('gapContent'), data.content);
-      document.getElementById('gapContent').style.display = 'block';
-      if (typeof showToast === 'function') showToast('Gap analysis complete!');
-    } else {
-      document.getElementById('gapEmpty').style.display = 'block';
-      document.getElementById('gapEmpty').textContent   = data.error || 'Analysis failed.';
-      if (typeof showToast === 'function') showToast(data.error || 'Error', 'error');
-    }
-  } catch (e) {
-    setGapLoading(false);
-    document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
-    document.getElementById('gapEmpty').style.display   = 'block';
-    if (typeof showToast === 'function') showToast('Network error', 'error');
-  }
-}
-
-/* ── Export functions ──────────────────────────────────────────────────── */
-function copyToClipboard() {
-  navigator.clipboard.writeText(lastGenerated)
-    .then(function () { if (typeof showToast === 'function') showToast('Copied to clipboard!'); });
-}
-
-async function downloadWord() {
-  var ctrlId  = document.getElementById('ctrlId').value;
-  var orgName = document.getElementById('orgName').value || 'Your Organisation';
-  if (!lastGenerated) { if (typeof showToast === 'function') showToast('Generate a policy first.', 'warn'); return; }
-  if (typeof showToast === 'function') showToast('Building Word document...');
-
-  try {
-    var form = new FormData();
-    form.append('control_id', ctrlId || '1');
-    form.append('content', lastGenerated);
-    form.append('org_name', orgName);
-
-    var res = await fetch('/aria/api/export-word', { method: 'POST', body: form });
-    if (!res.ok) throw new Error('Server returned ' + res.status);
-
-    var cd = res.headers.get('Content-Disposition') || '';
-    var match = cd.match(/filename="?([^"]+)"?/);
-    var filename = match ? match[1] : 'ARIA_Policy.docx';
-
-    var blob = await res.blob();
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-
-    if (typeof showToast === 'function') showToast('Word document downloaded!');
-  } catch(e) {
-    if (typeof showToast === 'function') showToast('Download failed: ' + e.message, 'error');
-  }
-}
-
-function downloadMd() {
-  var blob = new Blob([lastGenerated], { type: 'text/markdown' });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'ARIA_' + ((selectedControl ? selectedControl.ref : 'policy').replace(/\./g, '_')) + '_Policy.md';
-  a.click();
-}
-
-function printPolicy() {
-  var content = document.getElementById('outputBody').innerHTML;
-  var w = window.open('', '_blank');
-  w.document.write('<html><head><title>Policy Document</title>' +
-    '<style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a1a2e;line-height:1.7}' +
-    'h1{font-size:22px}h2{font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px;color:#1E3A5F}' +
-    'p{margin-bottom:10px}ul,ol{margin:8px 0 12px 20px}li{margin-bottom:4px}' +
-    'code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:12px}' +
-    '@media print{body{margin:20px}}</style></head>' +
-    '<body>' + content + '</body></html>');
-  w.document.close();
-  w.print();
-}
-</script>
+<script src="/static/js/aria_ai_generator.js" defer></script>
 {% endblock extra_scripts %}
