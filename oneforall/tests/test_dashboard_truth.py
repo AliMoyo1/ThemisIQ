@@ -194,7 +194,8 @@ SAMPLES = ["HQ Business Continuity Plan", "Data centre cooling failure", "DSR-20
            "ISO 27001 · ISO 9001", "Sarah Chen", "James Wilson", "ACT-001", "Vendor SaaS outage"]
 
 
-@pytest.mark.parametrize("path", ["templates/command_centre.html", "modules/bcm/templates/index.html",
+@pytest.mark.parametrize("path", ["templates/command_centre.html", "static/js/command_centre.js",
+                                  "modules/bcm/templates/index.html",
                                   "modules/sentinel/templates/index.html"])
 def test_no_dashboard_template_carries_sample_data_or_a_fallback_object(path):
     text = (pathlib.Path(__file__).resolve().parents[1] / path).read_text(encoding="utf-8")

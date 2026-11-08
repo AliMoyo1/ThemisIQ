@@ -37,7 +37,7 @@
 {% block content %}
 <div class="gc-page">
   {% if page_kind == "entity" %}
-  <div id="gcRoot" data-module="{{ module }}" data-type="{{ entity_type }}" data-id="{{ entity_id }}"></div>
+  <div id="gcRoot" data-kind="entity" data-module="{{ module }}" data-type="{{ entity_type }}" data-id="{{ entity_id }}"></div>
   {% else %}
   <h1 class="gc-h1">Changes to look at</h1>
   <p class="gc-note">A record that others depend on changed. Say whether each connected record needs a second look. Nothing is changed in the record itself, and an earlier decision keeps the basis it was made on.</p>
@@ -47,8 +47,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="/static/js/governance_connected.js?v=1"></script>
-<script>
-  {% if page_kind == "entity" %}GovConnected.entity(document.getElementById('gcRoot')){% else %}GovConnected.changes(document.getElementById('gcRoot')){% endif %};
-</script>
+<script src="/static/js/governance_connected.js?v=2"></script>
 {% endblock %}

@@ -425,28 +425,17 @@ async def security_headers_middleware(request: Request, call_next):
     if not settings.DEBUG:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-    # These reviewed pages load executable code from static files only.
-    # Other modules still have inline handlers and need their own migration.
-    strict_scripts = (request.url.path in ("/reports", "/workflows", "/timeline", "/metrics", "/analytics", "/calendar", "/people", "/vendors", "/tasks", "/risk-register", "/super-admin/", "/governance/", "/admin/users", "/admin/diagnostics", "/admin/api-keys", "/admin/logs", "/admin/webhooks", "/admin/frameworks", "/admin/connectors", "/admin/email", "/profile", "/admin/security", "/login", "/change-password", "/mfa/setup", "/mfa/verify", "/evidence", "/evidence/", "/orm/", "/orm/events", "/orm/indicators", "/orm/reports", "/orm/chat", "/orm/assessment", "/orm/ai-controls", "/orm/aims", "/aria/", "/aria/risks", "/aria/templates", "/aria/frameworks", "/aria/mapping", "/aria/audit-log", "/aria/policy-imports", "/aria/ai-generator", "/aria/documents", "/aria/ask") or
-                      (request.url.path.startswith("/bcm/") and not request.url.path.startswith("/bcm/api/")) or
-                      (request.url.path.startswith("/sentinel/") and not request.url.path.startswith("/sentinel/api/")) or
-                      request.url.path == "/grid" or
-                      (request.url.path.startswith("/grid/") and not request.url.path.startswith("/grid/api/")) or
-                      request.url.path.startswith("/grid/api/share-links/validate/") or
-                      request.url.path == "/erm" or
-                      (request.url.path.startswith("/erm/") and not request.url.path.startswith("/erm/api/")) or
-                      request.url.path.startswith("/aria/framework/") or
-                      request.url.path == "/ai-governance" or
-                      request.url.path.startswith("/ai-governance/")) and (
-        "text/html" in response.headers.get("Content-Type", "")
-    )
-    reviewed_scripts = (
+    # Every page loads executable code from static files only: no inline script, no inline handler, no CDN
+    # (plans/csp-script-migration-2026-10.md). The one exception is FastAPI's own API explorer, which exists only
+    # with DEBUG on and is built from an inline script and a CDN bundle.
+    script_sources = (
         "'self' https://us.i.posthog.com https://eu.i.posthog.com "
         "https://us-assets.i.posthog.com https://eu-assets.i.posthog.com "
         "https://static.cloudflareinsights.com"
     )
-    script_sources = (reviewed_scripts if strict_scripts else
-                      "'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com " + reviewed_scripts)
+    strict_scripts = not (settings.DEBUG and request.url.path == "/docs")
+    if not strict_scripts:
+        script_sources = "'unsafe-inline' https://cdn.jsdelivr.net " + script_sources
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         f"script-src {script_sources}; " +
@@ -463,14 +452,6 @@ async def security_headers_middleware(request: Request, call_next):
         "form-action 'self'; "
         "frame-ancestors 'none'"
     )
-    if not strict_scripts and "text/html" in response.headers.get("Content-Type", ""):
-        # Observe the remaining module templates before enforcing a stricter
-        # policy. No report endpoint is set: violation payloads may contain
-        # sensitive page URLs, and console diagnostics suffice for the pilot.
-        response.headers["Content-Security-Policy-Report-Only"] = (
-            f"default-src 'self'; script-src {reviewed_scripts}; "
-            "script-src-attr 'none'; object-src 'none'; base-uri 'self'"
-        )
     return response
 
 

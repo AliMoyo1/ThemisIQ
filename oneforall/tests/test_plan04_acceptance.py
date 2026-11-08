@@ -117,7 +117,8 @@ def test_2_no_dashboard_template_carries_sample_data():
     samples = ["HQ Business Continuity Plan", "Data centre cooling failure", "DSR-2026-041", "CloudHost Ltd",
                "Sarah Chen", "James Wilson"]
     for path in ("templates/command_centre.html", "modules/bcm/templates/index.html",
-                 "modules/sentinel/templates/index.html", "modules/launcher/templates/analytics.html"):
+                 "modules/sentinel/templates/index.html", "modules/launcher/templates/analytics.html",
+                 "static/js/command_centre.js"):
         text = (ROOT / path).read_text(encoding="utf-8")
         assert not re.search(r"\b(?:var|const|let)\s+fallback\s*=", text), path
         for sample in samples:
@@ -134,14 +135,16 @@ def test_3_no_report_button_ends_in_a_timer_and_every_type_it_asks_for_is_regist
     assert '/static/js/aria_dashboard.js' in aria
     assert re.search(r"/api/reports/quick-run", aria_script)
 
-    bcm = (ROOT / "modules/bcm/templates/index.html").read_text(encoding="utf-8")
+    bcm = "".join((ROOT / p).read_text(encoding="utf-8")
+                  for p in ("modules/bcm/templates/index.html", "static/js/bcm_index.js"))
     kinds = re.search(r"var kinds=\{([^}]*)\}", bcm).group(1)
     asked = set(re.findall(r"'(bcm_[a-z_]+)'", kinds)) | set(re.findall(r"bcmQuickReport\('([a-z_]+)'", bcm))
     assert asked and asked <= set(reports.REPORT_TYPES), asked - set(reports.REPORT_TYPES)
     for report_type in asked:
         assert report_type in report_builders.BUILDERS, f"{report_type} is registered but has no builder"
 
-    command_centre = (ROOT / "templates/command_centre.html").read_text(encoding="utf-8")
+    command_centre = "".join((ROOT / p).read_text(encoding="utf-8")
+                             for p in ("templates/command_centre.html", "static/js/command_centre.js"))
     assert "report_type: 'executive_brief'" not in command_centre, "the board button uses the board preset"
     assert "preset_board" in command_centre
 

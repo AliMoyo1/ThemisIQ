@@ -155,4 +155,68 @@ Before any change, the uncommitted worktree was saved outside the repository: a 
 
     A fourth failure predates this work: the icon test looked in the Sentinel page HTML for strings that Codex's Sentinel slice had moved into its static script. Those four tests and the new journeys then passed (66 tests). A full browser suite run follows.
 
+### Global strict script policy, 2026-11-08 (Claude, continuing after commit 0936f03d)
+
+The owner asked to commit, open a PR when green, and complete the remaining work. The full backend suite on `0936f03d` was started first (in a separate test checkout). This section covers what was built while it ran.
+
+- **Command Centre (`/`): converted.**
+  - Its 970-line inline script is now `static/js/command_centre.js`. The one server value (`is_admin`, used by the export button) is a data attribute on `#ccPageConfig`.
+  - All 37 inline handlers became data attributes read by one click listener:
+    - `data-cc-action` names one of nine fixed actions;
+    - `data-cc-href` is followed only when it is an application path (starts with one `/`), so a planted `//other.site` link is refused;
+    - `data-cc-filter` accepts lower-case words only;
+    - `data-cc-ack` accepts digits only;
+    - `data-cc-stop` replaces `event.stopPropagation()`.
+  - Hover handlers became CSS (`cc-hover-row`, `cc-hover-chip`).
+  - Two values were written into markup unescaped: the module link in the overdue table, and the chip link from the server. Both are escaped now, and the chip link must be an application path.
+  - The page's `esc()` copied text through a DOM node, which escapes `<` and `&` but not quotes. A value containing `"` inside `title="..."` or `href="..."` could therefore add attributes, including a `data-cc-action`.
+    - Fixed: `esc()` now escapes quotes too.
+    - The same quote-blind helper was in the policy workbench, evidence campaigns and data readiness scripts, which write values into `href`, `value` and `data-name`. Fixed there as well.
+    - GRID, ERM and Scenario Studio already escape quotes.
+- **Report print view (`/reports/runs/{id}/print`).** Its browser-support check and print button now live in `static/js/report_print.js`.
+- **Remaining inline scripts moved to static files** (each already used listeners, so only the move was needed):
+  - policy workbench: `aria_policy_workbench.js`, with the document id as a data attribute, and the pdf.js loader as `aria_pdfjs_module.mjs`;
+  - evidence campaigns: `evidence_campaigns.js`;
+  - data readiness: `readiness_index.js`.
+- **Connected records page.** The start-up call is gone: `governance_connected.js` starts itself from `#gcRoot` (`data-kind="entity"` or the changes list).
+- **Error page.** The "Go Back" link was a `javascript:` URL. It is now a link home, stepped back by `static/js/error_page.js` when there is history.
+- **Global fallback removed.** `core/middleware.py` now sends one script policy on every response:
+  - same-origin scripts plus the existing analytics hosts;
+  - no `'unsafe-inline'` and no CDN hosts;
+  - `script-src-attr 'none'`;
+  - the Report-Only probe is gone because nothing is left to observe.
+
+  `style-src 'unsafe-inline'` stays, because inline style attributes are used throughout.
+- **Decision (chat confirmation, not sign-off): the API explorer at `/docs` keeps the old policy, only when DEBUG is on.**
+  - Why: FastAPI builds that page from an inline script and a jsdelivr bundle. It does not exist in production (`docs_url` is `None` unless DEBUG), so the exception never applies on the VPS.
+  - Cost: in a DEBUG run, `/docs` alone is less strict.
+  - How to change: delete the `settings.DEBUG and path == "/docs"` condition in `security_headers_middleware`; `/docs` then stops working under DEBUG unless its assets are self-hosted.
+- **Source scan before removal.** Every template, every static script and every Python-built HTML string was searched for inline script blocks, inline handlers, `javascript:` URLs and CDN script hosts. Nothing remains. The old `test_csp_report_only.py` is rewritten to hold that line:
+  - it asserts the strict policy on every page;
+  - it scans every template (96 today) and every static script (114) for inline handlers, `javascript:`, `eval(` and `new Function`.
+- **Tests updated.**
+  - Two acceptance tests that read the Command Centre template source now also read its script.
+  - New browser journeys, `tests/ui/test_strict_csp_last_pages.py`, cover:
+    - the Command Centre listener: predictive bar toggle, filter chip, planted off-site link refused, navigation;
+    - the print button;
+    - readiness and campaigns loading;
+    - the error page going back.
+- **Backend suite on commit `0936f03d`: 3,429 passed, 14 failed, 101 skipped (57 minutes).**
+  - All 14 failures were tests that read page source for text the module conversions had moved into static scripts:
+    - twelve platform guide entries whose button labels now live in `workflows.js`, `vendor_directory.js`, `aria_mapping.js`, `grid_index.js`, `bcm_index.js`, `sentinel_index.js` or `erm_scenario_studio.js`;
+    - the BCM report-kinds check;
+    - the DPIA form-keys check.
+  - No product behavior was wrong.
+  - Fixed: the guide entries now list the scripts, and the two tests read them. A thirteenth guide entry (revise a policy) needed the new policy workbench script after this round's move.
+  - Rerun of the affected and changed files: 159 tests pass, 110 of them platform guide tests. Security, nginx, policy browser workflow and CSP tests: 65 pass.
+- **Full browser suite with the global strict policy: 754 passed, 4 failed, 2 skipped (38 minutes).**
+  - Two failures were mistakes in the new test file, not the app:
+    - The predictive risk panel is already open on load for a super administrator, so the first click closes it.
+    - Playwright calls a function that an evaluated expression returns, so the test's own `window.print` stand-in was called once during setup.
+
+    Both tests are corrected.
+  - The Evidence Vault and Vendor Directory strict-policy tests timed out under full-suite load, as in the previous full run.
+  - Rerun alone: those two plus the four new journeys pass (6 of 6).
+- PostgreSQL lane (`tests/test_postgres_init.py` on the disposable PG container): exited 0, so it passed. The pass count was lost: the output filter captured nothing.
+
 Operational gates remain distinct: independent Sentinel legal wording/applicability review, customer AI/provider policy and real pilot approval, chosen retention schedules, and the postponed sender domain/mailbox and live delivery pilot. Historical GRID/BCM files are not a release blocker under the owner's preproduction-data decision. No production deploy or database migration was performed during this build continuation.

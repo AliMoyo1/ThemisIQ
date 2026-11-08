@@ -186,4 +186,7 @@
   }
 
   global.GovConnected = { entity: entity, changes: changes };
+  // The page names its kind as data (strict script policy: no inline start-up call).
+  var root = document.getElementById('gcRoot');
+  if (root) (root.dataset.kind === 'entity' ? entity : changes)(root);
 }(window));
