@@ -20,6 +20,7 @@ from lxml import etree
 
 from core.timeutils import utcnow
 from modules.aria import policy_intake as intake
+from modules.aria import policy_layout_check as layout_check
 from modules.aria import policy_storage as storage
 from modules.aria import policy_workflow_service as workflow
 from modules.aria.policy_access import policy_authoring_enabled_for
@@ -198,6 +199,8 @@ def _render(source: Path, target: Path, selection: dict, metadata: dict) -> dict
         raise intake.IntakeError(422, "The selected body is empty.")
     retained_xml = b"".join(etree.tostring(block._element) for block in keep)
     retained_hash = hashlib.sha256(retained_xml).hexdigest()
+    # What the kept text relies on, read from the whole source before any block is removed.
+    retained_inventory = layout_check.inventory(doc, [block._element for block in blocks if block not in keep])
     for block in blocks:
         if block not in keep:
             doc.element.body.remove(block._element)
@@ -258,12 +261,31 @@ def _render(source: Path, target: Path, selection: dict, metadata: dict) -> dict
     target.parent.mkdir(parents=True, exist_ok=True)
     doc.save(target)
     storage.validate_docx(target)
-    return {"mode": mode, "boundary": boundary, "excluded_blocks": sorted(excluded),
-            "source_block_count": len(blocks), "retained_body_sha256": retained_hash,
-            "clear_headers": bool(selection.get("clear_headers")), "diagrams": diagrams,
-            "figure": figure_manifest,
-            "cover_text_sha256": hashlib.sha256(cover_text.encode()).hexdigest() if cover_text else None,
-            "cover_logo_sha256": hashlib.sha256(cover_logo).hexdigest() if cover_logo else None}
+    result = {"mode": mode, "boundary": boundary, "excluded_blocks": sorted(excluded),
+              "source_block_count": len(blocks), "retained_body_sha256": retained_hash,
+              "clear_headers": bool(selection.get("clear_headers")), "diagrams": diagrams,
+              "figure": figure_manifest,
+              "cover_text_sha256": hashlib.sha256(cover_text.encode()).hexdigest() if cover_text else None,
+              "cover_logo_sha256": hashlib.sha256(cover_logo).hexdigest() if cover_logo else None}
+    result["layout_check"] = {"version": layout_check.VERSION, "findings": layout_check.compare(
+        retained_inventory, layout_check.inventory(Document(target)), result)}
+    return result
+
+
+def _acknowledge_layout(manifest: dict, actor: dict, selection: dict) -> None:
+    """A candidate with a loss or check finding needs the author's reason, recorded in its manifest. Without one the
+    findings go back to the author and no candidate is created."""
+    check = manifest["layout_check"]
+    if not layout_check.blocking(check["findings"]):
+        return
+    given = selection.get("layout_acknowledgement")
+    reason = layout_check.clean_reason(given)
+    if reason is None:
+        message = ("The reason must be 10 to 500 characters long." if isinstance(given, str) and given.strip() else
+                   "The layout check found changes to review. Give a reason (10 to 500 characters) to create the "
+                   "candidate anyway, or change your selection.")
+        raise intake.IntakeError(409, message, extra={"layout_check": check})
+    check["acknowledgement"] = {"by": actor["id"], "at": utcnow().isoformat(), "reason": reason}
 
 
 def create_candidate(db, actor: dict, import_id: str, selection: dict) -> dict:
@@ -292,6 +314,7 @@ def create_candidate(db, actor: dict, import_id: str, selection: dict) -> dict:
     target = candidate_dir / f"{uuid.uuid4().hex}.docx"
     try:
         manifest = _render(source, target, selection, metadata)
+        _acknowledge_layout(manifest, actor, selection)
         manifest.update({"source_import_id": import_id, "source_sha256": row["file_hash"],
                          "output_sha256": storage.sha256_file(target), "created_by": actor["id"],
                          "created_at": utcnow().isoformat(), "review_required": True})

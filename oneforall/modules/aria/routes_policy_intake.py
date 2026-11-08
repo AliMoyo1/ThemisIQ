@@ -23,7 +23,7 @@ router = APIRouter(prefix="/aria", tags=["aria-policy-intake"])
 
 
 def _error(exc: intake.IntakeError):
-    return JSONResponse({"ok": False, "error": exc.message}, status_code=exc.status)
+    return JSONResponse({**exc.extra, "ok": False, "error": exc.message}, status_code=exc.status)
 
 
 def _authoring_gate(actor: dict) -> JSONResponse | None:

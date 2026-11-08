@@ -151,3 +151,72 @@ def test_new_policy_editor_saves_structured_diagram(login_as, live_app, syntheti
     finally:
         db.close()
     assert not page.console_errors, page.console_errors
+
+
+def test_layout_check_holds_a_candidate_until_the_author_gives_a_reason(login_as, live_app, synthetic_tenant,
+                                                                        monkeypatch, tmp_path):
+    """A policy with a contents table: the check names it, the candidate waits for a reason, and the finding and the
+    reason are still shown after a reload (plans/2026-11-vault-current-proof-policy-layout.md, item 2)."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from modules.aria import routes as aria_routes
+    from modules.aria import policy_storage, policy_composition
+    from modules.evidence import routes as evidence_routes
+    from config import settings
+
+    monkeypatch.setattr(aria_routes, "ARIA_UPLOAD_DIR", tmp_path / "aria")
+    monkeypatch.setattr(policy_storage, "ARIA_UPLOAD_DIR", tmp_path / "aria")
+    monkeypatch.setattr(policy_storage, "WORKFLOW_ROOT", tmp_path / "aria" / "policy_workflow")
+    monkeypatch.setattr(evidence_routes, "EVIDENCE_DIR", tmp_path / "evidence")
+    monkeypatch.setattr(policy_composition, "policy_authoring_enabled_for", lambda org: org == synthetic_tenant["org_id"])
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", True)
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [synthetic_tenant["org_id"]])
+
+    doc = Document()
+    doc.add_paragraph("Subsidiary cover")
+    contents = doc.add_paragraph()
+    field = OxmlElement("w:fldSimple")
+    field.set(qn("w:instr"), ' TOC \\o "1-3" ')
+    contents._p.append(field)
+    doc.add_paragraph("Purpose: this policy protects information.")
+    out = io.BytesIO(); doc.save(out)
+
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/aria/policy-imports")
+    page.set_input_files("#intake-files", files=[{"name": "contents.docx", "mimeType":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "buffer": out.getvalue()}])
+    page.click('#intake-upload button[type="submit"]')
+    page.wait_for_selector("#intake-review:not([hidden])", timeout=15000)
+    page.fill("#intake-field-title", "Reviewed Security Policy")
+    page.fill("#intake-field-version", "1.0")
+    page.click("#intake-register")
+    page.wait_for_selector("#intake-composition:not([hidden])", timeout=15000)
+    page.select_option("#intake-compose-boundary", "1")
+    page.click("#intake-compose-submit")
+    page.wait_for_selector("#intake-layout-ack:not([hidden])", timeout=15000)
+    assert "Update the contents table in Word" in page.locator("#intake-layout-findings").inner_text()
+    assert page.locator(".intake-chip.check").count() >= 1
+    assert page.locator("#intake-compose-review").is_hidden(), "no candidate yet"
+
+    page.fill("#intake-layout-reason", "short")
+    page.click("#intake-layout-accept")
+    page.wait_for_function("() => document.getElementById('intake-action-status').textContent.includes('must be 10')"
+                           " && !document.getElementById('intake-layout-accept').disabled")
+    assert page.locator("#intake-compose-review").is_hidden()
+    assert page.locator("#intake-layout-reason").input_value() == "short", "a refused reason is kept for editing"
+
+    page.fill("#intake-layout-reason", "The contents table is updated in Word before approval")
+    page.click("#intake-layout-accept")
+    page.wait_for_selector("#intake-compose-review:not([hidden])", timeout=15000)
+    assert page.locator("#intake-layout-ack").is_hidden()
+    assert "updated in Word before approval" in page.locator("#intake-layout-reason-shown").inner_text()
+
+    import_id = page.locator("[data-import-id]").first.get_attribute("data-import-id")
+    page.reload()
+    page.click(f'[data-import-id="{import_id}"]')
+    page.wait_for_selector("#intake-layout-check:not([hidden])", timeout=15000)
+    assert "Update the contents table in Word" in page.locator("#intake-layout-findings").inner_text()
+    assert "updated in Word before approval" in page.locator("#intake-layout-reason-shown").inner_text()
+    # The two refusals before a valid reason are deliberate 409 answers; anything else is a real error.
+    unexpected = [e for e in page.console_errors if not ("409" in e and "/compose" in e)]
+    assert not unexpected, unexpected

@@ -138,10 +138,15 @@ def _scoped_command_stats(db, user):
     count = lambda table, condition="": scoped_count(db, user, table, condition)
     controls = count("controls")
     compliant = count("controls", "status = 'Implemented'")
-    evidence = count("evidence_items")
-    expiring = count("evidence_items", "status = 'current' AND expiry_date IS NOT NULL "
-                     f"AND expiry_date <= {sql_date_offset('+30 days')} "
-                     f"AND expiry_date >= {sql_current_date()}")
+    # Evidence follows the Vault's own rule (unit plus Privacy links), so the figures match the Vault's list.
+    from modules.evidence.scope import current_library_sql, evidence_scope_sql
+    ev_scope, ev_params = evidence_scope_sql(user)
+    evidence = db.execute(f"SELECT COUNT(*) FROM evidence_items e WHERE {ev_scope} AND {current_library_sql()}",
+                          ev_params).fetchone()[0]
+    expiring = db.execute(
+        f"SELECT COUNT(*) FROM evidence_items e WHERE {ev_scope} AND e.status = 'current' "
+        f"AND e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+30 days')} "
+        f"AND e.expiry_date >= {sql_current_date()}", ev_params).fetchone()[0]
     fscope, fp = table_scope("frameworks", user)
     frameworks = db.execute(
         f"SELECT name FROM frameworks WHERE is_active = 1 AND {fscope} ORDER BY name", fp

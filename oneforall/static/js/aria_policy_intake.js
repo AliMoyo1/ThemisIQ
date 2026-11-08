@@ -78,6 +78,7 @@
     byId('intake-candidate-file').hidden = !data.composition_draft;
     candidate = data.composition_draft;
     byId('intake-compose-submit').hidden = !!candidate;
+    renderLayout(candidate && candidate.layout_check, false);
     if (candidate) {
       byId('intake-candidate-file').href = '/aria/api/policy-imports/' + encodeURIComponent(data.id) + '/candidate/' + encodeURIComponent(candidate.id);
       byId('intake-build-preview').hidden = candidate.state !== 'editing';
@@ -90,6 +91,34 @@
     byId('intake-original-compare').textContent = text || 'No extractable text.';
     status('intake-action-status', data.external_status === 'verified' ? 'External approval was verified by a specialist.' : '');
     list.querySelectorAll('[data-import-id]').forEach(button => button.setAttribute('aria-current', String(button.dataset.importId === data.id)));
+  }
+  let pendingSelection = null;
+  const SEVERITY = {loss:'Lost', check:'Check in Word', info:'Your choice or a note'};
+  function renderLayout(check, needsReason) {
+    const box = byId('intake-layout-check');
+    const findings = (check && Array.isArray(check.findings)) ? check.findings : null;
+    box.hidden = !findings;
+    byId('intake-layout-ack').hidden = !needsReason;
+    if (!findings) return;
+    const list = byId('intake-layout-findings'); list.replaceChildren();
+    findings.forEach(f => {
+      const item = document.createElement('li');
+      const chip = document.createElement('span');
+      const severity = Object.prototype.hasOwnProperty.call(SEVERITY, f.severity) ? f.severity : 'info';
+      chip.className = 'intake-chip ' + severity; chip.textContent = SEVERITY[severity];
+      const title = document.createElement('strong'); title.textContent = String(f.title || '');
+      const detail = document.createElement('p'); detail.textContent = String(f.detail || '');
+      item.append(chip, title, detail); list.append(item);
+    });
+    const blocking = findings.filter(f => f.severity === 'loss' || f.severity === 'check').length;
+    byId('intake-layout-summary').textContent = blocking
+      ? `${blocking} finding(s) need review. Compare them with the original download before you continue.`
+      : 'Nothing the retained text relies on was lost. Still compare the PDF preview with the original.';
+    const shown = byId('intake-layout-reason-shown');
+    const ack = check.acknowledgement;
+    shown.hidden = !ack;
+    shown.textContent = ack ? `Reason recorded when the candidate was created: ${String(ack.reason || '')}` : '';
+    if (ack) byId('intake-layout-reason').value = '';
   }
   function setPreview(draft) {
     const ready = draft.state === 'ready' && !!draft.build_id;
@@ -314,14 +343,37 @@
       const figure = mode.value === 'replace_cover' || !figureFile ? null :
         {image_base64:await imageBase64(figureFile, 'figure'),
           caption:byId('intake-figure-caption').value,alt_text:byId('intake-figure-alt').value};
-      const selection = {mode:mode.value,boundary:Number(byId('intake-compose-boundary').value),
+      pendingSelection = {mode:mode.value,boundary:Number(byId('intake-compose-boundary').value),
         exclude_blocks:[...document.querySelectorAll('.intake-exclude:checked')].map(c => Number(c.value)),
         clear_headers:byId('intake-compose-clear-headers').checked,
         cover_text:mode.value === 'replace_body' ? '' : byId('intake-cover-text').value,
         cover_logo_base64:coverLogo,
         replacement_body:byId('intake-compose-body').value,diagrams:diagram(),figure};
-      const result = await api('/aria/api/policy-imports/' + encodeURIComponent(current.id) + '/compose',
+      await compose(pendingSelection);
+    } catch (err) { status('intake-action-status', err.message); }
+    finally { button.disabled = false; }
+  });
+  byId('intake-layout-accept').addEventListener('click', async () => {
+    if (!current || !pendingSelection) return;
+    const button = byId('intake-layout-accept'); button.disabled = true;
+    try {
+      await compose({...pendingSelection, layout_acknowledgement: byId('intake-layout-reason').value});
+    } catch (err) { status('intake-action-status', err.message); }
+    finally { button.disabled = false; }
+  });
+  async function compose(selection) {
+      const res = await fetch('/aria/api/policy-imports/' + encodeURIComponent(current.id) + '/compose',
         {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(selection)});
+      const result = await res.json();
+      if (res.status === 409 && result.layout_check) {
+        renderLayout(result.layout_check, true);
+        status('intake-action-status', result.error);
+        byId('intake-layout-reason').focus();
+        return;
+      }
+      if (!res.ok || !result.ok) throw new Error(typeof result.error === 'object' ? result.error.message : (result.error || 'Request failed'));
+      pendingSelection = null;
+      renderLayout(result.manifest && result.manifest.layout_check, false);
       candidate = {id:result.draft_id,state:'editing',lock_version:result.lock_version};
       byId('intake-compose-review').hidden = false;
       byId('intake-candidate-file').hidden = false;
@@ -331,9 +383,7 @@
       byId('intake-compare-attest').checked = false;
       setPreview(candidate);
       status('intake-action-status', 'Candidate created. Build the PDF, compare it with the original, then confirm it for internal approval.');
-    } catch (err) { status('intake-action-status', err.message); }
-    finally { button.disabled = false; }
-  });
+  }
   byId('intake-build-preview').addEventListener('click', async () => {
     if (!candidate) return;
     const button = byId('intake-build-preview'); button.disabled = true;
