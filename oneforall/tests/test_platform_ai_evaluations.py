@@ -84,6 +84,58 @@ def test_failed_check_cannot_be_accepted(roles, monkeypatch):
     assert platform_evaluations.review(db, other, "aria.ask", failed["id"], "finding", 1)["run"]["review_outcome"] == "finding"
 
 
+def test_every_registered_feature_passes_its_policy_refusal_set_without_a_provider(roles, monkeypatch):
+    from core.ai_policy import FEATURES
+    monkeypatch.setattr("core.ai_client.create_message", lambda *args, **kwargs: (_ for _ in ()).throw(
+        AssertionError("A synthetic fixture must not call a provider")))
+    for key, (_label, categories) in FEATURES.items():
+        result = platform_evaluations.execute_policy_set(key)
+        assert result["checks_failed"] == 0, (key, [c for c in result["cases"] if not c["passed"]])
+        assert result["checks_total"] == 7 + len(categories), key
+    db = roles.db
+    run = platform_evaluations.run(db, roles.users["super"], "sentinel.ai_chat")["run"]
+    db.commit()
+    assert run["test_set"] == platform_evaluations.POLICY_TEST_SET and run["status"] == "passed"
+    names = [case["case"] for case in run["cases"]]
+    assert "refused when personal data is not allowed" in names and "refused when AI is switched off" in names
+    listed = platform_evaluations.list_runs(db, roles.users["super"], "sentinel.ai_chat")
+    assert [s["key"] for s in listed["test_sets"]] == [platform_evaluations.POLICY_TEST_SET]
+    assert "not measured" in listed["scope"]
+
+
+def test_a_policy_gate_regression_fails_the_set_and_a_changed_declaration_makes_old_runs_stale(roles, monkeypatch):
+    db = roles.db
+    operator = roles.users["super"]
+    passed = platform_evaluations.run(db, operator, "erm.chat", platform_evaluations.POLICY_TEST_SET)["run"]
+    db.commit()
+    assert passed["status"] == "passed"
+
+    with monkeypatch.context() as patcher:
+        # A broken gate that lets everything through must be caught by the cases, not only by code review.
+        patcher.setattr("core.ai_policy._refusal", lambda *args, **kwargs: None)
+        broken = platform_evaluations.execute_policy_set("erm.chat")
+        still_passing = {c["case"] for c in broken["cases"] if c["passed"]}
+        assert still_passing == {"declares what it sends and has a written declaration",
+                                 "allowed when the policy permits this provider, feature and data",
+                                 "refused when the stored policy is unreadable"}  # refused while reading, before the gate
+    with monkeypatch.context() as patcher:
+        patcher.setitem(platform_evaluations.ai_policy.FEATURES, "erm.chat", ("Risk assistant", ("business", "personal")))
+        assert platform_evaluations.list_runs(db, operator, "erm.chat")["runs"][0]["stale"] is True
+    assert platform_evaluations.list_runs(db, operator, "erm.chat")["runs"][0]["stale"] is False
+
+
+def test_aria_ask_offers_both_sets_and_an_unknown_set_is_refused(roles):
+    db = roles.db
+    operator = roles.users["super"]
+    sets = [s["key"] for s in platform_evaluations.list_runs(db, operator, "aria.ask")["test_sets"]]
+    assert sets == [platform_evaluations.TEST_SET, platform_evaluations.POLICY_TEST_SET]
+    policy = platform_evaluations.run(db, operator, "aria.ask", platform_evaluations.POLICY_TEST_SET)["run"]
+    db.commit()
+    assert policy["test_set"] == platform_evaluations.POLICY_TEST_SET and policy["stale"] is False
+    _error(lambda: platform_evaluations.run(db, operator, "erm.chat", platform_evaluations.TEST_SET), 422)
+    _error(lambda: platform_evaluations.run(db, operator, "aria.ask", "made.up"), 422)
+
+
 def test_http_requires_operator_and_does_not_cache(http):
     assert http("get", PATH, name="dpo_a").status_code == 403
     assert http("post", PATH, name="dpo_a", json={}).status_code == 403
@@ -95,3 +147,9 @@ def test_http_requires_operator_and_does_not_cache(http):
     assert http("post", PATH + "/" + str(response.json()["run"]["id"]) + "/review",
                 name="super", json={"outcome": "accepted", "version": 1}).status_code == 403
     assert http("get", "/ai-governance/api/platform-features/unknown/evaluations", name="super").status_code == 404
+    other = http("post", "/ai-governance/api/platform-features/erm.chat/evaluations", name="super",
+                 json={"test_set": "ai-policy.refusal"})
+    assert other.status_code == 201, other.text
+    assert other.json()["run"]["test_set"] == "ai-policy.refusal"
+    assert http("post", "/ai-governance/api/platform-features/erm.chat/evaluations", name="super",
+                json={"test_set": ["not", "text"]}).status_code == 422

@@ -6837,6 +6837,17 @@ CREATE TABLE IF NOT EXISTS aria_document_register_claims (
     UNIQUE(batch_id,document_code,document_version)
 );
 CREATE INDEX IF NOT EXISTS idx_aria_register_claims_org ON aria_document_register_claims(org_id,state);
+-- The customer's retention choice for one confirmed source workbook (modules/aria/register_source_retention.py).
+-- A purge removes the file only; the Vault row, its hash and the claims stay.
+CREATE TABLE IF NOT EXISTS register_source_retention (
+    evidence_id INTEGER PRIMARY KEY REFERENCES evidence_items(id),
+    delete_after TEXT,
+    hold_reason TEXT,
+    set_by INTEGER REFERENCES users(id),
+    set_at TEXT DEFAULT (datetime('now')),
+    purged_at TEXT,
+    purged_hash TEXT
+);
 
 -- ── AI governance (G3): which canonical control an AI control corresponds to ─
 -- Confirmed by a reviewer, never inferred. The proof held for the canonical control is then shown against the AI control.

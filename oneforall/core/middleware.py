@@ -19,7 +19,7 @@ from functools import wraps
 from typing import Optional
 
 from fastapi import Request, Response, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from config import settings
 from core.auth import get_session_user
@@ -38,6 +38,15 @@ def _password_change_allowed(user: dict, path: str) -> bool:
     return any(path.startswith(p) for p in _PW_CHANGE_EXEMPT) or (
         bool(user.get("mfa_pending")) and path in {"/mfa/setup", "/mfa/enable"}
     )
+
+
+def _mfa_pending_response(path: str):
+    """Where a session that has not finished two-step sign-in is sent. A page goes to the code page; a background
+    API call gets a plain 401, because following the redirect would render the setup or code page, issue a new CSRF
+    cookie (and on setup a new secret) and break the form the person is filling in."""
+    if path.startswith("/api/"):
+        return JSONResponse({"error": "Finish two-step sign-in first."}, status_code=401)
+    return RedirectResponse("/mfa/verify", status_code=303)
 
 
 # ── Auth dependency ──────────────────────────────────────────────────────────
@@ -62,7 +71,7 @@ def require_auth(func):
         if user.get("mfa_pending") and not any(
             path.startswith(p) for p in _MFA_PENDING_EXEMPT
         ):
-            return RedirectResponse("/mfa/verify", status_code=303)
+            return _mfa_pending_response(path)
         if user.get("must_change_password") and not _password_change_allowed(user, path):
             return RedirectResponse("/change-password", status_code=303)
         request.state.user = user
@@ -82,7 +91,7 @@ def require_capability(*capabilities: str):
             if user.get("mfa_pending") and not any(
                 path.startswith(p) for p in _MFA_PENDING_EXEMPT
             ):
-                return RedirectResponse("/mfa/verify", status_code=303)
+                return _mfa_pending_response(path)
             if user.get("must_change_password") and not _password_change_allowed(user, path):
                 return RedirectResponse("/change-password", status_code=303)
             if not any(has_capability(user, c) for c in capabilities):

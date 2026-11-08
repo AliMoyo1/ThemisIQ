@@ -28,6 +28,14 @@
       <button type="submit" class="btn btn-secondary">Save tenant policy</button>
     </form>
     <p id="reportPolicyStatus" role="status" style="font-size:12px;margin:8px 0 0;"></p>
+    <h3 id="sourcePolicyTitle" style="font-size:13px;margin:16px 0 6px;">Document register source workbooks</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">How long a confirmed register workbook is kept in the Evidence Vault. Leave the period empty to keep workbooks until you choose one. When a workbook's date passes, only its file is removed: its Vault record, hash and register entries stay. A legal hold on a workbook always stops removal.</p>
+    <form id="sourcePolicyForm" aria-labelledby="sourcePolicyTitle" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+      <label>Keep newly confirmed workbooks for <input id="sourcePolicyDays" type="number" min="30" max="3650" style="width:90px;"> days</label>
+      <label>Reason for change <input id="sourcePolicyReason" type="text" minlength="10" maxlength="500" required></label>
+      <button type="submit" class="btn btn-secondary">Save workbook policy</button>
+    </form>
+    <p id="sourcePolicyStatus" role="status" style="font-size:12px;margin:8px 0 0;"></p>
   </section>
   {% endif %}
 

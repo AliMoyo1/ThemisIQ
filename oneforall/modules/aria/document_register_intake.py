@@ -201,6 +201,8 @@ def confirm(db, user, batch_id, version, acknowledged):
     if not data or hashlib.sha256(data).hexdigest() != batch["file_sha256"]:
         raise RegisterError(409, "The preview source is missing or changed. Upload the workbook again.")
     source_id, new_path = _retain_source(db, user, batch, data)
+    from modules.aria.register_source_retention import on_filed
+    on_filed(db, source_id, user["id"])
     rows = json.loads(batch["rows"])
     try:
         for row in rows:

@@ -54,6 +54,8 @@ def _expire_document_register_previews() -> None:
     from core.email_outbox import for_each_tenant
     from modules.aria.document_register_intake import expire_previews
     for_each_tenant(expire_previews, "Document register preview expiry")
+    from modules.aria.register_source_retention import purge_due
+    for_each_tenant(purge_due, "Document register source workbook retention")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

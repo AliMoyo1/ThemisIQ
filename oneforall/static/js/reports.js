@@ -546,6 +546,27 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (_) { status.textContent = 'The tenant policy could not be saved.'; }
     });
   }
+  const sourceForm = document.getElementById('sourcePolicyForm');
+  if (sourceForm) {
+    const status = document.getElementById('sourcePolicyStatus');
+    const daysInput = document.getElementById('sourcePolicyDays');
+    fetch('/api/registers/source-retention-policy').then(readJson).then(policy => {
+      daysInput.value = Number.isInteger(policy.days) ? policy.days : '';
+      if (!Number.isInteger(policy.days)) status.textContent = 'No period chosen: confirmed workbooks are kept.';
+    }).catch(() => { status.textContent = 'The workbook policy could not be loaded.'; });
+    sourceForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const raw = daysInput.value.trim();
+      try {
+        const resp = await fetch('/api/registers/source-retention-policy', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({days: raw === '' ? null : Number(raw), reason: document.getElementById('sourcePolicyReason').value})});
+        const result = await readJson(resp);
+        status.textContent = !resp.ok ? (result.error || 'The workbook policy could not be saved.')
+          : Number.isInteger(result.days) ? `Newly confirmed workbooks will be kept for ${result.days} days unless one has its own date or a hold.`
+          : 'No period: confirmed workbooks are kept until you choose one.';
+      } catch (_) { status.textContent = 'The workbook policy could not be saved.'; }
+    });
+  }
   document.querySelectorAll('.js-quick-report').forEach(button => {
     button.addEventListener('click', () => quickRun(button.dataset.quick));
   });

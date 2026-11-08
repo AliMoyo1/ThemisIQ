@@ -1516,8 +1516,16 @@ async def api_platform_feature_evaluations(request: Request, feature_key: str):
 @router.post("/api/platform-features/{feature_key}/evaluations")
 @require_capability("ai_governance.platform.manage")
 async def api_platform_feature_evaluation_run(request: Request, feature_key: str):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _private_response(_error(exc))
+    test_set = body.get("test_set")
+    if test_set is not None and not isinstance(test_set, str):
+        return _private_response(_error(ServiceError(422, "Choose a fixture set registered for this feature.")))
     with tenant_context(None, None, is_super_admin=True):
-        return _private_response(_transact(request, lambda db, user: platform_evaluations.run(db, user, feature_key), 201))
+        return _private_response(_transact(request, lambda db, user: platform_evaluations.run(
+            db, user, feature_key, test_set), 201))
 
 
 @router.post("/api/platform-features/{feature_key}/evaluations/{run_id}/review")
