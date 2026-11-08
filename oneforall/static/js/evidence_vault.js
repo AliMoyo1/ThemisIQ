@@ -837,6 +837,7 @@ async function openDetail(eid){
   /* Details tab */
   html+='<div id="tabpane-details" role="tabpanel" aria-labelledby="tab-details">';
   html+='<div id="evChecksItem"></div>';
+  html+='<div id="evSourceRetention"></div>';
 
   /* Inline-editable metadata */
   var statusOpts=['current','superseded','archived','expired','draft'].map(function(s){
@@ -962,6 +963,7 @@ async function openDetail(eid){
   document.getElementById('evDetailOverlay').classList.add('open');
   document.getElementById('evDetailPanel').classList.add('open');
   document.body.style.overflow='hidden';
+  evRenderSourceRetention(item,eid);
 
   // Load versions async
   try{
@@ -1975,3 +1977,46 @@ document.addEventListener('DOMContentLoaded',function(){
   if(!_plan06_fn) return;
   attempt();
 })();
+
+/* Retention of a confirmed document register source workbook: its own deletion date and legal hold. */
+function evRenderSourceRetention(item,eid){
+  var host=document.getElementById('evSourceRetention');
+  var info=item&&item.source_retention;
+  if(!host||!info)return;
+  host.replaceChildren();
+  var box=document.createElement('div');box.className='ev-section';
+  var title=document.createElement('div');title.className='ev-section-title';title.textContent='Source workbook retention';
+  var state=document.createElement('p');state.style.cssText='font-size:12px;margin:0 0 8px';
+  if(info.purged_at){
+    state.textContent='The file was removed under retention on '+String(info.purged_at).slice(0,10)+
+      '. Its record and SHA-256 hash '+String(info.purged_hash||'').slice(0,16)+'... stay, so register entries still show their source.';
+  }else{
+    state.textContent=(info.hold_reason?'On legal hold: '+info.hold_reason+'. Nothing is removed while the hold stands. ':'')+
+      (info.delete_after?'File removal date: '+info.delete_after+'.':'No removal date: the file is kept.');
+  }
+  box.append(title,state);
+  if(item.can_manage_source_retention&&!info.purged_at){
+    var form=document.createElement('form');form.style.cssText='display:grid;gap:6px;font-size:12px';
+    function field(labelText,input){var l=document.createElement('label');l.style.cssText='display:grid;gap:2px';var s=document.createElement('span');s.textContent=labelText;l.append(s,input);return l;}
+    var dateInput=document.createElement('input');dateInput.type='date';dateInput.value=info.delete_after||'';
+    var holdInput=document.createElement('input');holdInput.type='text';holdInput.maxLength=500;holdInput.value=info.hold_reason||'';
+    holdInput.placeholder='Leave empty for no hold';
+    var reasonInput=document.createElement('input');reasonInput.type='text';reasonInput.required=true;reasonInput.minLength=10;reasonInput.maxLength=500;
+    var save=document.createElement('button');save.type='submit';save.className='btn btn-secondary';save.style.cssText='font-size:12px;padding:6px 14px;justify-self:start';save.textContent='Save retention';
+    var status=document.createElement('p');status.setAttribute('role','status');status.style.cssText='font-size:12px;margin:0';
+    form.append(field('Remove the file after (leave empty to keep it)',dateInput),field('Legal hold reason',holdInput),
+      field('Why this is changing',reasonInput),save,status);
+    form.addEventListener('submit',async function(event){
+      event.preventDefault();save.disabled=true;status.textContent='Saving...';
+      try{
+        var result=await ApiClient.request('/evidence/api/items/'+Number(eid)+'/source-retention',{method:'POST',
+          actionId:'evidence.source_retention.save',
+          body:{delete_after:dateInput.value||null,hold_reason:holdInput.value||null,reason:reasonInput.value}});
+        item.source_retention=result.source_retention;evRenderSourceRetention(item,eid);
+        var done=document.querySelector('#evSourceRetention [role=status]');if(done)done.textContent='Retention saved.';
+      }catch(error){save.disabled=false;status.textContent=(error&&error.detail)||'Retention could not be saved.';}
+    });
+    box.appendChild(form);
+  }
+  host.appendChild(box);
+}

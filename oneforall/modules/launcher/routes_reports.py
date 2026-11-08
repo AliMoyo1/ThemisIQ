@@ -510,6 +510,51 @@ async def api_report_retention_policy_save(request: Request):
     log_audit(user, "platform", "report_retention_policy", details=f"days={days}; reason={reason}", ip=_ip(request))
     return _JSONResp({"days": days, "applies_to": "new_runs_only"})
 
+
+@router.get("/api/registers/source-retention-policy")
+@require_auth
+async def api_source_workbook_retention_policy_get(request: Request):
+    """How long newly confirmed register source workbooks are kept. None means kept until the tenant chooses."""
+    from modules.aria import register_source_retention as source_retention
+    if not has_capability(request.state.user, source_retention.MANAGE_CAPABILITY):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    db = get_db()
+    try:
+        days = source_retention.policy_days(db)
+    finally:
+        db.close()
+    return _JSONResp({"days": days, "applies_to": "newly_confirmed_workbooks",
+                      "legal_status": "tenant policy, not a legal determination"})
+
+
+@router.post("/api/registers/source-retention-policy")
+@require_auth
+async def api_source_workbook_retention_policy_save(request: Request):
+    from modules.aria import register_source_retention as source_retention
+    user = request.state.user
+    if not has_capability(user, source_retention.MANAGE_CAPABILITY):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    data = await _json_body(request)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "Send the policy as an object."}, status_code=400)
+    days = data.get("days")
+    reason = data.get("reason")
+    reason = reason.strip() if isinstance(reason, str) else ""
+    if days is not None and (type(days) is not int or not source_retention.MIN_DAYS <= days <= source_retention.MAX_DAYS):
+        return _JSONResp({"error": "Choose 30 to 3650 days, or no period to keep workbooks until you choose one."},
+                         status_code=400)
+    if not 10 <= len(reason) <= 500:
+        return _JSONResp({"error": "Record a reason of 10 to 500 characters."}, status_code=400)
+    db = get_db()
+    try:
+        source_retention.save_policy(db, days)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "source_workbook_retention_policy", details=f"days={days}; reason={reason}",
+              ip=_ip(request))
+    return _JSONResp({"days": days, "applies_to": "newly_confirmed_workbooks"})
+
 @router.get("/reports", response_class=HTMLResponse)
 @require_auth
 async def reports_page(request: Request):

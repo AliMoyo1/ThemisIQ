@@ -1843,7 +1843,53 @@ async def api_evidence_get(request: Request, eid: int):
         links_returned=sum(1 for l in active if l["review_status"] in ("returned", "rejected")))
     result["can_delete"] = has_capability(request.state.user, "evidence.delete")
     result["can_review_links"] = has_capability(request.state.user, "evidence.link.review")
+    from modules.aria import register_source_retention as source_retention
+    db = get_db()
+    try:
+        if source_retention.is_source(db, eid):
+            result["source_retention"] = source_retention.get(db, eid)
+            result["can_manage_source_retention"] = has_capability(request.state.user,
+                                                                   source_retention.MANAGE_CAPABILITY)
+    finally:
+        db.close()
     return JSONResponse(result)
+
+
+@router.post("/api/items/{eid}/source-retention")
+@require_auth
+async def api_source_workbook_retention(request: Request, eid: int):
+    """Set or clear a confirmed source workbook's deletion date and legal hold."""
+    from modules.aria import register_source_retention as source_retention
+    user = request.state.user
+    if not has_capability(user, source_retention.MANAGE_CAPABILITY):
+        return JSONResponse({"error": "Permission denied"}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Send the retention change as JSON."}, status_code=400)
+    try:
+        delete_after, hold_reason, reason = source_retention.parse_change(body)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    db = get_db()
+    try:
+        if not _scoped_evidence_item(db, eid, user):
+            return JSONResponse({"error": "Not found"}, status_code=404)
+        if not source_retention.is_source(db, eid):
+            return JSONResponse({"error": "Only a document register source workbook has this retention."},
+                                status_code=409)
+        try:
+            shown = source_retention.set_retention(db, eid, int(user["id"]), delete_after, hold_reason)
+        except ValueError as exc:
+            db.rollback()
+            return JSONResponse({"error": str(exc)}, status_code=409)
+        db.commit()
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    log_audit(user, "evidence", "Changed source workbook retention", "evidence", eid,
+              details=f"delete_after={delete_after or 'none'}; hold={'yes' if hold_reason else 'no'}; reason={reason}")
+    return JSONResponse({"source_retention": shown})
 
 
 def _canonical_controls_linked_to(db, evidence_ids):
@@ -2058,7 +2104,7 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
             return JSONResponse({"error": "Generated records follow their own retention history."}, status_code=409)
         if db.execute("SELECT 1 FROM aria_document_register_batches WHERE source_evidence_id=%s LIMIT 1",
                       (eid,)).fetchone():
-            return JSONResponse({"error": "This source workbook supports document register claims; review their retention before permanent deletion."}, status_code=409)
+            return JSONResponse({"error": "This source workbook supports document register claims. Set a deletion date or a hold in its retention section instead."}, status_code=409)
         if item["status"] != "archived":
             return JSONResponse({"error": "Only archived items can be permanently deleted"}, 400)
         touched_controls = _canonical_controls_linked_to(db, [eid])

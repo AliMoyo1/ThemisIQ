@@ -660,6 +660,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/evidence/api/items/{eid}/links` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/items/{eid}/permanent` | authenticated | - | - | - |  |
 | POST | `/evidence/api/items/{eid}/restore` | authenticated | - | - | - |  |
+| POST | `/evidence/api/items/{eid}/source-retention` | authenticated | - | - | - |  |
 | POST | `/evidence/api/items/{eid}/suggest-links` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items/{eid}/verify` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items/{eid}/versions` | authenticated | - | - | - |  |
@@ -1156,6 +1157,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
 |---|---|---|---|---|---|---|
+| GET | `/api/registers/source-retention-policy` | authenticated | - | - | - |  |
+| POST | `/api/registers/source-retention-policy` | authenticated | - | - | - |  |
 | GET | `/api/reports/definitions` | authenticated | - | - | - |  |
 | POST | `/api/reports/definitions` | authenticated | - | - | - |  |
 | DELETE | `/api/reports/definitions/{rid}` | authenticated | - | - | - |  |

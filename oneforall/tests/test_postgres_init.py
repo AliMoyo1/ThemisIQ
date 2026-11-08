@@ -5729,16 +5729,39 @@ def test_document_register_source_is_filed_in_the_correct_tenant_on_real_postgre
             stored = db.execute("SELECT file_hash,org_id FROM evidence_items WHERE id=%s",
                                 (result["source_evidence_id"],)).fetchone()
             assert stored["file_hash"] == preview["file_sha256"] and stored["org_id"] == org
+            # Its retention record lives in the tenant schema; with no chosen period it is kept.
+            kept = db.execute("SELECT delete_after,hold_reason FROM register_source_retention WHERE evidence_id=%s",
+                              (result["source_evidence_id"],)).fetchone()
+            assert kept is not None and kept["delete_after"] is None and kept["hold_reason"] is None
+            db.execute("UPDATE register_source_retention SET delete_after='2020-01-01' WHERE evidence_id=%s",
+                       (result["source_evidence_id"],))
+            db.commit()
         finally:
             _release_role(db)
+    from modules.aria import register_source_retention
     with pg.tenant_context(other, "register_source_b", is_super_admin=False):
+        assert register_source_retention.purge_due(other) == 0
         db = pg.get_db()
         _become_restricted(db)
         try:
             assert db.execute("SELECT COUNT(*) FROM evidence_items WHERE file_hash=%s",
                               (preview["file_sha256"],)).fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM register_source_retention").fetchone()[0] == 0
         finally:
             _release_role(db)
+    assert result["_created_source_path"].exists(), "another tenant's pass leaves this file alone"
+    with pg.tenant_context(org, "register_source_a", is_super_admin=False):
+        assert register_source_retention.purge_due(org) == 1
+        db = pg.get_db()
+        try:
+            gone = db.execute("SELECT purged_hash FROM register_source_retention WHERE evidence_id=%s",
+                              (result["source_evidence_id"],)).fetchone()
+            assert gone["purged_hash"] == preview["file_sha256"]
+            assert db.execute("SELECT file_path FROM evidence_items WHERE id=%s",
+                              (result["source_evidence_id"],)).fetchone()["file_path"] is None
+        finally:
+            db.close()
+    assert not result["_created_source_path"].exists()
 
 
 def test_report_retention_hold_after_scan_is_respected_on_real_postgres(pg, monkeypatch):

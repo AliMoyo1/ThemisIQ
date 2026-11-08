@@ -449,6 +449,9 @@ async def mfa_verify_page(request: Request):
         return RedirectResponse("/login", status_code=303)
     if not user.get("mfa_pending"):
         return RedirectResponse("/", status_code=303)
+    if not mfa_helper.is_enabled(user["id"]):
+        # Pending because the organization requires MFA, not because it is enrolled: no code can match yet.
+        return RedirectResponse("/mfa/setup", status_code=303)
     csrf = generate_csrf_token()
     resp = templates.TemplateResponse(request, "mfa_verify.html", {
         "csrf_token": csrf,

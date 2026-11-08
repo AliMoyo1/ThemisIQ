@@ -66,7 +66,7 @@
     var actions = el('div', { class: 'aig-platform-actions' }, [
       button('Open oversight notes', function () { edit(item); }),
       item.review_state !== 'reviewed' ? button('Mark reviewed', function () { confirmReview(item); }) : null,
-      item.key === 'aria.ask' ? button('Citation check history', function () { evaluations(item); }) : null
+      button('Synthetic checks', function () { evaluations(item); })
     ]);
     box.appendChild(head); box.appendChild(meta); box.appendChild(actions);
     return box;
@@ -162,21 +162,29 @@
     });
   }
   function evaluations(item) {
-    A.dialog('Ask ARIA citation checks', function (box) {
-      var note = el('p', { class: 'aig-muted', text: 'These local synthetic cases test exact citation identity. They make no provider call and do not assess model prose or a customer AI use.' });
+    A.dialog('Synthetic checks: ' + item.label, function (box) {
+      var note = el('p', { class: 'aig-muted', text: 'Local synthetic cases. They make no provider call, read no organization records and do not assess model answers or a customer AI use.' });
       var feedback = el('p', { class: 'aig-say', role: 'status' });
+      var runs = el('div', { class: 'aig-platform-actions' });
       var list = el('div');
       var path = API + '/' + encodeURIComponent(item.key) + '/evaluations';
-      var runButton = button('Run synthetic checks', function () {
-        runButton.disabled = true; A.say(feedback, 'Running local checks...');
-        A.api(path, 'POST', {}).then(function () { load(); }).catch(function (err) {
-          runButton.disabled = false; A.say(feedback, A.errorText(err), 'bad');
-        });
-      }, true);
-      box.appendChild(note); box.appendChild(runButton); box.appendChild(feedback); box.appendChild(list);
+      var runButtons = [];
+      box.appendChild(note); box.appendChild(runs); box.appendChild(feedback); box.appendChild(list);
+      function setBusy(busy) { runButtons.forEach(function (b) { b.disabled = busy; }); }
       function load() {
         A.api(path).then(function (data) {
-          A.clear(list); A.say(feedback, ''); runButton.disabled = false;
+          A.clear(list); A.clear(runs); A.say(feedback, ''); runButtons = [];
+          (data.test_sets || []).forEach(function (set) {
+            var b = button('Run ' + set.label.toLowerCase() + ' checks', function () {
+              setBusy(true); A.say(feedback, 'Running local checks...');
+              A.api(path, 'POST', { test_set: set.key }).then(function () { load(); }).catch(function (err) {
+                setBusy(false); A.say(feedback, A.errorText(err), 'bad');
+              });
+            }, true);
+            b.setAttribute('data-test-set', set.key);
+            runButtons.push(b); runs.appendChild(b);
+            list.appendChild(el('p', { class: 'aig-muted', text: set.label + ': ' + set.scope }));
+          });
           if (!data.runs.length) { list.appendChild(el('p', { text: 'No checks have been run.' })); return; }
           data.runs.forEach(function (run) {
             var detail = el('div', { class: 'aig-platform-card' }, [
@@ -196,7 +204,7 @@
             }
             list.appendChild(detail);
           });
-        }).catch(function (err) { runButton.disabled = false; A.say(feedback, A.errorText(err), 'bad'); });
+        }).catch(function (err) { setBusy(false); A.say(feedback, A.errorText(err), 'bad'); });
       }
       load();
     });
