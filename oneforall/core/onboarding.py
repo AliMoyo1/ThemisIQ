@@ -175,15 +175,24 @@ def tours_for(user) -> list:
     return [t for t in TOURS if t["area"] is None or t["area"] in areas]
 
 
-def checklist_for(user, mfa_enabled: bool, dpo_named: "bool | None" = None) -> list:
+def checklist_for(user, mfa_enabled: bool, dpo_named: "bool | None" = None,
+                  ai_policy_saved: "bool | None" = None, retention_set: "bool | None" = None) -> list:
     """Getting-started items. Tour items are ticked in the browser, where finished tours are remembered. `dpo_named` is
     None when this person does not manage the organization's people; otherwise whether an active person holds the DPO
-    role, without whom no group sharing terms can be privacy reviewed."""
+    role, without whom no group sharing terms can be privacy reviewed. `ai_policy_saved` and `retention_set` are None
+    for someone who cannot change those settings: no organization data reaches a model provider until an AI policy is
+    saved, and saved reports use the product's starting period until the organization chooses its own."""
     items = [{"id": "mfa", "label": "Turn on two-step sign-in", "done": mfa_enabled,
               "href": "/mfa/setup"}]
     if dpo_named is not None:
         items.append({"id": "dpo", "label": "Name your Data Protection Officer", "done": dpo_named,
                       "href": "/admin/users"})
+    if ai_policy_saved is not None:
+        items.append({"id": "ai-policy", "label": "Choose what your AI features may send", "done": ai_policy_saved,
+                      "href": "/admin/ai-policy"})
+    if retention_set is not None:
+        items.append({"id": "retention", "label": "Choose how long saved reports are kept", "done": retention_set,
+                      "href": "/reports"})
     items += [{"id": f"tour:{t['id']}", "label": f"Take the tour: {t['title']}", "tour": t["id"]}
               for t in tours_for(user)]
     return items
