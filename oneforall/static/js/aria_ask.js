@@ -367,4 +367,3 @@
   /* ── Initial send button state ───────────────────────────────────────── */
   sendBtn.disabled = true;
 }());
-

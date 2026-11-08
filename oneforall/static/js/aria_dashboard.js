@@ -111,4 +111,3 @@ if (onboard) {
   var _plan06_fn = _plan06_openers[etype];
   if(!_plan06_fn) return;
 })();
-

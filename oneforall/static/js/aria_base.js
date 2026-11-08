@@ -115,4 +115,3 @@ if (typeof Chart !== 'undefined') {
     finally { send.disabled = false; input.focus(); }
   }
 })();
-

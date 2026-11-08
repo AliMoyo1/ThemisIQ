@@ -185,7 +185,7 @@ function renderOrgs(){
         '<div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:2px">'+esc(o.slug)+'</div>'+
       '</td>'+
       '<td><span class="badge '+planClass+'" style="text-transform:capitalize">'+esc(o.plan)+'</span></td>'+
-      '<td title="'+esc(modList)+'">'+modCount+' of 6</td>'+ 
+      '<td title="'+esc(modList)+'">'+modCount+' of 6</td>'+
       '<td>'+
         '<div style="font-size:12px;font-weight:600">'+userCount+' / '+seats+'</div>'+
         '<div class="seats-bar"><div class="seats-bar-fill '+seatClass+'" style="width:'+seatPct+'%"></div></div>'+
