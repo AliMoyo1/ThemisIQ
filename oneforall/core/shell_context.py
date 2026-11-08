@@ -96,7 +96,9 @@ def shell_ctx(request, active_module: str = "platform",
         "can_ai_admin_nav": bool(user.get("is_super_admin")) and has_capability(user, "ai_use.view"),
         "ai_return_id": _ai_return_id(request) if has_capability(user, "ai_use.view") else "",
         "can_view_audit_log": has_capability(user, "platform.view_audit_log"),
-        "can_view_attention": has_capability(user, "assurance.attention.view"),
+        # The attention service requires a selected organization. A platform
+        # administrator without one must not be offered a card that 403s.
+        "can_view_attention": bool(user.get("org_id")) and has_capability(user, "assurance.attention.view"),
         "can_governance_view": has_capability(user, "governance.entities.view"),
         "can_org_admin": has_capability(user, "platform.manage_org_users")
             and not has_capability(user, "platform.manage_users"),

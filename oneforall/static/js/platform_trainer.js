@@ -157,6 +157,13 @@ function appendMsg(type, content, sourceType, go, actions, sources, draft) {
       if (Number.isSafeInteger(source.record_id) && source.record_id > 0) detail.push('record #' + source.record_id);
       if (Number.isSafeInteger(source.relationship_id) && source.relationship_id > 0) detail.push('link #' + source.relationship_id);
       if (Number.isSafeInteger(source.signal_id) && source.signal_id > 0) detail.push('signal #' + source.signal_id);
+      if (typeof source.section === 'string' && source.section) detail.push(source.section.slice(0, 80));
+      if (Number.isSafeInteger(source.start) && Number.isSafeInteger(source.end) && source.end > source.start) {
+        detail.push('text offsets ' + source.start + '–' + source.end);
+      }
+      if (typeof source.file_hash === 'string' && /^[a-f0-9]{64}$/i.test(source.file_hash)) {
+        detail.push('SHA-256 ' + source.file_hash.slice(0, 12));
+      }
       if (detail.length) {
         var meta = document.createElement('small');
         meta.textContent = detail.join(' · ');

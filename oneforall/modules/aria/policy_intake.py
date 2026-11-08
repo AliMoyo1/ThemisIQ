@@ -22,7 +22,6 @@ from core.sql_like import ci_like, like_pattern
 from core.timeutils import utcnow
 from database import insert_returning_id
 from modules.aria.policy_access import document_edit_ok, document_read_ok, reserve_document_number, resolve_create_bu
-from modules.aria.policy_storage import DocxValidationError, validate_docx
 from modules.aria.policy_parser import MAX_PAGES
 from modules.governance.data_service import bu_scope_ids
 
@@ -89,8 +88,23 @@ def list_imports(db, actor: dict, limit: int = 100) -> list[dict]:
             for r in rows]
 
 
+def _requires_remote_worker() -> bool:
+    from config import settings
+    return os.name == "posix" and not settings.DEBUG
+
+
 def _extract_isolated(path: Path, ext: str, filename: str) -> dict:
-    """Run expensive document parsing outside the web process and its secrets."""
+    """Run document parsing outside the web process and its secrets."""
+    if _requires_remote_worker():
+        # Production has no same-identity fallback. A missing worker is a
+        # service error, never a reason to parse untrusted bytes in the app.
+        from modules.aria.policy_extract_protocol import ExtractionRejected, ExtractionUnavailable, request
+        try:
+            return request(path, ext, filename, timeout=EXTRACT_TIMEOUT)
+        except ExtractionRejected as exc:
+            raise IntakeError(422, "The file could not be safely parsed. Use a supported document or request manual review.") from exc
+        except (ExtractionUnavailable, OSError) as exc:
+            raise IntakeError(503, "Document extraction is temporarily unavailable. Please try again later.") from exc
     worker = Path(__file__).with_name("policy_extract_worker.py")
     clean_env = {key: value for key, value in os.environ.items()
                  if key.upper() in {"PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "LANG", "LC_ALL"}}
@@ -149,7 +163,6 @@ def _candidates(db, spans: list[dict]) -> list[dict]:
 
 
 def stage_import(db, actor: dict, content: bytes, filename: str, business_unit_id=None, org_wide=False) -> dict:
-    from modules.aria.policy_storage import validate_docx
     if not has_capability(actor, "aria.policy.create"):
         raise IntakeError(403, "Policy author permission required.")
     if not actor.get("org_id"):
@@ -188,12 +201,10 @@ def stage_import(db, actor: dict, content: bytes, filename: str, business_unit_i
     with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as handle:
         handle.write(content)
     try:
-        if ext == ".docx":
-            validate_docx(path)
         extracted = _extract_isolated(path, ext, safe_name)
-    except (DocxValidationError, IntakeError) as exc:
+    except IntakeError:
         path.unlink(missing_ok=True)
-        raise IntakeError(422, str(exc)) from exc
+        raise
     except Exception as exc:
         path.unlink(missing_ok=True)
         raise IntakeError(422, "The file could not be safely parsed. Use a supported document or request manual review.") from exc
@@ -525,7 +536,7 @@ def verify_external(db, actor: dict, import_id: str, *, approver: str, approved_
     metadata = json.loads(row["reviewed_json"] or "{}")
     if version["base_version_id"] is not None:
         from modules.aria.routes import ARIA_UPLOAD_DIR
-        mapped = db.execute("SELECT DISTINCT f.name AS framework,c.ref FROM aria_policy_clause_links l "
+        mapped = db.execute("SELECT DISTINCT f.name AS framework,c.ref,c.id AS control_id FROM aria_policy_clause_links l "
                             "JOIN controls c ON c.id=l.control_id JOIN frameworks f ON f.id=c.framework_id "
                             "WHERE l.import_id=%s AND l.org_id=%s AND l.state='confirmed'",
                             (import_id, row["org_id"])).fetchall()
@@ -561,6 +572,28 @@ def verify_external(db, actor: dict, import_id: str, *, approver: str, approved_
     db.execute("UPDATE evidence_items SET status='current',"
                "description='Imported original; external approval verified',updated_at=%s "
                "WHERE id=%s AND org_id=%s", (now, row["evidence_id"], row["org_id"]))
+    if version["base_version_id"] is not None:
+        from modules.governance import change_signals
+
+        change_signals.publish(
+            db, source=("aria", "document", row["document_id"]), kind="policy_approved",
+            before={"version": doc["version"], "status": doc["status"]},
+            after={"version": metadata["version"], "status": "Approved"},
+            fields={"version": "Version", "status": "Status"},
+            actor_id=actor["id"], org_id=row["org_id"],
+            extra_targets=[("aria", "control", match["control_id"]) for match in mapped],
+        )
+        # A frozen review pack can cite this version without a connected-record
+        # edge. Alert its current issuer through the exact version in the pack,
+        # while keeping the external approval independent of alert delivery.
+        from core.best_effort import attempt
+        from modules.ai_governance.review_packs import alert_policy_replacement
+
+        with attempt(db, f"alerting AI review-pack issuers for policy {row['document_id']}"):
+            alert_policy_replacement(
+                db, org_id=row["org_id"], document_id=row["document_id"],
+                old_version_id=version["base_version_id"], new_version_id=row["policy_version_id"],
+            )
     db.commit()
     return {"document_id": row["document_id"], "external_status": "verified",
             "replacement_adopted": version["base_version_id"] is not None}

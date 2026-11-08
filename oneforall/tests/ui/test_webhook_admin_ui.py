@@ -72,7 +72,10 @@ def test_test_button_shows_sending_then_delivered_and_suppresses_double_clicks(
         wh_id = _seed_webhook(synthetic_tenant["org_id"], f"{base_url}/ok", "UI Harness Hook OK")
 
         page = login_as("super_admin")
-        page.goto(f"{live_app}/admin/webhooks")
+        response = page.goto(f"{live_app}/admin/webhooks")
+        assert "script-src-attr 'none'" in response.headers["content-security-policy"]
+        assert page.locator('script[src="/static/js/admin_webhooks.js"]').count() == 1
+        assert page.locator("[onclick], [onsubmit]").count() == 0
         page.wait_for_selector(f"#test-btn-{wh_id}", timeout=5000)
 
         # Fire two click events back to back at the DOM level (bypassing

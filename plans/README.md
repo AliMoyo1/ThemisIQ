@@ -1,6 +1,6 @@
 # Execution Plans — ranked by leverage
 
-**New proposal (2026-10-26):** [Authority intelligence and auditor registers](2026-10-authority-and-registers/README.md) covers shared source accuracy across Sentinel, Governance and ERM, plus framework document/evidence, AI systems and AI risk registers with reviewed imports and complete auditor exports. It is planned, not implemented.
+**Current status (2026-11-05):** [Build status and plan reconciliation](CURRENT-BUILD-STATUS-2026-11-05.md) distinguishes built code, open work, operational gates and superseded older proposals. Authority intelligence and auditor registers are built on master; the original proposal wording below is historical.
 
 > **Current entry point (2026-10-07):** [Plan portfolio and dependency map](ROADMAP-2026-10.md). The rounds below are a historical execution record. Their status text and original file lists can be stale; reconcile the checkout and each plan's latest progress record before treating any item as shipped. The portfolio links the newer [connected compliance proposal](PLAN-37-connected-compliance-experience.md), [Evidence Vault plan](../design/evidence-vault/PLAN.md), [VerifyWise-inspired plans](verifywise-features/README.md), and [CISO Assistant-inspired plans](ciso-assistant-features/README.md).
 

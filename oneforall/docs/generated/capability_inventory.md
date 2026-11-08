@@ -35,6 +35,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/assessments/{assessment_id}/control-suggestions` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/assessments/{assessment_id}/control-suggestions/{control_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessments/{assessment_id}/document` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - | gated: One AI impact assessment as PDF or Excel. Requires ai_assessment.view, scoped assessment access, and an audited download. Hidden linked records are omitted. |
 | GET | `/ai-governance/api/business-units` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/canonical-controls` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -77,6 +79,9 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/ai-governance/api/people` | capability | ai_use.intake_create | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/platform-features` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
 | PUT | `/ai-governance/api/platform-features/{feature_key}` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
+| GET | `/ai-governance/api/platform-features/{feature_key}/evaluations` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
+| POST | `/ai-governance/api/platform-features/{feature_key}/evaluations` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
+| POST | `/ai-governance/api/platform-features/{feature_key}/evaluations/{run_id}/review` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
 | POST | `/ai-governance/api/platform-features/{feature_key}/review` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
 | GET | `/ai-governance/api/portfolio` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/precedents` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -1042,6 +1047,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/` | authenticated | - | - | - |  |
 | GET | `/api/advisories/today` | authenticated | - | - | - |  |
 | POST | `/api/advisories/{aid}/ack` | authenticated | - | - | - |  |
+| GET | `/api/command-centre/attention` | authenticated | - | - | - |  |
 | GET | `/api/command-centre/first-screen` | authenticated | - | - | - |  |
 | GET | `/api/command-centre/layout` | authenticated | - | - | - |  |
 | PUT | `/api/command-centre/layout` | authenticated | - | - | - |  |
@@ -1392,6 +1398,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/sentinel/api/dpias/{dpia_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/dpias/{dpia_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | PUT | `/sentinel/api/dpias/{dpia_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
+| GET | `/sentinel/api/dpias/{dpia_id}/control-suggestions` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
+| POST | `/sentinel/api/dpias/{dpia_id}/control-suggestions/{control_id}` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/dpias/{dpia_id}/document` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - | gated: One DPIA as PDF or Excel. Requires sentinel.dpia.manage, scoped record access, and an audited download. Related records and Vault files follow the reader&#x27;s access. |
 | POST | `/sentinel/api/dpias/{dpia_id}/link-ropa` | capability | sentinel.dpia.manage | sentinel.dpia.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/dsrs` | capability | sentinel.dsr.manage | sentinel.dsr.manage: dpo, privacy_analyst, super_admin | - |  |

@@ -1603,7 +1603,7 @@ def plan_activation_triggers_control_review(event_type, source_module, entity_ty
     """
     db = get_db()
     try:
-        name      = payload.get("name", f"Plan #{entity_id}")
+        name      = payload.get("title") or payload.get("name") or f"Plan #{entity_id}"
         plan_type = payload.get("plan_type", "continuity")
 
         _insert_task(
@@ -2038,40 +2038,13 @@ def finding_triggers_sentinel_check(event_type, source_module, entity_type,
 @on("sentinel.dpia.completed")
 def dpia_links_to_aria_controls(event_type, source_module, entity_type,
                                  entity_id, payload, user_id, **kw):
-    """
-    XM-4: Completed DPIA → find ARIA controls matching the DPIA's data
-    categories and create 'mitigates' cross-module links so the DPIA is
-    grounded in the control framework.
-    """
-    categories = payload.get("data_categories", "")
-    if not categories:
-        return
+    """The completion event is intentionally read-only.
 
-    db = get_db()
-    try:
-        keywords = [c.strip().lower() for c in str(categories).split(",") if c.strip()]
-        linked = 0
-        for kw in keywords[:5]:   # cap to avoid runaway queries
-            rows = db.execute(
-                "SELECT id FROM aria_controls "
-                "WHERE LOWER(name) LIKE %s OR LOWER(description) LIKE %s "
-                "LIMIT 3",
-                (f"%{kw}%", f"%{kw}%"),
-            ).fetchall()
-            for (ctrl_id,) in rows:
-                create_cross_module_link(
-                    "sentinel", "dpia",    entity_id,
-                    "aria",     "control", ctrl_id,
-                    relationship="mitigates", user_id=user_id, db=db,
-        )
-                linked += 1
-        db.commit()
-        if linked:
-            log.info("XM-4: DPIA %d linked to %d ARIA control(s)", entity_id, linked)
-    except Exception as e:
-        log.warning("dpia_links_to_aria_controls error: %s", e)
-    finally:
-        db.close()
+    The previous keyword rule silently recorded a confirmed mitigation against a
+    legacy control-table id. Suggestions are now derived on demand in the DPIA
+    review step, where a permitted specialist can accept or dismiss them.
+    """
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -210,6 +210,23 @@ def test_a_viewer_with_no_right_to_operations_risk_sees_none_and_a_hidden_use_gi
     assert controls.use_controls(controls_world.db, user(controls_world, "owner_b"), controls_world.app) is None
 
 
+def test_a_foreign_unit_canonical_mapping_is_neither_named_nor_editable(controls_world):
+    w = controls_world
+    hidden = _insert(w.db, "canonical_controls", ref="CC-HIDDEN", title="Human oversight private unit",
+                     business_unit_id=w.unit["B"], is_active=1)
+    _insert(w.db, "ai_control_mappings", ai_control_id=w.catalogue["mapped"],
+            canonical_control_id=hidden, created_by=1)
+    w.db.commit()
+    owner = user(w, "owner_a")
+    mapped = next(item for item in controls.use_controls(w.db, owner, w.app)
+                  if item["control"]["ref"] == "AC-mapped")
+    assert [control["ref"] for control in mapped["mapped_to"]] == ["CC-oversight"]
+    assert all(row["ref"] != "CC-HIDDEN" for row in controls.search_canonical(w.db, owner, "oversight"))
+    assert all(row["id"] != hidden for row in controls.suggest_mappings(w.db, owner, w.catalogue["bare"]))
+    fail(lambda: controls.map_control(w.db, owner, w.catalogue["bare"], hidden), 404)
+    fail(lambda: controls.unmap_control(w.db, owner, w.catalogue["mapped"], hidden), 404)
+
+
 def test_a_mapping_is_made_by_a_reviewer_who_may_see_the_control_and_never_by_itself(controls_world):
     w = controls_world
     made = controls.map_control(w.db, user(w, "owner_a"), w.catalogue["bare"], w.canonical["oversight"], "Same intent.")

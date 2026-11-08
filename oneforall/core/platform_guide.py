@@ -69,7 +69,7 @@ ENTRIES = [
        "Open Workflows from the Command Centre menu. Press New Workflow to build one, or install a ready-made one "
        "with Install Workflow. Steps can carry service levels and escalate when they are missed.",
        keywords="workflow workflows approval chain process sla escalate automation",
-       nav="Workflows", labels=["New Workflow", "Install Workflow"], sources=[_PLATFORM, _T + "workflows.html"],
+       nav="Workflows", labels=["New Workflow", "Install Workflow"], sources=[_PLATFORM, _T + "workflows.html", "static/js/workflows.js"],
        show="New Workflow"),
     _e("platform.evidence-upload", None, "/evidence/", "Upload evidence",
        "Open Evidence Repository from the Command Centre menu and press Upload Evidence. Give it an owner and an "
@@ -88,7 +88,7 @@ ENTRIES = [
        "Register in Privacy or Register in Resilience, so every team works from the same record.",
        keywords="vendor vendors supplier third party add directory",
        nav="Vendor Directory", labels=["Add Vendor", "Register in Audit", "Register in Privacy", "Register in Resilience"],
-       sources=[_PLATFORM, _T + "vendor_directory.html"], show="Add Vendor"),
+       sources=[_PLATFORM, _T + "vendor_directory.html", "static/js/vendor_directory.js"], show="Add Vendor"),
     _e("platform.risk-register", None, "/risk-register", "See every risk in one register",
        "Open Risk Register from the Command Centre menu. It brings together risks raised in any module. Press "
        "New Risk to add one.",
@@ -154,7 +154,8 @@ ENTRIES = [
     _e("admin.webhooks", None, "/admin/webhooks", "Send events to another system",
        "Open Webhooks under administration and press New Webhook, then use Test to check the receiving system.",
        keywords="webhook webhooks integration notify external system callback slack teams",
-       nav="Webhooks", labels=["New Webhook", "Test"], sources=[_PLATFORM, _T + "admin_webhooks.html"],
+       nav="Webhooks", labels=["New Webhook", "Test"],
+       sources=[_PLATFORM, _T + "admin_webhooks.html", "static/js/admin_webhooks.js"],
        caps=["platform.manage_users"], show="New Webhook"),
     _e("admin.email", None, "/admin/email", "Set up email sending",
        "Open email settings in the administration menu, enter the sender details, press Save Configuration, then "
@@ -186,7 +187,7 @@ ENTRIES = [
        "each proposed match and press Accept or Reject. A different reviewer approves each match.",
        keywords="map mapping control controls equivalent across standards integrated management system ims crosswalk",
        nav="Control Mapping", labels=["Auto-Map Selected Frameworks", "Accept", "Reject"],
-       sources=["modules/aria/templates/aria_sidebar.html", "modules/aria/templates/mapping.html"],
+       sources=["modules/aria/templates/aria_sidebar.html", "modules/aria/templates/mapping.html", "static/js/aria_mapping.js"],
        show="Auto-Map Selected Frameworks"),
     _e("aria.generate-policy", "aria", "/aria/ai-generator", "Draft a policy with ARIA",
        "In Governance, open AI Policy Generator, pick the control and the document type, and press Generate Policy "
@@ -209,7 +210,7 @@ ENTRIES = [
        keywords="revise revision update policy version compare change edit review",
        nav="Policies & Documents", labels=["Start a revision", "Compare"],
        sources=["modules/aria/templates/aria_sidebar.html", "modules/aria/templates/documents.html",
-                "modules/aria/templates/policy_workbench.html"]),
+                "modules/aria/templates/policy_workbench.html", "static/js/aria_policy_workbench.js"]),
     _e("aria.templates", "aria", "/aria/templates", "Use your own document template",
        "In Governance, open Document Templates and press Upload Template. Generated policies can then be previewed "
        "in your own branded template.",
@@ -247,7 +248,7 @@ ENTRIES = [
        "In Audit, open the audit and press Import Checklist to bring in a checklist you already have instead of "
        "retyping it.",
        keywords="import checklist excel spreadsheet existing upload questions",
-       nav="Audits", labels=["Import Checklist"], sources=["modules/grid/templates/index.html"]),
+       nav="Audits", labels=["Import Checklist"], sources=["modules/grid/templates/index.html", "static/js/grid_index.js"]),
     _e("grid.finding", "grid", "/grid/findings", "Record a finding",
        "In Audit, open Findings and press New Finding. Attach the evidence, then plan the corrective action and "
        "track it to closure.",
@@ -257,16 +258,16 @@ ENTRIES = [
        "In Audit, open Evidence and press Link Evidence to attach proof from the Evidence Repository, or Browse "
        "Vault to choose a file already stored.",
        keywords="evidence attach link audit proof control vault",
-       nav="Evidence", labels=["Link Evidence", "Browse Vault"], sources=["modules/grid/templates/index.html"]),
+       nav="Evidence", labels=["Link Evidence", "Browse Vault"], sources=["modules/grid/templates/index.html", "static/js/grid_index.js"]),
     _e("grid.request-policy", "grid", "/grid/audits", "Ask for a missing policy during an audit",
        "In Audit, on the control that needs it, press Request Policy from ARIA. The policy owner is asked without "
        "you leaving the audit.",
        keywords="request policy missing owner audit aria ask",
-       nav="Audits", labels=["Request Policy from ARIA"], sources=["modules/grid/templates/index.html"]),
+       nav="Audits", labels=["Request Policy from ARIA"], sources=["modules/grid/templates/index.html", "static/js/grid_index.js"]),
     _e("grid.reports", "grid", "/grid/reports", "Produce an audit report",
        "In Audit, open Reports and choose PDF Report or Word Report.",
        keywords="audit report pdf word download export",
-       nav="Reports", labels=["PDF Report", "Word Report"], sources=["modules/grid/templates/index.html"]),
+       nav="Reports", labels=["PDF Report", "Word Report"], sources=["modules/grid/templates/index.html", "static/js/grid_index.js"]),
     _e("grid.vendors", "grid", "/grid/vendors", "Assess a vendor in an audit",
        "In Audit, open Vendors and press Add Vendor, then Assess to record the vendor assessment.",
        keywords="vendor supplier assessment audit third party assess",
@@ -294,19 +295,19 @@ ENTRIES = [
        "disruption is over.",
        keywords="activate invoke plan stand down disruption crisis",
        nav="Continuity Plans", labels=["Activate Plan", "Stand Down Plan"],
-       sources=["modules/bcm/templates/index.html"]),
+       sources=["modules/bcm/templates/index.html", "static/js/bcm_index.js"]),
     _e("bcm.incident", "bcm", "/bcm/incidents", "Report and run an incident",
        "In Resilience, open Incidents and press Report Incident. Log decisions with Log Decision as you go. Alerts "
        "that are not acknowledged in time move on to the next person, by severity.",
        keywords="incident report outage disruption crisis log decision escalate",
-       nav="Incidents", labels=["Report Incident", "Log Decision"], sources=["modules/bcm/templates/index.html"],
+       nav="Incidents", labels=["Report Incident", "Log Decision"], sources=["modules/bcm/templates/index.html", "static/js/bcm_index.js"],
        show="Report Incident"),
     _e("bcm.exercise", "bcm", "/bcm/exercises", "Plan an exercise",
        "In Resilience, open Exercises & Testing and press New Exercise, or pick one from the Scenario Library with "
        "Use This Scenario.",
        keywords="exercise test drill tabletop simulation scenario rehearse",
        nav="Exercises & Testing", labels=["New Exercise", "Use This Scenario"],
-       sources=["modules/bcm/templates/index.html"], show="New Exercise"),
+       sources=["modules/bcm/templates/index.html", "static/js/bcm_index.js"], show="New Exercise"),
 
     # ── Privacy (Sentinel) ──────────────────────────────────────────────────
     _e("sentinel.breach", "sentinel", "/sentinel/breaches", "Report a data breach",
@@ -345,7 +346,7 @@ ENTRIES = [
        "In Privacy, open Privacy Notices and press Add Notice, or Generate Notice for a first draft to review.",
        keywords="privacy notice statement policy website draft generate",
        nav="Privacy Notices", labels=["Add Notice", "Generate Notice"],
-       sources=["modules/sentinel/templates/index.html"]),
+       sources=["modules/sentinel/templates/index.html", "static/js/sentinel_index.js"]),
     _e("sentinel.vendors", "sentinel", "/sentinel/vendors", "Track a processor's data protection agreement",
        "In Privacy, open Vendor Management and press Add Vendor to record the processor and its agreement status.",
        keywords="processor vendor dpa data processing agreement supplier privacy",
@@ -387,7 +388,7 @@ ENTRIES = [
        "set what changes and read the effect against today. On the Brief step press Generate board pack to freeze the numbers.",
        keywords="scenario what if stress test simulate board pack baseline template",
        nav="Scenario Studio", labels=["New Scenario", "Generate board pack"],
-       sources=["modules/erm/templates/_erm_sidebar.html", "modules/erm/templates/scenario_studio.html"],
+       sources=["modules/erm/templates/_erm_sidebar.html", "modules/erm/templates/scenario_studio.html", "static/js/erm_scenario_studio.js"],
        caps=["erm.scenario.view"], show="New Scenario"),
     _e("erm.board-report", "erm", "/erm/", "Prepare a board report on risk",
        "In Enterprise Risk, on the dashboard, press Board Report PDF for the report, or Generate AI Narrative for a "

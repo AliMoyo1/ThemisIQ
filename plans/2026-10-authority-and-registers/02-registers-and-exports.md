@@ -1,6 +1,6 @@
 # 02. Auditor registers and in-app maintenance
 
-**Status:** Proposed. The three supplied XLSX files are user examples and possible import inputs, not a template to copy verbatim or proof that their content is current. Do not populate production records from them without an organization's scoped import review.
+**Historical design status:** Proposed on 2026-10-26. The three register implementations are on master; see [implementation record](04-implementation-and-release.md) and [current status](../CURRENT-BUILD-STATUS-2026-11-05.md). Supplied XLSX files remain examples, not reviewed production content.
 
 ## 1. Product placement and common journey
 
@@ -8,7 +8,7 @@ The primary button is **Governance → Framework → Auditor register** because 
 
 The builder shows framework, organization, business-unit scope, optional audit and as-of date; then a live preview of total requirements, documents, evidence, accepted proof, gaps and unavailable sources. Each number opens the equivalent authorized row list. A specialist can fix links and metadata in their owning module, then regenerate. Exports are not edited as substitutes for their source records. A review copy is visibly dated and can be signed off independently; its stored snapshot does not silently change later.
 
-An existing document-control workbook may be imported through the same staged mapping pattern as the AI registers: map code, title, type, version, owner, dates, approval and candidate control references to ARIA/Vault records. Match an exact organization-scoped document code plus reviewed version; let the policy-intake service preserve the original and propose control links. An import may not replace an approved policy, promote a superseded document, or turn a text control reference into an accepted relationship on its own. The example filename/banner/revision-history version conflict must be shown before confirmation.
+An existing document-control workbook may be imported through the same staged mapping pattern as the AI registers: map code, title, type, version, owner, dates, approval and candidate control references to ARIA/Vault records. Match an exact organization-scoped document code plus reviewed version. The 2026-11-05 working-tree correction files the confirmed original XLSX as scoped, unverified Vault reference material and links the review claims to it; policy intake separately preserves each actual policy original and proposes control links. An import may not replace an approved policy, promote a superseded document, or turn a text control reference into an accepted relationship on its own. The example filename/banner/revision-history version conflict must be shown before confirmation.
 
 ## 2. Framework document and evidence register
 

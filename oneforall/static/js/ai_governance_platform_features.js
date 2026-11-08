@@ -65,7 +65,8 @@
     ]);
     var actions = el('div', { class: 'aig-platform-actions' }, [
       button('Open oversight notes', function () { edit(item); }),
-      item.review_state !== 'reviewed' ? button('Mark reviewed', function () { confirmReview(item); }) : null
+      item.review_state !== 'reviewed' ? button('Mark reviewed', function () { confirmReview(item); }) : null,
+      item.key === 'aria.ask' ? button('Citation check history', function () { evaluations(item); }) : null
     ]);
     box.appendChild(head); box.appendChild(meta); box.appendChild(actions);
     return box;
@@ -158,6 +159,46 @@
       }, true);
       box.appendChild(feedback);
       box.appendChild(el('div', { class: 'aig-actions' }, [confirm, button('Cancel', close)]));
+    });
+  }
+  function evaluations(item) {
+    A.dialog('Ask ARIA citation checks', function (box) {
+      var note = el('p', { class: 'aig-muted', text: 'These local synthetic cases test exact citation identity. They make no provider call and do not assess model prose or a customer AI use.' });
+      var feedback = el('p', { class: 'aig-say', role: 'status' });
+      var list = el('div');
+      var path = API + '/' + encodeURIComponent(item.key) + '/evaluations';
+      var runButton = button('Run synthetic checks', function () {
+        runButton.disabled = true; A.say(feedback, 'Running local checks...');
+        A.api(path, 'POST', {}).then(function () { load(); }).catch(function (err) {
+          runButton.disabled = false; A.say(feedback, A.errorText(err), 'bad');
+        });
+      }, true);
+      box.appendChild(note); box.appendChild(runButton); box.appendChild(feedback); box.appendChild(list);
+      function load() {
+        A.api(path).then(function (data) {
+          A.clear(list); A.say(feedback, ''); runButton.disabled = false;
+          if (!data.runs.length) { list.appendChild(el('p', { text: 'No checks have been run.' })); return; }
+          data.runs.forEach(function (run) {
+            var detail = el('div', { class: 'aig-platform-card' }, [
+              el('strong', { text: run.status + ' · ' + run.checks_total + ' cases · ' + run.checks_failed + ' failed' }),
+              el('p', { text: run.test_set + ' v' + run.test_set_version + ' · code ' + run.source_hash.slice(0, 12) + ' · ' + date(run.ran_at) }),
+              el('p', { text: 'Independent review: ' + (run.review_outcome || 'pending') + (run.stale ? ' · old code or fixture set' : '') })
+            ]);
+            run.cases.forEach(function (entry) {
+              detail.appendChild(el('p', { text: (entry.passed ? 'Passed: ' : 'Failed: ') + entry.case }));
+            });
+            if (!run.review_outcome && !run.stale && run.run_by !== data.viewer_id) {
+              var outcome = run.status === 'passed' ? 'accepted' : 'finding';
+              detail.appendChild(button('Review as ' + outcome, function () {
+                A.api(path + '/' + run.id + '/review', 'POST', { outcome: outcome, version: run.version })
+                  .then(load).catch(function (err) { A.say(feedback, A.errorText(err), 'bad'); });
+              }));
+            }
+            list.appendChild(detail);
+          });
+        }).catch(function (err) { runButton.disabled = false; A.say(feedback, A.errorText(err), 'bad'); });
+      }
+      load();
     });
   }
   function refresh() {

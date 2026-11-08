@@ -2056,6 +2056,9 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
             return JSONResponse({"error": "Not found"}, 404)
         if item["category"] == "generated_record":
             return JSONResponse({"error": "Generated records follow their own retention history."}, status_code=409)
+        if db.execute("SELECT 1 FROM aria_document_register_batches WHERE source_evidence_id=%s LIMIT 1",
+                      (eid,)).fetchone():
+            return JSONResponse({"error": "This source workbook supports document register claims; review their retention before permanent deletion."}, status_code=409)
         if item["status"] != "archived":
             return JSONResponse({"error": "Only archived items can be permanently deleted"}, 400)
         touched_controls = _canonical_controls_linked_to(db, [eid])

@@ -146,19 +146,19 @@ def test_auto_resolve_grid_request_rolls_back_and_raises_when_notification_fails
     )
     test_db.commit()
 
-    monkeypatch.setattr(event_handlers, "get_db", lambda: test_db)
-    monkeypatch.setattr(test_db, "close", lambda: None)
-    monkeypatch.setattr(event_handlers, "_notify", lambda *args, **kwargs: False)
-
-    with pytest.raises(RuntimeError, match="notification"):
-        event_handlers.auto_resolve_grid_policy_requests(
-            event_type="aria.policy.published",
-            source_module="aria",
-            entity_type="document",
-            entity_id=99,
-            payload={"framework": "ISO 27001", "control_ref": "A.1", "title": "Policy"},
-            user_id=1,
-        )
+    with monkeypatch.context() as handler_patch:
+        handler_patch.setattr(event_handlers, "get_db", lambda: test_db)
+        handler_patch.setattr(test_db, "close", lambda: None)
+        handler_patch.setattr(event_handlers, "_notify", lambda *args, **kwargs: False)
+        with pytest.raises(RuntimeError, match="notification"):
+            event_handlers.auto_resolve_grid_policy_requests(
+                event_type="aria.policy.published",
+                source_module="aria",
+                entity_type="document",
+                entity_id=99,
+                payload={"framework": "ISO 27001", "control_ref": "A.1", "title": "Policy"},
+                user_id=1,
+            )
 
     request = test_db.execute(
         "SELECT status, aria_document_id, resolved_at FROM grid_policy_requests WHERE id=%s",

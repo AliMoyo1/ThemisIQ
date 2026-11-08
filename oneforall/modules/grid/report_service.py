@@ -27,6 +27,7 @@ from core.report_kit.render_pdf import render_pdf
 from core.timeutils import utcnow
 from database import get_current_tenant, get_db
 from modules.evidence.scope import current_library_sql, evidence_scope_sql
+from modules.governance.entity_scope import entity_scope_sql
 
 REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "data/reports"))
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,7 +100,19 @@ def gather(audit_id: int, viewer=None) -> dict | None:
             "SELECT s.role, s.signed_at, s.comment, u.full_name AS user_name FROM grid_audit_signoffs s "
             "LEFT JOIN users u ON s.user_id=u.id WHERE s.audit_id=%s ORDER BY s.signed_at", (audit_id,)).fetchall()]
         vault_files = []
+        reused = []
         if viewer is not None:
+            source_scope, source_params = entity_scope_sql(("grid", "audit"), viewer, "s")
+            reused = [dict(r) for r in db.execute(
+                "SELECT t.control_id AS target_ref, s.name AS source_audit, "
+                "sc.control_id AS source_ref, r.relation, d.applied_at "
+                "FROM grid_reuse_rows r JOIN grid_reuse_decisions d ON d.id=r.decision_id "
+                "JOIN grid_audits s ON s.id=d.source_audit_id "
+                "JOIN grid_controls t ON t.id=r.target_control_id AND t.audit_id=d.target_audit_id "
+                "JOIN grid_controls sc ON sc.id=r.source_control_id AND sc.audit_id=s.id "
+                f"WHERE d.target_audit_id=%s AND d.undone_at IS NULL AND {source_scope} "
+                "ORDER BY d.id, r.id", [audit_id, *source_params],
+            ).fetchall()]
             scope, params = evidence_scope_sql(viewer)
             rows = db.execute(
                 "SELECT DISTINCT e.id, e.title, e.version, el.entity_type AS source_type "
@@ -124,7 +137,8 @@ def gather(audit_id: int, viewer=None) -> dict | None:
         db.close()
     evidence = ds.get_evidence_completeness(audit_id)   # the figures the Evidence tab shows, counted the same way
     return {"audit": audit, "controls": controls, "ncs": ncs, "responses": responses, "signoffs": signoffs,
-            "evidence": evidence, "vault_files": vault_files, "today": utcnow().strftime("%Y-%m-%d")}
+            "evidence": evidence, "vault_files": vault_files, "reused": reused,
+            "today": utcnow().strftime("%Y-%m-%d")}
 
 
 def _nc_open(nc) -> bool:
@@ -337,6 +351,16 @@ def build_report(data: dict, *, actor, tier: str = theme.OPERATIONAL, narrative=
                                            Col("Comment", "comment", weight=4)],
                              [{"role": _clean(s.get("role")).title(), "name": _clean(s.get("user_name")), "date": s.get("signed_at"),
                                "comment": _clean(s.get("comment"))} for s in data["signoffs"]], sheet_name="Sign-offs"))
+        report.add(Heading("Reused work"), Table(
+            "Suggestions carried from earlier audits",
+            [Col("Target control", "target", weight=1.2), Col("Source audit", "source", weight=3),
+             Col("Source control", "source_ref", weight=1.2), Col("Match", "relation", weight=1),
+             Col("Applied", "applied", weight=1.5, kind="date")],
+            [{"target": _clean(r.get("target_ref")), "source": _clean(r.get("source_audit")),
+              "source_ref": _clean(r.get("source_ref")), "relation": _clean(r.get("relation")).title(),
+              "applied": r.get("applied_at")} for r in data.get("reused", [])],
+            note="These were suggestions from an earlier audit. Each target control still needs its own review.",
+            empty_text="No visible suggestions from earlier audits.", sheet_name="Reused work"))
         report.add(Heading("Connected documents"), Table(
             "Files in the Evidence Vault", [Col("File", "title", weight=4, link="vault_url"),
                                             Col("Version", "version", weight=1, kind="int"),

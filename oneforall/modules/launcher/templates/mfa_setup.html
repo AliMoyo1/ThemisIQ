@@ -77,10 +77,10 @@
     <div class="mfa-card" style="border-color:rgba(220,38,38,.2)">
       <h2 style="color:#dc2626">Disable 2FA</h2>
       <p>Re-enter your current password to turn 2FA off. Your backup codes will be revoked.</p>
-      <form method="post" action="/mfa/disable" class="disable-form" autocomplete="off">
+      <form method="post" action="/mfa/disable" class="disable-form" autocomplete="off" data-mfa-disable>
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="password" name="password" placeholder="Current password" autocomplete="current-password">
-        <button type="submit" onclick="return confirm('Turn off two-factor authentication?')">Disable</button>
+        <button type="submit">Disable</button>
       </form>
     </div>
   {% endif %}
@@ -112,7 +112,7 @@
         <div class="backup-grid">
           {% for c in backup_codes %}<div>{{ c }}</div>{% endfor %}
         </div>
-        <button class="print-btn no-print" onclick="window.print()">Print these codes</button>
+        <button class="print-btn no-print" type="button" data-mfa-print>Print these codes</button>
       </div>
     {% elif backup_codes_saved %}
       <div class="mfa-card">
@@ -135,4 +135,7 @@
   {% endif %}
 
 </div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/js/mfa_setup.js" defer></script>
 {% endblock %}

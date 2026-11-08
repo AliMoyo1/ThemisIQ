@@ -33,6 +33,7 @@ from core.rbac import (
 )
 
 from core.shell_context import shell_ctx
+from core.framework_service import safe_framework_color
 from core.sanitize import sanitize_str as _s
 from core.events import (
     emit, ARIA_POLICY_PUBLISHED, ARIA_POLICY_UPDATED,
@@ -293,7 +294,7 @@ async def aria_dashboard(request: Request):
             impl = stats["implemented"] or 0
             pct = round((impl / total * 100) if total > 0 else 0, 1)
             fw_stats.append({
-                "id": fw["id"], "name": fw["name"], "color": fw["color"],
+                "id": fw["id"], "name": fw["name"], "color": safe_framework_color(fw["color"]),
                 "description": fw["description"],
                 "total": total, "implemented": impl,
                 "in_progress": stats["in_progress"] or 0,
@@ -428,7 +429,7 @@ async def frameworks_list(request: Request):
             ev_total = ev_counts.get(fw["id"], 0)
             mapped = mapped_counts.get(fw["id"], 0)
             fw_list.append({
-                "id": fw["id"], "name": fw["name"], "color": fw["color"],
+                "id": fw["id"], "name": fw["name"], "color": safe_framework_color(fw["color"]),
                 "description": fw["description"], "total": total,
                 "implemented": impl, "in_progress": stats["in_progress"] or 0,
                 "not_started": stats["not_started"] or 0, "pct": pct,
@@ -535,7 +536,7 @@ async def framework_detail(request: Request, fw_id: int,
         db.close()
 
     return _aria_render(request, "framework.html", {
-        "user": user, "module": "aria", "fw": fw,
+        "user": user, "module": "aria", "fw": {**dict(fw), "color": safe_framework_color(fw["color"])},
         "controls": controls, "stats": stats, "categories": cats,
         "filters": {
             "status": status, "priority": priority,
@@ -687,7 +688,7 @@ async def api_frameworks_list(request: Request):
         ).fetchall()
     finally:
         db.close()
-    return JSONResponse({"items": [dict(r) for r in rows]})
+    return JSONResponse({"items": [{**dict(r), "color": safe_framework_color(r["color"])} for r in rows]})
 
 
 @router.get("/api/stats")
@@ -711,7 +712,7 @@ async def api_stats(request: Request):
                 FROM controls WHERE framework_id=%s
             """, (fw["id"],)).fetchone()
             data.append({
-                "name": fw["name"], "color": fw["color"],
+                "name": fw["name"], "color": safe_framework_color(fw["color"]),
                 "implemented": stats["implemented"] or 0,
                 "in_progress": stats["in_progress"] or 0,
                 "not_started": stats["not_started"] or 0,
@@ -2179,7 +2180,7 @@ async def mapping_page(request: Request):
     return _aria_render(request, "mapping.html", {
         "user": user, "module": "aria",
         "can_review_mapping": has_capability(user, "aria.control.update_any"),
-        "frameworks": [dict(r) for r in active_frameworks],
+        "frameworks": [{**dict(r), "color": safe_framework_color(r["color"])} for r in active_frameworks],
         # Legacy static mapping kept for display-only fallback
         "static_mapping": CROSS_MAPPING,
         "framework_names": FRAMEWORK_NAMES,
@@ -2441,7 +2442,7 @@ async def api_ims_status(request: Request):
                 f"WHERE c.framework_id IN ({placeholders}) ORDER BY f.name, c.ref",
                 fw_ids,
             ).fetchall()
-            controls = [dict(r) for r in rows]
+            controls = [{**dict(r), "fw_color": safe_framework_color(r["fw_color"])} for r in rows]
 
             from core.auto_mapper import get_ims_status_bulk
             statuses = get_ims_status_bulk(controls, fw_ids, db)

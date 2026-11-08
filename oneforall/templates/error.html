@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <script src="/static/js/premium_theme_init.js"></script>
+<script src="/static/js/error_page.js?v=1" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ status_code }} - ThemisIQ</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css?v=2">
@@ -35,7 +36,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0f172a;c
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 12l9-9 9 9"/><path d="M9 21V9h6v12"/></svg>
       Go Home
     </a>
-    <a href="javascript:history.back()" class="btn btn-secondary">
+    <a href="/" data-history-back class="btn btn-secondary">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       Go Back
     </a>

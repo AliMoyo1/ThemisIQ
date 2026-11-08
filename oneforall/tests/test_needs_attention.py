@@ -1,11 +1,13 @@
 """Needs attention (plan 24, CISO 01): fixed checks over what the viewer may open, reviews that reopen on new facts."""
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
 
 from modules.erm import acceptance
 from modules.governance import attention
+from modules.launcher.routes_dashboard import _attention_summary
+from core.timeutils import utcnow
 
 
 def _id(db, table, **fields):
@@ -25,7 +27,7 @@ def _person(db, org, name, role, unit):
 
 
 def _day(offset):
-    return (date.today() + timedelta(days=offset)).isoformat()
+    return (utcnow().date() + timedelta(days=offset)).isoformat()
 
 
 @pytest.fixture
@@ -118,6 +120,25 @@ def test_a_record_the_viewer_cannot_open_is_never_counted_or_named(world):
     with pytest.raises(HTTPException) as refused:
         attention.needs_attention(db, people["employee"])
     assert refused.value.status_code == 403
+
+
+def test_command_centre_count_is_scoped_and_marks_incomplete_reads(world, monkeypatch):
+    db, people, _ = world
+    summary = _attention_summary(db, people["cm"])
+    assert summary["state"] == "measured"
+    assert summary["open"] == 12
+    assert summary["path"] == "/governance/attention/"
+    other = _attention_summary(db, people["far_lead"])
+    assert other["open"] != summary["open"]
+
+    original = attention.evaluate
+
+    def partial(db, user):
+        issues, sources = original(db, user)
+        return issues, [*sources, {"source": "temporarily_unavailable", "state": "unavailable"}]
+
+    monkeypatch.setattr(attention, "evaluate", partial)
+    assert _attention_summary(db, people["cm"])["state"] == "partial"
 
 
 def test_a_reviewed_issue_stays_listed_and_opens_again_when_its_facts_change_or_the_review_expires(world):

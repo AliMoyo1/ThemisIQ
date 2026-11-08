@@ -84,7 +84,7 @@
   </div>
   <div style="min-width:140px">
     <label>Status</label>
-    <select id="statusFilter" onchange="applyFilters()">
+    <select id="statusFilter">
       <option value="">All Statuses</option>
       {% for s in ['Not Started','In Progress','Draft','Under Review','Approved','Implemented','Needs Update'] %}
       <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
@@ -93,7 +93,7 @@
   </div>
   <div style="min-width:130px">
     <label>Priority</label>
-    <select id="priorityFilter" onchange="applyFilters()">
+    <select id="priorityFilter">
       <option value="">All Priorities</option>
       {% for p in ['Critical','High','Medium','Low'] %}
       <option value="{{ p }}" {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>
@@ -102,7 +102,7 @@
   </div>
   <div style="min-width:140px">
     <label>Category</label>
-    <select id="categoryFilter" onchange="applyFilters()">
+    <select id="categoryFilter">
       <option value="">All Categories</option>
       {% for cat in categories %}
       <option value="{{ cat[0] }}" {% if filters.category == cat[0] %}selected{% endif %}>{{ cat[0] }}</option>
@@ -110,7 +110,7 @@
     </select>
   </div>
   <div style="align-self:flex-end">
-    <button onclick="applyFilters()" class="btn btn-primary" style="padding:8px 16px">Filter</button>
+    <button type="button" id="applyControlFilters" class="btn btn-primary" style="padding:8px 16px">Filter</button>
   </div>
 </div>
 
@@ -143,22 +143,22 @@
           <td><span class="row-chip">{{ ctrl.category }}</span></td>
           <td><span class="row-chip">{{ ctrl.doc_type }}</span></td>
           <td>
-            <select class="inline-select" data-id="{{ ctrl.id }}" onchange="updateStatus(this)">
+            <select class="inline-select js-control-status" data-id="{{ ctrl.id | int }}">
               {% for s in ['Not Started','In Progress','Draft','Under Review','Approved','Implemented','Needs Update'] %}
               <option value="{{ s }}" {% if ctrl.status == s %}selected{% endif %}>{{ s }}</option>
               {% endfor %}
             </select>
           </td>
           <td>
-            <select class="inline-select" data-id="{{ ctrl.id }}" onchange="updatePriority(this)">
+            <select class="inline-select js-control-priority" data-id="{{ ctrl.id | int }}">
               {% for p in ['Critical','High','Medium','Low'] %}
               <option value="{{ p }}" {% if ctrl.priority == p %}selected{% endif %}>{{ p }}</option>
               {% endfor %}
             </select>
           </td>
           <td>
-            <input type="text" class="inline-input" value="{{ ctrl.owner or '' }}" placeholder="Assign..."
-              onblur="updateOwner(this, {{ ctrl.id }})">
+            <input type="text" class="inline-input js-control-owner" value="{{ ctrl.owner or '' }}" placeholder="Assign..."
+              data-control-id="{{ ctrl.id | int }}">
           </td>
           <td style="text-align:center">
             {% if ctrl.evidence_count %}
@@ -173,8 +173,8 @@
             {% endif %}
           </td>
           <td>
-            <input type="date" class="date-input" value="{{ ctrl.target_date or '' }}"
-              data-control-id="{{ ctrl.id | int }}" onchange="updateDate(this, Number(this.dataset.controlId))">
+            <input type="date" class="date-input js-control-date" value="{{ ctrl.target_date or '' }}"
+              data-control-id="{{ ctrl.id | int }}">
           </td>
           <td style="text-align:center">
             <button class="edit-btn js-edit-control" type="button" data-control-id="{{ ctrl.id | int }}"
@@ -196,7 +196,7 @@
   <div class="modal">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div class="modal-title">Edit Control Details</div>
-      <button class="modal-close" onclick="closeModal()" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button type="button" class="modal-close js-close-control-modal" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
     </div>
     <input type="hidden" id="editId">
     <div class="form-group">
@@ -226,73 +226,13 @@
       <textarea id="editNotes" rows="3" placeholder="Add any notes or comments..."></textarea>
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveModal()">Save Changes</button>
+      <button type="button" class="btn btn-ghost js-close-control-modal">Cancel</button>
+      <button type="button" class="btn btn-primary" id="saveControlModal">Save Changes</button>
     </div>
   </div>
 </div>
 
 
-<script>
-async function updateControl(id, data) {
-  const form = new FormData();
-  Object.entries(data).forEach(([k,v]) => form.append(k, v));
-  const res = await fetch('/aria/control/' + id + '/update', { method:'POST', body: form });
-  const json = await res.json();
-  if (json.ok) showToast('Control updated');
-  else showToast(json.error || 'Error updating control', 'error');
-}
-function updateStatus(sel) { updateControl(sel.dataset.id, { status: sel.value }); }
-function updatePriority(sel) { updateControl(sel.dataset.id, { priority: sel.value }); }
-function updateOwner(input, id) { updateControl(id, { owner: input.value }); }
-function updateDate(input, id) { updateControl(id, { target_date: input.value }); }
-
-function openEditModal(id, name, notes, evid, ver, reviewDate) {
-  document.getElementById('editId').value = id;
-  document.getElementById('editName').value = name;
-  document.getElementById('editNotes').value = notes;
-  document.getElementById('editEvidRef').value = evid;
-  document.getElementById('editVersion').value = ver;
-  document.getElementById('editReviewDate').value = reviewDate;
-  document.getElementById('editModal').classList.add('open');
-}
-document.querySelectorAll('.js-edit-control').forEach(function (button) {
-  button.addEventListener('click', function () {
-    openEditModal(Number(button.dataset.controlId), button.dataset.controlName,
-      button.dataset.controlNotes, button.dataset.controlEvidence,
-      button.dataset.controlVersion, button.dataset.controlReviewDate);
-  });
-});
-function closeModal() { document.getElementById('editModal').classList.remove('open'); }
-async function saveModal() {
-  const id = document.getElementById('editId').value;
-  await updateControl(id, {
-    notes: document.getElementById('editNotes').value,
-    evidence_ref: document.getElementById('editEvidRef').value,
-    version: document.getElementById('editVersion').value,
-    review_date: document.getElementById('editReviewDate').value,
-    document_title: document.getElementById('editDocTitle').value,
-  });
-  closeModal();
-}
-function applyFilters() {
-  const s = document.getElementById('statusFilter').value;
-  const p = document.getElementById('priorityFilter').value;
-  const c = document.getElementById('categoryFilter').value;
-  const q = document.getElementById('searchInput').value;
-  const params = new URLSearchParams();
-  if (s) params.set('status', s);
-  if (p) params.set('priority', p);
-  if (c) params.set('category', c);
-  if (q) params.set('search', q);
-  window.location.search = params.toString();
-}
-document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') applyFilters();
-});
-document.getElementById('editModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('editModal')) closeModal();
-});
-</script>
+<script src="/static/js/aria_framework_detail.js"></script>
 {% endblock %}
 

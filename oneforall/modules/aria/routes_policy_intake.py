@@ -90,15 +90,25 @@ async def document_register_confirm(request: Request, batch_id: int):
     if not isinstance(payload, dict):
         return JSONResponse({"ok": False, "error": "Invalid request."}, 422)
     db = get_db()
+    created_path = None
     try:
         result = register_intake.confirm(db, request.state.user, batch_id,
                                          payload.get("version"), payload.get("acknowledged"))
+        created_path = result.pop("_created_source_path")
         db.commit()
+        created_path = None
         log_audit(request.state.user, "aria", "Confirmed document register claims", "document_register_batch", batch_id)
         return JSONResponse({"ok": True, **result})
     except register_intake.RegisterError as exc:
         db.rollback()
+        if created_path is not None:
+            created_path.unlink(missing_ok=True)
         return JSONResponse({"ok": False, "error": exc.message}, status_code=exc.status)
+    except Exception:
+        db.rollback()
+        if created_path is not None:
+            created_path.unlink(missing_ok=True)
+        raise
     finally:
         db.close()
 

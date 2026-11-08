@@ -355,8 +355,10 @@ def test_the_print_view_escapes_markup_in_a_name_and_in_the_footer():
                     generated_by={"id": 9, "name": hostile, "username": "x\\y"})
     html = render_html(documents.build_document(env))
     assert "<script>alert(1)</script>" not in html and "&lt;script&gt;alert(1)&lt;/script&gt;" in html
-    assert html.count("<script>") == 1 and html.count("</style>") == 1, "only the page's own script and style element exist"
-    assert "alert(2)" not in html.split("</style>", 1)[1].split("<script>", 1)[0], "the footer name did not reach the page as markup"
+    # The page's one script is a same-origin file (strict script policy), so no inline script element exists at all.
+    assert html.count("<script") == 1 and "<script>" not in html and html.count("</style>") == 1, \
+        "only the page's own script and style element exist"
+    assert "alert(2)" not in html.split("</style>", 1)[1].split("<script ", 1)[0], "the footer name did not reach the page as markup"
     style = html.split("<style>", 1)[1].split("</style>", 1)[0]
     assert "<script" not in style and "body{display:none" not in style, "the footer name stayed inside its CSS string"
 

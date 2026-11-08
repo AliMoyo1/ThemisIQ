@@ -281,6 +281,31 @@ def _scoped_command_stats(db, user):
 
 # ── Command Centre Stats API ────────────────────────────────────────────────
 
+def _attention_summary(db, user):
+    """A live, scoped count with an explicit state when a source did not run."""
+    from modules.governance import attention
+
+    result = attention.needs_attention(db, user)
+    missing = any(source["state"] != "checked" for source in result["sources"])
+    count = sum(result["counts"]["open"].values())
+    return {"state": "partial" if missing else "measured" if result["sources"] else "not_measured",
+            "open": count if result["sources"] else None,
+            "as_of": result["as_of"], "path": "/governance/attention/"}
+
+
+@router.get("/api/command-centre/attention")
+@require_auth
+async def api_command_centre_attention(request: Request):
+    user = request.state.user
+    if not has_capability(user, "assurance.attention.view"):
+        return _JSONResp({"error": "Access denied"}, status_code=403)
+    db = get_db()
+    try:
+        return _JSONResp(_attention_summary(db, user), headers={"Cache-Control": "private, no-store"})
+    finally:
+        db.close()
+
+
 @router.get("/api/command-centre/stats")
 @require_auth
 async def api_command_centre_stats(request: Request):

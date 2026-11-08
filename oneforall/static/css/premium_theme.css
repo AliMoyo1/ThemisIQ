@@ -178,7 +178,7 @@ html[data-theme="dark"] body[data-module] .bu-pill.users{color:var(--accent-ink)
 html[data-theme="dark"] body[data-module="erm"] .lib-cat-chip{
   color:var(--accent-ink)!important;background:var(--accent-pale)!important;
 }
-html[data-theme="dark"] body[data-module="erm"] .lib-card button[onclick^="ermRetireLibraryItem"]{color:#fb7185!important}
+html[data-theme="dark"] body[data-module="erm"] .lib-card button[data-erm-click^="ermRetireLibraryItem"]{color:#fb7185!important}
 body[data-module] :is(button,a,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--accent-ink);outline-offset:3px}
 @media (prefers-reduced-motion:reduce){
   body[data-module] .stat-card,body[data-module] .card,body[data-module] .panel-card,
@@ -463,6 +463,9 @@ body[data-module] .seats-bar-fill:hover{filter:brightness(1.12)}
 body[data-module] .premium-chart-column{transform-origin:center bottom;border-radius:8px 8px 2px 2px;transition:height .3s ease,filter .2s ease}
 body[data-module] .premium-chart-column:hover{filter:brightness(1.15)}
 @media(prefers-reduced-motion:reduce){body[data-module] .premium-chart-column{transition:none!important}}
+
+/* The module header's Directory link: hover was an inline handler, blocked under strict script policy. */
+.module-directory-link:hover,.module-directory-link:focus-visible{border-color:var(--accent)!important;color:var(--accent)!important}
 
 /* Theme changes must settle immediately when the user requests reduced motion. */
 @media (prefers-reduced-motion: reduce) {

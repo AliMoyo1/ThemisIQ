@@ -3,6 +3,7 @@
 import logging
 
 from core.timeutils import utcnow
+from config import settings
 from database import get_db_background
 
 log = logging.getLogger("oneforall.report_retention")
@@ -24,9 +25,20 @@ def purge_due(org_id: int) -> int:
         ).fetchall()
         for row in rows:
             run_id = row["run_id"]
+            # Serialize with the administrator's hold update. On PostgreSQL a
+            # retention row lock makes a hold set during the scan win before
+            # content is touched; on SQLite the write transaction is serialized.
+            locked = db.execute(
+                "SELECT delete_after,hold_reason,purged_at FROM report_run_retention "
+                "WHERE run_id=%s" + (" FOR UPDATE" if settings.is_postgres() else ""),
+                (run_id,),
+            ).fetchone()
+            if (not locked or locked["hold_reason"] or locked["purged_at"] or
+                    not locked["delete_after"] or str(locked["delete_after"])[:10] > today):
+                continue
             changed = db.execute(
                 "UPDATE report_runs SET result_json=NULL,snapshot_hash=NULL,file_path=NULL,status='purged' "
-                "WHERE id=%s AND status!='purged'", (run_id,),
+                "WHERE id=%s AND status!='purged' AND (file_path IS NULL OR file_path='')", (run_id,),
             ).rowcount
             if changed != 1:
                 continue

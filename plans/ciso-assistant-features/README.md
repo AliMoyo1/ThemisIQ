@@ -1,6 +1,6 @@
 # CISO Assistant-inspired improvements for ThemisIQ
 
-**Status:** Proposals drafted 2026-10-07 against local `master` at `eec119f`, with a [review of the supplied feature list](ATTACHMENT-REVIEW-2026-10-08.md) on 2026-10-08. These files do not mark code complete. Start with the [portfolio roadmap](../ROADMAP-2026-10.md) and [feature assessment](../CISO-ASSISTANT-COMMUNITY-ASSESSMENT.md).
+**Historical planning status (2026-10-07):** Base assurance, assignments, reuse and ERM acceptance are now built on master; see [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md). Framework library import remains a licensed pilot, and external questionnaire invitations remain conditional. The original proposal table below is historical.
 
 | Priority | Plan | Outcome | Prerequisite |
 | --- | --- | --- | --- |

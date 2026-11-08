@@ -1070,8 +1070,36 @@ async def api_onboarding(request: Request):
     return _JSONResp({
         "user": user["id"],
         "tours": onboarding.tours_for(user),
-        "checklist": onboarding.checklist_for(user, mfa_on, _dpo_named(user)),
+        "checklist": onboarding.checklist_for(user, mfa_on, _dpo_named(user), _ai_policy_saved(user),
+                                              _retention_set(user)),
     })
+
+
+def _ai_policy_saved(user) -> "bool | None":
+    """For someone who manages the organization's AI policy: whether one is saved. An unreadable policy refuses every
+    model call, so it counts as not done."""
+    from core import ai_policy
+    from core.rbac import has_capability
+    if not user.get("org_id") or not has_capability(user, "ai_governance.policy.manage"):
+        return None
+    try:
+        return ai_policy.get_policy(user["org_id"]) is not None
+    except Exception:
+        log.warning("AI policy lookup failed for the onboarding checklist", exc_info=True)
+        return False
+
+
+def _retention_set(user) -> "bool | None":
+    """For someone who manages report retention: whether the organization chose its own period for saved reports."""
+    from core.rbac import has_capability
+    from modules.launcher.routes_reports import RETENTION_POLICY_KEY
+    if not user.get("org_id") or not has_capability(user, "platform.report.retention.manage"):
+        return None
+    db = get_db()
+    try:
+        return db.execute("SELECT 1 FROM settings WHERE key=%s", (RETENTION_POLICY_KEY,)).fetchone() is not None
+    finally:
+        db.close()
 
 
 def _dpo_named(user) -> "bool | None":

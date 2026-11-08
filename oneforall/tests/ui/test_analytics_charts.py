@@ -35,6 +35,10 @@ def test_analytics_trends_theme_motion_controls_and_resize(login_as, live_app, r
 
     response = page.goto(f"{live_app}/analytics")
     assert response.status == 200
+    assert "script-src-attr 'none'" in response.headers["content-security-policy"]
+    assert "'unsafe-inline'" not in response.headers["content-security-policy"].split("style-src")[0]
+    assert page.locator('script:not([src]), [onclick], [onchange], [onkeydown]').count() == 0
+    assert page.locator('script[src="/static/js/analytics.js"]').count() == 1
     page.locator("#chartCompliance .an-chart-point").first.wait_for()
     assert page.locator(".an-chart-area svg").count() == 4
     assert page.locator("#chartCompliance .an-chart-point").count() == 3
@@ -68,6 +72,10 @@ def test_analytics_trends_theme_motion_controls_and_resize(login_as, live_app, r
     page.get_by_role("button", name="Refresh Snapshot").click()
     page.wait_for_function("() => !document.querySelector('#snapshotBtn').disabled")
     assert snapshot_posts
+
+    page.locator("#askInput").fill("How many critical risks?")
+    page.locator("#askInput").press("Enter")
+    assert page.locator("#askAnswer.show").is_visible()
 
     page.locator("#themeToggle").click()
     assert page.locator("html").get_attribute("data-theme") == "dark"

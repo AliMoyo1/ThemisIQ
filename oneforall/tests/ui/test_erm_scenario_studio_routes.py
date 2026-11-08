@@ -106,9 +106,9 @@ def test_the_studio_page_tells_the_browser_what_the_person_may_do(live_app, synt
     viewer = _as(live_app, synthetic_tenant, "dpo")
     try:
         mine = client.get("/erm/scenario-studio").text
-        assert "var CAN_MANAGE = true" in mine and 'id="ssNewScenarioBtn"' in mine
+        assert 'data-can-manage="1"' in mine and 'id="ssNewScenarioBtn"' in mine
         theirs = viewer.get("/erm/scenario-studio").text
-        assert "var CAN_MANAGE = false" in theirs and 'id="ssNewScenarioBtn"' not in theirs
+        assert 'data-can-manage="0"' in theirs and 'id="ssNewScenarioBtn"' not in theirs
         assert "/erm/obligations" in theirs and "/erm/indicators" in theirs
     finally:
         client.close()

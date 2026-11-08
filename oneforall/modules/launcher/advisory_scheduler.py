@@ -50,6 +50,12 @@ def _purge_saved_reports() -> None:
     for_each_tenant(purge_due, "Saved report retention")
 
 
+def _expire_document_register_previews() -> None:
+    from core.email_outbox import for_each_tenant
+    from modules.aria.document_register_intake import expire_previews
+    for_each_tenant(expire_previews, "Document register preview expiry")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Scheduler start / stop
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,6 +79,13 @@ def start_scheduler() -> None:
         _purge_saved_reports,
         CronTrigger(hour=4, minute=30, timezone=TZ),
         id="saved_report_retention",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
+    _scheduler.add_job(
+        _expire_document_register_previews,
+        CronTrigger(hour=4, minute=45, timezone=TZ),
+        id="document_register_preview_expiry",
         replace_existing=True,
         misfire_grace_time=300,
     )

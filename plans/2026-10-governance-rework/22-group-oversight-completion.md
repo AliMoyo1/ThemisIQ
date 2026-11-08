@@ -1,6 +1,6 @@
 # 22. Group oversight completion: the remaining build of plan 19
 
-**Status:** All eleven slices built and verified on branch `claude/group-completion`, from master `807e65f1` (after PR 41), 2026-11-03. Not merged. Owner direction (chat, 2026-11-03): "The privacy reviewer is the DPO. Do and complete all remaining building." That is a chat confirmation, not a formal sign-off. Nothing here is merged, deployed or enabled for a real customer group.
+**Historical status (2026-11-03):** Eleven slices built on a feature branch. **Current code status:** merged through PR #42, with synthetic PostgreSQL pilot and speed checks; see [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md). No real customer privacy sign-off is claimed.
 
 ## 1. What is already true
 

@@ -19,8 +19,8 @@ from core.report_kit import respond
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
-from modules.ai_governance import (assessment_document, assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
-                                   import_rules, imports, register_imports, monitoring, outstanding, oversight, overview, platform_features,
+from modules.ai_governance import (aiia_controls, assessment_document, assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
+                                   import_rules, imports, register_imports, monitoring, outstanding, oversight, overview, platform_evaluations, platform_features,
                                    precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
 
@@ -672,6 +672,23 @@ async def api_assessment(request: Request, assessment_id: int):
         shown = assessments.get_assessment(db, user, assessment_id)
         return None if shown is None else {"assessment": shown}
     return _read(request, work)
+
+
+@router.get("/api/assessments/{assessment_id}/control-suggestions")
+@require_capability("ai_assessment.view")
+async def api_aiia_control_suggestions(request: Request, assessment_id: int):
+    return _private_response(_read(request, lambda db, user: aiia_controls.context(db, user, assessment_id)))
+
+
+@router.post("/api/assessments/{assessment_id}/control-suggestions/{control_id}")
+@require_capability("ai_assessment.manage")
+async def api_aiia_control_decision(request: Request, assessment_id: int, control_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: aiia_controls.decide(
+        db, user, assessment_id, control_id, body.get("action")))
 
 
 @router.get("/api/assessments/{assessment_id}/document")
@@ -1487,3 +1504,29 @@ async def api_platform_feature_review(request: Request, feature_key: str):
     with tenant_context(None, None, is_super_admin=True):
         return _private_response(_transact(request, lambda db, user: platform_features.mark_reviewed(
             db, user, feature_key, body.get("version"))))
+
+
+@router.get("/api/platform-features/{feature_key}/evaluations")
+@require_capability("ai_governance.platform.manage")
+async def api_platform_feature_evaluations(request: Request, feature_key: str):
+    with tenant_context(None, None, is_super_admin=True):
+        return _private_response(_read(request, lambda db, user: platform_evaluations.list_runs(db, user, feature_key)))
+
+
+@router.post("/api/platform-features/{feature_key}/evaluations")
+@require_capability("ai_governance.platform.manage")
+async def api_platform_feature_evaluation_run(request: Request, feature_key: str):
+    with tenant_context(None, None, is_super_admin=True):
+        return _private_response(_transact(request, lambda db, user: platform_evaluations.run(db, user, feature_key), 201))
+
+
+@router.post("/api/platform-features/{feature_key}/evaluations/{run_id}/review")
+@require_capability("ai_governance.platform.manage")
+async def api_platform_feature_evaluation_review(request: Request, feature_key: str, run_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _private_response(_error(exc))
+    with tenant_context(None, None, is_super_admin=True):
+        return _private_response(_transact(request, lambda db, user: platform_evaluations.review(
+            db, user, feature_key, run_id, body.get("outcome"), body.get("version"))))

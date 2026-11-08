@@ -29,36 +29,15 @@ import os
 import stat
 import time
 import uuid
-import zipfile
 from pathlib import Path
 
 from modules.aria.routes import ARIA_UPLOAD_DIR
-
-WORKFLOW_ROOT = ARIA_UPLOAD_DIR / "policy_workflow"
-
-# section 7.2 limits
-MAX_DOCX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024  # 100 MiB
-MAX_DOCX_ENTRIES = 2000
-MAX_DOCX_EXPANSION_RATIO = 200  # uncompressed / compressed; flags a zip bomb
-
-# The minimum set of members every valid OOXML .docx package must have.
-_REQUIRED_OOXML_MEMBERS = {"[Content_Types].xml", "word/document.xml"}
-
-# Presence of any of these is treated as untrusted content this workflow
-# must refuse, even though the extension claims .docx.
-_DISALLOWED_MEMBER_PREFIXES = (
-    "word/vbaProject",       # macro-enabled content (should be .docm, not .docx)
-    "word/embeddings/",      # embedded OLE objects
-    "word/activeX/",         # embedded ActiveX controls
+from modules.aria.policy_docx_validation import (
+    DocxValidationError, MAX_DOCX_ENTRIES, MAX_DOCX_EXPANSION_RATIO,
+    MAX_DOCX_TOTAL_UNCOMPRESSED, validate_docx_stream,
 )
 
-
-class DocxValidationError(Exception):
-    def __init__(self, code: str, message: str):
-        self.code = code
-        self.message = message
-        super().__init__(message)
-
+WORKFLOW_ROOT = ARIA_UPLOAD_DIR / "policy_workflow"
 
 class PathContainmentError(Exception):
     """Raised when a resolved path would escape the workflow root."""
@@ -152,71 +131,9 @@ def sha256_file(path: Path) -> str:
 
 
 def validate_docx(path: Path) -> None:
-    """Raises DocxValidationError on anything untrustworthy. Never raises
-    for a legitimately generated or previously-accepted document; this is
-    meant to catch a malicious or corrupt upload, not to be a general DOCX
-    linter.
-    """
-    if path.suffix.lower() != ".docx":
-        raise DocxValidationError("INVALID_TEMPLATE", "File must have a .docx extension.")
-
-    with open(path, "rb") as f:
-        magic = f.read(4)
-    if magic != b"PK\x03\x04" and magic != b"PK\x05\x06":  # normal or empty-zip signature
-        raise DocxValidationError("INVALID_TEMPLATE", "File is not a valid ZIP/OOXML package.")
-
-    try:
-        zf = zipfile.ZipFile(path)
-    except zipfile.BadZipFile as exc:
-        raise DocxValidationError("INVALID_TEMPLATE", "File is not a valid ZIP archive.") from exc
-
-    with zf:
-        infos = zf.infolist()
-        if len(infos) > MAX_DOCX_ENTRIES:
-            raise DocxValidationError(
-                "ARCHIVE_TOO_LARGE", f"Archive has {len(infos)} entries, maximum {MAX_DOCX_ENTRIES}."
-            )
-
-        total_uncompressed = 0
-        names = set()
-        for info in infos:
-            # Reject encrypted entries outright: general purpose bit 0 set.
-            if info.flag_bits & 0x1:
-                raise DocxValidationError("INVALID_TEMPLATE", "Encrypted archive entries are not allowed.")
-
-            name = info.filename
-            names.add(name)
-            # Path traversal / absolute-path entries inside the archive.
-            if name.startswith("/") or name.startswith("\\") or ".." in Path(name).parts:
-                raise DocxValidationError("INVALID_TEMPLATE", f"Unsafe archive entry path: {name!r}")
-
-            total_uncompressed += info.file_size
-            if total_uncompressed > MAX_DOCX_TOTAL_UNCOMPRESSED:
-                raise DocxValidationError(
-                    "ARCHIVE_TOO_LARGE",
-                    f"Uncompressed content exceeds {MAX_DOCX_TOTAL_UNCOMPRESSED} bytes.",
-                )
-            if info.compress_size > 0:
-                ratio = info.file_size / info.compress_size
-                if ratio > MAX_DOCX_EXPANSION_RATIO:
-                    raise DocxValidationError(
-                        "ARCHIVE_TOO_LARGE",
-                        f"Entry {name!r} has a suspicious {ratio:.0f}x expansion ratio.",
-                    )
-
-            for bad_prefix in _DISALLOWED_MEMBER_PREFIXES:
-                if name.startswith(bad_prefix):
-                    raise DocxValidationError(
-                        "INVALID_TEMPLATE",
-                        f"Disallowed content found ({name!r}): macros, OLE objects and "
-                        "ActiveX controls are not accepted.",
-                    )
-
-        missing = _REQUIRED_OOXML_MEMBERS - names
-        if missing:
-            raise DocxValidationError(
-                "INVALID_TEMPLATE", f"Not a valid Word document (missing {sorted(missing)})."
-            )
+    """Validate a stored DOCX. Intake itself validates inside its worker."""
+    with path.open("rb") as source:
+        validate_docx_stream(source, path.name)
 
 
 def _list_orphans(org_id: int, referenced_relative_paths: set[str]) -> list[tuple[str, Path]]:

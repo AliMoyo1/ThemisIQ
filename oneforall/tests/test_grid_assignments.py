@@ -1,11 +1,13 @@
 """Respondent assignments (plan 24, CISO 03): who may see and do what, and how answers and proof are reviewed."""
-from datetime import date, timedelta
+from datetime import timedelta
+import sqlite3
 
 import pytest
 from fastapi import HTTPException
 
 from modules.grid import assignments as ga
 from modules.launcher.my_work_service import _grid_assignments
+from core.timeutils import utcnow
 
 
 def _id(db, table, **fields):
@@ -25,7 +27,7 @@ def _person(db, org, name, role, unit):
 
 
 def _due(days=14):
-    return (date.today() + timedelta(days=days)).isoformat()
+    return (utcnow().date() + timedelta(days=days)).isoformat()
 
 
 def _expect(code, work):
@@ -99,6 +101,41 @@ def test_only_an_audit_lead_sends_controls_of_one_audit_to_a_person_of_its_unit(
     assert "Outside Fay" not in {p["name"] for p in choices["respondents"]}
     assert {c["ref"]: c["busy"] for c in choices["controls"]}["A.5.1"] is True
     assert first
+
+
+def test_database_reserves_one_open_assignment_per_control_and_releases_it_on_cancel(world):
+    db, people, audit, controls, *_ = world
+    first = _draft(db, people, audit, controls[:1])
+    second = _draft(db, people, audit, controls[1:2])
+    with pytest.raises(sqlite3.IntegrityError, match="UNIQUE constraint failed"):
+        db.execute("UPDATE grid_assignment_items SET active_control_id=%s WHERE assignment_id=%s",
+                   (controls[0], second))
+    assert db.execute("SELECT active_control_id FROM grid_assignment_items WHERE assignment_id=%s",
+                      (first,)).fetchone()[0] == controls[0]
+    ga.cancel(db, people["lead"], first, _version(db, first), "Question moved to another round")
+    assert db.execute("SELECT active_control_id FROM grid_assignment_items WHERE assignment_id=%s",
+                      (first,)).fetchone()[0] is None
+    assert ga.create(db, people["lead"], audit, [controls[0]], people["owner2"]["id"], None,
+                     _due(), "New round for access control")
+
+
+def test_migration_refuses_preexisting_open_overlap(world):
+    from database import _ensure_grid_assignment_active_control
+
+    db, people, audit, controls, *_ = world
+    first = _draft(db, people, audit, controls[:1])
+    second = _draft(db, people, audit, controls[1:2])
+    db.execute("DROP INDEX uq_grid_assignment_active_control")
+    db.execute("UPDATE grid_assignment_items SET control_id=%s, active_control_id=NULL "
+               "WHERE assignment_id=%s", (controls[0], second))
+    with pytest.raises(RuntimeError, match="Open GRID assignments overlap"):
+        _ensure_grid_assignment_active_control(db)
+    db.execute("UPDATE grid_assignment_items SET control_id=%s WHERE assignment_id=%s", (controls[1], second))
+    _ensure_grid_assignment_active_control(db)
+    assert db.execute("SELECT active_control_id FROM grid_assignment_items WHERE assignment_id=%s",
+                      (first,)).fetchone()[0] == controls[0]
+    assert db.execute("SELECT active_control_id FROM grid_assignment_items WHERE assignment_id=%s",
+                      (second,)).fetchone()[0] == controls[1]
 
 
 def test_the_person_sees_nothing_until_it_is_sent_and_then_only_their_own_controls(world):

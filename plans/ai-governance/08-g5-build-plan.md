@@ -16,7 +16,7 @@ The slice names four things that can be done from a laptop and a handful that ca
 Not built, and said plainly:
 
 - **Running evaluations.** ThemisIQ does not execute a customer's AI system or a test set against it: there is no job runner, no provider call, no budget or timeout machinery for evaluations. Runs are recorded by a person or by an integration the organization controls. The brief's slice B (bounded asynchronous execution, cancel) and slice C (customer use pilot with component targets) are not claimed.
-- **The Ask ARIA baseline run.** Its deterministic scope and citation checks already exist as the Ask ARIA test suite (`tests/test_aria_ask_scoping.py`). They are not a scheduled job; nothing here displays a "last evaluated" for Ask ARIA.
+- **The Ask ARIA baseline run (updated 2026-11-06).** A bounded, operator-triggered five-case synthetic citation-identity check now records a version, code hash, pass/fail counts and independent review in the public platform schema. Its focused SQLite, browser and disposable PostgreSQL checks passed. It does not grade semantic truth, call a provider, run on a schedule or evaluate a customer's AI system. `tests/test_aria_ask_scoping.py` remains the deeper retrieval-scope regression suite.
 - **Regulatory sources.** The inbox is manual: a person posts a change with its source link and effective date. Nothing fetches regulation text, so "current primary source" is the person's responsibility and the screen says so.
 - **Find, Prepare and Suggest.** Only Explain is built. Retrieval over several modules, drafting and link suggestions need the shared scoped retrieval and the evaluation set the brief asks for before release, which do not exist.
 

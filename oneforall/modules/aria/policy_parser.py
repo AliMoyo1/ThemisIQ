@@ -114,6 +114,8 @@ def extract(content: bytes, ext: str, filename: str) -> dict:
     paragraphs: list[dict] = []
     tables: list[tuple[str, list[list[str]]]] = []
     if ext == ".docx":
+        from modules.aria.policy_docx_validation import validate_docx_stream
+        validate_docx_stream(io.BytesIO(content), filename)
         from docx import Document
         document = Document(io.BytesIO(content))
         text_len = 0

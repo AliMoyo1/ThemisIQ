@@ -71,7 +71,7 @@ def test_a_risk_owner_sees_the_units_sla_workflow_and_platform_risk_figures(logi
 
         page.goto(f"{live_app}/risk-register")
         page.get_by_text(PROBE_RISK).wait_for()
-        assert page.locator('button[onclick="openNewRisk()"]').count() == 0   # registering is the administrator's
+        assert page.locator('#openNewRiskBtn').count() == 0   # registering is the administrator's
         assert not page.console_errors, page.console_errors
     finally:
         remove()
@@ -106,7 +106,9 @@ def test_the_super_administrator_still_sees_the_new_risk_button_and_every_unit(l
     try:
         page.goto(f"{live_app}/risk-register")
         page.get_by_text(PROBE_RISK).wait_for()
-        assert page.locator('button[onclick="openNewRisk()"]').count() == 1
+        page.locator('#openNewRiskBtn').click()
+        assert page.locator('#newRiskModal').is_visible()
+        assert page.locator('button[onclick="openNewRisk()"]').count() == 0
         assert not page.console_errors, page.console_errors
     finally:
         remove()

@@ -1,6 +1,6 @@
 # 01. Source accuracy spine
 
-**Status:** Proposed. The current Sentinel checker remains the working baseline until an incremental migration passes parity tests. This plan does not authorize any new source, legal rule or provider.
+**Historical design status:** Proposed on 2026-10-26. The shared guarded source implementation is now on master; see [implementation record](04-implementation-and-release.md) and [current status](../CURRENT-BUILD-STATUS-2026-11-05.md). No new legal rule or provider is approved by this document.
 
 ## 1. Why this is needed
 

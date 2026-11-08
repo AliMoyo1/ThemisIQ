@@ -181,16 +181,12 @@ def _blocks(report: Report) -> str:
     return "".join(out)
 
 
-_SUPPORT_CHECK = ("(function(){var m=/(?:Chrome|Edg)\\/(\\d+)/.exec(navigator.userAgent);"
-                  "if(!m||parseInt(m[1],10)<131){document.documentElement.classList.add('no-margin-boxes');}})();")
-
-
 def render_html(report: Report, *, logo_url: str = theme.LOGO_URL, print_button: bool = True) -> str:
     """The print view as a full HTML document."""
     meta = report.meta
     facts = "".join(f"<dt>{esc(label)}</dt><dd>{esc(value)}</dd>" for label, value in meta.cover_rows())
     subtitle = f'<p class="subtitle">{esc(meta.subtitle)}</p>' if meta.subtitle else ""
-    toolbar = ('<div class="toolbar"><button type="button" onclick="window.print()">Print or save as PDF</button>'
+    toolbar = ('<div class="toolbar"><button type="button" data-report-print>Print or save as PDF</button>'
                '<span>Turn on background graphics in the print dialog for the full silver look.</span>'
                '<span class="warn">This browser may leave out the footer and page numbers. Print from Chrome or Edge, or '
                'download the PDF.</span></div>' if print_button else "")
@@ -201,7 +197,8 @@ def render_html(report: Report, *, logo_url: str = theme.LOGO_URL, print_button:
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
         f"<title>{esc(meta.title)}</title><style>{_css(footer_a, footer_b)}</style>"
-        f"<script>{_SUPPORT_CHECK}</script></head>"
+        # The browser check and the print button live in a static script, so the view keeps a strict script policy.
+        '<script src="/static/js/report_print.js?v=1" defer></script></head>'
         f'<body class="report tier-{esc(meta.tier)}">{toolbar}<div class="sheet">'
         f'<section class="cover tier-{esc(meta.tier)}" aria-label="Cover">'
         f'<span class="plate"><img class="logo" src="{esc(logo_url)}" alt="ThemisIQ"></span>'

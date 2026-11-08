@@ -383,8 +383,11 @@
       impactGrid]);
 
     var classBox = el('div', { class: 'aig-classification' });
+    var controlHost = el('div', { class: 'aig-panel', id: 'as_control_context', role: 'region',
+      'aria-label': 'Related controls for this assessment' });
     var mitigation = section('Mitigation', [
       text('mitigation_measures', 'Required mitigation measures', { multiline: true, rows: '5', hint: 'The controls that reduce the risks identified above.' }),
+      controlHost,
       choice('residual_classification', 'Residual classification after mitigation', RESIDUAL, 'Not assessed'),
       classBox]);
 
@@ -507,6 +510,53 @@
       form.insertBefore(el('p', { class: 'aig-banner aig-banner-info', text: 'You can read this assessment but not change it.' }), form.firstChild);
     }
 
+    function loadControlContext() {
+      AIGov.clear(controlHost);
+      if (!id) {
+        controlHost.appendChild(el('p', { class: 'aig-hint', text: 'Save this assessment to review its connected controls.' }));
+        return;
+      }
+      controlHost.appendChild(el('p', { class: 'aig-hint', text: 'Checking visible linked controls…' }));
+      AIGov.api('/ai-governance/api/assessments/' + id + '/control-suggestions').then(function (data) {
+        AIGov.clear(controlHost);
+        controlHost.appendChild(el('h3', { text: 'Controls that may help this assessment' }));
+        controlHost.appendChild(el('p', { class: 'aig-hint', text: 'ARIA suggestions come from confirmed connections to the AI system or linked privacy records. They are not a statement that a control works.' }));
+        if (!data.items.length) controlHost.appendChild(el('p', { class: 'aig-muted', text: 'No new ARIA control suggestions from those records.' }));
+        data.items.forEach(function (item) {
+          var row = el('div', { class: 'aig-result-row' }, [
+            el('a', { href: item.url, text: (item.ref || '') + ' ' + item.title }),
+            el('span', { class: 'aig-muted', text: 'Recorded status: ' + (item.status || 'unknown') + '. ' + item.reasons.join('; ') })]);
+          if (state.can.manage) ['accept', 'dismiss'].forEach(function (action) {
+            row.appendChild(el('button', { type: 'button', class: 'btn btn-secondary btn-sm',
+              text: action === 'accept' ? 'Accept link' : 'Dismiss', on: { click: function () {
+                AIGov.api('/ai-governance/api/assessments/' + id + '/control-suggestions/' + item.control_id,
+                  'POST', { action: action }).then(function () {
+                  if (action === 'accept') {
+                    var field = fields.mitigation_measures.input;
+                    field.value += (field.value ? '\n' : '') + 'Control ' + (item.ref || item.control_id) +
+                      ' linked for review; record how it addresses this impact and whether its proof is current.';
+                  }
+                  loadControlContext();
+                }).catch(function (error) { AIGov.say(say, AIGov.errorText(error), 'bad'); });
+              } } }));
+          });
+          controlHost.appendChild(row);
+        });
+        if (data.ai_controls && data.ai_controls.length) {
+          controlHost.appendChild(el('h3', { text: 'AI management control context' }));
+          controlHost.appendChild(el('p', { class: 'aig-hint', text: 'These are AIMS controls and their reviewed canonical mappings. They are not automatically ARIA links.' }));
+          data.ai_controls.forEach(function (entry) {
+            controlHost.appendChild(el('p', { class: 'aig-muted', text: entry.control.ref + ' ' + entry.control.title +
+              ' · ' + (entry.mapped_to.length ? entry.mapped_to.map(function (m) { return m.ref + ' ' + m.title; }).join(', ') : 'No reviewed canonical mapping') +
+              ' · Current proof: ' + entry.proof.current }));
+          });
+        }
+      }).catch(function () {
+        AIGov.clear(controlHost);
+        controlHost.appendChild(el('p', { class: 'aig-muted', text: 'Control context could not be loaded. You can still save this assessment.' }));
+      });
+    }
+
     // ── Saving ───────────────────────────────────────────────────────────
 
     function body() {
@@ -558,6 +608,7 @@
         saveBtn.textContent = 'Save changes';
         deleteBtn.hidden = !a.can.manage;
         if (created) global.history.replaceState(null, '', '/ai-governance/assessments/' + id);
+        loadControlContext();
         AIGov.say(say, created ? 'Assessment ' + a.ref_number + ' created.' : 'Saved.', 'good');
       }).catch(showErrors).then(function () { saveBtn.disabled = false; });
     });
@@ -598,6 +649,7 @@
         apply(a);
         RecordProfileFields.mount(profileHost, profileDefinition, a);
         if (!a.can.manage) setReadOnly();
+        loadControlContext();
         return;
       }
       renderImpacts(dims.filter(function (d) { return d.is_active; }).map(function (d) {
@@ -609,6 +661,7 @@
       }
       apply(null, start);
       RecordProfileFields.mount(profileHost, profileDefinition, start);
+      loadControlContext();
       if (prefilled && prefilled.fields && prefilled.fields.application_id) {
         fields.application_id.set({ id: prefilled.fields.application_id, label: prefilled.fields.ai_system_name || 'This AI system',
           url: '/ai-governance/systems/' + prefilled.fields.application_id });

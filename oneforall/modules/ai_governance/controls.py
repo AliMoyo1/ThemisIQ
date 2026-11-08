@@ -18,6 +18,18 @@ from modules.governance.entity_scope import describe_record, entity_scope_sql, m
 _AIMS = ("orm", "aims")
 
 
+def _canonical_scope(user, alias="k"):
+    """Canonical control identity is tenant-local and may have a unit owner."""
+    from modules.governance.data_service import bu_scope_ids
+    scope = bu_scope_ids(user)
+    if scope is None:
+        return "1=1", []
+    if not scope:
+        return f"{alias}.business_unit_id IS NULL", []
+    return (f"({alias}.business_unit_id IS NULL OR {alias}.business_unit_id IN "
+            f"({','.join(['%s'] * len(scope))}))", list(scope))
+
+
 def _words(text) -> set:
     return {w for w in re.split(r"[^a-z0-9]+", (text or "").lower()) if len(w) > 3}
 
@@ -43,7 +55,10 @@ def map_control(db, user, ai_control_id, canonical_control_id, note=None) -> dic
             raise ServiceError(400, "Choose an AI control and a canonical control.")
     scope, params = entity_scope_sql(("orm", "ai_control"), user, "c")
     control = db.execute(f"SELECT c.id, c.title FROM ai_control_catalogue c WHERE c.id = %s AND {scope}", [ai_control_id, *params]).fetchone()
-    canonical = db.execute("SELECT id, title FROM canonical_controls WHERE id = %s AND is_active = 1", (canonical_control_id,)).fetchone()
+    canonical_scope, canonical_params = _canonical_scope(user)
+    canonical = db.execute(
+        f"SELECT k.id, k.title FROM canonical_controls k WHERE k.id = %s AND k.is_active = 1 AND {canonical_scope}",
+        [canonical_control_id, *canonical_params]).fetchone()
     if not control or not canonical:
         raise ServiceError(404, "Control not found.")
     note = (note or "").strip()[:500] if isinstance(note, str) or note is None else ""
@@ -57,6 +72,13 @@ def map_control(db, user, ai_control_id, canonical_control_id, note=None) -> dic
 
 def unmap_control(db, user, ai_control_id, canonical_control_id) -> dict:
     _require_mapper(user)
+    ai_scope, ai_params = entity_scope_sql(("orm", "ai_control"), user, "c")
+    canonical_scope, canonical_params = _canonical_scope(user)
+    if not db.execute(f"SELECT 1 FROM ai_control_catalogue c WHERE c.id=%s AND {ai_scope}",
+                      [ai_control_id, *ai_params]).fetchone() or not db.execute(
+                          f"SELECT 1 FROM canonical_controls k WHERE k.id=%s AND {canonical_scope}",
+                          [canonical_control_id, *canonical_params]).fetchone():
+        raise ServiceError(404, "Control mapping not found.")
     done = db.execute("DELETE FROM ai_control_mappings WHERE ai_control_id = %s AND canonical_control_id = %s",
                       (ai_control_id, canonical_control_id)).rowcount
     if done != 1:
@@ -71,13 +93,9 @@ def search_canonical(db, user, q, limit=20) -> list:
     if len(q) < 2:
         return []
     from core.sql_like import ci_like, like_pattern
-    from modules.governance.data_service import bu_scope_ids
-    sql = f"SELECT id, ref, title FROM canonical_controls WHERE is_active = 1 AND ({ci_like('title')} OR {ci_like('ref')})"
-    params = [like_pattern(q), like_pattern(q)]
-    scope = bu_scope_ids(user)
-    if scope is not None:
-        sql += f" AND (business_unit_id IS NULL OR business_unit_id IN ({','.join(['%s'] * len(scope))}))"
-        params += list(scope)
+    canonical_scope, canonical_params = _canonical_scope(user)
+    sql = f"SELECT k.id, k.ref, k.title FROM canonical_controls k WHERE k.is_active = 1 AND {canonical_scope} AND ({ci_like('k.title')} OR {ci_like('k.ref')})"
+    params = [*canonical_params, like_pattern(q), like_pattern(q)]
     rows = db.execute(sql + " ORDER BY title LIMIT %s", [*params, max(1, min(int(limit), 50))]).fetchall()
     return [{"id": r["id"], "ref": r["ref"], "title": r["title"]} for r in rows]
 
@@ -92,7 +110,10 @@ def suggest_mappings(db, user, ai_control_id, limit=5) -> list:
     want = _words(control["title"])
     mapped = {r[0] for r in db.execute("SELECT canonical_control_id FROM ai_control_mappings WHERE ai_control_id = %s", (ai_control_id,)).fetchall()}
     found = []
-    for row in db.execute("SELECT id, ref, title FROM canonical_controls WHERE is_active = 1 ORDER BY id LIMIT 2000").fetchall():
+    canonical_scope, canonical_params = _canonical_scope(user)
+    for row in db.execute(f"SELECT k.id, k.ref, k.title FROM canonical_controls k "
+                          f"WHERE k.is_active = 1 AND {canonical_scope} ORDER BY k.id LIMIT 2000",
+                          canonical_params).fetchall():
         if row["id"] in mapped:
             continue
         shared = want & _words(row["title"])
@@ -149,9 +170,11 @@ def use_controls(db, user, application_id: int, *, proof_limit=10) -> "list | No
     maps: dict = {}
     if control_ids:
         marks = ",".join(["%s"] * len(control_ids))
+        canonical_scope, canonical_params = _canonical_scope(user)
         for m in db.execute(
             f"SELECT mp.ai_control_id, k.id, k.ref, k.title FROM ai_control_mappings mp JOIN canonical_controls k ON k.id = mp.canonical_control_id "
-            f"WHERE mp.ai_control_id IN ({marks}) ORDER BY k.title", control_ids).fetchall():
+            f"WHERE mp.ai_control_id IN ({marks}) AND {canonical_scope} ORDER BY k.title",
+            [*control_ids, *canonical_params]).fetchall():
             maps.setdefault(m["ai_control_id"], []).append({"id": m["id"], "ref": m["ref"], "title": m["title"]})
     proof = _proof(db, user, sorted({k["id"] for ks in maps.values() for k in ks}))
     out = []

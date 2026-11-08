@@ -127,3 +127,38 @@ def test_a_customer_administrator_is_asked_to_name_a_dpo_until_one_is_active(tes
     test_db.execute("UPDATE users SET is_active=1 WHERE username='cust_dpo'")
     test_db.commit()
     assert checklist("cust_admin")["dpo"]["done"] is True
+
+
+def test_a_customer_administrator_is_asked_for_an_ai_policy_and_a_report_retention_period(test_db, api):
+    """No organization data reaches a model provider until an AI policy is saved, and no universal legal retention
+    period is assumed, so whoever can change each setting is asked to choose it. Saving AI as switched off counts."""
+    from core import ai_policy
+    from modules.launcher.routes_reports import RETENTION_POLICY_KEY
+    test_db.execute("INSERT INTO organizations (name, slug, status) VALUES ('Customer','customer-setup','active')")
+    org = test_db.execute("SELECT id FROM organizations WHERE slug='customer-setup'").fetchone()["id"]
+    for name, role in (("setup_admin", "org_admin"), ("setup_staff", "employee")):
+        test_db.execute("INSERT INTO users (username, email, full_name, password_hash, org_id, is_active) "
+                        "VALUES (%s,%s,%s,'x',%s,1)", (name, name + "@example.test", name, org))
+        uid = test_db.execute("SELECT id FROM users WHERE username=%s", (name,)).fetchone()["id"]
+        test_db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s,%s)", (uid, role))
+    test_db.commit()
+
+    def checklist(name):
+        uid = test_db.execute("SELECT id FROM users WHERE username=%s", (name,)).fetchone()["id"]
+        token = create_session(uid, ip="203.0.113.5", user_agent="Test/1.0")
+        body = api.get("/api/onboarding", headers={"Cookie": f"{settings.SESSION_COOKIE_NAME}={token}"}).json()
+        return {item["id"]: item for item in body["checklist"]}
+
+    first = checklist("setup_admin")
+    assert first["ai-policy"] == {"id": "ai-policy", "label": "Choose what your AI features may send",
+                                  "done": False, "href": "/admin/ai-policy"}
+    assert first["retention"] == {"id": "retention", "label": "Choose how long saved reports are kept",
+                                  "done": False, "href": "/reports"}
+    staff = checklist("setup_staff")
+    assert "ai-policy" not in staff and "retention" not in staff, "only someone who can change the setting is asked"
+
+    ai_policy.save_policy(org, {"enabled": False})
+    test_db.execute("INSERT INTO settings (key, value) VALUES (%s, '365')", (RETENTION_POLICY_KEY,))
+    test_db.commit()
+    done = checklist("setup_admin")
+    assert done["ai-policy"]["done"] is True and done["retention"]["done"] is True

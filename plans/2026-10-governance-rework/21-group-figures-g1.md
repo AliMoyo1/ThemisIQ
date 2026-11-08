@@ -1,6 +1,6 @@
 # 21. Group figures (G1): frozen figures, the group views, the banded score, the issue register and packs
 
-**Status:** Built and verified on branch `claude/group-figures`, 2026-10-29. Not merged: the owner will merge once everything is built (chat, 2026-10-29). Implements stage 2 of [19 Evidence Vault and group oversight](19-evidence-vault-and-group-oversight.md) (group relationship and figures). Builds on the relationship, grant, row level security and role work merged from PR 40. Decisions below are owner direction given in chat, not a formal sign-off.
+**Historical status (2026-10-29):** Built on a feature branch. **Current code status:** merged in PR #41, followed by completion and synthetic pilot in PR #42; see [current build status](../CURRENT-BUILD-STATUS-2026-11-05.md). Customer approval is separate.
 
 ## 1. Scope
 

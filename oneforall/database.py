@@ -1673,6 +1673,7 @@ CREATE TABLE IF NOT EXISTS report_run_signoffs (
     reason TEXT NOT NULL,
     snapshot_hash TEXT NOT NULL,
     narrative_reviewed INTEGER NOT NULL DEFAULT 0,
+    assurance_reviewed INTEGER NOT NULL DEFAULT 0,
     last_note_id INTEGER NOT NULL DEFAULT 0,
     signed_at TEXT DEFAULT (datetime('now'))
 );
@@ -2626,6 +2627,28 @@ CREATE TABLE IF NOT EXISTS platform_ai_features (
     updated_at         TEXT DEFAULT (datetime('now'))
 );
 
+-- Provider-free synthetic checks of first-party AI feature contracts.
+-- Public/operator only; no prompt, answer or tenant source text is stored.
+CREATE TABLE IF NOT EXISTS platform_ai_evaluation_runs (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    feature_key       TEXT NOT NULL,
+    test_set          TEXT NOT NULL,
+    test_set_version  TEXT NOT NULL,
+    rubric_version    TEXT NOT NULL,
+    source_hash       TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    checks_total      INTEGER NOT NULL,
+    checks_failed     INTEGER NOT NULL,
+    results_json      TEXT NOT NULL,
+    run_by            INTEGER NOT NULL REFERENCES users(id),
+    ran_at            TEXT NOT NULL,
+    reviewed_by       INTEGER REFERENCES users(id),
+    reviewed_at       TEXT,
+    review_outcome    TEXT,
+    version           INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_platform_ai_eval_feature ON platform_ai_evaluation_runs(feature_key, id);
+
 """
 
 # Per-tenant platform tables: created in every tenant schema by provision_tenant_schema().
@@ -2980,6 +3003,7 @@ CREATE TABLE IF NOT EXISTS report_run_signoffs (
     reason TEXT NOT NULL,
     snapshot_hash TEXT NOT NULL,
     narrative_reviewed INTEGER NOT NULL DEFAULT 0,
+    assurance_reviewed INTEGER NOT NULL DEFAULT 0,
     last_note_id INTEGER NOT NULL DEFAULT 0,
     signed_at TEXT DEFAULT (datetime('now'))
 );
@@ -4468,6 +4492,8 @@ CREATE TABLE IF NOT EXISTS grid_assignment_items (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     assignment_id    INTEGER NOT NULL REFERENCES grid_assignments(id) ON DELETE CASCADE,
     control_id       INTEGER NOT NULL REFERENCES grid_controls(id) ON DELETE CASCADE,
+    -- NULL once the assignment closes. The unique index is the final arbiter when two leads race.
+    active_control_id INTEGER,
     response         TEXT NOT NULL DEFAULT '',
     observation      TEXT NOT NULL DEFAULT '',
     review_state     TEXT NOT NULL DEFAULT 'unreviewed'
@@ -5238,6 +5264,7 @@ CREATE TABLE IF NOT EXISTS bcm_plan_activations (
     incident_id     INTEGER REFERENCES bcm_incidents(id) ON DELETE SET NULL,
     activated_by    TEXT NOT NULL,
     activated_by_id INTEGER REFERENCES users(id),
+    control_review_json TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_bcm_plan_act ON bcm_plan_activations(plan_id, created_at DESC);
@@ -6651,6 +6678,7 @@ CREATE TABLE IF NOT EXISTS sentinel_aiia (
     mitigation_measures TEXT,
     residual_classification TEXT,
     status              TEXT DEFAULT 'draft',
+    ever_approved       INTEGER NOT NULL DEFAULT 0,
     ropa_id             INTEGER,
     dpia_id             INTEGER,
     business_unit_id    INTEGER,
@@ -6782,6 +6810,8 @@ CREATE TABLE IF NOT EXISTS aria_document_register_batches (
     business_unit_id INTEGER,
     file_name TEXT NOT NULL,
     file_sha256 TEXT NOT NULL,
+    source_bytes BYTEA,
+    source_evidence_id INTEGER REFERENCES evidence_items(id),
     rows TEXT NOT NULL,
     warnings TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'previewed',
@@ -6918,6 +6948,9 @@ _ERM_ORM_TABLES_PG   = _to_pg_schema(_ERM_ORM_TABLES)
 
 _COLUMN_MIGRATIONS = [
         # (table, column, definition)
+        ("aria_document_register_batches", "source_bytes", "BYTEA"),
+        ("aria_document_register_batches", "source_evidence_id", "INTEGER REFERENCES evidence_items(id)"),
+        ("report_run_signoffs", "assurance_reviewed", "INTEGER NOT NULL DEFAULT 0"),
         ("org_relationships", "ended_by", "INTEGER"),
         ("org_relationships", "end_reason", "TEXT"),
         ("aria_frameworks", "is_active", "INTEGER DEFAULT 1"),
@@ -7416,6 +7449,8 @@ _COLUMN_MIGRATIONS = [
         ("aims_risks", "source_claims_json", "TEXT"),
         # AI governance G3b: the AI impact assessment carries a version, so two people editing it cannot overwrite each other
         ("sentinel_aiia", "version", "INTEGER NOT NULL DEFAULT 1"),
+        ("sentinel_aiia", "ever_approved", "INTEGER NOT NULL DEFAULT 0"),
+        ("bcm_plan_activations", "control_review_json", "TEXT"),
         # "Uses AI or embedded AI?" on a vendor and on a business process: yes, no or unknown, with who said so and why
         ("canonical_vendors", "uses_ai", "TEXT"),
         ("canonical_vendors", "uses_ai_note", "TEXT"),
@@ -7470,6 +7505,7 @@ _COLUMN_MIGRATIONS = [
         ("bcm_incidents", "escalated_at", "TEXT"),
         # Existing proof may reuse a Vault link. Legacy rows conservatively retain their link on removal.
         ("grid_assignment_proof", "created_link", "INTEGER NOT NULL DEFAULT 0"),
+        ("grid_assignment_items", "active_control_id", "INTEGER"),
 ]
 
 
@@ -7564,6 +7600,37 @@ def _backfill_evidence_owner(conn) -> None:
         logging.getLogger("oneforall.migrations").info("Named the uploader as owner of %s evidence item(s).", moved)
 
 
+class RequiredTenantMigrationError(RuntimeError):
+    """A tenant cannot safely serve requests until this migration succeeds."""
+
+
+def _ensure_grid_assignment_active_control(conn):
+    """Backfill open reservations and make concurrent assignment of one control impossible.
+
+    An existing duplicate needs a human decision about which round to keep; never
+    silently pick one or continue without the correctness index.
+    """
+    open_states = "'draft','in_progress','submitted','changes_requested'"
+    duplicate = conn.execute(
+        "SELECT i.control_id FROM grid_assignment_items i "
+        "JOIN grid_assignments a ON a.id=i.assignment_id "
+        f"WHERE a.state IN ({open_states}) GROUP BY i.control_id HAVING COUNT(*)>1 LIMIT 1"
+    ).fetchone()
+    if duplicate:
+        raise RuntimeError(f"Open GRID assignments overlap on control {duplicate[0]}; review before migration")
+    conn.execute(
+        "UPDATE grid_assignment_items SET active_control_id=control_id WHERE "
+        f"assignment_id IN (SELECT id FROM grid_assignments WHERE state IN ({open_states})) "
+        "AND (active_control_id IS NULL OR active_control_id<>control_id)"
+    )
+    conn.execute(
+        "UPDATE grid_assignment_items SET active_control_id=NULL WHERE active_control_id IS NOT NULL "
+        f"AND assignment_id IN (SELECT id FROM grid_assignments WHERE state NOT IN ({open_states}))"
+    )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_assignment_active_control "
+                 "ON grid_assignment_items(active_control_id)")
+
+
 def _run_sqlite_alters(conn):
     """SQLite-only: ALTER TABLE ADD COLUMN for schema evolution and UNIQUE index creation."""
     for table, column, definition in _COLUMN_MIGRATIONS:
@@ -7572,6 +7639,15 @@ def _run_sqlite_alters(conn):
         except OperationalError:
             # Column doesn't exist — add it
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    try:
+        _ensure_grid_assignment_active_control(conn)
+        from modules.governance.dpia_controls import quarantine_legacy_guesses
+        quarantine_legacy_guesses(conn)
+        conn.execute("SELECT control_review_json FROM bcm_plan_activations LIMIT 0")
+        conn.execute("SELECT source_bytes,source_evidence_id FROM aria_document_register_batches LIMIT 0")
+    except Exception as exc:
+        raise RequiredTenantMigrationError("GRID reservation or DPIA link quarantine failed") from exc
+    conn.execute("UPDATE sentinel_aiia SET ever_approved=1 WHERE status='approved' AND ever_approved=0")
     # Historical human-started instances inherit their starter's tenant.
     # Rows without a trustworthy owner remain NULL and fail closed in HTTP routes.
     conn.execute(
@@ -9063,6 +9139,15 @@ def _run_pg_alters(conn) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
         except Exception:
             pass
+    try:
+        _ensure_grid_assignment_active_control(conn)
+        from modules.governance.dpia_controls import quarantine_legacy_guesses
+        quarantine_legacy_guesses(conn)
+        conn.execute("SELECT control_review_json FROM bcm_plan_activations LIMIT 0")
+        conn.execute("SELECT source_bytes,source_evidence_id FROM aria_document_register_batches LIMIT 0")
+    except Exception as exc:
+        raise RequiredTenantMigrationError("GRID reservation or DPIA link quarantine failed") from exc
+    conn.execute("UPDATE sentinel_aiia SET ever_approved=1 WHERE status='approved' AND ever_approved=0")
     # A group grant may now be for figures as well as documents (plan 21). The check was created with two values.
     try:
         conn.execute("ALTER TABLE public.group_view_grants DROP CONSTRAINT IF EXISTS group_view_grants_capability_check")
@@ -9452,6 +9537,8 @@ def _migrate_all_tenant_schemas() -> None:
                     conn.rollback()
                 except Exception:
                     pass
+                if isinstance(exc, RequiredTenantMigrationError):
+                    raise
                 log.warning("Could not migrate tenant schema %s (skipped): %s",
                             schema_name, exc)
     finally:

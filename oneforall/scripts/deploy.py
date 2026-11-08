@@ -44,6 +44,8 @@ DEFAULT_UNIT_FILE = Path("/etc/systemd/system/themisiq-app.service")
 SERVICE_NAME = "themisiq-app.service"
 SERVICE_USER = "themisiq"
 SERVICE_GROUP = "themisiq"
+POLICY_EXTRACT_SOCKET = Path("/run/themisiq-policy-extract.sock")
+POLICY_EXTRACT_UNITS = ("themisiq-policy-extract.socket", "themisiq-policy-extract@.service")
 
 KEY_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 UNIT_ENV_KEY_RE = re.compile(
@@ -801,6 +803,28 @@ def scrub_legacy_secrets(project_root: Path, env_file: Path) -> None:
             print(f"No secret-bearing keys found in {path}.")
 
 
+def verify_policy_extract_service(project_root: Path, service_uid: int, *,
+                                  unit_root: Path = Path("/etc/systemd/system")) -> None:
+    """Stop an enabled ARIA release if the isolated parser is not installed."""
+    for name in POLICY_EXTRACT_UNITS:
+        source = project_root / "oneforall" / "scripts" / "systemd" / name
+        installed = unit_root / name
+        if not source.is_file() or not installed.is_file() or source.read_bytes() != installed.read_bytes():
+            raise RuntimeError(f"ARIA extraction worker unit is missing or differs: {name}")
+    loaded = _run(["systemctl", "show", "themisiq-policy-extract.socket", "-p", "NeedDaemonReload", "--value"])
+    if loaded.stdout.strip() != "no":
+        raise RuntimeError("ARIA extraction worker units need systemctl daemon-reload")
+    active = _run(["systemctl", "is-active", "themisiq-policy-extract.socket"], check=False)
+    if active.stdout.strip() != "active":
+        raise RuntimeError("ARIA extraction worker socket is not active")
+    try:
+        node = POLICY_EXTRACT_SOCKET.stat()
+    except OSError as exc:
+        raise RuntimeError("ARIA extraction worker socket is missing") from exc
+    if not stat.S_ISSOCK(node.st_mode) or node.st_uid != service_uid or stat.S_IMODE(node.st_mode) != 0o600:
+        raise RuntimeError("ARIA extraction worker socket has the wrong owner or mode")
+
+
 def preflight(
     project_root: Path,
     env_file: Path,
@@ -827,6 +851,8 @@ def preflight(
             uid, gid = existing_service_account()
             verify_aria_preview_container(values, uid, gid)
             print("ARIA preview worker readiness: PASS")
+            verify_policy_extract_service(project_root, uid)
+            print("ARIA extraction worker readiness: PASS")
     else:
         print("Secure environment has not been captured yet.")
     template = service_template_path(project_root)

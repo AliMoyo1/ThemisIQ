@@ -89,6 +89,7 @@ VENDOR_KEYS = (("sentinel", "vendor"), ("grid", "vendor"), ("bcm", "vendor"))
 _KIND_OF = {"application": "application_changed", "process": "process_changed", "vendor": "vendor_changed"}
 # Signals that are not "a watched record changed in its own table".
 KIND_LABELS = {
+    "control_check_failed": "A continuity activation reported a control as not working",
     "evidence_replaced": "A file was replaced by a new version",
     "policy_approved": "A policy version was approved",
     "ai_use_decided": "A decision was made on an AI use",

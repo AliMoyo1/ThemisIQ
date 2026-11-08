@@ -76,8 +76,11 @@ def test_the_analytics_link_is_in_the_super_admins_navigation(pages, path):
 @pytest.mark.parametrize("role", RESTRICTED)
 def test_the_new_risk_button_is_not_offered_to_roles_the_api_refuses(pages, role):
     """Registering a risk is for the super administrator; the button used to post into a 403 and fail silently."""
-    assert 'onclick="openNewRisk()"' not in pages("/risk-register", role)
+    assert 'id="openNewRiskBtn"' not in pages("/risk-register", role)
 
 
 def test_the_new_risk_button_is_on_the_super_admins_register(pages):
-    assert 'onclick="openNewRisk()"' in pages("/risk-register", "super_admin")
+    html = pages("/risk-register", "super_admin")
+    assert 'id="openNewRiskBtn"' in html
+    assert '<script src="/static/js/central_risk_register.js" defer></script>' in html
+    assert 'onclick="openNewRisk()"' not in html

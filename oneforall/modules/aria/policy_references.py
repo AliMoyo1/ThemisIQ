@@ -35,7 +35,9 @@ def resolve_policy_references(db, viewer: dict, source_record: tuple[str, str, i
                               "AND i.document_id IS NOT NULL ORDER BY l.id DESC" + cap, params).fetchall():
             wanted[row["document_id"]] = (row["anchor"], row["policy_version_id"])
     else:
-        for link in relationships.list_links(db, viewer, key, record_id, limit=limit or 30):
+        links = (relationships.iter_visible_links(db, viewer, key, record_id) if limit is None else
+                 relationships.list_links(db, viewer, key, record_id, limit=limit))
+        for link in links:
             if (link["module"], link["entity_type"]) == ("aria", "document") and link["status"] == "confirmed":
                 wanted[link["entity_id"]] = (None, None)
     if not wanted:
@@ -86,6 +88,7 @@ def resolve_policy_references(db, viewer: dict, source_record: tuple[str, str, i
                                [version_id, viewer.get("org_id"), viewer.get("org_id"), *scope_params]).fetchone()
         items.append({"document_id": doc_id, "title": doc["title"], "version_id": version_id,
                       "version": version["version"], "evidence_id": evidence["id"],
+                      "file_hash": evidence["file_hash"],
                       "url": f"/evidence/?open=item:{evidence['id']}", "anchor": anchor,
                       "presentation_url": f"/evidence/?open=item:{rendition['id']}" if rendition else None,
                       "approval": origin, "meaning": "Policy reference; operating proof requires separate review"})

@@ -3006,6 +3006,65 @@ def test_expired_sessions_are_purged_and_the_lease_holds_on_real_postgres(pg, mo
 
 # ── Relationship service (AI governance G1a) ─────────────────────────────────
 
+def test_legacy_dpia_guesses_are_quarantined_in_each_tenant_on_real_postgres(pg):
+    """An old system link loses confirmed status without changing human decisions."""
+    from modules.governance.dpia_controls import quarantine_legacy_guesses
+
+    pg.init_db()
+    org = _make_org(pg, "dpia_guess_pg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        reviewer = setup.execute(
+            "INSERT INTO users (username,email,full_name,password_hash,org_id) "
+            "VALUES ('dpia_reviewer','dpia_reviewer@example.invalid','Reviewer','x',%s) RETURNING id",
+            (org,),
+        ).fetchone()["id"]
+        setup.commit()
+    finally:
+        setup.close()
+    with pg.tenant_context(org, "dpia_guess_pg", is_super_admin=True):
+        conn = pg.get_db()
+        try:
+            old = conn.execute(
+                "INSERT INTO cross_module_links (source_module,source_type,source_id,"
+                "target_module,target_type,target_id,relationship,provenance,status) "
+                "VALUES ('sentinel','dpia',12,'aria','control',34,'mitigates','system','confirmed') "
+                "RETURNING id"
+            ).fetchone()["id"]
+            reviewed = conn.execute(
+                "INSERT INTO cross_module_links (source_module,source_type,source_id,"
+                "target_module,target_type,target_id,relationship,provenance,status,confirmed_by) "
+                "VALUES ('sentinel','dpia',12,'aria','control',35,'mitigates','system','confirmed',%s) "
+                "RETURNING id", (reviewer,)
+            ).fetchone()["id"]
+            conn.commit()
+            assert quarantine_legacy_guesses(conn) == 1
+            conn.commit()
+            assert quarantine_legacy_guesses(conn) == 0
+            changed = conn.execute("SELECT status,provenance,target_type FROM cross_module_links WHERE id=%s", (old,)).fetchone()
+            assert (changed["status"], changed["provenance"], changed["target_type"]) == (
+                "candidate", "system_candidate", "legacy_control"
+            )
+            assert conn.execute("SELECT status FROM cross_module_links WHERE id=%s", (reviewed,)).fetchone()[0] == "confirmed"
+        finally:
+            conn.close()
+    assert _raw_rows("SELECT status FROM tenant_dpia_guess_pg.cross_module_links WHERE id=%s", (old,)) == [("candidate",)]
+    assert _raw_rows("SELECT count(*) FROM public.cross_module_links") == [(0,)]
+
+
+def test_required_tenant_safety_migration_stops_startup_on_error(pg, monkeypatch):
+    """A tenant safety failure may not be logged and skipped during startup."""
+    pg.init_db()
+    _make_org(pg, "required_migration_failure")
+
+    def broken_reservation(conn):
+        raise ValueError("synthetic duplicate open control assignment")
+
+    monkeypatch.setattr(pg, "_ensure_grid_assignment_active_control", broken_reservation)
+    with pytest.raises(pg.RequiredTenantMigrationError, match="GRID reservation"):
+        pg._migrate_all_tenant_schemas()
+
+
 def test_typed_ai_edges_candidates_and_scope_run_inside_a_tenant_on_real_postgres(pg):
     """The relationship service on PostgreSQL in a tenant schema: typed edges between an application and its AIIA
     and data asset, the inverse label on the target side, a candidate that stays hidden until confirmed, a rejected
@@ -3831,13 +3890,15 @@ def test_ai_assessments_run_inside_a_tenant_on_real_postgres(pg):
             assert kept.value.status == 409
             reopened = assessments.update_assessment(db, dpo, row["id"], {"status": "in_progress"}, approved["assessment"]["version"])
             db.commit()
-            assessments.delete_assessment(db, dpo, row["id"])
-            db.commit()
+            with pytest.raises(ServiceError) as kept_after_reopen:
+                assessments.delete_assessment(db, dpo, row["id"])
+            db.rollback()
+            assert kept_after_reopen.value.status == 409
             assert reopened["assessment"]["status"] == "in_progress"
         finally:
             db.close()
-    assert _raw_rows("SELECT count(*) FROM tenant_aiassess.sentinel_aiia") == [(0,)]
-    assert _raw_rows("SELECT count(*) FROM tenant_aiassess.sentinel_aiia_impacts") == [(0,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aiassess.sentinel_aiia") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aiassess.sentinel_aiia_impacts")[0][0] > 0
 
 
 def test_ai_decisions_hold_one_open_request_and_one_winner_on_real_postgres(pg):
@@ -4043,8 +4104,9 @@ def test_ai_evaluations_regulation_and_monitoring_run_inside_a_tenant_on_real_po
             db.close()
 
 
-def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
+def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg, monkeypatch):
     from core import rbac
+    from modules.aria import policy_references
     from modules.ai_governance import review_packs, service
 
     pg.init_db()
@@ -4080,7 +4142,14 @@ def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
             # This fixture cannot persist a tenant-only unit id in shared users. Keep the use
             # organization wide so the reloaded issuer has the same scope as their session.
             db.execute("UPDATE applications SET business_unit_id = NULL WHERE id = %s", (app,))
+            doc_id = pg.insert_returning_id(db, "INSERT INTO aria_documents (doc_id, framework, title, org_id, status) "
+                                            "VALUES (%s, %s, %s, %s, %s)",
+                                            ("PG-POL-1", "AI", "AI use policy", org, "Approved"))
             db.commit()
+            monkeypatch.setattr(policy_references, "resolve_policy_references", lambda *_args, **_kw: [
+                {"title": "AI use policy", "version": "1.0", "version_id": 101,
+                 "evidence_id": 301, "file_hash": "a" * 64, "anchor": "section 4",
+                 "approval": "external_verified"}])
             opts = {"name": "PG AI review", "recipient_id": recipient_id, "expires_days": 14}
             shown = review_packs.preview(db, who["reviewer"], app, opts)
             assert shown["problems"] == {} and shown["recipient"]["id"] == recipient_id
@@ -4089,6 +4158,13 @@ def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
             pack_id = made["pack"]["id"]
             pack_row = db.execute("SELECT * FROM ai_review_packs WHERE id = %s", (pack_id,)).fetchone()
             assert review_packs._issuer_problem(db, pack_row) is None, review_packs._issuer_problem(db, pack_row)
+            assert review_packs.alert_policy_replacement(db, org_id=org, document_id=doc_id,
+                                                         old_version_id=101, new_version_id=102) == 1
+            assert review_packs.alert_policy_replacement(db, org_id=org, document_id=doc_id,
+                                                         old_version_id=101, new_version_id=102) == 0
+            db.commit()
+            assert db.execute("SELECT COUNT(*) FROM notifications WHERE title = 'Review pack source changed' "
+                              "AND user_id = %s", (ids["reviewer"],)).fetchone()[0] == 1
             assert review_packs.list_mine(db, recipient)["packs"][0]["id"] == pack_id
             opened = review_packs.open_pack(db, recipient, pack_id)
             db.commit()
@@ -4512,6 +4588,7 @@ def test_retained_ai_literacy_history_and_platform_feature_notes_use_their_postg
     from core.ai_policy import FEATURES
     from core.timeutils import utcnow
     from modules.ai_governance import platform_features
+    from modules.ai_governance import platform_evaluations
 
     pg.init_db()
     org, _unit, ids, who = _ai_governance_world(pg, "g6bc", author_role=rbac.EMPLOYEE)
@@ -4520,6 +4597,10 @@ def test_retained_ai_literacy_history_and_platform_feature_notes_use_their_postg
                      "AND table_name = 'platform_ai_features'") == [(0,)]
     assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' "
                      "AND table_name = 'platform_ai_features'") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_g6bc' "
+                     "AND table_name = 'platform_ai_evaluation_runs'") == [(0,)]
+    assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' "
+                     "AND table_name = 'platform_ai_evaluation_runs'") == [(1,)]
 
     with pg.tenant_context(org, "g6bc", is_super_admin=False):
         db = pg.get_db()
@@ -4562,11 +4643,15 @@ def test_retained_ai_literacy_history_and_platform_feature_notes_use_their_postg
         assert row["owner"] == "Platform team"
         assert row["usage"]["successful"] == 1
         assert platform_features.mark_reviewed(shared, operator, feature, 1)["version"] == 2
+        check = platform_evaluations.run(shared, operator, "aria.ask")["run"]
+        assert check["status"] == "passed" and check["checks_total"] == 5
+        assert platform_evaluations.list_runs(shared, operator, "aria.ask")["runs"][0]["id"] == check["id"]
         shared.commit()
     finally:
         shared.close()
     assert _raw_rows("SELECT count(*) FROM tenant_g6bc.ai_literacy_completions") == [(1,)]
     assert _raw_rows("SELECT count(*) FROM public.platform_ai_features") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM public.platform_ai_evaluation_runs") == [(1,)]
 
 
 def test_g7_oversight_versions_are_tenant_scoped_on_real_postgres(pg):
@@ -5537,6 +5622,21 @@ def test_assignments_and_needs_attention_run_as_an_ordinary_role_in_tenant_schem
             return conn.execute("SELECT version FROM grid_assignments WHERE id=%s", (assignment,)).fetchone()[0]
         assignment = ga.create(conn, lead, audit, [controls[0]], owner["id"], None,
                                (date.today() + timedelta(days=5)).isoformat(), "PG questions")
+        conn.commit()
+        # The reservation is enforced by PostgreSQL even if another writer
+        # bypasses the application precheck. Its failed transaction is rolled
+        # back before the ordinary assignment round resumes.
+        second = conn.execute(
+            "INSERT INTO grid_assignments (org_id,audit_id,title,assignee_id,reviewer_id,due_date,created_by,"
+            "created_at,updated_at) VALUES (%s,%s,'Competing round',%s,%s,%s,%s,'2026-11-05','2026-11-05') "
+            "RETURNING id",
+            (org, audit, owner["id"], lead["id"], (date.today() + timedelta(days=5)).isoformat(), lead["id"]),
+        ).fetchone()["id"]
+        with pytest.raises(psycopg2.errors.UniqueViolation):
+            conn.execute("INSERT INTO grid_assignment_items "
+                         "(assignment_id,control_id,active_control_id) VALUES (%s,%s,%s)",
+                         (second, controls[0], controls[0]))
+        conn.rollback()
         ga.launch(conn, lead, assignment, version(assignment))
         conn.commit()
         item = ga.detail(conn, owner, assignment)["items"][0]["id"]
@@ -5559,6 +5659,7 @@ def test_assignments_and_needs_attention_run_as_an_ordinary_role_in_tenant_schem
         _release_role(conn)
         context.__exit__(None, None, None)
 
+
     context = pg.tenant_context(other, "ciso_b", is_super_admin=False)
     context.__enter__()
     conn = pg.get_db()
@@ -5575,6 +5676,151 @@ def test_assignments_and_needs_attention_run_as_an_ordinary_role_in_tenant_schem
         _release_role(conn)
         context.__exit__(None, None, None)
 
+
+def test_document_register_source_is_filed_in_the_correct_tenant_on_real_postgres(pg, tmp_path, monkeypatch):
+    """A confirmed claim retains exact XLSX bytes in its tenant's scoped Vault."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from modules.aria import document_register_intake as intake
+
+    pg.init_db()
+    org = _make_org(pg, "register_source_a")
+    other = _make_org(pg, "register_source_b")
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$")
+        for schema in ("public", "tenant_register_source_a", "tenant_register_source_b"):
+            setup.execute(f"GRANT USAGE ON SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+            setup.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+            setup.execute(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA {schema} TO {_RLS_PROBE_ROLE}")
+        user_id = setup.execute(
+            "INSERT INTO public.users (username,email,full_name,password_hash,org_id,is_active) "
+            "VALUES ('reg_source','reg_source@example.invalid','Register Author','x',%s,1) RETURNING id",
+            (org,)).fetchone()["id"]
+        setup.commit()
+    finally:
+        setup.close()
+    actor = {"id": user_id, "org_id": org, "roles": ["super_admin"], "is_super_admin": True,
+             "username": "reg_source", "full_name": "Register Author"}
+    wb = Workbook()
+    sheet = wb.active
+    sheet.title = "Document Register"
+    sheet.append(["Register"])
+    sheet.append(["Version 1.0"])
+    sheet.append(list(intake.HEADINGS))
+    sheet.append([1, "POL-001", "One policy", "Policy", "1.0", "", "", "", "Current", "Owner", "", "", "Pending"])
+    stream = BytesIO()
+    wb.save(stream)
+    original = stream.getvalue()
+    monkeypatch.setenv("EVIDENCE_DIR", str(tmp_path))
+    with pg.tenant_context(org, "register_source_a", is_super_admin=False):
+        db = pg.get_db()
+        _become_restricted(db)
+        try:
+            preview = intake.preview(db, actor, original, "register.xlsx", org_wide=True)
+            result = intake.confirm(db, actor, preview["batch_id"], 1,
+                                    [f"{w['code']}:{w.get('ref','')}" for w in preview["warnings"]])
+            db.commit()
+            assert result["_created_source_path"].read_bytes() == original
+            assert db.execute("SELECT source_bytes FROM aria_document_register_batches WHERE id=%s",
+                              (preview["batch_id"],)).fetchone()[0] is None
+            stored = db.execute("SELECT file_hash,org_id FROM evidence_items WHERE id=%s",
+                                (result["source_evidence_id"],)).fetchone()
+            assert stored["file_hash"] == preview["file_sha256"] and stored["org_id"] == org
+        finally:
+            _release_role(db)
+    with pg.tenant_context(other, "register_source_b", is_super_admin=False):
+        db = pg.get_db()
+        _become_restricted(db)
+        try:
+            assert db.execute("SELECT COUNT(*) FROM evidence_items WHERE file_hash=%s",
+                              (preview["file_sha256"],)).fetchone()[0] == 0
+        finally:
+            _release_role(db)
+
+
+def test_report_retention_hold_after_scan_is_respected_on_real_postgres(pg, monkeypatch):
+    """A concurrent hold committed after the due scan wins before the purge row lock."""
+    import threading
+
+    from modules.launcher import report_retention
+
+    pg.init_db()
+    with pg.tenant_context(1, "public", is_super_admin=True):
+        seed = pg.get_db()
+        try:
+            definition = seed.execute(
+                "INSERT INTO report_definitions (name) VALUES ('PG retention race') RETURNING id"
+            ).fetchone()["id"]
+            run = seed.execute(
+                "INSERT INTO report_runs (definition_id,status,result_json,snapshot_hash) "
+                "VALUES (%s,'completed','{\"summary\":\"keep\"}','pg-hash') RETURNING id",
+                (definition,),
+            ).fetchone()["id"]
+            seed.execute(
+                "INSERT INTO report_run_retention (run_id,delete_after) VALUES (%s,'2020-01-01')",
+                (run,),
+            )
+            seed.commit()
+        finally:
+            seed.close()
+
+    scanned = threading.Event()
+    release = threading.Event()
+    outcomes = {}
+    original_background = report_retention.get_db_background
+
+    class PauseAfterScan:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def execute(self, query, params=()):
+            result = self.connection.execute(query, params)
+            if query.startswith("SELECT r.run_id"):
+                scanned.set()
+                if not release.wait(15):
+                    raise AssertionError("The hold was not set after the purge scan")
+            return result
+
+        def __getattr__(self, name):
+            return getattr(self.connection, name)
+
+    monkeypatch.setattr(report_retention, "get_db_background",
+                        lambda: PauseAfterScan(original_background()))
+
+    def purge():
+        with pg.tenant_context(1, "public", is_super_admin=False):
+            outcomes["purged"] = report_retention.purge_due(1)
+
+    worker = threading.Thread(target=purge)
+    worker.start()
+    try:
+        assert scanned.wait(15), "The due report was not scanned"
+        with pg.tenant_context(1, "public", is_super_admin=True):
+            admin = pg.get_db()
+            try:
+                admin.execute("UPDATE report_run_retention SET hold_reason='Legal hold' WHERE run_id=%s", (run,))
+                admin.commit()
+            finally:
+                admin.close()
+    finally:
+        release.set()
+        worker.join(15)
+    assert not worker.is_alive()
+    assert outcomes["purged"] == 0
+    with pg.tenant_context(1, "public", is_super_admin=True):
+        check = pg.get_db()
+        try:
+            saved = check.execute(
+                "SELECT status,result_json,snapshot_hash FROM report_runs WHERE id=%s", (run,)
+            ).fetchone()
+            assert (saved["status"], saved["result_json"], saved["snapshot_hash"]) == (
+                "completed", '{"summary":"keep"}', "pg-hash"
+            )
+        finally:
+            check.close()
 
 def test_reusing_an_earlier_audit_runs_as_an_ordinary_role_in_a_tenant_schema_on_real_postgres(pg):
     """Plan 25: preview, apply, mapping review and undo, in a provisioned tenant schema (the mapping review columns

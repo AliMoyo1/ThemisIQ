@@ -17,6 +17,7 @@ from datetime import date
 
 from fastapi import HTTPException
 
+from config import settings
 from core.rbac import has_capability
 from core.sql_like import ci_like, like_pattern
 from core.timeutils import utcnow
@@ -155,6 +156,12 @@ def _busy(db, control_ids: "list[int]", except_assignment=None) -> list:
     """Controls already in another open assignment: one control, one open round."""
     if not control_ids:
         return []
+    if settings.is_postgres():
+        # Serialize competing leads on the control, then read the committed
+        # reservation. The unique index also protects callers outside this path.
+        marks = ",".join(["%s"] * len(control_ids))
+        db.execute(f"SELECT id FROM grid_controls WHERE id IN ({marks}) ORDER BY id FOR UPDATE",
+                   sorted(control_ids)).fetchall()
     marks = ",".join(["%s"] * len(control_ids))
     states = ",".join(f"'{s}'" for s in OPEN_STATES)
     rows = db.execute(
@@ -218,14 +225,23 @@ def create(db, actor: dict, audit_id, control_ids, assignee_id, reviewer_id, due
     if busy:
         raise HTTPException(409, "Already in an open assignment: " + ", ".join(busy[:10]))
     now = _now()
-    new_id = insert_returning_id(
-        db, "INSERT INTO grid_assignments (org_id, audit_id, business_unit_id, title, instructions, assignee_id, "
-            "reviewer_id, due_date, created_by, created_at, updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-        (actor["org_id"], audit["id"], audit["business_unit_id"], _text(title, "title", minimum=3),
-         _text(instructions, "instructions"), assignee["id"], reviewer["id"], _due(due_date), actor["id"], now, now))
-    for cid in control_ids:
-        db.execute("INSERT INTO grid_assignment_items (assignment_id, control_id, updated_at) VALUES (%s,%s,%s)",
-                   (new_id, cid, now))
+    db.execute("SAVEPOINT grid_assignment_reserve")
+    try:
+        new_id = insert_returning_id(
+            db, "INSERT INTO grid_assignments (org_id, audit_id, business_unit_id, title, instructions, assignee_id, "
+                "reviewer_id, due_date, created_by, created_at, updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (actor["org_id"], audit["id"], audit["business_unit_id"], _text(title, "title", minimum=3),
+             _text(instructions, "instructions"), assignee["id"], reviewer["id"], _due(due_date), actor["id"], now, now))
+        for cid in control_ids:
+            if db.execute("INSERT INTO grid_assignment_items "
+                          "(assignment_id, control_id, active_control_id, updated_at) VALUES (%s,%s,%s,%s) "
+                          "ON CONFLICT(active_control_id) DO NOTHING", (new_id, cid, cid, now)).rowcount != 1:
+                raise HTTPException(409, "A control is already in an open assignment. Refresh the list.")
+    except Exception:
+        db.execute("ROLLBACK TO SAVEPOINT grid_assignment_reserve")
+        db.execute("RELEASE SAVEPOINT grid_assignment_reserve")
+        raise
+    db.execute("RELEASE SAVEPOINT grid_assignment_reserve")
     _event(db, new_id, actor, "created", detail={"controls": len(control_ids)})
     return new_id
 
@@ -266,13 +282,22 @@ def revise(db, actor: dict, assignment_id, version, reason=None, add=None, remov
         changes["due_date"] = _due(due_date)
     if not (add or remove or changes):
         raise HTTPException(422, "Nothing to change")
-    _bump(db, row, version, **changes)
-    now = _now()
-    for cid in add:
-        db.execute("INSERT INTO grid_assignment_items (assignment_id, control_id, updated_at) VALUES (%s,%s,%s)",
-                   (row["id"], cid, now))
-    for cid in remove:
-        db.execute("DELETE FROM grid_assignment_items WHERE id=%s", (current[cid]["id"],))
+    db.execute("SAVEPOINT grid_assignment_revise")
+    try:
+        _bump(db, row, version, **changes)
+        now = _now()
+        for cid in add:
+            if db.execute("INSERT INTO grid_assignment_items "
+                          "(assignment_id, control_id, active_control_id, updated_at) VALUES (%s,%s,%s,%s) "
+                          "ON CONFLICT(active_control_id) DO NOTHING", (row["id"], cid, cid, now)).rowcount != 1:
+                raise HTTPException(409, "A control is already in an open assignment. Refresh the list.")
+        for cid in remove:
+            db.execute("DELETE FROM grid_assignment_items WHERE id=%s", (current[cid]["id"],))
+    except Exception:
+        db.execute("ROLLBACK TO SAVEPOINT grid_assignment_revise")
+        db.execute("RELEASE SAVEPOINT grid_assignment_revise")
+        raise
+    db.execute("RELEASE SAVEPOINT grid_assignment_revise")
     _event(db, row["id"], actor, "revised", detail={"reason": why, "added": len(add), "removed": len(remove),
                                                    **{k: v for k, v in changes.items()}})
     if launched and changes.get("assignee_id") not in (None, row["assignee_id"]):
@@ -303,6 +328,7 @@ def cancel(db, actor: dict, assignment_id, version, reason) -> dict:
         raise HTTPException(409, "It is already closed or cancelled")
     why = _text(reason, "reason", minimum=3)
     _bump(db, row, _version(version), state="cancelled", closed_at=_now())
+    db.execute("UPDATE grid_assignment_items SET active_control_id=NULL WHERE assignment_id=%s", (row["id"],))
     _event(db, row["id"], actor, "cancelled", detail={"reason": why})
     if row["state"] != "draft":
         _notify(db, row["assignee_id"], "Audit questions were withdrawn", f"{row['title']}: {why}", row["id"])
@@ -472,6 +498,7 @@ def review_item(db, actor: dict, assignment_id, item_id, version, decision, note
     state, version = row["state"], version + 1
     if all(s == "accepted" for s in states):
         _bump(db, {**row, "version": version}, version, state="closed", closed_at=_now())
+        db.execute("UPDATE grid_assignment_items SET active_control_id=NULL WHERE assignment_id=%s", (row["id"],))
         state, version = "closed", version + 1
         _event(db, row["id"], actor, "closed")
         _notify(db, row["assignee_id"], "Your audit answers were accepted", row["title"], row["id"])

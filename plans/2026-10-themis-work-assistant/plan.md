@@ -55,3 +55,7 @@ Keep one Themis panel. Present a short answer, at most three next-action links, 
 ## Integration notes
 
 The Claude Level 2 guide is not a record assistant. Its platform KB and guided tours are retained. The first case adapters use AI Governance's scoped request, connected outstanding-work and decision services. Ask ARIA's live-document recheck and citation binding are the pattern for later evidence retrieval. The `launcher.api_trainer_ask` identifier is retired from the live provider-call catalogue; stored policy restrictions containing it remain readable. A new record-aware provider call would require a new reviewed declaration.
+
+## Continuation, 2026-11-05
+
+The branch described above has since been integrated. The current continuation in `codex/finish-assurance-security-2026-11-05` adds local text retrieval for an authorized selected record and its confirmed one-hop relationships. It rechecks the owning record and Vault scope, accepts only current indexed file versions with matching hashes, and returns exact excerpts with offsets and citations or an explicit inability to verify. No document bytes go to an AI provider. This is a bounded retrieval slice, not an open-ended organization-wide search or a compliance determination. See [the continuation ledger](../2026-11-assurance-and-csp-finish.md) for current release gates and validation status. Provider-assisted drafting remains gated by a separate privacy and citation review because existing organization policy may disallow evidence content.

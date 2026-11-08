@@ -124,8 +124,7 @@ html,body{min-height:100vh;font-family:'Inter',system-ui,sans-serif;background:#
       <div class="avatar">{{ user.avatar_initials }}</div>
       <span>{{ user.full_name }}</span>
     </div>
-    <a href="#" onclick="document.getElementById('logoutForm3').submit();return false" class="btn-logout">Sign Out</a>
-    <form id="logoutForm3" method="POST" action="/logout" style="display:none"></form>
+    <form id="logoutForm3" method="POST" action="/logout"><button type="submit" class="btn-logout">Sign Out</button></form>
   </div>
 </header>
 

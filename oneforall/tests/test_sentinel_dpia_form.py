@@ -151,7 +151,8 @@ def test_a_dpia_from_before_the_column_has_no_due_date_and_the_upgrade_can_run_a
 
 # ── The forms and the data service agree on what is stored ──────────────────
 
-_TEMPLATE = Path(__file__).resolve().parent.parent / "modules" / "sentinel" / "templates" / "index.html"
+# The Sentinel page's script moved out of its template for the strict script policy.
+_TEMPLATE = Path(__file__).resolve().parent.parent / "static" / "js" / "sentinel_index.js"
 # Keys a DPIA form sends that are deliberately not stored (PLAN_dpia_form_fields_2026-10-22.md, decision D3).
 NOT_STORED = set()  # risk_level is now stored: derived from the chosen overall rating, never taken from the client
 
