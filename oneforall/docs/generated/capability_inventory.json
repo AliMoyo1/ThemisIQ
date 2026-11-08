@@ -1,5 +1,5 @@
 {
-  "route_count": 1309,
+  "route_count": 1312,
   "entries": [
     {
       "path": "/api/demo-request",
@@ -14559,6 +14559,20 @@
       "notes": ""
     },
     {
+      "path": "/evidence/api/items/{eid}/source-retention",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_source_workbook_retention",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/evidence/api/items/{eid}/suggest-links",
       "methods": [
         "POST"
@@ -22783,6 +22797,34 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "timeline_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/registers/source-retention-policy",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_source_workbook_retention_policy_get",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/registers/source-retention-policy",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_source_workbook_retention_policy_save",
       "maturity": "",
       "notes": ""
     },
