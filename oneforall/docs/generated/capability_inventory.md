@@ -839,7 +839,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/grid/api/controls/{cid}` | capability | grid.control.update_own | grid.control.update_own: audit_lead, auditor, super_admin | - |  |
 | POST | `/grid/api/controls/{cid}/attach-aria-policy` | capability | grid.evidence.upload | grid.evidence.upload: audit_lead, auditor, super_admin | - |  |
 | POST | `/grid/api/controls/{cid}/attach-vault` | capability | grid.evidence.upload | grid.evidence.upload: audit_lead, auditor, super_admin | - |  |
-| POST | `/grid/api/controls/{cid}/comments` | capability | grid.control.update_own | grid.control.update_own: audit_lead, auditor, super_admin | - |  |
+| POST | `/grid/api/controls/{cid}/comments` | capability | grid.control.comment | grid.control.comment: audit_lead, auditor, external_auditor, super_admin | - |  |
 | GET | `/grid/api/controls/{cid}/suggested-policies` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
 | GET | `/grid/api/dashboard` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
 | GET | `/grid/api/evidence-all` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |

@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from config import settings
 from core.auth import get_session_user
-from core.rbac import has_capability, user_modules
+from core.rbac import has_capability, is_read_only, read_only_may_send, user_modules
 from database import get_db
 
 
@@ -59,6 +59,16 @@ async def get_current_user(request: Request) -> Optional[dict]:
     return get_session_user(token)
 
 
+def _refuse_read_only_write(request: Request, user: dict) -> None:
+    """A read-only role (the external auditor) reads and comments but never files or changes a record. Checked here,
+    in front of every signed-in route, so a route that forgets its own capability check cannot let one through."""
+    if is_read_only(user) and not read_only_may_send(request.method, request.url.path):
+        raise HTTPException(status_code=403, detail=READ_ONLY_REFUSAL)
+
+
+READ_ONLY_REFUSAL = "Your role is read-only: you can read, ask questions and comment, but not file or change records."
+
+
 def require_auth(func):
     """Decorator: redirect to login if not authenticated.
     Also enforces must_change_password and mfa_pending redirects."""
@@ -74,6 +84,7 @@ def require_auth(func):
             return _mfa_pending_response(path)
         if user.get("must_change_password") and not _password_change_allowed(user, path):
             return RedirectResponse("/change-password", status_code=303)
+        _refuse_read_only_write(request, user)
         request.state.user = user
         return await func(request, *args, **kwargs)
     return wrapper
@@ -96,6 +107,7 @@ def require_capability(*capabilities: str):
                 return RedirectResponse("/change-password", status_code=303)
             if not any(has_capability(user, c) for c in capabilities):
                 raise HTTPException(status_code=403, detail="Insufficient permissions")
+            _refuse_read_only_write(request, user)
             # Licence check: a module capability requires the tenant licence too
             # (super admins bypass).
             if not user.get("is_super_admin"):

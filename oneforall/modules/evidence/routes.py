@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.best_effort import swallowed
 from core.middleware import require_auth, require_capability
-from core.rbac import has_capability, user_modules
+from core.rbac import has_capability, is_read_only, user_modules
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
@@ -377,6 +377,7 @@ def _scoped_evidence_item(db, eid: int, user: dict):
 async def evidence_page(request: Request):
     """Evidence repository SPA page."""
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    ctx["can_file"] = not is_read_only(request.state.user)
     ctx["can_bulk_archive"] = has_capability(request.state.user, "evidence.delete")
     ctx["can_manage_company"] = has_capability(request.state.user, "evidence.company.manage") or has_capability(request.state.user, "evidence.company.review")
     ctx["can_manage_legacy"] = bool(
@@ -1849,6 +1850,7 @@ async def api_evidence_get(request: Request, eid: int):
     result["can_delete"] = has_capability(request.state.user, "evidence.delete")
     result["can_review_links"] = has_capability(request.state.user, "evidence.link.review")
     result["can_link"] = may_change(request.state.user, ("evidence", "item"))
+    result["can_change"] = not is_read_only(request.state.user)
     from modules.aria import register_source_retention as source_retention
     db = get_db()
     try:
