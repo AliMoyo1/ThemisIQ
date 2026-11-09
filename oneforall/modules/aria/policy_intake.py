@@ -34,9 +34,10 @@ TYPES = {"Policy", "Procedure", "Standard", "Guideline", "Template", "Record", "
 
 
 class IntakeError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, extra: dict | None = None):
         self.status = status
         self.message = message
+        self.extra = extra or {}
         super().__init__(message)
 
 
@@ -246,12 +247,17 @@ def detail(db, actor: dict, import_id: str) -> dict:
         doc = db.execute("SELECT doc_id FROM aria_documents WHERE id=%s AND org_id=%s",
                          (row["document_id"], row["org_id"])).fetchone()
         doc_id = doc["doc_id"] if doc else None
-        candidate = db.execute("SELECT id,state,lock_version,build_id,owner_user_id FROM aria_policy_drafts "
+        candidate = db.execute("SELECT id,state,lock_version,build_id,owner_user_id,renderer_manifest_json "
+                               "FROM aria_policy_drafts "
                                "WHERE source_document_id=%s AND org_id=%s AND content_kind='uploaded_docx' "
                                "AND state IN ('editing','ready') ORDER BY created_at DESC LIMIT 1",
                                (row["document_id"], row["org_id"])).fetchone()
         if candidate and (candidate["owner_user_id"] == actor.get("id") or has_capability(actor, "aria.policy.edit_any")):
             draft = {key: candidate[key] for key in ("id", "state", "lock_version", "build_id")}
+            try:
+                draft["layout_check"] = json.loads(candidate["renderer_manifest_json"] or "{}").get("layout_check")
+            except (TypeError, ValueError, AttributeError):
+                draft["layout_check"] = None
     return {"id": row["id"], "file_name": row["file_name"], "file_hash": row["file_hash"],
             "state": row["state"], "external_status": row["external_status"],
             "document_id": row["document_id"], "evidence_id": row["evidence_id"],

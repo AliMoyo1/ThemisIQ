@@ -990,25 +990,30 @@ def delete_enterprise_risk(risk_id):
 # RISK ↔ CONTROL LINKING
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_risk_controls(risk_id):
+def list_risk_controls(risk_id, user=None):
     """Return all controls linked to a risk, joined with canonical_controls
     for title/ref/p2st2_category, the contributing factor (if any) each is
-    assessed against, and a count of evidence linked to the control
-    (live links only: unlinking soft deletes via evidence_links.deleted_at;
-    includes evidence mirrored onto the canonical control from grid/aria)."""
+    assessed against, and a count of the current proof linked to the control
+    (as the Evidence Vault counts it: a live link to the current version of an
+    item that has not expired and was not turned down by a reviewer; includes
+    evidence mirrored onto the canonical control from grid/aria). With a user,
+    only proof that user may open in the Vault is counted."""
+    from modules.evidence import proof
+    from modules.evidence.scope import evidence_scope_sql
+    scope, scope_params = evidence_scope_sql(user) if user is not None else ("(1 = 1)", [])
     db = get_db()
     try:
         rows = db.execute(
             "SELECT rc.*, cc.title AS control_title, cc.ref AS control_ref, "
             "cc.p2st2_category AS p2st2_category, cf.cf_ref AS cf_ref, "
-            "(SELECT COUNT(*) FROM evidence_links el WHERE "
-            " el.entity_type='canonical_control' AND el.entity_id=rc.control_id "
-            " AND el.deleted_at IS NULL) AS evidence_count "
+            "(SELECT COUNT(DISTINCT e.id) FROM evidence_links el JOIN evidence_items e ON e.id = el.evidence_id "
+            " WHERE el.entity_type='canonical_control' AND el.entity_id=rc.control_id "
+            f" AND {proof.current_sql()} AND {scope}) AS evidence_count "
             "FROM risk_controls rc "
             "JOIN canonical_controls cc ON rc.control_id = cc.id "
             "LEFT JOIN erm_contributing_factors cf ON cf.id = rc.cf_id "
             "WHERE rc.risk_id=%s ORDER BY cc.title",
-            (risk_id,),
+            (proof.today(), *scope_params, risk_id),
         ).fetchall()
         return _dicts(rows)
     finally:

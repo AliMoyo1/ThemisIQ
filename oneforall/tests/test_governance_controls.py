@@ -97,7 +97,11 @@ def _init_test_db():
             evidence_id INTEGER NOT NULL, module TEXT NOT NULL,
             entity_type TEXT NOT NULL, entity_id INTEGER NOT NULL,
             linked_by INTEGER, created_at TEXT DEFAULT (datetime('now')),
-            deleted_at TEXT
+            deleted_at TEXT, review_status TEXT
+        );
+        CREATE TABLE IF NOT EXISTS evidence_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, status TEXT DEFAULT 'current',
+            expiry_date TEXT, org_id INTEGER, business_unit_id INTEGER, uploaded_by INTEGER
         );
         CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

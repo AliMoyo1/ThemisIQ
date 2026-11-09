@@ -961,6 +961,44 @@ def test_evidence_vault_search_and_scope_run_on_real_postgres(pg):
         conn.close()
 
 
+def test_evidence_privacy_link_rule_runs_on_real_postgres(pg):
+    """plans/2026-11-vault-current-proof-policy-layout.md, 1a: the module rule's EXISTS subqueries execute on
+    PostgreSQL and hide a breach-only file from an employee, not from the DPO. The uploader exception is covered on
+    SQLite in tests/test_evidence_privacy_link_rule.py."""
+    pg.init_db()
+    from modules.evidence.scope import evidence_scope_sql
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute("INSERT INTO organizations (name, slug, plan, status) "
+                     "VALUES ('PG Rule Org', 'pg-rule-org', 'enterprise', 'active')")
+        conn.commit()
+        org = conn.execute("SELECT id FROM organizations WHERE slug='pg-rule-org'").fetchone()[0]
+        ids = {}
+        for title in ("Breach export", "Audit answer", "Unlinked scan"):
+            ids[title] = conn.execute(
+                "INSERT INTO evidence_items (title, org_id, status) VALUES (%s,%s,'current') RETURNING id",
+                (title, org)).fetchone()[0]
+        conn.execute("INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id) "
+                     "VALUES (%s,'sentinel','breach',1)", (ids["Breach export"],))
+        conn.execute("INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id) "
+                     "VALUES (%s,'grid','control',1)", (ids["Audit answer"],))
+        conn.commit()
+
+        def titles(user):
+            scope_sql, scope_params = evidence_scope_sql(user)
+            rows = conn.execute(f"SELECT e.title FROM evidence_items e WHERE {scope_sql}", scope_params).fetchall()
+            return {r["title"] for r in rows}
+
+        def person(role, uid=900):
+            return {"id": uid, "org_id": org, "business_unit_id": None, "is_super_admin": 0, "roles": [role]}
+
+        assert titles(person("employee")) == {"Audit answer", "Unlinked scan"}
+        assert titles(person("dpo")) == {"Breach export", "Audit answer", "Unlinked scan"}
+    finally:
+        conn.close()
+
+
 def test_warm_replay_queries_execute_on_real_postgres(pg):
     """T04 (findings.md F05): scripts/warm_replay.py's queries were fixed
     for stale table/column names found on SQLite; this is the same

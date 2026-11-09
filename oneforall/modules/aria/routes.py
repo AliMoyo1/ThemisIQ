@@ -375,16 +375,20 @@ async def frameworks_list(request: Request):
         except Exception:
             swallowed("frameworks_list (aria_documents)")
 
-        # Evidence counts per framework
+        # Evidence counts per framework: current proof the viewer may open, as the Vault counts it
         ev_counts = {}
         try:
+            from modules.evidence import proof
+            from modules.evidence.scope import evidence_scope_sql
+            ev_scope, ev_params = evidence_scope_sql(user)
             ev_rows = db.execute(
                 "SELECT c.framework_id, COUNT(DISTINCT el.id) as ev_count "
                 "FROM evidence_links el "
+                "JOIN evidence_items e ON e.id = el.evidence_id "
                 "JOIN controls c ON c.id = el.entity_id "
                 "WHERE el.module = 'aria' AND el.entity_type = 'control' "
-                "AND el.deleted_at IS NULL "
-                "GROUP BY c.framework_id"
+                f"AND {proof.current_sql()} AND {ev_scope} "
+                "GROUP BY c.framework_id", [proof.today(), *ev_params]
             ).fetchall()
             for er in ev_rows:
                 ev_counts[er["framework_id"]] = er["ev_count"]
@@ -496,13 +500,17 @@ async def framework_detail(request: Request, fw_id: int,
             except Exception as exc:
                 log.warning("Lazy-seed controls failed for fw %s: %s", fw_id, exc)
 
+        # Current proof the viewer may open, as the Vault counts it: not archived, replaced, expired or turned down.
+        from modules.evidence import proof
+        from modules.evidence.scope import evidence_scope_sql
+        ev_scope, ev_params = evidence_scope_sql(user)
         q = ("SELECT c.*, "
-             "(SELECT COUNT(*) FROM evidence_links el "
+             "(SELECT COUNT(DISTINCT e.id) FROM evidence_links el JOIN evidence_items e ON e.id = el.evidence_id"
              " WHERE el.module='aria' AND el.entity_type='control' AND el.entity_id=c.id"
-             " AND el.deleted_at IS NULL"
+             f" AND {proof.current_sql()} AND {ev_scope}"
              ") AS evidence_count "
              "FROM controls c WHERE c.framework_id=%s")
-        params = [fw_id]
+        params = [proof.today(), *ev_params, fw_id]
         if status:
             q += " AND c.status=%s"
             params.append(status)

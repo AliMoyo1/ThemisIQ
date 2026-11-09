@@ -246,3 +246,18 @@ Owner asked in chat to build the three items that needed no one else. Details, d
 - **Two-step sign-in browser journeys:** enrollment, sign-in with a code, replay refusal, single-use backup codes, turning it off, and enrollment forced by policy now run in a real browser. This found a bug: forced enrollment always failed, because a background API call during the pending session was redirected to an MFA page that replaced the CSRF cookie. Pending sessions now get a 401 on API paths, and `/mfa/verify` sends an unenrolled person to setup. The release gate "real MFA verification and enrollment remain untested" is closed.
 - **AI feature checks:** every registered AI feature now has a provider-free policy refusal fixture set, beside Ask ARIA's citation set. Model output stays not measured; customer-system evaluation remains an owner gate.
 - **Source workbook retention:** confirmed register workbooks follow the customer's chosen period (none until chosen), a per-workbook date and a legal hold. A due workbook loses its file only; record, hash and claims stay. The "customer-specific source-workbook retention and hold handling" item is built; choosing the period stays with each customer.
+
+## Build after PR 47, 2026-11-08 (chat confirmation, not sign-off)
+
+Owner asked in chat to go with the recommendations and build items 1 and 2. Details, decisions and evidence: [2026-11-vault-current-proof-policy-layout.md](2026-11-vault-current-proof-policy-layout.md).
+
+| Decision adopted | Why | Cost | How to change it |
+| --- | --- | --- | --- |
+| Evidence Vault Phase 0: "current proof", version links and expiry reminders are taken as already settled by `modules/evidence/proof.py` (current proof excludes expired, replaced, archived and turned-down files; a new version proposes its links for fresh review; reminders stay on the Task Board and email). | The later governance rework built them; the design plan's "open" text was stale. | None new. | Change `proof.current_sql` or `proof.carry_forward`. |
+| A file linked to a Privacy record or AI impact assessment is visible only to people who may open one kind of record it is linked to, or who uploaded it. Other modules' links never hide a file. | Such files can hold personal data. A rule over every module hid audit answers people attach from My Work without a GRID licence. | Someone without breach access no longer sees breach-only files they did not upload. | `modules/evidence/scope.py` `RESTRICTING_MODULES`. |
+| ARIA framework and control evidence counts, ERM risk-control evidence counts and the scoped Command Centre evidence counts now count current proof the viewer may open. | They counted expired, replaced and archived files and ignored the viewer's scope. | Numbers drop where proof has lapsed. | The queries name `proof.current_sql` and `evidence_scope_sql`. |
+| Composing an imported policy DOCX runs a layout check; a candidate with a lost or check finding is created only with the author's reason (10 to 500 characters), stored in its renderer manifest. | Plan 18 P3: any loss is shown before confirmation and blocks publication. | One more step for complex layouts. | `modules/aria/policy_layout_check.py` `BLOCKING`. |
+
+Security fix found on the way: four ERM risk-control routes (list, link, unlink, suggest ICE) did not check the risk's business unit, so a unit-scoped user could read or change another unit's risk controls by ID. They now refuse with 404.
+
+Still open from these plans: the Vault redesign's library layout (Phase 1b) and the remaining Phase 0 product copy; a rendered page-by-page comparison of policy candidates stays a human step on the PDF preview and in the customer pilot.

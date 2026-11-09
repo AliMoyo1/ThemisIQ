@@ -123,6 +123,20 @@ def may_view_kind(user: dict, key: tuple) -> bool:
     return not kind.module or kind.module in user_modules(user)
 
 
+def kinds_by_access(user: dict) -> tuple[dict, dict]:
+    """Every registered kind, under each spelling a stored link may use, split into the kinds this user may open and
+    the kinds they may not: two dicts of module -> set of entity types. Read by the Evidence Vault's module rule."""
+    allowed, denied = {}, {}
+    spellings = {key: [key] for key in _KINDS}
+    for alias, key in _KEY_ALIASES.items():
+        spellings.setdefault(key, [key]).append(alias)
+    for key in _KINDS:
+        bucket = allowed if may_view_kind(user, key) else denied
+        for module, entity_type in spellings[key]:
+            bucket.setdefault(module, set()).add(entity_type)
+    return allowed, denied
+
+
 def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list]:
     """Parenthesized WHERE fragment and params for the rows of `key` this user may see.
 

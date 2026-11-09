@@ -13,6 +13,18 @@
 .intake-list{display:grid;gap:8px;max-height:65vh;overflow:auto}
 .intake-item{border:0;border-radius:14px;padding:13px 15px;background:var(--surface2);width:100%;text-align:left;cursor:pointer;color:var(--text)}
 .intake-item[aria-current="true"]{outline:2px solid var(--accent)}
+.intake-layout{margin:14px 0;padding:16px 18px;border-radius:16px;background:var(--surface2)}
+.intake-layout h4{margin:0 0 6px}
+.intake-findings{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
+.intake-findings li{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start}
+.intake-findings strong{color:var(--text)}
+.intake-findings p{grid-column:2;margin:0;font-size:13px}
+.intake-chip{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.intake-chip.loss{background:rgba(220,38,38,.14);color:#b91c1c}
+.intake-chip.check{background:rgba(217,119,6,.16);color:#92400e}
+.intake-chip.info{background:rgba(100,116,139,.16);color:var(--muted)}
+[data-theme="dark"] .intake-chip.loss{color:#fca5a5}
+[data-theme="dark"] .intake-chip.check{color:#fcd34d}
 .intake-item span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
 .intake-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .intake-fields label{display:grid;gap:5px;color:var(--text-mid);font-size:12px;font-weight:700}
@@ -123,6 +135,16 @@
      <div class="intake-fields"><label class="wide">Figure (PNG or JPEG, up to 2 MB)<input id="intake-figure" type="file" accept="image/png,image/jpeg"></label><label>Figure caption<input id="intake-figure-caption" maxlength="180"></label><label>Accessible description<input id="intake-figure-alt" maxlength="300"></label></div>
     </div>
     <div class="intake-actions"><button type="button" id="intake-compose-submit" class="btn btn-primary">Create review candidate</button><a id="intake-candidate-file" hidden>Download candidate DOCX</a></div>
+    <section id="intake-layout-check" class="intake-layout" hidden aria-live="polite">
+     <h4>Layout check</h4>
+     <p id="intake-layout-summary"></p>
+     <ul id="intake-layout-findings" class="intake-findings"></ul>
+     <p id="intake-layout-reason-shown" hidden></p>
+     <div id="intake-layout-ack" hidden>
+      <div class="intake-fields"><label class="wide">Why this candidate should still be created<textarea id="intake-layout-reason" rows="2" maxlength="500" placeholder="For example: the contents table will be updated in Word before approval"></textarea></label></div>
+      <div class="intake-actions"><button type="button" id="intake-layout-accept" class="btn btn-ghost">Create candidate with these findings</button></div>
+     </div>
+    </section>
     <div id="intake-compose-review" hidden>
      <div class="intake-actions"><button type="button" id="intake-build-preview" class="btn btn-ghost">Build PDF preview</button><a id="intake-preview-link" target="_blank" rel="noopener" hidden>Open PDF preview</a></div>
      <div class="intake-comparison"><div><strong>Original extract</strong><p>For layout and diagrams, use the original download above.</p><div id="intake-original-compare" class="intake-source"></div></div><div><strong>Candidate preview</strong><p>Compare every retained clause, table and image before confirming.</p><iframe id="intake-preview-frame" title="Policy candidate preview" hidden></iframe></div></div>

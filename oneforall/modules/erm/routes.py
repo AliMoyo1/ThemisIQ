@@ -311,7 +311,8 @@ async def api_risk_delete(request: Request, risk_id: int):
 @router.get("/api/risks/{risk_id}/controls")
 @require_capability("erm.risk.view")
 async def api_risk_controls_list(request: Request, risk_id: int):
-    controls = ds.list_risk_controls(risk_id)
+    _check_risk_scope(request, risk_id)
+    controls = ds.list_risk_controls(risk_id, request.state.user)
     return JSONResponse(controls)
 
 
@@ -322,10 +323,7 @@ async def api_risk_control_link(request: Request, risk_id: int):
     control_id = body.get("control_id")
     if not isinstance(control_id, int) or control_id <= 0:
         raise HTTPException(400, "control_id must be a positive integer")
-    # Verify risk exists
-    risk = ds.get_enterprise_risk(risk_id)
-    if not risk:
-        raise HTTPException(404, "Risk not found")
+    _check_risk_scope(request, risk_id)
     weight = float(body.get("weight", 1.0))
     cf_id = body.get("cf_id")
     ice_score = body.get("ice_score")
@@ -339,6 +337,7 @@ async def api_risk_control_link(request: Request, risk_id: int):
 @router.delete("/api/risks/{risk_id}/controls/{control_id}")
 @require_capability("erm.risk.manage")
 async def api_risk_control_unlink(request: Request, risk_id: int, control_id: int):
+    _check_risk_scope(request, risk_id)
     ds.unlink_risk_control(risk_id, control_id)
     return JSONResponse({"ok": True})
 
@@ -408,6 +407,7 @@ async def api_risk_control_assess(request: Request, risk_id: int, control_id: in
 @router.get("/api/risks/{risk_id}/controls/{control_id}/suggest-ice")
 @require_capability("erm.risk.view")
 async def api_risk_control_suggest_ice(request: Request, risk_id: int, control_id: int):
+    _check_risk_scope(request, risk_id)
     result = ds.suggest_ice_for_control(control_id)
     if request.query_params.get("ai") == "1" and check_ai_rate_limit(str(_uid(request))):
         # Optional AI narrative layered on the deterministic suggestion.
