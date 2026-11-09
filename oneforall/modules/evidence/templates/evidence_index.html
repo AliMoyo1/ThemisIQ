@@ -1,5 +1,11 @@
 {% extends "base_shell.html" %}
-{% block title %}Evidence Repository — ThemisIQ{% endblock %}
+{% block title %}Evidence Vault | ThemisIQ{% endblock %}
+
+{% block breadcrumb %}
+<span style="font-weight:700">ThemisIQ</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">Evidence Vault</span>
+{% endblock %}
 
 {% block module_sidebar %}
 <div class="module-sidebar-header">
@@ -101,12 +107,16 @@
 .ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;font-family:inherit}
 .ev-tab.active{color:var(--accent);border-color:var(--accent)}
 #evidenceGrid,#evidenceTable{scroll-margin-top:72px}
+/* The page bar grows and wraps instead of overflowing at narrow widths and 200% zoom */
+.topbar.ev-topbar{height:auto;min-height:var(--topbar-h);flex-wrap:wrap;gap:10px;padding-top:10px;padding-bottom:10px}
+.ev-topbar .topbar-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;flex:1 1 0;min-width:260px}
 /* ── Work views, state and review chips ── */
 .ev-search{width:100%;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px}
 .ev-work{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
 .ev-work-tab{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;font-family:inherit}
 .ev-work-tab.is-current{background:var(--accent);border-color:var(--accent);color:#fff}
 .ev-work-count{font-size:11px;font-weight:700;opacity:.85}
+.ev-work.ev-narrowed button .ev-work-count{display:none}
 .ev-chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--border);color:var(--text);white-space:nowrap}
 .ev-chip-good{color:#15803d;border-color:#15803d}
 .ev-chip-warn{color:#92400e;border-color:#b45309}
@@ -174,7 +184,7 @@
 @media (prefers-reduced-motion:reduce){.ev-folder-card,.ev-folder-front,.ev-folder-paper{transition:none!important;transform:none!important}}
 </style>
 
-<div class="topbar">
+<div class="topbar ev-topbar">
   <span class="page-title">Evidence Vault</span>
   <div class="topbar-actions">
     <!-- List / Cards toggle -->

@@ -100,10 +100,11 @@ function evRunGenerated(call,element){
   if(call==="document.getElementById('ev-desc-editor').style.display='none';document.getElementById('ev-desc-display').style.display='block'"){
     document.getElementById('ev-desc-editor').style.display='none';document.getElementById('ev-desc-display').style.display='block';return;
   }
+  // Insights cards: the number counts the whole library, so the list it opens drops every other filter first
   m=/^switchView\('(all|expiring|needs_filing)',/.exec(call);
-  if(m){switchView(m[1],document.getElementById('nav-'+(m[1]==='needs_filing'?'unlinked':m[1])));return;}
+  if(m){evClearFilters();switchView(m[1],document.getElementById('nav-'+(m[1]==='needs_filing'?'unlinked':m[1])));return;}
   m=/^filterModule\('(aria|grid|bcm|sentinel|erm|orm|governance|platform)',null\)$/.exec(call);
-  if(m){filterModule(m[1],null);return;}
+  if(m){evClearFilters();currentModule=m[1];switchView('all',document.getElementById('nav-all'));return;}
   m=/^ModalManager\.close\('(findModal|uploadModal)'\);(openDetail|openLinkToModal)\(([1-9]\d*)\)$/.exec(call);
   if(m){ModalManager.close(m[1]);(m[2]==='openDetail'?openDetail:openLinkToModal)(Number(m[3]));return;}
   m=/^(openDetail|evInlineOwner|evAddVersion|evEditTags|evEditDesc|aiSuggestLinks|doRemoveVerification|verifyIntegrity|openLinkToModal|restoreEvidence|permanentDeleteEvidence|archiveEvidence)\(([1-9]\d*)\)$/.exec(call);
@@ -410,8 +411,13 @@ function evActiveChips(){
   if(currentState)chips.push(['State: '+currentState.replace(/_/g,' '),function(){currentState='';evPage=1;loadEvidence();}]);
   if(currentWords)chips.push(['Words: '+currentWords,function(){currentWords='';evPage=1;loadEvidence();}]);
   if(evCompanyScope)chips.push(['Filing scope: '+evCompanyLabel(evCompanyScope),function(){evChooseCompany('');}]);
+  if(evEntityScope)chips.push(['Company: '+evEntityLabel(evEntityScope),function(){evEntityScope='';evPage=1;evRenderEntityViews();loadEvidence();}]);
+  if(currentStatus)chips.push(['Status: '+currentStatus,function(){currentStatus='';evPage=1;loadEvidence();}]);
   var q=document.getElementById('searchInput').value;
   if(q)chips.push(['Search: '+q,function(){document.getElementById('searchInput').value='';evPage=1;loadEvidence();}]);
+  // The work view counts are for the whole library: hide them while a filter narrows the list, the pager gives its total
+  var narrowed=chips.length>((currentView&&currentView!=='all')?1:0);
+  document.getElementById('evWork').classList.toggle('ev-narrowed',narrowed);
   var box=document.getElementById('evChips');
   box.innerHTML='';
   chips.forEach(function(c){
@@ -425,9 +431,23 @@ function evActiveChips(){
   if(chips.length>1){
     var all=document.createElement('button');
     all.type='button';all.className='btn btn-secondary';all.style.fontSize='12px';all.textContent='Clear filters';
-    all.addEventListener('click',function(){currentModule='';currentCategory='';evOwnerOnly=false;currentState='';currentWords='';evFolder='';evCompanyScope='';evRenderCompanyViews();evCloseRecordFolders();document.getElementById('searchInput').value='';switchView('all',document.getElementById('nav-all'));});
+    all.addEventListener('click',function(){evClearFilters();switchView('all',document.getElementById('nav-all'));});
     box.appendChild(all);
   }
+}
+// Every filter except the work view, so that a count of the whole library and the list it opens agree
+function evClearFilters(){
+  currentModule='';currentCategory='';currentStatus='';evOwnerOnly=false;currentState='';currentWords='';
+  evFolder='';evCompanyScope='';evEntityScope='';
+  if(evCompanyViews)evRenderCompanyViews();
+  if(evEntityViews)evRenderEntityViews();
+  evCloseRecordFolders();
+  document.getElementById('searchInput').value='';
+}
+function evEntityLabel(id){
+  if(id==='unconfirmed')return 'Ownership unconfirmed';
+  var found=evEntityViews&&(evEntityViews.companies||[]).find(function(item){return String(item.id)===id;});
+  return found?found.name:'Selected company';
 }
 function evTextMatchHtml(item){
   if(!item.text_match)return '';

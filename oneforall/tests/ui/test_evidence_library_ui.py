@@ -281,3 +281,51 @@ def test_a_new_owner_is_found_by_typing_a_name_and_saved(login_as, live_app, pag
     finally:
         db.close()
     assert owner == colleague
+
+
+def _pager_says(page, n):
+    page.wait_for_function("(n) => document.getElementById('evPagerStatus').textContent.trim().endsWith('of ' + n)", arg=n)
+
+
+def test_an_insights_number_opens_its_whole_list_even_while_a_filter_is_on(login_as, live_app, page, synthetic_tenant):
+    word = uuid.uuid4().hex[:10]
+    _seed(synthetic_tenant, _title(f"Searched {word}"))
+    _seed(synthetic_tenant, _title("Unfiled elsewhere"))
+    _seed(synthetic_tenant, _title("Filed to a risk"), claim="Access is reviewed every quarter")
+    login_as("compliance_manager")
+    _open_library(page, live_app)
+    page.fill("#searchInput", word)
+    _pager_says(page, 1)
+    # while a filter narrows the list, the whole-library counts on the work views are hidden
+    assert not page.locator("#wc-needs_filing").is_visible()
+    page.click("#evInsights > summary")
+    card = page.locator("#statsBar button", has_text="Needs filing")
+    counted = int(card.locator("div").nth(1).inner_text())
+    assert counted >= 2
+    card.click()
+    _pager_says(page, counted)
+    assert page.input_value("#searchInput") == ""
+    assert page.locator("#evChips").inner_text().startswith("Needs filing")
+    assert page.locator("#wc-needs_filing").is_visible()
+    erm = page.locator("#statsBar button", has_text="ERM")
+    erm_count = int(erm.locator("div").nth(1).inner_text())
+    erm.click()
+    _pager_says(page, erm_count)
+    assert page.locator("#wt-all.is-current").count() == 1, "a module number counts the whole library, not a work view"
+    assert "Module: ERM" in page.inner_text("#evChips")
+
+
+def test_the_page_bar_wraps_at_200_percent_zoom_and_names_the_vault(login_as, live_app, page, synthetic_tenant):
+    _seed(synthetic_tenant, _title("Zoom"))
+    login_as("compliance_manager")
+    page.set_viewport_size({"width": 640, "height": 400})  # a 1280 by 800 window at 200% zoom
+    _open_library(page, live_app)
+    assert page.title().startswith("Evidence Vault")
+    assert "Evidence Vault" in page.inner_text(".breadcrumb")
+    bar = page.locator(".ev-topbar")
+    assert bar.evaluate("el => el.scrollHeight <= el.clientHeight + 1"), "the page bar's buttons spill out of it"
+    box = bar.bounding_box()
+    for action in bar.locator("button:visible, a:visible").all():
+        b = action.bounding_box()
+        assert box["y"] - 1 <= b["y"] and b["y"] + b["height"] <= box["y"] + box["height"] + 1, action.inner_text()
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1")
