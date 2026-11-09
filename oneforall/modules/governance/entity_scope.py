@@ -7,8 +7,8 @@ caller's own subtree (so a parent unit sees its children and a child does not se
 One definition here so those features cannot drift apart from the modules. An unknown kind is
 invisible.
 
-The Evidence Vault keeps its own resolver (modules/evidence/routes.py _target_scope_sql); this
-is the part that search and Related Items share, to be folded together with it later.
+This is the one registry of linkable records: Related Items and the relationship service, the
+Evidence Vault (EVIDENCE_TARGETS) and the platform's own links (core/links.py) all read it.
 """
 from typing import NamedTuple
 
@@ -127,12 +127,9 @@ def kinds_by_access(user: dict) -> tuple[dict, dict]:
     """Every registered kind, under each spelling a stored link may use, split into the kinds this user may open and
     the kinds they may not: two dicts of module -> set of entity types. Read by the Evidence Vault's module rule."""
     allowed, denied = {}, {}
-    spellings = {key: [key] for key in _KINDS}
-    for alias, key in _KEY_ALIASES.items():
-        spellings.setdefault(key, [key]).append(alias)
     for key in _KINDS:
         bucket = allowed if may_view_kind(user, key) else denied
-        for module, entity_type in spellings[key]:
+        for module, entity_type in spellings(key):
             bucket.setdefault(module, set()).add(entity_type)
     return allowed, denied
 
@@ -189,14 +186,39 @@ def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list
 
 _MAX_ID = 2 ** 31 - 1  # an INTEGER primary key; a larger number is not a record and would only raise in PostgreSQL
 # Other spellings of a registered kind. Search names Vault files platform/evidence (search_service.RESULT_NAME), so
-# a file picked from search must link as the Vault file it is (plan 25, the PLAN-37 picker mismatch).
-_KEY_ALIASES = {("grid", "non_conformance"): ("grid", "nc"), ("platform", "evidence"): ("evidence", "item")}
+# a file picked from search must link as the Vault file it is (plan 25, the PLAN-37 picker mismatch). The event
+# handlers store platform risks as risk_register and ERM risks as enterprise_risk, and code that reads those rows
+# queries that spelling, so the rows keep it and are read through these aliases.
+_KEY_ALIASES = {
+    ("grid", "non_conformance"): ("grid", "nc"), ("platform", "evidence"): ("evidence", "item"),
+    ("platform", "risk_register"): ("platform", "risk"), ("erm", "enterprise_risk"): ("erm", "risk"),
+}
+
+# The kinds a Vault file can be linked to as proof (a subset of the linkable kinds).
+EVIDENCE_TARGETS = frozenset({
+    ("aria", "control"), ("aria", "document"), ("aria", "risk"), ("aria", "framework"),
+    ("grid", "audit"), ("grid", "control"), ("grid", "nc"),
+    ("bcm", "plan"), ("bcm", "incident"), ("bcm", "risk"), ("bcm", "bia"), ("bcm", "compliance_control"),
+    ("sentinel", "ropa"), ("sentinel", "dpia"), ("sentinel", "breach"), ("sentinel", "dsr"), ("sentinel", "vendor"),
+    ("erm", "risk"), ("erm", "scenario"),
+    ("governance", "application"),  # proof for an AI use: shown on the Evidence tab of its workspace
+})
 
 
 def canonical_key(module, entity_type) -> tuple:
     """The registry key for a (module, type) pair as callers spell it. An unknown pair is returned as it is."""
     key = (str(module or "").strip().lower(), str(entity_type or "").strip().lower())
     return _KEY_ALIASES.get(key, key)
+
+
+def is_registered(module, entity_type) -> bool:
+    """True when (module, type), under any spelling, names a kind this registry knows."""
+    return canonical_key(module, entity_type) in _KINDS
+
+
+def spellings(key) -> list:
+    """Every (module, type) a registered kind may be stored under, its own spelling first."""
+    return [key] + [alias for alias, canon in _KEY_ALIASES.items() if canon == key]
 
 
 def is_linkable(key) -> bool:

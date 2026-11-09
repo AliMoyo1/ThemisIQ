@@ -778,7 +778,7 @@ function _resolvedLinksHtml(links,resolved,eid,item){
       (canReview&&seen&&!mine?'<button type="button" class="btn btn-secondary" data-s="se2b3d6e" data-ev-action="review-link" data-link-id="'+Number(l.id)+'" data-evidence-id="'+Number(eid)+'" data-status="'+escHtml(status)+'" data-name="'+escHtml(name)+'" aria-label="Review the link to '+escHtml(name)+'">Review</button>':'')+
       (canReview&&seen&&mine?'<span class="ev-review-chip" data-s="s3daaefb" title="The person who attached the file or made the link cannot review it.">Needs another reviewer</span>':'')+
       '<span data-s="sbff04ca">'+fmtDate(l.created_at)+'</span>'+
-      '<button data-ev-dynamic="unlinkEvidence('+Number(l.id)+','+Number(eid)+')" data-s="scc32ab4" title="Unlink" aria-label="Unlink '+escHtml(name)+'">✕</button>'+
+      (item&&item.can_link?'<button data-ev-dynamic="unlinkEvidence('+Number(l.id)+','+Number(eid)+')" data-s="scc32ab4" title="Unlink" aria-label="Unlink '+escHtml(name)+'">✕</button>':'')+
       (hint?'<div data-s="s28314ea">'+escHtml(hint)+'</div>':'')+
     '</div>';
   }).join('');
@@ -823,7 +823,7 @@ async function openDetail(eid){
   } else {
     html+='<span data-s="s2442599">Auto-generated record, no file attached</span>';
   }
-  if(item.status!=='archived'){
+  if(item.status!=='archived'&&item.can_link){
     html+='<button class="btn btn-secondary" data-s="s459ca32" data-ev-dynamic="openLinkToModal('+eid+')">Link to...</button>';
   }
   if(item.status==='current'&&hasFile){

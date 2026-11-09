@@ -299,3 +299,13 @@ PR 50 merged as 577e1578 (not deployed). The owner then said "do all modules". P
 | Run-time values (`data-sv`) are checked before they apply: listed properties only, no URL, no fixed positioning. | Some come from stored colours; the old attribute applied whatever was stored. | A property not on the list is dropped. | The list in `static/js/style_tokens.js`. |
 
 Also fixed: the ARIA AI Generator page returned a server error once a policy document without a framework or control existed (S6). Two import result cards now show the padding their markup always asked for (S3).
+
+## One registry for linkable records, 2026-11-09 (chat confirmation, not sign-off)
+
+PR 51 merged as 78ddafb4 (not deployed). The owner said "build 1 and 2" (PLAN-37 Slice 1 leftovers). Plan, findings F1 to F6 and decisions D1 to D6: [2026-11-relationship-service-fold.md](2026-11-relationship-service-fold.md).
+
+- The picker mismatch (item 2) was already fixed in PR 44 and has a test; nothing to build.
+- Automatic links stored as `platform/risk_register` and `erm/enterprise_risk` were never shown anywhere. They are now read as the platform and ERM risks they are, under the same scope rule. Stored rows are unchanged.
+- `core/links.py`, the Evidence Vault and Related Items now read one registry. The platform no longer stores a link to a kind nobody could see.
+- Security: the Vault's own link, unlink and upload-claim routes now need the right to change the file or the record, like Related Items. A read-only External Auditor could link and unlink evidence there before.
+- Reported, not changed (F5): the Vault's other writes (upload, edit, confidence verification) have no capability check, so an External Auditor can file and edit evidence, and anyone can mark their own file `auditor_signed`. Needs an owner decision.

@@ -30,7 +30,10 @@ from modules.evidence import staging
 from modules.evidence import company_views, find as finder, group_adoption, group_cases, group_documents, group_requests, inspector, ownership, proof, vault_views
 from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
-from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
+from modules.governance.entity_scope import (
+    _KINDS, EVIDENCE_TARGETS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit, spellings,
+)
+from modules.governance.relationships import may_change
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 log = logging.getLogger("oneforall.evidence")
@@ -1569,6 +1572,8 @@ async def api_evidence_upload(
             requested_unit = company_views.selected_unit(scope_db, user, filing_scope, for_filing=True)
         if selected_target and not _visible_target(scope_db, (link_module, link_entity_type), target_id, user):
             raise HTTPException(404, "Link target not found")
+        if selected_target and not _may_link(user, (link_module, link_entity_type)):
+            raise HTTPException(403, "You may view this record but not file proof against it.")
         if replacement_for_access:
             if not replacement_for_access.isdigit() or int(replacement_for_access) < 1:
                 return JSONResponse({"error": "Choose a valid version to replace."}, status_code=422)
@@ -1843,6 +1848,7 @@ async def api_evidence_get(request: Request, eid: int):
         links_returned=sum(1 for l in active if l["review_status"] in ("returned", "rejected")))
     result["can_delete"] = has_capability(request.state.user, "evidence.delete")
     result["can_review_links"] = has_capability(request.state.user, "evidence.link.review")
+    result["can_link"] = may_change(request.state.user, ("evidence", "item"))
     from modules.aria import register_source_retention as source_retention
     db = get_db()
     try:
@@ -2549,6 +2555,8 @@ async def api_evidence_link_create(request: Request, eid: int):
             raise HTTPException(404, "Evidence not found")
         if not _visible_target(db, (module, entity_type), entity_id, request.state.user):
             raise HTTPException(404, "Link target not found")
+        if not _may_link(request.state.user, (module, entity_type)):
+            raise HTTPException(403, "You may view this file and this record but change neither, so you cannot link them.")
         if item["status"] in ("superseded", "archived"):
             return JSONResponse({"error": "This version has been replaced or archived. Link the current version "
                                           "instead."}, status_code=409)
@@ -2670,6 +2678,8 @@ async def api_evidence_link_delete(request: Request, lid: int):
         ).fetchone()
         if not link_row or not _scoped_evidence_item(db, link_row["evidence_id"], request.state.user):
             raise HTTPException(404, "Link not found")
+        if not _may_link(request.state.user, (link_row["module"], link_row["entity_type"])):
+            raise HTTPException(403, "You may view this file but not change its links.")
         generated = db.execute(
             "SELECT source_module, source_type, source_id FROM generated_record_documents WHERE evidence_id = %s",
             (link_row["evidence_id"],),
@@ -2862,11 +2872,9 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
     Auto-evidence is identified by the 'auto' tag (inserted by event handlers
     in Phase C).  Returns items newest-first with link metadata.
     """
-    # Validate module to prevent SQL injection via URL path
-    valid_modules = frozenset({"aria", "grid", "bcm", "sentinel", "platform"})
     mod = module.strip().lower()
     etype = entity_type.strip().lower()
-    if mod not in valid_modules:
+    if mod not in {spelling[0] for key in _KINDS for spelling in spellings(key)}:
         return JSONResponse({"error": "Invalid module"}, status_code=400)
 
     scope_sql, scope_params = evidence_scope_sql(request.state.user)
@@ -2895,24 +2903,20 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
 
 # ── Cross-Module Link Resolution ──────────────────────────────────────────
 
-# The record kinds an evidence item can be linked to. What each one is (table, title, deep link) and who may
-# open it (capability and business unit) comes from the shared registry in modules/governance/entity_scope.py,
-# the one place Related Items, search and the AI workspace use too, so the Vault cannot show a record that the
-# owning module would not.
-_VAULT_TARGETS = (
-    ("aria", "control"), ("aria", "document"), ("aria", "risk"), ("aria", "framework"),
-    ("grid", "audit"), ("grid", "control"), ("grid", "nc"),
-    ("bcm", "plan"), ("bcm", "incident"), ("bcm", "risk"), ("bcm", "bia"), ("bcm", "compliance_control"),
-    ("sentinel", "ropa"), ("sentinel", "dpia"), ("sentinel", "breach"), ("sentinel", "dsr"), ("sentinel", "vendor"),
-    ("erm", "risk"), ("erm", "scenario"),
-    ("governance", "application"),  # proof for an AI use: shown on the Evidence tab of its workspace
-)
-# (module, entity_type) -> (table_name, name_column, url_template)
+# The record kinds an evidence item can be linked to (EVIDENCE_TARGETS). What each one is (table, title, deep
+# link) and who may open it (capability and business unit) comes from the shared registry in
+# modules/governance/entity_scope.py, the one place Related Items, search and the AI workspace use too, so the
+# Vault cannot show a record that the owning module would not.
+# (module, entity_type) -> (table_name, name_column, url_template), under every spelling a stored link may use.
 _ENTITY_RESOLVERS: dict[tuple[str, str], tuple[str, str, str]] = {
-    key: (_KINDS[key].table, _KINDS[key].title, _KINDS[key].url) for key in _VAULT_TARGETS
+    spelling: (_KINDS[key].table, _KINDS[key].title, _KINDS[key].url)
+    for key in EVIDENCE_TARGETS for spelling in spellings(key)
 }
-# Evidence links already stored under the other spelling of a non-conformance keep resolving.
-_ENTITY_RESOLVERS[("grid", "non_conformance")] = _ENTITY_RESOLVERS[("grid", "nc")]
+
+
+def _may_link(user, key) -> bool:
+    """Linking a Vault file to a record, or removing that link, changes one of them: the Related Items rule."""
+    return may_change(user, ("evidence", "item")) or may_change(user, canonical_key(*key))
 
 
 def _target_scope_sql(key, user):
@@ -3007,10 +3011,6 @@ async def api_search_entities(request: Request):
     module = request.query_params.get("module", "")
     entity_type = request.query_params.get("entity_type", "")
     q = request.query_params.get("q", "")
-
-    valid_modules = frozenset({"aria", "grid", "bcm", "sentinel", "erm", "governance"})
-    if module not in valid_modules:
-        return JSONResponse({"error": "Invalid module"}, 400)
 
     key = (module, entity_type)
     if key not in _ENTITY_RESOLVERS:

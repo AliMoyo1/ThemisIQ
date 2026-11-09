@@ -20,7 +20,7 @@ from core.links import RELATIONSHIP_LABELS
 from core.rbac import has_capability
 from core.timeutils import utcnow
 from modules.governance.entity_scope import (
-    _KEY_ALIASES, canonical_key, describe_record, describe_records, is_linkable,
+    canonical_key, describe_record, describe_records, is_linkable, spellings as _spellings,
 )
 
 log = logging.getLogger("oneforall.relationships")
@@ -60,11 +60,6 @@ class LinkError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
-
-
-def _spellings(key):
-    """A kind can be stored under more than one spelling (grid non_conformance is nc)."""
-    return [key] + [alias for alias, canon in _KEY_ALIASES.items() if canon == key]
 
 
 def _side_sql(prefix, key):
