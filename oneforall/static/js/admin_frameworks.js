@@ -72,7 +72,7 @@ async function aiGenerateControls(fwId, fwName) {
     if (!resp.ok) throw new Error(data.error || 'Failed');
 
     var cell = document.getElementById('fw-controls-' + fwId);
-    cell.innerHTML = '<span style="font-size:14px; font-weight:700; color:var(--text);">' + esc(data.inserted) + '</span>';
+    cell.innerHTML = '<span data-s="s8a79397">' + esc(data.inserted) + '</span>';
     showToast('Generated ' + data.inserted + ' controls for ' + esc(fwName), 'success');
   } catch (err) {
     btn.textContent = 'AI Generate';

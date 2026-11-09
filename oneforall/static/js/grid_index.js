@@ -206,10 +206,10 @@
   }
   function showModal(html){
     document.getElementById('gridModal').innerHTML='<div class="modal-overlay" data-grid-click="if(event.target===this)closeModal()">'+
-      '<div class="modal-box" style="position:relative">'+html+'</div></div>';
+      '<div class="modal-box" data-s="sd461c96">'+html+'</div></div>';
   }
   window.closeModal=function(){document.getElementById('gridModal').innerHTML='';};
-  function spinner(){return '<div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';}
+  function spinner(){return '<div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div>';}
 
   /* ═══════════════════════════════════════════════════════════════════════
      SPA ROUTER
@@ -324,7 +324,7 @@
     if(ob&&!localStorage.getItem('hide_grid_onboard')){ob.style.display=(data&&(data.totalAudits||0)===0)?'':'none';}
     // Quick-add link on zero-count stat card
     var qa=document.getElementById('gridActiveAudits');
-    if(qa&&(data&&(data.totalAudits||0)===0)&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-grid-click="event.preventDefault();gridRouter.navigate(\'/grid/audits\');setTimeout(function(){openNewAuditModal()},100)" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Create first audit</a>');}
+    if(qa&&(data&&(data.totalAudits||0)===0)&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-grid-click="event.preventDefault();gridRouter.navigate(\'/grid/audits\');setTimeout(function(){openNewAuditModal()},100)" data-s="s61d2d1c" data-sd="block">+ Create first audit</a>');}
   }
 
   async function gridCheckSentinelBreach(){
@@ -348,11 +348,11 @@
 
   function populateAuditStatus(audits){
     const el=document.getElementById('gridAuditStatus');
-    if(!audits.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No audits yet</div>';return;}
+    if(!audits.length){el.innerHTML='<div data-s="s35ad83f">No audits yet</div>';return;}
     el.innerHTML=audits.slice(0,5).map(a =>
-      '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" data-grid-click="gridRouter.navigate(\'/grid/audits/'+a.id+'\')">'+
-        '<div><div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(a.name)+'</div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(fwLabel(a)||'—')+'</div></div>'+
+      '<div data-s="sccd4412" data-sd="flex" data-grid-click="gridRouter.navigate(\'/grid/audits/'+a.id+'\')">'+
+        '<div><div data-s="s3da0680">'+esc(a.name)+'</div>'+
+        '<div data-s="s3823a5b">'+esc(fwLabel(a)||'—')+'</div></div>'+
         statusBadge(a.status)+'</div>'
     ).join('');
   }
@@ -387,11 +387,11 @@
 
   function populateActivity(items){
     const el=document.getElementById('gridRecentActivity');
-    if(!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
+    if(!items.length){el.innerHTML='<div data-s="s35ad83f">No recent activity</div>';return;}
     el.innerHTML=items.slice(0,6).map((a,i)=>{
       const color=a.action?.includes('evidence')?'var(--accent)':a.action?.includes('control')?'var(--green-status)':
                   a.action?.includes('nc')?'var(--red)':'var(--amber)';
-      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" style="box-shadow:0 0 0 2px '+color+'"></div>'+
+      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" data-sv="box-shadow:0 0 0 2px '+color+'"></div>'+
         (i<items.length-1?'<div class="tl-line"></div>':'')+'</div>'+
         '<div class="tl-content"><div class="tl-name">'+esc(a.action||'Activity')+(a.entity_name?' — '+esc(a.entity_name):'')+'</div>'+
         '<div class="tl-date">'+timeAgo(a.created_at)+'</div></div></div>';
@@ -400,15 +400,15 @@
 
   function renderDashAuditsTable(items){
     const body=document.getElementById('gridAuditsBody');
-    if(!items.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No audits yet. Create your first audit to get started.</td></tr>';return;}
+    if(!items.length){body.innerHTML='<tr><td colspan="6" data-s="s2e587c2">No audits yet. Create your first audit to get started.</td></tr>';return;}
     body.innerHTML=items.map(r=>{
       const pct=r.total_controls?Math.round((r.complete_controls||0)/r.total_controls*100):0;
-      return '<tr style="cursor:pointer" data-grid-click="gridRouter.navigate(\'/grid/audits/'+r.id+'\')">'+
-        '<td style="font-weight:600">'+esc(r.name)+'</td>'+
+      return '<tr data-s="s3b6a3a6" data-grid-click="gridRouter.navigate(\'/grid/audits/'+r.id+'\')">'+
+        '<td data-s="seed0f8f">'+esc(r.name)+'</td>'+
         '<td>'+esc(fwLabel(r)||'—')+'</td>'+
         '<td>'+statusBadge(r.status)+'</td>'+
-        '<td><div style="display:flex;align-items:center;gap:8px"><div class="pbar" style="flex:1;max-width:100px"><div class="pbar-fill" style="width:'+pct+'%"></div></div><span style="font-size:12px;font-family:var(--mono);color:var(--muted)">'+pct+'%</span></div></td>'+
-        '<td style="font-family:var(--mono);font-size:12px">'+fmtDate(r.audit_date)+'</td>'+
+        '<td><div data-s="s250fc4e" data-sd="flex"><div class="pbar" data-s="se31d3b1"><div class="pbar-fill" data-sv="width:'+pct+'%"></div></div><span data-s="s19841af">'+pct+'%</span></div></td>'+
+        '<td data-s="se1e124f">'+fmtDate(r.audit_date)+'</td>'+
         '<td>'+esc(r.lead_name||'—')+'</td></tr>';
     }).join('');
   }
@@ -424,11 +424,11 @@
     var el=document.getElementById('programDashboardContent');
     if(!el)return;
     var d=await api('/grid/api/program-dashboard');
-    if(!d){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Unable to load program data</div>';return;}
+    if(!d){el.innerHTML='<div data-s="sb314795">Unable to load program data</div>';return;}
 
     var html='';
     /* Summary stat cards */
-    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">';
+    html+='<div data-s="s919089e" data-sd="grid">';
     var cards=[
       {label:'Overall Compliance',value:d.overall_pct+'%',color:d.overall_pct>=80?'var(--success,#16a34a)':d.overall_pct>=50?'var(--warning,#d97706)':'var(--danger,#dc2626)'},
       {label:'Total Audits',value:d.total_audits,color:'var(--accent)'},
@@ -438,28 +438,28 @@
       {label:'Critical Open',value:d.nc_critical_open,color:'var(--danger,#dc2626)'},
     ];
     cards.forEach(function(c){
-      html+='<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;text-align:center">'+
-        '<div style="font-size:22px;font-weight:800;color:'+c.color+'">'+(Number(c.value)||0)+'</div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+c.label+'</div></div>';
+      html+='<div data-s="sc7f1abc">'+
+        '<div data-sv="font-size:22px;font-weight:800;color:'+c.color+'">'+(Number(c.value)||0)+'</div>'+
+        '<div data-s="s3823a5b">'+c.label+'</div></div>';
     });
     html+='</div>';
 
     /* Per-audit progress bars */
     var audits=d.audits||[];
     if(audits.length){
-      html+='<div style="margin-bottom:20px">';
-      html+='<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Per-Audit Compliance</div>';
+      html+='<div data-s="s49f14f8">';
+      html+='<div data-s="s155b953">Per-Audit Compliance</div>';
       audits.forEach(function(a){
         var pct=a.completion_pct||0;
         var barCol=pct>=80?'var(--success,#16a34a)':pct>=50?'var(--warning,#d97706)':'var(--danger,#dc2626)';
-        var lockIcon=a.is_locked?'<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:12px;height:12px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> ':'';
-        html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'+
-          '<div style="width:200px;font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(a.name)+'">'+lockIcon+esc(a.name)+'</div>'+
-          '<div style="flex:1;background:var(--surface3,rgba(255,255,255,0.05));border-radius:4px;height:8px;overflow:hidden">'+
-            '<div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:4px;transition:width .5s"></div>'+
+        var lockIcon=a.is_locked?'<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" data-s="s8bd3941"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> ':'';
+        html+='<div data-s="sfcdb2ff" data-sd="flex">'+
+          '<div data-s="s49f369d" title="'+esc(a.name)+'">'+lockIcon+esc(a.name)+'</div>'+
+          '<div data-s="sd9a8ca6">'+
+            '<div data-sv="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:4px;transition:width .5s"></div>'+
           '</div>'+
-          '<div style="width:40px;text-align:right;font-size:12px;font-family:var(--mono);color:var(--muted)">'+pct+'%</div>'+
-          '<div style="font-size:11px;color:var(--muted);white-space:nowrap">'+esc(fwLabel(a))+'</div>'+
+          '<div data-s="s47f4734">'+pct+'%</div>'+
+          '<div data-s="s5e4afbb">'+esc(fwLabel(a))+'</div>'+
         '</div>';
       });
       html+='</div>';
@@ -468,13 +468,13 @@
     /* NC Summary bar */
     if(d.nc_total>0){
       var closedPct=Math.round(d.nc_closed/d.nc_total*100);
-      html+='<div style="margin-bottom:16px">'+
-        '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">NC Resolution Progress</div>'+
-        '<div style="display:flex;align-items:center;gap:10px">'+
-          '<div style="flex:1;background:var(--surface3,rgba(255,255,255,0.05));border-radius:4px;height:12px;overflow:hidden">'+
-            '<div style="width:'+closedPct+'%;height:100%;background:var(--success,#16a34a);border-radius:4px;transition:width .5s"></div>'+
+      html+='<div data-s="s87c136d">'+
+        '<div data-s="sc945a5a">NC Resolution Progress</div>'+
+        '<div data-s="sd57ae4c" data-sd="flex">'+
+          '<div data-s="s30fe1c6">'+
+            '<div data-sv="width:'+closedPct+'%;height:100%;background:var(--success,#16a34a);border-radius:4px;transition:width .5s"></div>'+
           '</div>'+
-          '<span style="font-size:12px;font-family:var(--mono);color:var(--muted)">'+d.nc_closed+'/'+d.nc_total+' closed ('+closedPct+'%)</span>'+
+          '<span data-s="s19841af">'+d.nc_closed+'/'+d.nc_total+' closed ('+closedPct+'%)</span>'+
         '</div>'+
       '</div>';
     }
@@ -482,16 +482,16 @@
     /* Score trend (simple text list if data exists) */
     var trends=d.score_trends||[];
     if(trends.length){
-      html+='<div><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">Compliance Score Trend (Latest Snapshots)</div>';
-      html+='<div style="display:flex;flex-wrap:wrap;gap:8px">';
+      html+='<div><div data-s="sc945a5a">Compliance Score Trend (Latest Snapshots)</div>';
+      html+='<div data-s="s1bdcdd1" data-sd="flex">';
       var seen={};
       trends.forEach(function(t){
         if(seen[t.audit_id])return;
         seen[t.audit_id]=true;
         var col=t.score>=80?'var(--success,#16a34a)':t.score>=50?'var(--warning,#d97706)':'var(--danger,#dc2626)';
-        html+='<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 14px;display:flex;align-items:center;gap:8px">'+
-          '<span style="font-size:20px;font-weight:800;color:'+col+'">'+t.score+'%</span>'+
-          '<span style="font-size:11px;color:var(--muted)">'+esc(t.audit_name)+'</span>'+
+        html+='<div data-s="s934ecc8" data-sd="flex">'+
+          '<span data-sv="font-size:20px;font-weight:800;color:'+col+'">'+t.score+'%</span>'+
+          '<span data-s="s1fd8c81">'+esc(t.audit_name)+'</span>'+
         '</div>';
       });
       html+='</div></div>';
@@ -508,7 +508,7 @@
     grid.innerHTML=spinner();
     const audits=await api('/grid/api/audits');
     if(!audits||!audits.length){
-      grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>'+
+      grid.innerHTML='<div class="empty-state" data-s="s068a8dd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>'+
         '<div class="empty-state-title">No audits yet</div><div class="empty-state-text">Create your first audit to start tracking compliance.</div>'+
         '<button class="btn btn-primary" data-grid-click="openNewAuditModal()">Create Audit</button></div>';
       return;
@@ -523,8 +523,8 @@
       return '<div class="audit-card" data-grid-click="gridRouter.navigate(\'/grid/audits/'+a.id+'\')">'+
         '<div class="audit-card-header"><div><div class="audit-card-name">'+esc(a.name)+'</div>'+
         '<div class="audit-card-fw">'+esc(fwLabel(a)||'No framework')+'</div></div>'+
-        '<div style="display:flex;align-items:center;gap:8px">'+statusBadge(a.status)+delBtn+'</div></div>'+
-        '<div class="pbar"><div class="pbar-fill" style="width:'+pct+'%"></div></div>'+
+        '<div data-s="s250fc4e" data-sd="flex">'+statusBadge(a.status)+delBtn+'</div></div>'+
+        '<div class="pbar"><div class="pbar-fill" data-sv="width:'+pct+'%"></div></div>'+
         '<div class="audit-card-stats">'+
           '<div class="audit-mini-stat"><div class="num">'+pct+'%</div><div class="lbl">Complete</div></div>'+
           '<div class="audit-mini-stat"><div class="num">'+(a.total_controls||0)+'</div><div class="lbl">Controls</div></div>'+
@@ -562,30 +562,30 @@
       '<form data-grid-submit="return createAudit(event)" id="newAuditForm">'+
         '<div class="form-group"><label>Audit Name</label><input name="name" required placeholder="e.g. ISO 27001 Annual Audit"></div>'+
         // IMS toggle
-        '<div class="form-group" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;">'+
-          '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">'+
-            '<input type="checkbox" id="imsAuditToggle" data-grid-change="toggleImsAudit()" style="width:14px;height:14px;">'+
+        '<div class="form-group" data-s="s6935cbf">'+
+          '<label data-s="s7bc87d4" data-sd="flex">'+
+            '<input type="checkbox" id="imsAuditToggle" data-grid-change="toggleImsAudit()" data-s="s53d332d">'+
             'Integrated Management System (IMS) Audit'+
           '</label>'+
-          '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Select multiple frameworks — mapped controls will be grouped and shared evidence satisfies both.</div>'+
-          '<div id="imsAuditPanel" style="display:none;margin-top:10px;">'+
-            '<label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px;">Frameworks to include (select all that apply)</label>'+
-            '<select id="imsAuditFrameworks" multiple size="4" style="width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);padding:4px;font-size:13px;">'+imsOpts+'</select>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Hold Ctrl/Cmd to select multiple frameworks.</div>'+
+          '<div data-s="sbc021dc">Select multiple frameworks — mapped controls will be grouped and shared evidence satisfies both.</div>'+
+          '<div id="imsAuditPanel" data-s="sd2c171b" data-sd="none">'+
+            '<label data-s="s7fe4ee8" data-sd="block">Frameworks to include (select all that apply)</label>'+
+            '<select id="imsAuditFrameworks" multiple size="4" data-s="sf081028">'+imsOpts+'</select>'+
+            '<div data-s="sbc021dc">Hold Ctrl/Cmd to select multiple frameworks.</div>'+
           '</div>'+
         '</div>'+
         '<div id="singleFwPanel">'+
           '<div class="form-group"><label>Framework</label><select name="framework_id">'+fwOpts+'</select></div>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        '<div data-s="s4a37ffe" data-sd="grid">'+
           '<div class="form-group"><label>Start Date</label><input type="date" name="start_date"></div>'+
           '<div class="form-group"><label>End Date</label><input type="date" name="end_date"></div>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+        '<div data-s="s4a37ffe" data-sd="grid">'+
           '<div class="form-group"><label>Audit Date (Due)</label><input type="date" name="audit_date"></div>'+
           '<div class="form-group"><label>Audit Type</label><select name="audit_type"><option>External</option><option>Internal</option><option>Surveillance</option><option>IMS</option></select></div>'+
         '</div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="submit" class="btn btn-primary" id="createAuditBtn">Create Audit</button></div>'+
       '</form>'
@@ -685,30 +685,30 @@
       '</div></div>'+
 
       /* ── Audit lineage ribbon ── */
-      '<div id="auditLineageRibbon" style="margin-bottom:12px"></div>'+
+      '<div id="auditLineageRibbon" data-s="sda12f28"></div>'+
 
       /* ── Status workflow stepper ── */
       _buildStepper(audit.status||'Planning')+
 
       /* ── Stats row ── */
-      '<div class="stats-row" style="margin-bottom:20px">'+
+      '<div class="stats-row" data-s="s49f14f8">'+
         '<div class="stat-card stat-card-hero"><div class="stat-label">Completion</div><div class="stat-value">'+pct+'%</div>'+
-        '<div class="pbar"><div class="pbar-fill" style="width:'+pct+'%;background:white"></div></div></div>'+
+        '<div class="pbar"><div class="pbar-fill" data-sv="width:'+pct+'%;background:white"></div></div></div>'+
         '<div class="stat-card"><div class="stat-label">Total Controls</div><div class="stat-value">'+total+'</div></div>'+
-        '<div class="stat-card"><div class="stat-label">Complete</div><div class="stat-value" style="color:var(--green-status)">'+complete+'</div></div>'+
-        '<div class="stat-card"><div class="stat-label">Remaining</div><div class="stat-value" style="color:var(--amber)">'+(total-complete)+'</div></div>'+
+        '<div class="stat-card"><div class="stat-label">Complete</div><div class="stat-value" data-s="sf941d6e">'+complete+'</div></div>'+
+        '<div class="stat-card"><div class="stat-label">Remaining</div><div class="stat-value" data-s="s08935a7">'+(total-complete)+'</div></div>'+
       '</div>'+
 
       /* ── Audit Program panel (collapsible) ── */
-      '<div class="card" style="margin-bottom:20px">'+
-        '<div class="card-header" style="cursor:pointer" data-grid-click="toggleAuditProgram()">'+
-          '<div class="card-title" style="display:flex;align-items:center;gap:8px">'+
-            '<svg id="programChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>'+
+      '<div class="card" data-s="s49f14f8">'+
+        '<div class="card-header" data-s="s3b6a3a6" data-grid-click="toggleAuditProgram()">'+
+          '<div class="card-title" data-s="s250fc4e" data-sd="flex">'+
+            '<svg id="programChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" data-s="s700c7c7"><polyline points="6 9 12 15 18 9"/></svg>'+
             'Audit Program'+
           '</div>'+
-          '<span style="font-size:11px;color:var(--muted)" id="programSavedLabel"></span>'+
+          '<span data-s="s1fd8c81" id="programSavedLabel"></span>'+
         '</div>'+
-        '<div id="auditProgramBody" style="display:none;padding:0 20px 20px">'+
+        '<div id="auditProgramBody" data-s="s5d5b077" data-sd="none">'+
           '<div class="audit-program-grid">'+
             '<div class="audit-program-field full-width"><label>Scope</label>'+
               '<textarea id="ap_scope" rows="2" placeholder="Define the boundaries and coverage of this audit...">'+esc(audit.scope||'')+'</textarea></div>'+
@@ -733,55 +733,55 @@
 
       /* ── Locked banner ── */
       (audit.is_locked?
-        '<div style="background:#dc262622;border:1px solid #dc2626;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'+
-          '<div style="flex:1"><span style="font-weight:700;color:#dc2626">Audit Locked</span>'+
-            '<span style="font-size:12px;color:var(--muted);margin-left:8px">This audit has been signed off and locked. No further changes allowed.</span></div>'+
-          '<button class="btn btn-secondary" style="font-size:11px;padding:4px 12px;border-color:#dc2626;color:#dc2626" data-grid-click="unlockAudit('+id+')">Unlock</button>'+
+        '<div data-s="s0d18d70" data-sd="flex">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" data-s="s3fbf2cc"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'+
+          '<div data-s="s97445a8"><span data-s="s7346668">Audit Locked</span>'+
+            '<span data-s="s7653ea3">This audit has been signed off and locked. No further changes allowed.</span></div>'+
+          '<button class="btn btn-secondary" data-s="s2b11652" data-grid-click="unlockAudit('+id+')">Unlock</button>'+
         '</div>':'')+
 
       /* ── Sign-off panel ── */
-      '<div class="card" style="margin-bottom:20px">'+
+      '<div class="card" data-s="s49f14f8">'+
         '<div class="card-header"><div class="card-title">Conclusion & Sign-off</div></div>'+
-        '<div style="padding:16px 20px">'+
-          '<div style="margin-bottom:14px">'+
-            '<label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Audit Conclusion</label>'+
+        '<div data-s="s01b9273">'+
+          '<div data-s="s2b583d7">'+
+            '<label data-s="sbf00562" data-sd="block">Audit Conclusion</label>'+
             '<textarea id="signoff_conclusion" rows="3" '+(audit.is_locked?'disabled':'')
               +' data-grid-blur="saveAuditField('+id+',\'conclusion\',this.value)" placeholder="Summarise audit findings, overall compliance posture, and recommendations...">'
               +esc(audit.conclusion||'')+'</textarea>'+
           '</div>'+
-          '<div id="signoffPanel" style="margin-top:16px"></div>'+
+          '<div id="signoffPanel" data-s="s1b0f499"></div>'+
         '</div>'+
       '</div>'+
 
       /* ── Controls list ── */
       '<div class="card"><div class="card-header"><div class="card-title">Controls ('+total+')</div>'+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" data-grid-import-audit="'+Number(id)+'" data-grid-import-label="'+esc(fwLabel(audit)||'ISO 27001')+'">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>'+
+      '<div data-s="sca6f5db" data-sd="flex">'+
+        '<button class="btn btn-secondary" data-s="s2cbaf86" data-grid-import-audit="'+Number(id)+'" data-grid-import-label="'+esc(fwLabel(audit)||'ISO 27001')+'">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="s9aff941"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>'+
           'Import Checklist</button>'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:#7c3aed;color:#7c3aed" data-grid-click="openAiChecklistModal('+id+')" title="AI generates post-incident checklist items based on the linked breach or incident">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M10 17h4"/></svg>'+
+        '<button class="btn btn-secondary" data-s="sb60ba9e" data-grid-click="openAiChecklistModal('+id+')" title="AI generates post-incident checklist items based on the linked breach or incident">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="s9aff941"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M10 17h4"/></svg>'+
           'AI Checklist</button>'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:#7c3aed;color:#7c3aed" data-grid-click="autoAttachAuditPolicies('+id+')" title="Scan all controls and automatically attach matching approved ARIA policies as evidence">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
+        '<button class="btn btn-secondary" data-s="sb60ba9e" data-grid-click="autoAttachAuditPolicies('+id+')" title="Scan all controls and automatically attach matching approved ARIA policies as evidence">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="s9aff941"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
           'Auto-Attach ARIA Policies</button>'+
-        (!controls.length?'<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" data-grid-click="populateAuditControls('+id+')">Load Framework Controls</button>':'')+
+        (!controls.length?'<button class="btn btn-primary" data-s="s2cbaf86" data-grid-click="populateAuditControls('+id+')">Load Framework Controls</button>':'')+
       '</div>'+
       '</div>'+
       (controls.length?controls.map(c=>{
         const imsBadge = c.ims_status
-          ? '<span class="ims-badge ims-'+(/^[a-z_]+$/.test(c.ims_status)?c.ims_status:'unknown')+'" title="IMS: '+esc(c.ims_status)+'" style="margin-left:8px;">'+esc(String(c.ims_status).toUpperCase())+'</span>'
+          ? '<span class="ims-badge ims-'+(/^[a-z_]+$/.test(c.ims_status)?c.ims_status:'unknown')+'" title="IMS: '+esc(c.ims_status)+'" data-s="s5dd2a67">'+esc(String(c.ims_status).toUpperCase())+'</span>'
           : '';
-        return '<div class="ctrl-row" style="cursor:pointer" data-grid-click="openControlDetail('+c.id+','+id+')">'+
+        return '<div class="ctrl-row" data-s="s3b6a3a6" data-grid-click="openControlDetail('+c.id+','+id+')">'+
           '<div class="ctrl-id">'+esc(c.control_id||c.name?.substring(0,8)||'—')+'</div>'+
           '<div class="ctrl-name">'+esc(c.name)+imsBadge+'</div>'+
           riskBadge(c.risk_level)+
-          '<div style="margin-left:12px">'+statusBadge(c.status)+'</div>'+
-          '<div style="margin-left:12px;font-size:12px;color:var(--muted)">'+esc(c.assignee_name||'Unassigned')+'</div>'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;margin-left:8px"><polyline points="9 18 15 12 9 6"/></svg>'+
+          '<div data-s="s6c2dda9">'+statusBadge(c.status)+'</div>'+
+          '<div data-s="sc84c3ee">'+esc(c.assignee_name||'Unassigned')+'</div>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" data-s="s5bd2bdb"><polyline points="9 18 15 12 9 6"/></svg>'+
         '</div>';
-      }).join(''):'<div style="padding:24px;text-align:center;color:var(--muted)">No controls added. Click "Load Framework Controls" above or upload a checklist.</div>')+
+      }).join(''):'<div data-s="s4b7d3af">No controls added. Click "Load Framework Controls" above or upload a checklist.</div>')+
       '</div>';
 
     // Load lineage ribbon and sign-offs asynchronously
@@ -844,60 +844,60 @@
     var signoffs=await api('/grid/api/audits/'+auditId+'/signoffs')||[];
     var leadSigned=signoffs.find(function(s){return s.role==='lead';});
     var reviewerSigned=signoffs.find(function(s){return s.role==='reviewer';});
-    var html='<div style="display:flex;gap:16px;flex-wrap:wrap">';
+    var html='<div data-s="s3fc81f4" data-sd="flex">';
 
     // Lead sign-off step
-    html+='<div style="flex:1;min-width:200px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);'
+    html+='<div data-sv="flex:1;min-width:200px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);'
       +(leadSigned?'background:rgba(22,163,106,0.08);border-color:#16a34a':'')+'">'+
-      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Step 1 — Lead Sign-off</div>';
+      '<div data-s="s2a4ab5d">Step 1 — Lead Sign-off</div>';
     if(leadSigned){
-      html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" style="width:16px;height:16px"><polyline points="20 6 9 17 4 12"/></svg>'+
-        '<span style="font-weight:600;color:#16a34a">Signed</span></div>'+
-        '<div style="font-size:12px;color:var(--muted)">'+esc(leadSigned.user_name)+' — '+fmtDate(leadSigned.signed_at)+'</div>'+
-        (leadSigned.comment?'<div style="font-size:12px;color:var(--text);margin-top:4px;font-style:italic">"'+esc(leadSigned.comment)+'"</div>':'')+
-        (!isLocked?'<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px;margin-top:8px" data-grid-click="revokeSignoff('+auditId+',\'lead\')">Revoke</button>':'');
+      html+='<div data-s="se010629" data-sd="flex">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" data-s="sa1c8eab"><polyline points="20 6 9 17 4 12"/></svg>'+
+        '<span data-s="s054b7e3">Signed</span></div>'+
+        '<div data-s="s7fc448e">'+esc(leadSigned.user_name)+' — '+fmtDate(leadSigned.signed_at)+'</div>'+
+        (leadSigned.comment?'<div data-s="sb1d812f">"'+esc(leadSigned.comment)+'"</div>':'')+
+        (!isLocked?'<button class="btn btn-secondary" data-s="s5ba25c6" data-grid-click="revokeSignoff('+auditId+',\'lead\')">Revoke</button>':'');
     }else{
-      html+='<div style="margin-bottom:8px;font-size:12px;color:var(--muted)">Awaiting lead auditor sign-off</div>'+
-        '<input type="text" id="leadSignoffComment" placeholder="Comment (optional)" style="font-size:12px;margin-bottom:6px;width:100%">'+
-        '<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" data-grid-click="submitSignoff('+auditId+',\'lead\')">Sign as Lead</button>';
+      html+='<div data-s="s4bb5f16">Awaiting lead auditor sign-off</div>'+
+        '<input type="text" id="leadSignoffComment" placeholder="Comment (optional)" data-s="s38720f1">'+
+        '<button class="btn btn-primary" data-s="s2cbaf86" data-grid-click="submitSignoff('+auditId+',\'lead\')">Sign as Lead</button>';
     }
     html+='</div>';
 
     // Reviewer sign-off step
-    html+='<div style="flex:1;min-width:200px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);'
+    html+='<div data-sv="flex:1;min-width:200px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);'
       +(reviewerSigned?'background:rgba(22,163,106,0.08);border-color:#16a34a':'')
       +(!leadSigned?'opacity:0.5':'')+'">'+
-      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Step 2 — Reviewer Sign-off</div>';
+      '<div data-s="s2a4ab5d">Step 2 — Reviewer Sign-off</div>';
     if(reviewerSigned){
-      html+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" style="width:16px;height:16px"><polyline points="20 6 9 17 4 12"/></svg>'+
-        '<span style="font-weight:600;color:#16a34a">Signed</span></div>'+
-        '<div style="font-size:12px;color:var(--muted)">'+esc(reviewerSigned.user_name)+' — '+fmtDate(reviewerSigned.signed_at)+'</div>'+
-        (reviewerSigned.comment?'<div style="font-size:12px;color:var(--text);margin-top:4px;font-style:italic">"'+esc(reviewerSigned.comment)+'"</div>':'')+
-        (!isLocked?'<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px;margin-top:8px" data-grid-click="revokeSignoff('+auditId+',\'reviewer\')">Revoke</button>':'');
+      html+='<div data-s="se010629" data-sd="flex">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" data-s="sa1c8eab"><polyline points="20 6 9 17 4 12"/></svg>'+
+        '<span data-s="s054b7e3">Signed</span></div>'+
+        '<div data-s="s7fc448e">'+esc(reviewerSigned.user_name)+' — '+fmtDate(reviewerSigned.signed_at)+'</div>'+
+        (reviewerSigned.comment?'<div data-s="sb1d812f">"'+esc(reviewerSigned.comment)+'"</div>':'')+
+        (!isLocked?'<button class="btn btn-secondary" data-s="s5ba25c6" data-grid-click="revokeSignoff('+auditId+',\'reviewer\')">Revoke</button>':'');
     }else if(leadSigned){
-      html+='<div style="margin-bottom:8px;font-size:12px;color:var(--muted)">Awaiting reviewer sign-off</div>'+
-        '<input type="text" id="reviewerSignoffComment" placeholder="Comment (optional)" style="font-size:12px;margin-bottom:6px;width:100%">'+
-        '<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" data-grid-click="submitSignoff('+auditId+',\'reviewer\')">Sign as Reviewer</button>';
+      html+='<div data-s="s4bb5f16">Awaiting reviewer sign-off</div>'+
+        '<input type="text" id="reviewerSignoffComment" placeholder="Comment (optional)" data-s="s38720f1">'+
+        '<button class="btn btn-primary" data-s="s2cbaf86" data-grid-click="submitSignoff('+auditId+',\'reviewer\')">Sign as Reviewer</button>';
     }else{
-      html+='<div style="font-size:12px;color:var(--muted)">Lead must sign first</div>';
+      html+='<div data-s="s7fc448e">Lead must sign first</div>';
     }
     html+='</div>';
 
     // Lock step
-    html+='<div style="flex:1;min-width:200px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:center;align-items:center;'
+    html+='<div data-sv="flex:1;min-width:200px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;justify-content:center;align-items:center;'
       +(isLocked?'background:rgba(22,163,106,0.08);border-color:#16a34a':'')
       +(!(leadSigned&&reviewerSigned)?'opacity:0.5':'')+'">'+
-      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Step 3 — Lock Audit</div>';
+      '<div data-s="s2a4ab5d">Step 3 — Lock Audit</div>';
     if(isLocked){
-      html+='<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="width:24px;height:24px;margin-bottom:4px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'+
-        '<div style="font-weight:700;color:#16a34a">Locked</div>';
+      html+='<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" data-s="s2ddca21"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>'+
+        '<div data-s="sf406950">Locked</div>';
     }else if(leadSigned&&reviewerSigned){
-      html+='<button class="btn btn-primary" style="font-size:12px;padding:8px 20px" data-grid-click="lockAudit('+auditId+')">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Lock Audit</button>';
+      html+='<button class="btn btn-primary" data-s="s4f1ec33" data-grid-click="lockAudit('+auditId+')">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="scb96a6c"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Lock Audit</button>';
     }else{
-      html+='<div style="font-size:12px;color:var(--muted)">Both sign-offs required</div>';
+      html+='<div data-s="s7fc448e">Both sign-offs required</div>';
     }
     html+='</div></div>';
     el.innerHTML=html;
@@ -964,18 +964,18 @@
     showModal(
       '<div class="modal-title">Import Checklist</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">Upload an Excel, CSV, or PDF file containing your audit checklist. Controls and evidence requirements will be extracted automatically.</p>'+
+      '<p data-s="s943e0fa">Upload an Excel, CSV, or PDF file containing your audit checklist. Controls and evidence requirements will be extracted automatically.</p>'+
       '<form id="checklistImportForm" data-grid-submit="return submitChecklistImport(event,'+auditId+')">'+
         '<div class="form-group"><label>File</label>'+
-          '<input type="file" name="file" required accept=".xlsx,.xls,.csv,.pdf" style="padding:8px"></div>'+
+          '<input type="file" name="file" required accept=".xlsx,.xls,.csv,.pdf" data-s="se2c960f"></div>'+
         '<div class="form-group"><label>Framework</label>'+
           '<input type="text" name="framework_name" value="'+esc(frameworkName)+'" placeholder="e.g. ISO 27001"></div>'+
-        '<div class="form-group" style="display:flex;align-items:center;gap:8px">'+
-          '<input type="checkbox" name="skip_ai" id="cklSkipAi" style="width:auto">'+
-          '<label for="cklSkipAi" style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)">Skip AI risk scoring (faster)</label>'+
+        '<div class="form-group" data-s="s250fc4e" data-sd="flex">'+
+          '<input type="checkbox" name="skip_ai" id="cklSkipAi" data-s="s30e741d">'+
+          '<label for="cklSkipAi" data-s="s5d3d95f">Skip AI risk scoring (faster)</label>'+
         '</div>'+
-        '<div id="checklistPreview" style="display:none;margin-bottom:16px"></div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div id="checklistPreview" data-s="s87c136d" data-sd="none"></div>'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="button" class="btn btn-secondary" id="cklParseBtn" data-grid-click="parseChecklistPreview('+auditId+')">Preview</button>'+
           '<button type="submit" class="btn btn-primary" id="cklImportBtn" disabled>Import Controls</button></div>'+
@@ -1008,20 +1008,20 @@
       var preview=document.getElementById('checklistPreview');
       if(preview){
         preview.style.display='block';
-        preview.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">'+
+        preview.innerHTML='<div data-s="s61179ff">'+
           'Found '+_pendingChecklist.length+' controls'+(data.ai_scored?' with AI suggestions to review':'')+
         '</div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">The suggested score is not saved automatically. Choose a level for each control you wish to change from Medium. Suggested evidence must be added separately after review.</div>'+
-        '<div style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">'+
-          '<table class="data-table" style="font-size:12px"><thead><tr><th>ID</th><th>Name</th><th>Suggested risk</th><th>Level to import</th><th>Suggested evidence</th></tr></thead><tbody>'+
+        '<div data-s="sa0f62e4">The suggested score is not saved automatically. Choose a level for each control you wish to change from Medium. Suggested evidence must be added separately after review.</div>'+
+        '<div data-s="s63a762c">'+
+          '<table class="data-table" data-s="s6cb285c"><thead><tr><th>ID</th><th>Name</th><th>Suggested risk</th><th>Level to import</th><th>Suggested evidence</th></tr></thead><tbody>'+
           _pendingChecklist.map(function(c,index){
             var evCount=(c.suggested_evidence_items||[]).length;
-            return '<tr><td style="font-family:var(--mono);color:var(--accent)">'+esc(c.control_id||'—')+'</td>'+
+            return '<tr><td data-s="s0d46dfe">'+esc(c.control_id||'—')+'</td>'+
               '<td>'+esc(c.name||'')+'</td>'+
               '<td>'+esc(c.suggested_risk_level||'No suggestion')+'</td>'+
               '<td><select aria-label="Import risk for '+esc(c.control_id||c.name||'control')+'" data-grid-change="gridChecklistSetRisk('+index+',this.value)">'+
               ['Low','Medium','High','Critical'].map(function(level){return '<option value="'+level+'"'+(c.risk_level===level?' selected':'')+'>'+level+'</option>';}).join('')+'</select></td>'+
-              '<td style="text-align:center">'+(evCount||'—')+'</td></tr>';
+              '<td data-s="s91a8701">'+(evCount||'—')+'</td></tr>';
           }).join('')+
           '</tbody></table>'+
         '</div>';
@@ -1067,9 +1067,9 @@
     showModal(
       '<div class="modal-title">AI Post-Incident Checklist</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<div id="aiClLoading" style="padding:8px 0"></div>'+
-      '<div id="aiClPreview" style="display:none"></div>'+
-      '<div id="aiClFooter" style="display:none;display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+      '<div id="aiClLoading" data-s="sd8c0226"></div>'+
+      '<div id="aiClPreview" data-sd="none"></div>'+
+      '<div id="aiClFooter" data-s="s130cb5e" data-sd="flex">'+
         '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
         '<button type="button" class="btn btn-primary" id="aiClAddBtn" data-grid-click="aiChecklistCommit()">Add to Audit</button>'+
       '</div>',
@@ -1093,7 +1093,7 @@
     }catch(e){
       _aiChecklistTrace.destroy();
       var el=document.getElementById('aiClLoading');
-      if(el) el.innerHTML='<div style="color:var(--danger);font-size:13px">'+esc(e.detail||'Failed to generate checklist')+'</div>';
+      if(el) el.innerHTML='<div data-s="s8763236">'+esc(e.detail||'Failed to generate checklist')+'</div>';
     }
   };
 
@@ -1116,47 +1116,47 @@
       categories[cat].push(item);
     });
 
-    var html='<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">'+
-      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
-        '<div style="color:var(--muted);margin-bottom:2px">Source</div>'+
-        '<div style="font-weight:600">'+esc(inc.source_module==='sentinel'?'Sentinel Breach':'BCM Incident')+'</div>'+
+    var html='<div data-s="s1524e42" data-sd="flex">'+
+      '<div data-s="s90a61a7">'+
+        '<div data-s="s6347016">Source</div>'+
+        '<div data-s="seed0f8f">'+esc(inc.source_module==='sentinel'?'Sentinel Breach':'BCM Incident')+'</div>'+
       '</div>'+
-      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
-        '<div style="color:var(--muted);margin-bottom:2px">Incident</div>'+
-        '<div style="font-weight:600">'+esc(inc.title||'Unknown')+'</div>'+
+      '<div data-s="s90a61a7">'+
+        '<div data-s="s6347016">Incident</div>'+
+        '<div data-s="seed0f8f">'+esc(inc.title||'Unknown')+'</div>'+
       '</div>'+
-      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
-        '<div style="color:var(--muted);margin-bottom:2px">Severity</div>'+
-        '<div style="font-weight:600;color:var(--danger)">'+esc((inc.severity||'medium').toUpperCase())+'</div>'+
+      '<div data-s="s90a61a7">'+
+        '<div data-s="s6347016">Severity</div>'+
+        '<div data-s="s531879e">'+esc((inc.severity||'medium').toUpperCase())+'</div>'+
       '</div>'+
-      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
-        '<div style="color:var(--muted);margin-bottom:2px">Items</div>'+
-        '<div style="font-weight:600">'+items.length+'</div>'+
+      '<div data-s="s90a61a7">'+
+        '<div data-s="s6347016">Items</div>'+
+        '<div data-s="seed0f8f">'+items.length+'</div>'+
       '</div>'+
     '</div>';
 
-    html+='<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">';
+    html+='<div data-s="s5a0c5e7">';
     Object.keys(categories).forEach(function(cat){
-      html+='<div style="padding:8px 12px;background:var(--bg-tertiary);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);border-bottom:1px solid var(--border)">'+esc(cat)+'</div>';
+      html+='<div data-s="s2fa2f2b">'+esc(cat)+'</div>';
       categories[cat].forEach(function(item){
         var evHtml='';
         if(item.evidence_matches&&item.evidence_matches.length){
           item.evidence_matches.forEach(function(em){
             if(em.vault_items&&em.vault_items.length){
-              evHtml+='<span style="display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;background:#dcfce7;color:#166534;margin:2px 2px 0 0" title="Found in Evidence Vault">'+esc(em.name)+'</span>';
+              evHtml+='<span data-s="sb553f1b" data-sd="inline-block" title="Found in Evidence Vault">'+esc(em.name)+'</span>';
             }else{
-              evHtml+='<span style="display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;background:#fef3c7;color:#92400e;margin:2px 2px 0 0" title="Not found in vault, upload needed">'+esc(em.name)+'</span>';
+              evHtml+='<span data-s="s8484e9a" data-sd="inline-block" title="Not found in vault, upload needed">'+esc(em.name)+'</span>';
             }
           });
         }
-        var policyHtml=item.policy_ref?'<div style="font-size:11px;color:#7c3aed;margin-top:2px">Policy: '+esc(item.policy_ref)+'</div>':'';
-        html+='<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">'+
-          '<input type="checkbox" checked data-grid-change="toggleAiClItem('+item._idx+',this.checked)" style="margin-top:3px;flex-shrink:0">'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:13px;font-weight:600">'+esc(item.name)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+esc(item.description||'')+'</div>'+
+        var policyHtml=item.policy_ref?'<div data-s="scc499eb">Policy: '+esc(item.policy_ref)+'</div>':'';
+        html+='<div data-s="sa41a169" data-sd="flex">'+
+          '<input type="checkbox" checked data-grid-change="toggleAiClItem('+item._idx+',this.checked)" data-s="s0ae6d26">'+
+          '<div data-s="s59eddc6">'+
+            '<div data-s="seb673ec">'+esc(item.name)+'</div>'+
+            '<div data-s="sfc85ba5">'+esc(item.description||'')+'</div>'+
             policyHtml+
-            (evHtml?'<div style="margin-top:4px">'+evHtml+'</div>':'')+
+            (evHtml?'<div data-s="s96ad609">'+evHtml+'</div>':'')+
           '</div>'+
         '</div>';
       });
@@ -1238,14 +1238,14 @@
 
   function renderControls(items){
     const el=document.getElementById('controlsList');
-    if(!items.length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted)">No controls found</div>';return;}
+    if(!items.length){el.innerHTML='<div data-s="s4b7d3af">No controls found</div>';return;}
     el.innerHTML=items.map(c=>
       '<div class="ctrl-row">'+
         '<div class="ctrl-id">'+esc(c.control_id||c.ref||'—')+'</div>'+
-        '<div class="ctrl-name">'+esc(c.name)+(c.framework_name?'<span style="font-size:11px;color:var(--muted);margin-left:8px">'+esc(c.framework_name)+'</span>':'')+'</div>'+
+        '<div class="ctrl-name">'+esc(c.name)+(c.framework_name?'<span data-s="sec0c92b">'+esc(c.framework_name)+'</span>':'')+'</div>'+
         riskBadge(c.risk_level)+
-        '<div style="margin-left:12px">'+statusBadge(c.status)+'</div>'+
-        '<div style="margin-left:12px;font-size:12px;color:var(--muted)">'+esc(c.assignee_name||'Unassigned')+'</div>'+
+        '<div data-s="s6c2dda9">'+statusBadge(c.status)+'</div>'+
+        '<div data-s="sc84c3ee">'+esc(c.assignee_name||'Unassigned')+'</div>'+
       '</div>'
     ).join('');
   }
@@ -1277,28 +1277,28 @@
     if(capF&&capF.value)params.push('cap_status='+encodeURIComponent(capF.value));
     var url='/grid/api/ncs'+(params.length?'?'+params.join('&'):'');
     const ncs=await api(url)||[];
-    if(!ncs.length){el.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted)">No findings match the current filters</div>';return;}
+    if(!ncs.length){el.innerHTML='<div data-s="s4b7d3af">No findings match the current filters</div>';return;}
     el.innerHTML='<table class="data-table"><thead><tr><th>Title</th><th>Severity</th><th>CAP Status</th><th>Mgmt</th><th>Audit</th><th>Assigned</th><th>Created</th></tr></thead><tbody>'+
-      ncs.map(function(n){return '<tr style="cursor:pointer" data-grid-click="openNCDetail('+n.id+')">'+
-        '<td style="font-weight:600">'+esc(n.title||'NC-'+n.id)+'</td>'+
+      ncs.map(function(n){return '<tr data-s="s3b6a3a6" data-grid-click="openNCDetail('+n.id+')">'+
+        '<td data-s="seed0f8f">'+esc(n.title||'NC-'+n.id)+'</td>'+
         '<td>'+riskBadge(n.severity)+'</td>'+
         '<td>'+_capBadge(n.cap_status)+'</td>'+
         '<td>'+_mgmtBadge(n.mgmt_response_status)+'</td>'+
         '<td>'+esc(n.audit_name||'—')+'</td>'+
-        '<td style="font-size:12px">'+esc(n.assigned_name||'—')+'</td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+fmtDate(n.created_at)+'</td></tr>';
+        '<td data-s="s6cb285c">'+esc(n.assigned_name||'—')+'</td>'+
+        '<td data-s="s7fc448e">'+fmtDate(n.created_at)+'</td></tr>';
       }).join('')+'</tbody></table>';
   }
   function _capBadge(s){
-    if(!s)return '<span class="status-badge" style="background:var(--surface2);color:var(--muted)">—</span>';
+    if(!s)return '<span class="status-badge" data-s="s1323217">—</span>';
     var colors={'Open':'#6b7280','RCA':'#f59e0b','CAP Submitted':'#3b82f6','Approved':'#8b5cf6','Implementation':'#f97316','Verification':'#06b6d4','Closed':'#22c55e'};
     var c=colors[s]||'#6b7280';
-    return '<span class="status-badge" style="background:'+c+'1a;color:'+c+';border:1px solid '+c+'33">'+esc(s)+'</span>';
+    return '<span class="status-badge" data-sv="background:'+c+'1a;color:'+c+';border:1px solid '+c+'33">'+esc(s)+'</span>';
   }
   function _mgmtBadge(s){
-    if(!s)return '<span style="font-size:11px;color:var(--muted)">Pending</span>';
+    if(!s)return '<span data-s="s1fd8c81">Pending</span>';
     var c=s==='Approved'?'var(--green-status)':'#ef4444';
-    return '<span class="status-badge" style="background:'+c+'1a;color:'+c+';border:1px solid '+c+'33;font-size:11px">'+esc(s)+'</span>';
+    return '<span class="status-badge" data-sv="background:'+c+'1a;color:'+c+';border:1px solid '+c+'33;font-size:11px">'+esc(s)+'</span>';
   }
 
   window.openNewNCModal=async function(){
@@ -1314,7 +1314,7 @@
         '<div class="form-group"><label>Title</label><input name="title" required placeholder="Description of finding"></div>'+
         '<div class="form-group"><label>Severity</label><select name="severity"><option>minor</option><option>major</option><option>critical</option></select></div>'+
         '<div class="form-group"><label>Description</label><textarea name="description" rows="3" placeholder="Detailed description..."></textarea></div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="submit" class="btn btn-primary">Create</button></div>'+
       '</form>'
@@ -1385,11 +1385,11 @@
     panel.innerHTML=
       '<div class="nc-panel-header">'+
         '<div class="nc-panel-title">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px;vertical-align:middle;color:var(--accent)"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s518e7da"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'+
           esc(nc.title||'NC-'+nc.id)+
         '</div>'+
         '<button class="nc-panel-close" data-grid-click="closeNCDetail()" title="Close">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="sd6af8c3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
         '</button>'+
       '</div>'+
       '<div class="nc-panel-body">'+
@@ -1397,17 +1397,17 @@
         /* CAP Stepper */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
             'CAP Lifecycle'+
           '</div>'+
           '<div id="ncCapStepper">'+_buildCAPStepper(nc.cap_status)+'</div>'+
-          '<div class="cap-action-btns" style="margin-top:8px">'+
+          '<div class="cap-action-btns" data-s="s8a77e5a">'+
             (capIdx>0?'<button class="btn btn-secondary" data-grid-click="revertCAPStatus('+ncid+')">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="scb96a6c"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>'+
               'Revert</button>':'')+
             (!isClosed?'<button class="btn btn-primary" data-grid-click="advanceCAPStatus('+ncid+')">'+
               'Advance'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-left:4px"><polyline points="9 18 15 12 9 6"/></svg>'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s6b07859"><polyline points="9 18 15 12 9 6"/></svg>'+
               '</button>':'')+
           '</div>'+
         '</div>'+
@@ -1415,7 +1415,7 @@
         /* Properties: severity, status, assignee, dates */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'+
             'Properties'+
           '</div>'+
           '<div class="nc-form-grid">'+
@@ -1442,7 +1442,7 @@
               '<input type="date" id="ncFldRespDeadline" value="'+esc(nc.response_deadline||'')+'" data-grid-change="saveNCField('+ncid+',\'response_deadline\',this.value)">'+
             '</div>'+
             '<div class="nc-form-group"><label>Control</label>'+
-              '<div style="padding:8px 12px;background:var(--surface2);border-radius:var(--radius);font-size:13px;color:var(--text)">'+
+              '<div data-s="s7a13193">'+
                 esc(nc.ctrl_ref?nc.ctrl_ref+' — '+(nc.control_name||''):(nc.control_id?'Control #'+nc.control_id:'Not linked'))+
               '</div></div>'+
           '</div>'+
@@ -1451,7 +1451,7 @@
         /* Description */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'+
             'Description'+
           '</div>'+
           '<div class="nc-form-group full-width">'+
@@ -1462,7 +1462,7 @@
         /* Root Cause Analysis */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'+
             'Root Cause Analysis'+
           '</div>'+
           '<div class="nc-form-group full-width">'+
@@ -1473,7 +1473,7 @@
         /* Corrective Action */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'+
             'Corrective Action'+
           '</div>'+
           '<div class="nc-form-group full-width">'+
@@ -1484,7 +1484,7 @@
         /* Preventive Action */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'+
             'Preventive Action'+
           '</div>'+
           '<div class="nc-form-group full-width">'+
@@ -1495,50 +1495,50 @@
         /* Verification */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
             'Verification'+
           '</div>'+
           '<div class="nc-form-group full-width">'+
             '<textarea id="ncFldVerify" rows="3" placeholder="Verification notes — confirm effectiveness of actions taken..." data-grid-change="saveNCField('+ncid+',\'verification_notes\',this.value)">'+esc(nc.verification_notes||'')+'</textarea>'+
           '</div>'+
-          (nc.verified_by_name?'<div style="font-size:12px;color:var(--muted);margin-top:6px">Verified by '+esc(nc.verified_by_name)+' on '+fmtDate(nc.verified_at)+'</div>':'')+
-          (nc.closed_at?'<div style="font-size:12px;color:var(--green-status);margin-top:4px;font-weight:600">Closed on '+fmtDate(nc.closed_at)+'</div>':'')+
+          (nc.verified_by_name?'<div data-s="sd1352ef">Verified by '+esc(nc.verified_by_name)+' on '+fmtDate(nc.verified_at)+'</div>':'')+
+          (nc.closed_at?'<div data-s="s4ad2ee0">Closed on '+fmtDate(nc.closed_at)+'</div>':'')+
         '</div>'+
 
         /* Management Response */
         '<div class="nc-section">'+
-          '<div class="nc-section-title" style="justify-content:space-between">'+
-            '<span style="display:flex;align-items:center;gap:6px">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>'+
+          '<div class="nc-section-title" data-s="sa562f4f">'+
+            '<span data-s="s2ce310b" data-sd="flex">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>'+
               'Management Response'+
             '</span>'+
             (nc.mgmt_response_status?
-              '<span class="status-badge" style="background:'+(nc.mgmt_response_status==='Approved'?'var(--green-status)':'#ef4444')+'1a;color:'+(nc.mgmt_response_status==='Approved'?'var(--green-status)':'#ef4444')+'">'+
+              '<span class="status-badge" data-sv="background:'+(nc.mgmt_response_status==='Approved'?'var(--green-status)':'#ef4444')+'1a;color:'+(nc.mgmt_response_status==='Approved'?'var(--green-status)':'#ef4444')+'">'+
                 esc(nc.mgmt_response_status)+'</span>':'')+
           '</div>'+
           /* Show existing response if present */
           (nc.mgmt_response?
-            '<div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:12px;font-size:13px;line-height:1.6">'+
-              '<div style="font-weight:600;margin-bottom:4px;color:var(--text)">Manager Comment</div>'+
-              '<div style="color:var(--text)">'+esc(nc.mgmt_response)+'</div>'+
-              (nc.mgmt_response_by_name?'<div style="font-size:11px;color:var(--muted);margin-top:8px">By '+esc(nc.mgmt_response_by_name)+' on '+fmtDate(nc.mgmt_response_at)+'</div>':'')+
+            '<div data-s="sb339b32">'+
+              '<div data-s="s921e641">Manager Comment</div>'+
+              '<div data-s="sf045bbe">'+esc(nc.mgmt_response)+'</div>'+
+              (nc.mgmt_response_by_name?'<div data-s="sea04831">By '+esc(nc.mgmt_response_by_name)+' on '+fmtDate(nc.mgmt_response_at)+'</div>':'')+
             '</div>':'')+
           /* Approve / Reject form — show when CAP is at 'CAP Submitted' or later (and not yet decided, or allow re-decision) */
           '<div id="ncMgmtForm">'+
-            '<div class="nc-form-group full-width" style="margin-bottom:12px">'+
+            '<div class="nc-form-group full-width" data-s="sda12f28">'+
               '<label>Response Comment</label>'+
               '<textarea id="ncMgmtResponseText" rows="3" placeholder="Enter management response, feedback, or conditions for approval..."></textarea>'+
             '</div>'+
-            '<div class="nc-form-group" style="margin-bottom:12px">'+
+            '<div class="nc-form-group" data-s="sda12f28">'+
               '<label>Response Deadline</label>'+
               '<input type="date" id="ncMgmtDeadline" value="'+esc(nc.response_deadline||'')+'">'+
             '</div>'+
-            '<div style="display:flex;gap:8px;margin-top:8px">'+
-              '<button class="btn btn-primary" style="background:var(--green-status);border-color:var(--green-status)" data-grid-click="submitMgmtResponse('+ncid+',\'Approved\')">'+
-                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>'+
+            '<div data-s="s62ee93e" data-sd="flex">'+
+              '<button class="btn btn-primary" data-s="s1929afd" data-grid-click="submitMgmtResponse('+ncid+',\'Approved\')">'+
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="scb96a6c"><polyline points="20 6 9 17 4 12"/></svg>'+
                 'Approve CAP</button>'+
-              '<button class="btn btn-secondary" style="border-color:#ef4444;color:#ef4444" data-grid-click="submitMgmtResponse('+ncid+',\'Rejected\')">'+
-                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+              '<button class="btn btn-secondary" data-s="s05cd5b5" data-grid-click="submitMgmtResponse('+ncid+',\'Rejected\')">'+
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="scb96a6c"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
                 'Reject CAP</button>'+
             '</div>'+
           '</div>'+
@@ -1547,7 +1547,7 @@
         /* Effectiveness Review */
         '<div class="nc-section">'+
           '<div class="nc-section-title">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>'+
             'Effectiveness Review'+
           '</div>'+
           '<div class="nc-form-group full-width">'+
@@ -1557,19 +1557,19 @@
 
         /* Linked Evidence */
         '<div class="nc-section">'+
-          '<div class="nc-section-title" style="justify-content:space-between">'+
-            '<span style="display:flex;align-items:center;gap:6px">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>'+
+          '<div class="nc-section-title" data-s="sa562f4f">'+
+            '<span data-s="s2ce310b" data-sd="flex">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>'+
               'Linked Evidence'+
             '</span>'+
-            '<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px" data-grid-click="showLinkEvidencePicker('+ncid+')">+ Link Evidence</button>'+
+            '<button class="btn btn-secondary" data-s="sc8e560d" data-grid-click="showLinkEvidencePicker('+ncid+')">+ Link Evidence</button>'+
           '</div>'+
-          '<div id="ncLinkedEvidence"><div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">Loading...</div></div>'+
+          '<div id="ncLinkedEvidence"><div data-s="s48ac920">Loading...</div></div>'+
         '</div>'+
 
         /* Metadata */
-        '<div class="nc-section" style="border-top:1px solid var(--border);padding-top:16px">'+
-          '<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted)">'+
+        '<div class="nc-section" data-s="sb7fa751">'+
+          '<div data-s="s77e5255" data-sd="flex">'+
             '<span>Created: '+fmtDate(nc.created_at)+'</span>'+
             (nc.audit_name?'<span>Audit: '+esc(nc.audit_name)+'</span>':'')+
             '<span>ID: NC-'+nc.id+'</span>'+
@@ -1580,14 +1580,14 @@
 
       /* Footer with save indicator */
       '<div class="nc-panel-footer">'+
-        '<div style="font-size:12px;color:var(--muted)" id="ncSaveStatus">Changes auto-save on blur</div>'+
+        '<div data-s="s7fc448e" id="ncSaveStatus">Changes auto-save on blur</div>'+
         '<div class="cap-action-btns">'+
           (capIdx>0?'<button class="btn btn-secondary" data-grid-click="revertCAPStatus('+ncid+')">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="scb96a6c"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>'+
             'Revert Stage</button>':'')+
           (!isClosed?'<button class="btn btn-primary" data-grid-click="advanceCAPStatus('+ncid+')">'+
             'Advance Stage'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-left:4px"><polyline points="9 18 15 12 9 6"/></svg>'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s6b07859"><polyline points="9 18 15 12 9 6"/></svg>'+
             '</button>':'')+
         '</div>'+
       '</div>';
@@ -1604,26 +1604,26 @@
     if(!el)return;
     var items=await api('/grid/api/ncs/'+ncid+'/evidence')||[];
     if(!items.length){
-      el.innerHTML='<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">No evidence linked yet. Use "+ Link Evidence" to attach proof of corrective action.</div>';
+      el.innerHTML='<div data-s="s7461577">No evidence linked yet. Use "+ Link Evidence" to attach proof of corrective action.</div>';
       return;
     }
     el.innerHTML=items.map(function(ev){
       var sizeStr=ev.file_size?(ev.file_size>1048576?(ev.file_size/1048576).toFixed(1)+' MB':(ev.file_size/1024).toFixed(0)+' KB'):'';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:6px">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;color:var(--accent)"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(ev.original_name)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">'+
+      return '<div data-s="s7f0cae0" data-sd="flex">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="sdc0a975"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="s48a1c22">'+esc(ev.original_name)+'</div>'+
+          '<div data-s="s1fd8c81">'+
             (ev.ctrl_ref?esc(ev.ctrl_ref)+' · ':'')+
             esc(ev.evidence_status||'')+(sizeStr?' · '+sizeStr:'')+
             (ev.linked_by_name?' · Linked by '+esc(ev.linked_by_name):'')+
           '</div>'+
         '</div>'+
-        '<a href="/grid/api/evidence/file/'+ev.evidence_id+'/download" class="btn btn-secondary" style="font-size:10px;padding:3px 8px" title="Download">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+        '<a href="/grid/api/evidence/file/'+ev.evidence_id+'/download" class="btn btn-secondary" data-s="s37be8d4" title="Download">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
         '</a>'+
-        '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;border-color:#ef4444;color:#ef4444" data-grid-click="unlinkNCEvidence('+ncid+','+ev.link_id+')" title="Unlink">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+        '<button class="btn btn-secondary" data-s="sbcf85d5" data-grid-click="unlinkNCEvidence('+ncid+','+ev.link_id+')" title="Unlink">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
         '</button>'+
       '</div>';
     }).join('');
@@ -1643,31 +1643,31 @@
       showModal(
         '<div class="modal-title">Link Evidence</div>'+
         '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-        '<div style="padding:20px;text-align:center;color:var(--muted)">No unlinked evidence files found in this audit. Upload evidence to a control first.</div>'+
-        '<div style="text-align:right;margin-top:16px"><button class="btn btn-secondary" data-grid-click="closeModal()">Close</button></div>'
+        '<div data-s="s767a4b0">No unlinked evidence files found in this audit. Upload evidence to a control first.</div>'+
+        '<div data-s="s6835010"><button class="btn btn-secondary" data-grid-click="closeModal()">Close</button></div>'
       );
       return;
     }
     var rows=avail.map(function(ev){
       var sizeStr=ev.file_size?(ev.file_size>1048576?(ev.file_size/1048576).toFixed(1)+' MB':(ev.file_size/1024).toFixed(0)+' KB'):'';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer" '+
+      return '<div data-s="sda08f97" data-sd="flex" '+
         'data-grid-click="linkEvidenceToNC('+ncid+','+ev.id+')" '+
         'class="grid-pick-row">'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(ev.original_name)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="s3da0680">'+esc(ev.original_name)+'</div>'+
+          '<div data-s="s1fd8c81">'+
             (ev.ctrl_ref?esc(ev.ctrl_ref)+' — '+esc(ev.control_name||'')+' · ':'')+
             esc(ev.status||'')+(sizeStr?' · '+sizeStr:'')+
           '</div>'+
         '</div>'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--accent);flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s0c4b33d"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
       '</div>';
     }).join('');
     showModal(
       '<div class="modal-title">Link Evidence to NC</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Click a file to link it as proof of corrective action:</div>'+
-      '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">'+rows+'</div>'
+      '<div data-s="s3066b2e">Click a file to link it as proof of corrective action:</div>'+
+      '<div data-s="s5560383">'+rows+'</div>'
     );
   };
 
@@ -1739,13 +1739,13 @@
     const grid=document.getElementById('frameworksGrid');
     grid.innerHTML=spinner();
     const fws=await api('/grid/api/frameworks')||[];
-    if(!fws.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No frameworks</div><div class="empty-state-text">Activate frameworks from the admin panel to see them here.</div></div>';return;}
+    if(!fws.length){grid.innerHTML='<div class="empty-state" data-s="s068a8dd"><div class="empty-state-title">No frameworks</div><div class="empty-state-text">Activate frameworks from the admin panel to see them here.</div></div>';return;}
     grid.innerHTML=fws.map(f=>
-      '<div class="audit-card js-start-framework-audit" role="button" tabindex="0" data-framework-id="'+Number(f.id)+'" data-framework-name="'+esc(f.name)+'" style="border-left:4px solid '+gridColor(f.color)+';cursor:pointer">'+
+      '<div class="audit-card js-start-framework-audit" role="button" tabindex="0" data-framework-id="'+Number(f.id)+'" data-framework-name="'+esc(f.name)+'" data-sv="border-left:4px solid '+gridColor(f.color)+';cursor:pointer">'+
         '<div class="audit-card-name">'+esc(f.name)+'</div>'+
-        '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+esc(f.type||'Standard')+'</div>'+
-        '<div style="font-size:13px;color:var(--text);margin-top:8px;line-height:1.5">'+esc(f.description||'')+'</div>'+
-        '<div style="margin-top:12px"><span class="btn btn-primary" style="font-size:12px;padding:6px 14px">Start Audit</span></div>'+
+        '<div data-s="sd14d7bf">'+esc(f.type||'Standard')+'</div>'+
+        '<div data-s="s6c8225d">'+esc(f.description||'')+'</div>'+
+        '<div data-s="s56f4356"><span class="btn btn-primary" data-s="s2cbaf86">Start Audit</span></div>'+
       '</div>'
     ).join('');
   }
@@ -1761,7 +1761,7 @@
         '<div class="form-group"><label>Audit Type</label><select name="audit_type"><option>Internal</option><option>External</option><option>Surveillance</option></select></div>'+
         '<div class="form-group"><label>Start Date</label><input name="start_date" type="date" value="'+today+'"></div>'+
         '<div class="form-group"><label>Audit Date (Due)</label><input name="audit_date" type="date" value="'+due+'"></div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="submit" class="btn btn-primary">Create Audit</button></div>'+
       '</form>'
@@ -1795,25 +1795,25 @@
 
   function _gridXmBadges(v){
     var cid=v.canonical_id;
-    if(!cid) return '<span style="font-size:10px;color:var(--muted)">—</span>';
+    if(!cid) return '<span data-s="sb569cab">—</span>';
     var xm=_gridVendorXm[cid];
-    if(!xm) return '<span style="font-size:10px;color:var(--muted)">…</span>';
+    if(!xm) return '<span data-s="sb569cab">…</span>';
     var mods=xm.modules||{};
     var flags=xm.flags||[];
     var parts=[];
     if(mods.sentinel){
       var dpa=mods.sentinel.dpa_status||'pending';
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#f97316';
-      parts.push('<span title="Privacy: DPA '+dpa+'" style="padding:1px 5px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> DPA</span>');
+      parts.push('<span title="Privacy: DPA '+dpa+'" data-sv="padding:1px 5px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> DPA</span>');
     } else {
-      parts.push('<span title="Not registered in Privacy" style="padding:1px 5px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;border:1px solid var(--border)">No DPA</span>');
+      parts.push('<span title="Not registered in Privacy" data-s="sf5eb6dd">No DPA</span>');
     }
     if(mods.bcm){
       var tier=mods.bcm.tier||3;
       var tierCol=tier===1?'#dc2626':tier===2?'#f97316':'#16a34a';
-      parts.push('<span title="BCM Tier '+tier+'" style="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.1);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
+      parts.push('<span title="BCM Tier '+tier+'" data-sv="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.1);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
     }
-    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="cursor:help;font-size:11px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" data-s="s94f5211"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
     return parts.join(' ');
   }
 
@@ -1829,7 +1829,7 @@
     }catch(e){}
 
     if(!vendors.length){
-      el.innerHTML='<div style="padding:24px;text-align:center;color:var(--muted)">No vendors tracked. Add vendors to start assessments.</div>';
+      el.innerHTML='<div data-s="s4b7d3af">No vendors tracked. Add vendors to start assessments.</div>';
       return;
     }
 
@@ -1841,8 +1841,8 @@
     const banner=document.getElementById('gridVendorAlertBanner');
     if(banner){
       banner.innerHTML=dpaGaps.length
-        ? '<div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:8px;font-size:12px;font-weight:600;color:#f97316">'+
-          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+dpaGaps.length+' high-criticality vendor'+(dpaGaps.length>1?'s':'')+' have no Privacy DPA record — <a href="/sentinel/vendors" style="color:#f97316;text-decoration:underline">register in Privacy</a></span></div>'
+        ? '<div data-s="s2d7ab8d" data-sd="flex">'+
+          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+dpaGaps.length+' high-criticality vendor'+(dpaGaps.length>1?'s':'')+' have no Privacy DPA record — <a href="/sentinel/vendors" data-s="s40350d6">register in Privacy</a></span></div>'
         : '';
     }
 
@@ -1852,17 +1852,17 @@
       vendors.map(v=>{
         const ass=v.latest_assessment;
         const scoreHtml=ass
-          ? '<span style="font-weight:700;color:'+(ass.score>=70?'#16a34a':ass.score>=50?'#d97706':'#dc2626')+'">'+(ass.score||'—')+'%</span><div style="font-size:10px;color:var(--muted)">'+fmtDate(ass.assessment_date)+'</div>'
-          : '<span style="color:var(--muted);font-size:11px">Not assessed</span>';
+          ? '<span data-sv="font-weight:700;color:'+(ass.score>=70?'#16a34a':ass.score>=50?'#d97706':'#dc2626')+'">'+(ass.score||'—')+'%</span><div data-s="sb569cab">'+fmtDate(ass.assessment_date)+'</div>'
+          : '<span data-s="s6d034cc">Not assessed</span>';
         return '<tr>'+
-          '<td><strong>'+esc(v.name)+'</strong>'+(v.frameworks?'<div style="font-size:10px;color:var(--muted)">'+esc(v.frameworks)+'</div>':'')+'</td>'+
-          '<td>'+esc(v.contact_name||'—')+'<br><span style="font-size:10px;color:var(--muted)">'+esc(v.contact_email||'')+'</span></td>'+
+          '<td><strong>'+esc(v.name)+'</strong>'+(v.frameworks?'<div data-s="sb569cab">'+esc(v.frameworks)+'</div>':'')+'</td>'+
+          '<td>'+esc(v.contact_name||'—')+'<br><span data-s="sb569cab">'+esc(v.contact_email||'')+'</span></td>'+
           '<td>'+riskBadge(v.risk_level)+'</td>'+
           '<td>'+statusBadge(v.status)+'</td>'+
           '<td>'+scoreHtml+'</td>'+
           '<td>'+_gridXmBadges(v)+'</td>'+
-          '<td style="white-space:nowrap">'+
-            '<button class="btn btn-sm js-assess-vendor" data-vendor-id="'+Number(v.id)+'" data-vendor-name="'+esc(v.name)+'" style="margin-right:4px">Assess</button>'+
+          '<td data-s="s86abdab">'+
+            '<button class="btn btn-sm js-assess-vendor" data-vendor-id="'+Number(v.id)+'" data-vendor-name="'+esc(v.name)+'" data-s="sc6b76b8">Assess</button>'+
             '<button class="btn btn-sm btn-secondary" data-grid-click="gridEditVendor('+v.id+')">Edit</button>'+
           '</td>'+
         '</tr>';
@@ -1887,7 +1887,7 @@
           '<div class="form-group"><label>Contract Expiry</label><input name="contract_expiry" type="date" value="'+esc(v.contract_expiry||'')+'"></div>'+
           '<div class="form-group"><label>Risk Level</label><select name="risk_level"><option'+(v.risk_level==='low'?' selected':'')+'>low</option><option'+(v.risk_level==='medium'?' selected':'')+'>medium</option><option'+(v.risk_level==='high'?' selected':'')+'>high</option><option'+(v.risk_level==='critical'?' selected':'')+'>critical</option></select></div>'+
           gridXmPanel(v)+
-          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+          '<div data-s="s130cb5e" data-sd="flex">'+
             '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
             '<button type="submit" class="btn btn-primary">Save</button></div>'+
         '</form>'
@@ -1901,35 +1901,35 @@
     var xm=_gridVendorXm[cid]||{};
     var mods=xm.modules||{};
     var flags=xm.flags||[];
-    var html='<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">'+
-      '<div style="padding:7px 12px;background:var(--surface2);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)">Cross-Module Coverage</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
+    var html='<div data-s="s60eba9e">'+
+      '<div data-s="s35171ef">Cross-Module Coverage</div>'+
+      '<div data-s="s79a8073" data-sd="grid">';
     // Privacy
-    html+='<div style="padding:8px 12px;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> PRIVACY</div>';
+    html+='<div data-s="sfb28afb"><div data-s="s3236e46"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> PRIVACY</div>';
     if(mods.sentinel){
       var dpa=mods.sentinel.dpa_status||'pending';
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#d97706';
-      html+='<div style="font-size:11px;font-weight:700;color:'+dpaCol+'">DPA: '+esc(dpa)+'</div>'+
-        '<a href="/sentinel/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Privacy</a>';
+      html+='<div data-sv="font-size:11px;font-weight:700;color:'+dpaCol+'">DPA: '+esc(dpa)+'</div>'+
+        '<a href="/sentinel/vendors" data-s="s39b7432">→ View in Privacy</a>';
     } else {
-      html+='<div style="font-size:11px;color:var(--muted)">Not in Privacy</div>'+
-        '<a href="/sentinel/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+      html+='<div data-s="s1fd8c81">Not in Privacy</div>'+
+        '<a href="/sentinel/vendors" data-s="s73c0e01">+ Register →</a>';
     }
     html+='</div>';
     // Resilience
-    html+='<div style="padding:8px 12px"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
+    html+='<div data-s="s83084c1"><div data-s="s3236e46"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
     if(mods.bcm){
       var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
-      html+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
-        '<a href="/bcm/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Resilience</a>';
+      html+='<div data-sv="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
+        '<a href="/bcm/vendors" data-s="s39b7432">→ View in Resilience</a>';
     } else {
-      html+='<div style="font-size:11px;color:var(--muted)">Not in Resilience</div>'+
-        '<a href="/bcm/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+      html+='<div data-s="s1fd8c81">Not in Resilience</div>'+
+        '<a href="/bcm/vendors" data-s="s73c0e01">+ Register →</a>';
     }
     html+='</div></div>';
     if(flags.length){
-      html+='<div style="padding:7px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
-        flags.slice(0,2).map(f=>'<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>').join('')+'</div>';
+      html+='<div data-s="s8595a85">'+
+        flags.slice(0,2).map(f=>'<div data-s="scaf68b8"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>').join('')+'</div>';
     }
     html+='</div>';
     return html;
@@ -1953,7 +1953,7 @@
         '<div class="form-group"><label>Compliance Score (0–100)</label><input name="score" type="number" min="0" max="100" required placeholder="75"></div>'+
         '<div class="form-group"><label>Findings</label><textarea name="findings" rows="3" placeholder="Key observations and gaps…"></textarea></div>'+
         '<div class="form-group"><label>Actions Required</label><textarea name="action_required" rows="2" placeholder="Corrective actions…"></textarea></div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="submit" class="btn btn-primary">Save Assessment</button></div>'+
       '</form>'
@@ -1980,7 +1980,7 @@
         '<div class="form-group"><label>Compliance Frameworks</label><input name="frameworks" placeholder="ISO 27001, SOC 2, PCI DSS…"></div>'+
         '<div class="form-group"><label>Contract Expiry</label><input name="contract_expiry" type="date"></div>'+
         '<div class="form-group"><label>Risk Level</label><select name="risk_level"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="submit" class="btn btn-primary">Add Vendor</button></div>'+
       '</form>'
@@ -2003,47 +2003,47 @@
      ═══════════════════════════════════════════════════════════════════════ */
   async function loadReports(){
     const grid=document.getElementById('reportsGrid');
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading audits...</div>';
+    grid.innerHTML='<div data-s="se3e8e97">Loading audits...</div>';
     const audits=await api('/grid/api/reports/list')||[];
     if(!audits.length){
-      grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No audits to report on</div><div class="empty-state-desc">Create an audit first, then return here to generate reports.</div></div>';
+      grid.innerHTML='<div class="empty-state" data-s="s068a8dd"><div class="empty-state-title">No audits to report on</div><div class="empty-state-desc">Create an audit first, then return here to generate reports.</div></div>';
       return;
     }
     grid.innerHTML=audits.map(a=>{
       const pct=a.completionPct||0;
       const barCol=pct>=80?'var(--success,#16a34a)':pct>=40?'var(--warning,#d97706)':'var(--danger,#dc2626)';
       const overdue=a.overdueControls||0;
-      return '<div class="audit-card" style="padding:20px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'+
-          '<div style="flex:1;min-width:0">'+
-            '<div class="audit-card-name" style="margin-bottom:4px">'+esc(a.name)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted)">'+esc(fwLabel(a))+(a.audit_type?' &middot; '+esc(a.audit_type):'')+'</div>'+
+      return '<div class="audit-card" data-s="s769fed3">'+
+        '<div data-s="s140efd4" data-sd="flex">'+
+          '<div data-s="s59eddc6">'+
+            '<div class="audit-card-name" data-s="sc81ce4b">'+esc(a.name)+'</div>'+
+            '<div data-s="s7fc448e">'+esc(fwLabel(a))+(a.audit_type?' &middot; '+esc(a.audit_type):'')+'</div>'+
           '</div>'+
-          '<div style="font-size:24px;font-weight:800;color:'+barCol+';margin-left:12px">'+pct+'%</div>'+
+          '<div data-sv="font-size:24px;font-weight:800;color:'+barCol+';margin-left:12px">'+pct+'%</div>'+
         '</div>'+
-        '<div style="background:var(--surface-alt,rgba(255,255,255,0.05));border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px">'+
-          '<div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:6px;transition:width .5s"></div>'+
+        '<div data-s="sbeafec5">'+
+          '<div data-sv="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:6px;transition:width .5s"></div>'+
         '</div>'+
-        '<div style="display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:16px">'+
+        '<div data-s="sa4afd76" data-sd="flex">'+
           '<span>'+a.completeControls+'/'+a.totalControls+' controls</span>'+
-          (overdue>0?'<span style="color:var(--danger,#dc2626);font-weight:600">'+overdue+' overdue</span>':'')+
+          (overdue>0?'<span data-s="s471a0fd">'+overdue+' overdue</span>':'')+
           (a.audit_date?'<span>'+esc(a.audit_date)+'</span>':'')+
         '</div>'+
-        '<div style="display:flex;gap:10px">'+
-          '<button data-grid-click="downloadReport('+a.id+',\'pdf\',this)" class="btn btn-sm" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;background:var(--danger,#dc2626);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+
+        '<div data-s="sf3d7ce7" data-sd="flex">'+
+          '<button data-grid-click="downloadReport('+a.id+',\'pdf\',this)" class="btn btn-sm" data-s="s7cde430" data-sd="flex">'+
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>'+
             'PDF Report'+
           '</button>'+
-          '<button data-grid-click="downloadReport('+a.id+',\'docx\',this)" class="btn btn-sm" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;background:var(--accent,#4f8ef7);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">'+
+          '<button data-grid-click="downloadReport('+a.id+',\'docx\',this)" class="btn btn-sm" data-s="s141ab8a" data-sd="flex">'+
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>'+
             'Word Report'+
           '</button>'+
         '</div>'+
-        '<div style="display:flex;gap:10px;margin-top:8px">'+
-          '<button data-grid-click="downloadReport('+a.id+',\'pdf\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" style="flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Board summary (PDF)</button>'+
-          '<button data-grid-click="downloadReport('+a.id+',\'docx\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" style="flex:1;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Board summary (Word)</button>'+
+        '<div data-s="sdc7651e" data-sd="flex">'+
+          '<button data-grid-click="downloadReport('+a.id+',\'pdf\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" data-s="sa5cdbc6">Board summary (PDF)</button>'+
+          '<button data-grid-click="downloadReport('+a.id+',\'docx\',this,\'board\')" class="btn btn-sm btn-secondary" title="Short, decision oriented summary for the board" data-s="sa5cdbc6">Board summary (Word)</button>'+
         '</div>'+
-        '<div id="reportTrace'+a.id+'" style="display:none;margin-top:10px"></div>'+
+        '<div id="reportTrace'+a.id+'" data-s="sd2c171b" data-sd="none"></div>'+
       '</div>';
     }).join('');
   }
@@ -2052,7 +2052,7 @@
     const board=tier==='board';
     const origHTML=btn.innerHTML;
     btn.disabled=true;
-    btn.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/></svg>Generating...</span>';
+    btn.innerHTML='<span data-s="s2ce310b" data-sd="inline-flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s9cb0f7a"><circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/></svg>Generating...</span>';
     const traceMount=document.getElementById('reportTrace'+auditId);
     let trace=null;
     if(traceMount){
@@ -2093,28 +2093,28 @@
     if(!tbody)return;
     var reports=await api('/grid/api/reports/saved')||[];
     if(!reports.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No saved reports yet. Generate a PDF or Word report above and it is saved here automatically.</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" data-s="sa1e3045">No saved reports yet. Generate a PDF or Word report above and it is saved here automatically.</td></tr>';
       return;
     }
     tbody.innerHTML=reports.map(function(r){
       var sizeStr=r.file_size?(r.file_size>1048576?(r.file_size/1048576).toFixed(1)+' MB':(r.file_size/1024).toFixed(0)+' KB'):'n/a';
       var typeBadge=r.report_type==='pdf'
-        ?'<span style="background:#dc262622;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase">PDF</span>'
-        :'<span style="background:#2563eb22;color:#2563eb;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase">DOCX</span>';
+        ?'<span data-s="s5ad403d">PDF</span>'
+        :'<span data-s="sd686117">DOCX</span>';
       return '<tr>'+
-        '<td style="font-weight:600">'+esc(r.title)+'</td>'+
+        '<td data-s="seed0f8f">'+esc(r.title)+'</td>'+
         '<td>'+esc(r.audit_name||'')+'</td>'+
         '<td>'+typeBadge+'</td>'+
-        '<td style="font-family:monospace;font-size:12px">'+sizeStr+'</td>'+
+        '<td data-s="sbca09b1">'+sizeStr+'</td>'+
         '<td>'+esc(r.generated_by_name||'')+'</td>'+
         '<td>'+fmtDate(r.generated_at)+'</td>'+
         '<td>'+
-          '<div style="display:flex;gap:4px">'+
-            '<a href="/grid/api/reports/saved/'+r.id+'/download" class="btn btn-secondary" style="font-size:11px;padding:3px 8px" title="Download">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+          '<div data-s="sd767683" data-sd="flex">'+
+            '<a href="/grid/api/reports/saved/'+r.id+'/download" class="btn btn-secondary" data-s="sd04c880" title="Download">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
             '</a>'+
-            '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;border-color:#ef4444;color:#ef4444" data-grid-click="deleteSavedReport('+r.id+')" title="Delete">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
+            '<button class="btn btn-secondary" data-s="sd5d43ac" data-grid-click="deleteSavedReport('+r.id+')" title="Delete">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
             '</button>'+
           '</div>'+
         '</td>'+
@@ -2141,19 +2141,19 @@
     var current=data.current;
     var children=data.children||[];
     if(!ancestors.length&&!children.length){el.innerHTML='';return;}
-    var html='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 16px;background:var(--surface2);border-radius:var(--radius);font-size:12px">';
-    html+='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--muted);flex-shrink:0"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><path d="M11 18H8a2 2 0 01-2-2V9"/></svg>';
-    html+='<span style="color:var(--muted);font-weight:600">Audit Chain:</span> ';
+    var html='<div data-s="s452ed8f" data-sd="flex">';
+    html+='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="scb31df3"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><path d="M11 18H8a2 2 0 01-2-2V9"/></svg>';
+    html+='<span data-s="s5f8230d">Audit Chain:</span> ';
     ancestors.forEach(function(a){
-      html+='<a href="/grid/audits/'+Number(a.id)+'" data-grid-click="event.preventDefault();gridRouter.navigate(\'/grid/audits/'+Number(a.id)+'\')" style="color:var(--accent);text-decoration:none">'+esc(a.name)+'</a>';
-      html+='<span style="color:var(--muted)"> → </span>';
+      html+='<a href="/grid/audits/'+Number(a.id)+'" data-grid-click="event.preventDefault();gridRouter.navigate(\'/grid/audits/'+Number(a.id)+'\')" data-s="sae3c165">'+esc(a.name)+'</a>';
+      html+='<span data-s="s57f9e31"> → </span>';
     });
     if(current){
-      html+='<span style="font-weight:700;color:var(--text)">'+esc(current.name)+'</span>';
+      html+='<span data-s="sbed9cea">'+esc(current.name)+'</span>';
     }
     children.forEach(function(c){
-      html+='<span style="color:var(--muted)"> → </span>';
-      html+='<a href="/grid/audits/'+Number(c.id)+'" data-grid-click="event.preventDefault();gridRouter.navigate(\'/grid/audits/'+Number(c.id)+'\')" style="color:var(--accent);text-decoration:none">'+esc(c.name)+'</a>';
+      html+='<span data-s="s57f9e31"> → </span>';
+      html+='<a href="/grid/audits/'+Number(c.id)+'" data-grid-click="event.preventDefault();gridRouter.navigate(\'/grid/audits/'+Number(c.id)+'\')" data-s="sae3c165">'+esc(c.name)+'</a>';
     });
     html+='</div>';
     el.innerHTML=html;
@@ -2164,20 +2164,20 @@
     showModal(
       '<div class="modal-title">Create Follow-up Audit</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<div style="margin-bottom:16px;font-size:13px;color:var(--muted)">Creates a new audit linked to this one. Open NCs will be carried forward automatically.</div>'+
-      '<div style="display:grid;gap:12px">'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Follow-up Name</label>'+
-          '<input type="text" id="followupName" placeholder="e.g. ISO 27001 — 2026 Follow-up" style="width:100%"></div>'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Start Date</label>'+
-          '<input type="date" id="followupStartDate" style="width:100%"></div>'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Audit Date (target)</label>'+
-          '<input type="date" id="followupAuditDate" style="width:100%"></div>'+
-        '<div style="display:flex;align-items:center;gap:8px">'+
+      '<div data-s="se83b2ea">Creates a new audit linked to this one. Open NCs will be carried forward automatically.</div>'+
+      '<div data-s="sed7b3d8" data-sd="grid">'+
+        '<div><label data-s="sbf00562" data-sd="block">Follow-up Name</label>'+
+          '<input type="text" id="followupName" placeholder="e.g. ISO 27001 — 2026 Follow-up" data-s="s0466783"></div>'+
+        '<div><label data-s="sbf00562" data-sd="block">Start Date</label>'+
+          '<input type="date" id="followupStartDate" data-s="s0466783"></div>'+
+        '<div><label data-s="sbf00562" data-sd="block">Audit Date (target)</label>'+
+          '<input type="date" id="followupAuditDate" data-s="s0466783"></div>'+
+        '<div data-s="s250fc4e" data-sd="flex">'+
           '<input type="checkbox" id="followupCarryNCs" checked>'+
-          '<label for="followupCarryNCs" style="font-size:12px">Carry forward open NCs from parent audit</label>'+
+          '<label for="followupCarryNCs" data-s="s6cb285c">Carry forward open NCs from parent audit</label>'+
         '</div>'+
       '</div>'+
-      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">'+
+      '<div data-s="s7e0926d" data-sd="flex">'+
         '<button class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
         '<button class="btn btn-primary" data-grid-click="createFollowupAudit('+parentId+')">Create Follow-up</button>'+
       '</div>'
@@ -2223,38 +2223,38 @@
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>';
 
     if(!data.parent_audit_id){
-      html+='<div style="padding:20px;text-align:center;color:var(--muted)">This audit has no parent — all NCs are from this cycle.</div>';
+      html+='<div data-s="s767a4b0">This audit has no parent — all NCs are from this cycle.</div>';
     }
 
     /* ── Summary stats ── */
-    html+='<div style="display:flex;gap:12px;margin-bottom:16px">'+
-      '<div style="flex:1;background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center">'+
-        '<div style="font-size:20px;font-weight:800;color:#d97706">'+carried.length+'</div>'+
-        '<div style="font-size:11px;color:var(--muted)">Carried Forward</div>'+
+    html+='<div data-s="s182e806" data-sd="flex">'+
+      '<div data-s="s4893a8e">'+
+        '<div data-s="s19bfdfb">'+carried.length+'</div>'+
+        '<div data-s="s1fd8c81">Carried Forward</div>'+
       '</div>'+
-      '<div style="flex:1;background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center">'+
-        '<div style="font-size:20px;font-weight:800;color:#2563eb">'+newNcs.length+'</div>'+
-        '<div style="font-size:11px;color:var(--muted)">New This Cycle</div>'+
+      '<div data-s="s4893a8e">'+
+        '<div data-s="se2df4e5">'+newNcs.length+'</div>'+
+        '<div data-s="s1fd8c81">New This Cycle</div>'+
       '</div>'+
-      '<div style="flex:1;background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center">'+
-        '<div style="font-size:20px;font-weight:800;color:var(--success,#16a34a)">'+resolved.length+'</div>'+
-        '<div style="font-size:11px;color:var(--muted)">Resolved in Parent</div>'+
+      '<div data-s="s4893a8e">'+
+        '<div data-s="sce192e1">'+resolved.length+'</div>'+
+        '<div data-s="s1fd8c81">Resolved in Parent</div>'+
       '</div>'+
     '</div>';
 
     /* ── Carried forward table ── */
     if(carried.length){
-      html+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">Carried Forward NCs</div>';
-      html+='<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">';
+      html+='<div data-s="s2b583d7"><div data-s="s1a24f37">Carried Forward NCs</div>';
+      html+='<div data-s="s269287e">';
       carried.forEach(function(nc){
         var isClosed=nc.cap_status==='Closed';
         var capBg=isClosed?'rgba(22,163,106,0.13)':'rgba(217,119,6,0.13)';
         var capFg=isClosed?'#16a34a':'#d97706';
-        html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px">'+
-          '<span style="flex:1;font-weight:600;color:var(--text)">'+esc(nc.title)+'</span>'+
-          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+capBg+';color:'+capFg+'">'+esc(nc.cap_status||'Open')+'</span>'+
-          (nc.source_cap_status?'<span style="font-size:10px;color:var(--muted)" title="Parent status">was '+esc(nc.source_cap_status)+'</span>':'')+
-          '<span style="color:var(--muted)">'+esc(nc.ctrl_ref||'')+'</span>'+
+        html+='<div data-s="sbb234a2" data-sd="flex">'+
+          '<span data-s="s518f82c">'+esc(nc.title)+'</span>'+
+          '<span data-sv="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+capBg+';color:'+capFg+'">'+esc(nc.cap_status||'Open')+'</span>'+
+          (nc.source_cap_status?'<span data-s="sb569cab" title="Parent status">was '+esc(nc.source_cap_status)+'</span>':'')+
+          '<span data-s="s57f9e31">'+esc(nc.ctrl_ref||'')+'</span>'+
         '</div>';
       });
       html+='</div></div>';
@@ -2262,13 +2262,13 @@
 
     /* ── New in cycle ── */
     if(newNcs.length){
-      html+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">New NCs This Cycle</div>';
-      html+='<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">';
+      html+='<div data-s="s2b583d7"><div data-s="s1a24f37">New NCs This Cycle</div>';
+      html+='<div data-s="s269287e">';
       newNcs.forEach(function(nc){
-        html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px">'+
-          '<span style="flex:1;font-weight:600;color:var(--text)">'+esc(nc.title)+'</span>'+
+        html+='<div data-s="sbb234a2" data-sd="flex">'+
+          '<span data-s="s518f82c">'+esc(nc.title)+'</span>'+
           _capBadge(nc.cap_status)+
-          '<span style="color:var(--muted)">'+esc(nc.ctrl_ref||'')+'</span>'+
+          '<span data-s="s57f9e31">'+esc(nc.ctrl_ref||'')+'</span>'+
         '</div>';
       });
       html+='</div></div>';
@@ -2276,13 +2276,13 @@
 
     /* ── Resolved in parent ── */
     if(resolved.length){
-      html+='<div><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">Resolved in Parent Audit</div>';
-      html+='<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">';
+      html+='<div><div data-s="s1a24f37">Resolved in Parent Audit</div>';
+      html+='<div data-s="s269287e">';
       resolved.forEach(function(nc){
-        html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px">'+
-          '<span style="flex:1;font-weight:600;color:var(--text)">'+esc(nc.title)+'</span>'+
-          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(22,163,106,0.13);color:#16a34a">Closed</span>'+
-          (nc.closed_at?'<span style="font-size:11px;color:var(--muted)">'+fmtDate(nc.closed_at)+'</span>':'')+
+        html+='<div data-s="sbb234a2" data-sd="flex">'+
+          '<span data-s="s518f82c">'+esc(nc.title)+'</span>'+
+          '<span data-s="saa38626">Closed</span>'+
+          (nc.closed_at?'<span data-s="s1fd8c81">'+fmtDate(nc.closed_at)+'</span>':'')+
         '</div>';
       });
       html+='</div></div>';
@@ -2306,11 +2306,11 @@
     // the trace mounted below attaches live listeners/timers to real DOM
     // nodes, and innerHTML+= would reserialize and reparse the whole
     // container on each later append, silently detaching them.
-    container.insertAdjacentHTML('beforeend','<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><div style="background:var(--accent);color:white;padding:10px 14px;border-radius:var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);max-width:75%;font-size:14px">'+esc(msg)+'</div></div>');
+    container.insertAdjacentHTML('beforeend','<div data-s="seafa6bd" data-sd="flex"><div data-s="sa6157aa">'+esc(msg)+'</div></div>');
     container.scrollTop=container.scrollHeight;
 
     const traceId='chatTrace-'+Date.now();
-    container.insertAdjacentHTML('beforeend','<div id="'+traceId+'" style="margin-bottom:12px"></div>');
+    container.insertAdjacentHTML('beforeend','<div id="'+traceId+'" data-s="sda12f28"></div>');
     container.scrollTop=container.scrollHeight;
     const trace=window.ThinkingTrace.open(document.getElementById(traceId),{
       variant:'steps',
@@ -2326,7 +2326,7 @@
     trace.settle();
 
     const answer=res&&res.answer?res.answer:'Sorry, I need an AI API key configured to respond. Please set up your AI provider in config.';
-    container.insertAdjacentHTML('beforeend','<div style="display:flex;margin-bottom:12px"><div style="background:var(--surface2);padding:10px 14px;border-radius:4px var(--radius-lg) var(--radius-lg) var(--radius-lg);max-width:75%;font-size:14px;line-height:1.6;color:var(--text)">'+esc(answer)+'</div></div>');
+    container.insertAdjacentHTML('beforeend','<div data-s="sda12f28" data-sd="flex"><div data-s="sfa012d0">'+esc(answer)+'</div></div>');
     container.scrollTop=container.scrollHeight;
   };
 
@@ -2368,21 +2368,21 @@
       '<div class="ctrl-panel-header">'+
         '<div class="ctrl-panel-title">'+esc(ctrl.control_id||ctrl.name?.substring(0,12)||'Control')+' — '+esc(ctrl.name)+'</div>'+
         '<button class="ctrl-panel-close" data-grid-click="closeControlDetail()" title="Close">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="sd6af8c3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
         '</button>'+
       '</div>'+
       '<div class="ctrl-panel-body">'+
 
         /* Description */
         (ctrl.description?'<div class="ctrl-section"><div class="ctrl-section-title">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'+
           'Description</div>'+
-          '<div style="font-size:13px;color:var(--text);line-height:1.6">'+esc(ctrl.description)+'</div>'+
+          '<div data-s="sec2c015">'+esc(ctrl.description)+'</div>'+
         '</div>':'')+
 
         /* Status / Risk / Assignee / Due Date */
         '<div class="ctrl-section"><div class="ctrl-section-title">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'+
           'Properties</div>'+
           '<div class="ctrl-meta-grid">'+
             '<div class="ctrl-meta-item"><label>Status</label>'+
@@ -2405,85 +2405,85 @@
         '</div>'+
 
         /* Evidence Checklist Items */
-        '<div class="ctrl-section"><div class="ctrl-section-title" style="justify-content:space-between">'+
-          '<span style="display:flex;align-items:center;gap:6px">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'+
+        '<div class="ctrl-section"><div class="ctrl-section-title" data-s="sa562f4f">'+
+          '<span data-s="s2ce310b" data-sd="flex">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'+
             'Evidence Checklist'+
           '</span>'+
-          '<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px" data-grid-click="addChecklistItem('+cid+')">+ Item</button>'+
+          '<button class="btn btn-secondary" data-s="sc8e560d" data-grid-click="addChecklistItem('+cid+')">+ Item</button>'+
         '</div>'+
-        '<div id="cdChecklistItems" style="margin-bottom:12px"></div>'+
+        '<div id="cdChecklistItems" data-s="sda12f28"></div>'+
         '</div>'+
 
         /* Evidence Files */
-        '<div class="ctrl-section"><div class="ctrl-section-title" style="justify-content:space-between">'+
-          '<span style="display:flex;align-items:center;gap:6px">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>'+
+        '<div class="ctrl-section"><div class="ctrl-section-title" data-s="sa562f4f">'+
+          '<span data-s="s2ce310b" data-sd="flex">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>'+
             'Evidence Files ('+((ctrl.evidence_files||[]).length)+')'+
           '</span>'+
           ((ctrl.evidence_files||[]).length?
-            '<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px" data-grid-click="downloadAllEvidence('+cid+')">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-right:3px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+            '<button class="btn btn-secondary" data-s="sc8e560d" data-grid-click="downloadAllEvidence('+cid+')">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s96e3c53"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
               'Download All</button>':'')+
         '</div>'+
         '<div id="cdEvidenceList"></div>'+
         '<div class="ev-upload-zone" id="cdUploadZone" data-grid-click="document.getElementById(\'cdFileInput\').click()">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:24px;height:24px;margin-bottom:6px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text)">Click to upload evidence</div>'+
-          '<div style="font-size:11px;color:var(--muted);margin-top:2px">or drag and drop files here (max 50 MB)</div>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" data-s="se0b397b"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
+          '<div data-s="s3da0680">Click to upload evidence</div>'+
+          '<div data-s="s3823a5b">or drag and drop files here (max 50 MB)</div>'+
         '</div>'+
-        '<div style="display:flex;gap:8px;margin-top:10px;margin-bottom:10px">'+
-          '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:5px" data-grid-click="showAriaPolicyPicker('+cid+','+auditId+')">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>'+
+        '<div data-s="se4809ef" data-sd="flex">'+
+          '<button class="btn btn-secondary" data-s="sac264f0" data-sd="flex" data-grid-click="showAriaPolicyPicker('+cid+','+auditId+')">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>'+
             'Attach ARIA Policy</button>'+
-          '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:5px;border-color:#d97706;color:#d97706" data-grid-click="showRequestPolicyModal('+cid+','+auditId+')">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'+
+          '<button class="btn btn-secondary" data-s="s585188f" data-sd="flex" data-grid-click="showRequestPolicyModal('+cid+','+auditId+')">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'+
             'Request Policy</button>'+
-          '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:5px;border-color:var(--accent);color:var(--accent)" data-grid-click="showVaultBrowser('+cid+')">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>'+
+          '<button class="btn btn-secondary" data-s="sac70d54" data-sd="flex" data-grid-click="showVaultBrowser('+cid+')">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>'+
             'Browse Vault</button>'+
         '</div>'+
-        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px">'+
-          '<label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap">MAP TO ITEM</label>'+
-          '<select id="cdUploadItemId" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px">'+
+        '<div data-s="s5cc35bd" data-sd="flex">'+
+          '<label data-s="se0718b8">MAP TO ITEM</label>'+
+          '<select id="cdUploadItemId" data-s="s9ab71a8">'+
             '<option value="">— None (control-level) —</option>'+
             (ctrl.evidence_items||[]).map(function(ei){return '<option value="'+ei.id+'">'+esc(ei.name)+'</option>';}).join('')+
           '</select>'+
-          '<label style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap">EXPIRY</label>'+
-          '<input type="date" id="cdEvidenceExpiry" style="width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px">'+
+          '<label data-s="se0718b8">EXPIRY</label>'+
+          '<input type="date" id="cdEvidenceExpiry" data-s="s3379d85">'+
         '</div>'+
-        '<input type="file" id="cdFileInput" style="display:none" multiple data-grid-change="uploadEvidence('+cid+',this.files)">'+
-        '<input type="file" id="cdReplaceInput" style="display:none" data-grid-change="replaceEvidence(this.dataset.eid,'+cid+',this.files)">'+
+        '<input type="file" id="cdFileInput" data-sd="none" multiple data-grid-change="uploadEvidence('+cid+',this.files)">'+
+        '<input type="file" id="cdReplaceInput" data-sd="none" data-grid-change="replaceEvidence(this.dataset.eid,'+cid+',this.files)">'+
         '</div>'+
 
         /* Suggested ARIA Policies (auto-loaded) */
-        '<div class="ctrl-section" id="cdSuggestedSection" style="display:none">'+
-          '<div class="ctrl-section-title" style="justify-content:space-between">'+
-            '<span style="display:flex;align-items:center;gap:6px;color:#7c3aed">'+
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
+        '<div class="ctrl-section" id="cdSuggestedSection" data-sd="none">'+
+          '<div class="ctrl-section-title" data-s="sa562f4f">'+
+            '<span data-s="s497da02" data-sd="flex">'+
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
               'Suggested Policies from ARIA Library'+
             '</span>'+
-            '<span id="cdSuggestedCount" style="font-size:11px;color:var(--muted)"></span>'+
+            '<span id="cdSuggestedCount" data-s="s1fd8c81"></span>'+
           '</div>'+
           '<div id="cdSuggestedList"></div>'+
         '</div>'+
 
         /* Notes */
         '<div class="ctrl-section ctrl-notes"><div class="ctrl-section-title">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
           'Notes</div>'+
           '<textarea id="cdNotes" placeholder="Add audit notes for this control..." data-grid-blur="updateControlField('+cid+',\'notes\',this.value)">'+esc(ctrl.notes||'')+'</textarea>'+
         '</div>'+
 
         /* Comments */
         '<div class="ctrl-section"><div class="ctrl-section-title">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'+
           'Comments ('+((ctrl.comments||[]).length)+')'+
         '</div>'+
         '<div id="cdCommentsList"></div>'+
-        '<div style="display:flex;gap:8px;margin-top:8px">'+
-          '<input type="text" id="cdCommentInput" placeholder="Add a comment..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-grid-keydown="if(event.key===\'Enter\')addControlComment('+cid+')">'+
-          '<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" data-grid-click="addControlComment('+cid+')">Post</button>'+
+        '<div data-s="s62ee93e" data-sd="flex">'+
+          '<input type="text" id="cdCommentInput" placeholder="Add a comment..." data-s="s3f31b80" data-grid-keydown="if(event.key===\'Enter\')addControlComment('+cid+')">'+
+          '<button class="btn btn-primary" data-s="s2cbaf86" data-grid-click="addControlComment('+cid+')">Post</button>'+
         '</div>'+
         '</div>'+
         '<div class="ctrl-section" id="gridControlRelated"></div>'+
@@ -2566,40 +2566,40 @@
 
     var ver=f.version||1;
     var verBadge = (!isAriaPolicy && ver>1)
-      ? '<span style="display:inline-block;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:6px">v'+ver+'</span>'
+      ? '<span data-s="s3b1e7ec" data-sd="inline-block">v'+ver+'</span>'
       : '';
 
     /* ARIA Policy badge */
     var ariaBadge = isAriaPolicy
-      ? '<span style="display:inline-block;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:5px">ARIA Policy</span>'
+      ? '<span data-s="sef3ddf1" data-sd="inline-block">ARIA Policy</span>'
       : '';
 
     var stBadge='';
     if((f.status||'').toLowerCase()==='approved'){
-      stBadge='<span style="display:inline-block;background:#22c55e;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">Approved</span>';
+      stBadge='<span data-s="s65bff8c" data-sd="inline-block">Approved</span>';
     }else if((f.status||'').toLowerCase()==='rejected'){
-      stBadge='<span style="display:inline-block;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px">Rejected</span>';
+      stBadge='<span data-s="sf2ad56a" data-sd="inline-block">Rejected</span>';
     }
     /* Item mapping badge */
     var itemBadge='';
     if(f.evidence_item_id && items){
       var mapped=items.find(function(i){return i.id===f.evidence_item_id;});
-      if(mapped) itemBadge='<span style="display:inline-block;background:rgba(79,142,247,.12);color:var(--accent);font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px">'+esc(mapped.name)+'</span>';
+      if(mapped) itemBadge='<span data-s="sd12af4d" data-sd="inline-block">'+esc(mapped.name)+'</span>';
     }
     var expiryStr='';
     if(f.expires_at){
       var now=new Date();now.setHours(0,0,0,0);
       var exp=new Date(f.expires_at+'T00:00:00');
       var diff=Math.ceil((exp-now)/86400000);
-      if(diff<0) expiryStr='<span style="color:#ef4444;font-weight:600;font-size:11px"> &middot; EXPIRED</span>';
-      else if(diff<=30) expiryStr='<span style="color:#f59e0b;font-weight:600;font-size:11px"> &middot; Expires in '+diff+'d</span>';
-      else expiryStr='<span style="font-size:11px;color:var(--muted)"> &middot; Exp '+fmtDate(f.expires_at)+'</span>';
+      if(diff<0) expiryStr='<span data-s="s14d7572"> &middot; EXPIRED</span>';
+      else if(diff<=30) expiryStr='<span data-s="sa20c8d3"> &middot; Expires in '+diff+'d</span>';
+      else expiryStr='<span data-s="s1fd8c81"> &middot; Exp '+fmtDate(f.expires_at)+'</span>';
     }
 
     /* Meta line: for ARIA policies show framework + ref + version instead of size/uploader */
     var metaLine = isAriaPolicy && ariaMeta
       ? esc(ariaMeta.framework)+(ariaMeta.ref?' &middot; '+esc(ariaMeta.ref):'')+(ariaMeta.version?' &middot; v'+esc(ariaMeta.version):'')
-          +' &middot; <span style="color:#7c3aed;font-weight:600">From ARIA Policy Library</span>'
+          +' &middot; <span data-s="s295e245">From ARIA Policy Library</span>'
       : sizeStr+(f.uploader_name?' &middot; '+esc(f.uploader_name):'')+(f.created_at?' &middot; '+fmtDate(f.created_at):'')+expiryStr;
 
     /* Actions: ARIA policies use the evidence download endpoint which redirects to ARIA;
@@ -2609,47 +2609,47 @@
       /* Approve / Reject buttons — only show when not yet approved */
       if((f.status||'').toLowerCase()!=='approved'){
         actionsHtml+=
-          '<button title="Approve" data-grid-click="event.stopPropagation();approveEvidenceFile('+f.id+',\'Approved\','+cid+')" style="color:#22c55e">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg>'+
+          '<button title="Approve" data-grid-click="event.stopPropagation();approveEvidenceFile('+f.id+',\'Approved\','+cid+')" data-s="sf918b2a">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" data-s="s53d332d"><polyline points="20 6 9 17 4 12"/></svg>'+
           '</button>'+
-          '<button title="Reject" data-grid-click="event.stopPropagation();approveEvidenceFile('+f.id+',\'Rejected\','+cid+')" style="color:#ef4444">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+          '<button title="Reject" data-grid-click="event.stopPropagation();approveEvidenceFile('+f.id+',\'Rejected\','+cid+')" data-s="sb0eb59c">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" data-s="s53d332d"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
           '</button>';
       }
     }
     actionsHtml+=
-      '<button title="Approval history" data-grid-click="event.stopPropagation();showApprovalHistory('+f.id+')" style="color:var(--accent)">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>'+
+      '<button title="Approval history" data-grid-click="event.stopPropagation();showApprovalHistory('+f.id+')" data-s="sa805525">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>'+
       '</button>'+
       '<button title="Download" data-grid-click="event.stopPropagation();downloadEvidence('+f.id+')">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
       '</button>';
     if(!isAriaPolicy){
       if(isLegacyFile){
-        actionsHtml+='<button title="Move historical file into the Evidence Vault" data-grid-click="event.stopPropagation();migrateLegacyEvidence('+f.id+','+cid+')" style="color:var(--accent)">Move to Vault</button>';
+        actionsHtml+='<button title="Move historical file into the Evidence Vault" data-grid-click="event.stopPropagation();migrateLegacyEvidence('+f.id+','+cid+')" data-s="sa805525">Move to Vault</button>';
       }
       if(ver>1){
         actionsHtml+=
-          '<button title="Version history" data-grid-click="event.stopPropagation();showVersionHistory('+f.id+')" style="color:var(--accent)">'+
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+
+          '<button title="Version history" data-grid-click="event.stopPropagation();showVersionHistory('+f.id+')" data-s="sa805525">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+
           '</button>';
       }
       actionsHtml+=
         '<button title="Upload new version" data-grid-click="event.stopPropagation();triggerReplace('+f.id+','+cid+')">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'+
         '</button>';
     }
     actionsHtml+=
       '<button title="Remove" data-grid-click="event.stopPropagation();deleteEvidence('+f.id+','+cid+')">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
       '</button>';
 
     var borderStyle = isAriaPolicy ? 'border-left:3px solid #7c3aed' : '';
-    return '<div class="evidence-item" style="'+borderStyle+'">'+
-      '<div class="ev-icon" style="background:'+iconColor+'">'+
+    return '<div class="evidence-item" data-sv="'+borderStyle+'">'+
+      '<div class="ev-icon" data-sv="background:'+iconColor+'">'+
         (isAriaPolicy
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="width:16px;height:16px"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="width:16px;height:16px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" data-s="sa1c8eab"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" data-s="sa1c8eab"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
         )+
       '</div>'+
       '<div class="ev-info">'+
@@ -2663,31 +2663,31 @@
   function renderEvidenceList(files, items, cid){
     var el=document.getElementById('cdEvidenceList');
     if(!el)return;
-    if(!files.length){el.innerHTML='<div style="font-size:13px;color:var(--muted);margin-bottom:12px">No evidence files uploaded yet.</div>';return;}
+    if(!files.length){el.innerHTML='<div data-s="s5452467">No evidence files uploaded yet.</div>';return;}
     el.innerHTML=files.map(function(f){return _evFileHtml(f,cid,items);}).join('');
   }
 
   function renderChecklistItems(items, files, cid){
     var el=document.getElementById('cdChecklistItems');
     if(!el)return;
-    if(!items.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">No checklist items defined. Add items to track required evidence.</div>';return;}
+    if(!items.length){el.innerHTML='<div data-s="s7fc448e">No checklist items defined. Add items to track required evidence.</div>';return;}
     el.innerHTML=items.map(function(item){
       var mapped=files.filter(function(f){return f.evidence_item_id===item.id;});
       var approved=mapped.some(function(f){return (f.status||'').toLowerCase()==='approved';});
       var icon=approved?
-        '<svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" style="width:16px;height:16px;flex-shrink:0"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>':
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" data-s="s3f4a6e6"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>':
         mapped.length?
-          '<svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>':
-          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:16px;height:16px;flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
-      var fileCount=mapped.length?'<span style="font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:8px;color:var(--muted);margin-left:6px">'+mapped.length+' file'+(mapped.length>1?'s':'')+'</span>':'';
-      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:var(--bg)">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" data-s="s3f4a6e6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>':
+          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" data-s="s3f4a6e6"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
+      var fileCount=mapped.length?'<span data-s="sda0c85d">'+mapped.length+' file'+(mapped.length>1?'s':'')+'</span>':'';
+      return '<div data-s="s7693a1b" data-sd="flex">'+
         icon+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(item.name)+fileCount+'</div>'+
-          (item.description?'<div style="font-size:11px;color:var(--muted)">'+esc(item.description)+'</div>':'')+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="sdae5fb5">'+esc(item.name)+fileCount+'</div>'+
+          (item.description?'<div data-s="s1fd8c81">'+esc(item.description)+'</div>':'')+
         '</div>'+
-        '<button data-grid-click="event.stopPropagation();removeChecklistItem('+item.id+','+cid+')" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:2px" title="Remove item">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+        '<button data-grid-click="event.stopPropagation();removeChecklistItem('+item.id+','+cid+')" data-s="s4b7563c" title="Remove item">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
         '</button>'+
       '</div>';
     }).join('');
@@ -2721,7 +2721,7 @@
       '<form data-grid-submit="return submitChecklistItem(event,'+cid+')">'+
         '<div class="form-group"><label>Evidence Item Name</label><input name="name" required placeholder="e.g. Risk Assessment Report"></div>'+
         '<div class="form-group"><label>Description (optional)</label><input name="description" placeholder="What this evidence should demonstrate"></div>'+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<div data-s="s130cb5e" data-sd="flex">'+
           '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
           '<button type="submit" class="btn btn-primary">Add</button></div>'+
       '</form>'
@@ -2763,7 +2763,7 @@
   function renderCommentsList(comments){
     var el=document.getElementById('cdCommentsList');
     if(!el)return;
-    if(!comments.length){el.innerHTML='<div style="font-size:13px;color:var(--muted);margin-bottom:8px">No comments yet.</div>';return;}
+    if(!comments.length){el.innerHTML='<div data-s="sca06c07">No comments yet.</div>';return;}
     el.innerHTML=comments.map(function(c){
       var initials=(c.user_name||'??').split(' ').map(function(w){return w[0];}).join('').substring(0,2).toUpperCase();
       return '<div class="comment-item">'+
@@ -2864,22 +2864,22 @@
     overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
     var card=document.createElement('div');
     card.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:70vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
-      '<h3 style="margin:0;font-size:16px;color:var(--text)">Version History</h3>'+
-      '<button data-grid-click="document.getElementById(\'versionHistoryModal\').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px">&times;</button>'+
+    card.innerHTML='<div data-s="scfaf980" data-sd="flex">'+
+      '<h3 data-s="s4b9a344">Version History</h3>'+
+      '<button data-grid-click="document.getElementById(\'versionHistoryModal\').remove()" data-s="se1f1cf1">&times;</button>'+
     '</div>'+
-    '<div style="display:flex;flex-direction:column;gap:10px">'+
+    '<div data-s="s9a3e0aa" data-sd="flex">'+
     versions.map(function(v){
       var sizeStr=v.file_size?(v.file_size<1024?v.file_size+'B':v.file_size<1048576?Math.round(v.file_size/1024)+'KB':Math.round(v.file_size/1048576*10)/10+'MB'):'';
-      return '<div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">'+
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
-          '<span style="background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">v'+v.version+'</span>'+
-          '<span style="font-size:13px;font-weight:600;color:var(--text)">'+esc(v.original_name)+'</span>'+
+      return '<div data-s="s8f71eb2">'+
+        '<div data-s="scf7c4a8" data-sd="flex">'+
+          '<span data-s="sfb9415f">v'+v.version+'</span>'+
+          '<span data-s="s3da0680">'+esc(v.original_name)+'</span>'+
         '</div>'+
-        '<div style="font-size:11px;color:var(--muted)">'+
+        '<div data-s="s1fd8c81">'+
           sizeStr+(v.uploader_name?' &middot; '+esc(v.uploader_name):'')+(v.created_at?' &middot; '+fmtDate(v.created_at):'')+
         '</div>'+
-        (v.notes?'<div style="font-size:12px;color:var(--text);margin-top:4px">'+esc(v.notes)+'</div>':'')+
+        (v.notes?'<div data-s="sb0c70be">'+esc(v.notes)+'</div>':'')+
         (v.storage_state==='legacy_needs_migration'
           ?'<button type="button" class="btn btn-sm btn-secondary" data-grid-click="migrateLegacyVersion('+Number(v.id)+','+Number(eid)+')">Move version to Vault</button>'
           :'<small>Vault artifact #'+Number(v.vault_evidence_id||0)+'</small>')+
@@ -2905,10 +2905,10 @@
         '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
         '<form data-grid-submit="return submitRejectEvidence(event,'+eid+','+cid+')">'+
           '<div class="form-group"><label>Reviewer Comment</label>'+
-          '<textarea name="comments" rows="3" placeholder="Reason for rejection..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;resize:vertical"></textarea></div>'+
-          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+          '<textarea name="comments" rows="3" placeholder="Reason for rejection..." data-s="s81972ae"></textarea></div>'+
+          '<div data-s="s130cb5e" data-sd="flex">'+
             '<button type="button" class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
-            '<button type="submit" class="btn btn-primary" style="background:#ef4444;border-color:#ef4444">Reject</button></div>'+
+            '<button type="submit" class="btn btn-primary" data-s="s2ad3be2">Reject</button></div>'+
         '</form>'
       );
       return;
@@ -2959,27 +2959,27 @@
     card.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:500px;width:90%;max-height:70vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
     var body='';
     if(!approvals||!approvals.length){
-      body='<div style="text-align:center;padding:20px;color:var(--muted)">No approval history for this file.</div>';
+      body='<div data-s="s1ed15db">No approval history for this file.</div>';
     }else{
       body=approvals.map(function(a){
         var stColor=a.status==='approved'?'#22c55e':a.status==='rejected'?'#ef4444':'#f59e0b';
         var stLabel=(a.status||'pending').charAt(0).toUpperCase()+(a.status||'pending').slice(1);
-        return '<div style="padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:8px">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
-            '<span style="font-size:13px;font-weight:600;color:var(--text)">Stage '+esc(String(a.stage))+'</span>'+
-            '<span style="display:inline-block;background:'+stColor+';color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">'+esc(stLabel)+'</span>'+
+        return '<div data-s="s2e6e86f">'+
+          '<div data-s="s6071e22" data-sd="flex">'+
+            '<span data-s="s3da0680">Stage '+esc(String(a.stage))+'</span>'+
+            '<span data-sv="display:inline-block;background:'+stColor+';color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">'+esc(stLabel)+'</span>'+
           '</div>'+
-          '<div style="font-size:12px;color:var(--muted)">'+
+          '<div data-s="s7fc448e">'+
             'Reviewer: '+esc(a.approver_name||'Not recorded')+
             (a.decided_at?' &middot; '+fmtDate(a.decided_at):' &middot; Pending')+
           '</div>'+
-          (a.comments?'<div style="font-size:12px;color:var(--text);margin-top:6px;padding:8px;background:var(--surface2);border-radius:var(--radius)">'+esc(a.comments)+'</div>':'')+
+          (a.comments?'<div data-s="saeff2b8">'+esc(a.comments)+'</div>':'')+
         '</div>';
       }).join('');
     }
-    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
-      '<h3 style="margin:0;font-size:16px;color:var(--text)">Approval History</h3>'+
-      '<button data-grid-click="document.getElementById(\'approvalHistoryModal\').remove()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px">&times;</button>'+
+    card.innerHTML='<div data-s="scfaf980" data-sd="flex">'+
+      '<h3 data-s="s4b9a344">Approval History</h3>'+
+      '<button data-grid-click="document.getElementById(\'approvalHistoryModal\').remove()" data-s="se1f1cf1">&times;</button>'+
     '</div>'+body;
     overlay.appendChild(card);
     document.body.appendChild(overlay);
@@ -3011,17 +3011,17 @@
       section.style.display='';
       if(countEl) countEl.textContent=suggestions.length+' unattached match'+(suggestions.length===1?'':'es');
       list.innerHTML=suggestions.map(function(p){
-        return '<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid rgba(124,58,237,.25);border-radius:var(--radius);margin-bottom:6px;background:rgba(124,58,237,.04)">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(p.title)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted)">'+
+        return '<div data-s="s1555a50" data-sd="flex">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" data-s="s3fbf2cc"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
+          '<div data-s="s59eddc6">'+
+            '<div data-s="s3da0680">'+esc(p.title)+'</div>'+
+            '<div data-s="s1fd8c81">'+
               esc(p.framework)+(p.control_ref?' &middot; '+esc(p.control_ref):'')
               +' &middot; '+esc(p.doc_type||'Policy')+' &middot; v'+esc(p.version||'1.0')+
             '</div>'+
           '</div>'+
-          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(22,163,106,.13);color:#16a34a;flex-shrink:0">'+esc(p.status)+'</span>'+
-          '<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-color:#7c3aed;color:#7c3aed;flex-shrink:0" '+
+          '<span data-s="s4319385">'+esc(p.status)+'</span>'+
+          '<button class="btn btn-secondary" data-s="sfc9632e" '+
             'data-grid-click="event.stopPropagation();autoAttachSinglePolicy('+cid+','+p.id+')">Attach</button>'+
         '</div>';
       }).join('');
@@ -3064,7 +3064,7 @@
       }
     }finally{
       if(btn){btn.disabled=false;btn.innerHTML=
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Auto-Attach ARIA Policies';
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="s9aff941"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Auto-Attach ARIA Policies';
       }
     }
   };
@@ -3085,37 +3085,37 @@
       showModal(
         '<div class="modal-title">Attach ARIA Policy</div>'+
         '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-        '<div style="padding:20px;text-align:center">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="width:32px;height:32px;margin-bottom:10px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'+
-          '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">No approved policies found'+(fwName?' for '+esc(fwName):'')+'</div>'+
-          '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Policies must be approved in ARIA before they can be attached as evidence.</div>'+
-          '<button class="btn btn-primary" style="background:#d97706;border-color:#d97706" data-grid-click="closeModal();showRequestPolicyModal('+cid+','+auditId+')">Request Policy from ARIA</button>'+
+        '<div data-s="s6bebd47">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" data-s="s0df43d4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'+
+          '<div data-s="s10b54ac">No approved policies found'+(fwName?' for '+esc(fwName):'')+'</div>'+
+          '<div data-s="see36960">Policies must be approved in ARIA before they can be attached as evidence.</div>'+
+          '<button class="btn btn-primary" data-s="s65967b3" data-grid-click="closeModal();showRequestPolicyModal('+cid+','+auditId+')">Request Policy from ARIA</button>'+
         '</div>'
       );
       return;
     }
     var rows=policies.map(function(p){
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer" '+
+      return '<div data-s="s3afc13e" data-sd="flex" '+
         'data-grid-click="attachAriaPolicy('+cid+','+p.id+')" '+
         'class="grid-pick-row">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(p.title)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" data-s="s3fbf2cc"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="s3da0680">'+esc(p.title)+'</div>'+
+          '<div data-s="s1fd8c81">'+
             esc(p.framework)+
             (p.control_ref?' · '+esc(p.control_ref):'')+
             ' · '+esc(p.doc_type||'Policy')+
             ' · v'+esc(p.version||'1.0')+
           '</div>'+
         '</div>'+
-        '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(22,163,106,0.13);color:#16a34a">'+esc(p.status)+'</span>'+
+        '<span data-s="saa38626">'+esc(p.status)+'</span>'+
       '</div>';
     }).join('');
     showModal(
       '<div class="modal-title">Attach ARIA Policy as Evidence</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Click a policy to attach it as evidence for this control:</div>'+
-      '<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">'+rows+'</div>'
+      '<div data-s="s3066b2e">Click a policy to attach it as evidence for this control:</div>'+
+      '<div data-s="s5560383">'+rows+'</div>'
     );
   };
 
@@ -3147,20 +3147,20 @@
     showModal(
       '<div class="modal-title">Request Policy from ARIA</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">No approved policy is available for this control. Submit a request to the ARIA compliance team to draft and approve one.</div>'+
-      '<div style="display:grid;gap:12px">'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Policy Title</label>'+
-          '<input type="text" id="policyReqTitle" value="'+esc(ctrlRef+(ctrlName?' — '+ctrlName:''))+' Policy" style="width:100%"></div>'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Framework</label>'+
-          '<input type="text" id="policyReqFramework" value="'+esc(fwName)+'" style="width:100%" readonly></div>'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Control Reference</label>'+
-          '<input type="text" id="policyReqCtrlRef" value="'+esc(ctrlRef)+'" style="width:100%" readonly></div>'+
-        '<div><label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Description / Justification</label>'+
-          '<textarea id="policyReqDesc" rows="3" placeholder="Describe what policy is needed and why..." style="width:100%"></textarea></div>'+
+      '<div data-s="sd489e5b">No approved policy is available for this control. Submit a request to the ARIA compliance team to draft and approve one.</div>'+
+      '<div data-s="sed7b3d8" data-sd="grid">'+
+        '<div><label data-s="sbf00562" data-sd="block">Policy Title</label>'+
+          '<input type="text" id="policyReqTitle" value="'+esc(ctrlRef+(ctrlName?' — '+ctrlName:''))+' Policy" data-s="s0466783"></div>'+
+        '<div><label data-s="sbf00562" data-sd="block">Framework</label>'+
+          '<input type="text" id="policyReqFramework" value="'+esc(fwName)+'" data-s="s0466783" readonly></div>'+
+        '<div><label data-s="sbf00562" data-sd="block">Control Reference</label>'+
+          '<input type="text" id="policyReqCtrlRef" value="'+esc(ctrlRef)+'" data-s="s0466783" readonly></div>'+
+        '<div><label data-s="sbf00562" data-sd="block">Description / Justification</label>'+
+          '<textarea id="policyReqDesc" rows="3" placeholder="Describe what policy is needed and why..." data-s="s0466783"></textarea></div>'+
       '</div>'+
-      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+      '<div data-s="s130cb5e" data-sd="flex">'+
         '<button class="btn btn-secondary" data-grid-click="closeModal()">Cancel</button>'+
-        '<button class="btn btn-primary" style="background:#d97706;border-color:#d97706" data-grid-click="submitPolicyRequest('+cid+','+auditId+')">Submit Request</button>'+
+        '<button class="btn btn-primary" data-s="s65967b3" data-grid-click="submitPolicyRequest('+cid+','+auditId+')">Submit Request</button>'+
       '</div>'
     );
   };
@@ -3198,9 +3198,9 @@
       showModal(
         '<div class="modal-title">Evidence Vault</div>'+
         '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-        '<div style="padding:20px;text-align:center;color:var(--muted)">'+
-          '<div style="font-size:14px;font-weight:600;margin-bottom:6px">Vault is empty</div>'+
-          '<div style="font-size:12px">Evidence will appear here as files are uploaded across ARIA, GRID, BCM, and Sentinel modules.</div>'+
+        '<div data-s="s767a4b0">'+
+          '<div data-s="s0a19308">Vault is empty</div>'+
+          '<div data-s="s6cb285c">Evidence will appear here as files are uploaded across ARIA, GRID, BCM, and Sentinel modules.</div>'+
         '</div>'
       );
       return;
@@ -3212,29 +3212,29 @@
       var icon=catIcons[v.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var sizeStr=v.file_size?(v.file_size>1048576?(v.file_size/1048576).toFixed(1)+' MB':(v.file_size/1024).toFixed(0)+' KB'):'—';
       var tags=(v.tags||'').split(',').filter(function(t){return t.trim()&&t.trim()!=='auto';}).slice(0,3);
-      var tagHtml=tags.map(function(t){return '<span style="background:var(--surface3,rgba(255,255,255,0.06));padding:1px 6px;border-radius:3px;font-size:9px;color:var(--muted)">'+esc(t.trim())+'</span>';}).join(' ');
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer" '+
+      var tagHtml=tags.map(function(t){return '<span data-s="s20a22e7">'+esc(t.trim())+'</span>';}).join(' ');
+      return '<div data-s="s3afc13e" data-sd="flex" '+
         'data-grid-click="attachVaultItem('+cid+','+v.id+')" '+
         'class="grid-pick-row">'+
-        '<span style="font-size:20px;flex-shrink:0">'+icon+'</span>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(v.title)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+
+        '<span data-s="s5f5422b">'+icon+'</span>'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="s48a1c22">'+esc(v.title)+'</div>'+
+          '<div data-s="s3823a5b">'+
             esc(v.category||'general')+' · '+sizeStr+
             (v.link_count?' · '+v.link_count+' link'+(v.link_count>1?'s':'')+' ':'')+
             (v.uploaded_by_name?' · '+esc(v.uploaded_by_name):'')+
           '</div>'+
-          (tagHtml?'<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap">'+tagHtml+'</div>':'')+
+          (tagHtml?'<div data-s="s9ffcaa7" data-sd="flex">'+tagHtml+'</div>':'')+
         '</div>'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" data-s="sc407074"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
       '</div>';
     }).join('');
     showModal(
       '<div class="modal-title">Attach from Evidence Vault</div>'+
       '<button class="modal-close" data-grid-click="closeModal()">&times;</button>'+
-      '<div style="display:flex;gap:6px;margin-bottom:12px">'+
-        '<input type="text" id="vaultSearchInput" placeholder="Search vault..." aria-label="Search vault" data-grid-input="filterVaultItems()" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px">'+
-        '<select id="vaultModuleFilter" data-grid-change="reloadVaultBrowser('+cid+')" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px">'+
+      '<div data-s="s976355b" data-sd="flex">'+
+        '<input type="text" id="vaultSearchInput" placeholder="Search vault..." aria-label="Search vault" data-grid-input="filterVaultItems()" data-s="s143b3e3">'+
+        '<select id="vaultModuleFilter" data-grid-change="reloadVaultBrowser('+cid+')" data-s="s0016ee5">'+
           '<option value="">All Modules</option>'+
           '<option value="aria">ARIA</option>'+
           '<option value="grid">GRID</option>'+
@@ -3242,7 +3242,7 @@
           '<option value="sentinel">Sentinel</option>'+
         '</select>'+
       '</div>'+
-      '<div id="vaultItemsList" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">'+rows+'</div>',
+      '<div id="vaultItemsList" data-s="s5560383">'+rows+'</div>',
       'lg'
     );
   };
@@ -3258,7 +3258,7 @@
     var el=document.getElementById('vaultItemsList');
     if(!el)return;
     if(!items.length){
-      el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">No items match your filters</div>';
+      el.innerHTML='<div data-s="s767a4b0">No items match your filters</div>';
       return;
     }
     var catIcons={policy:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>',certificate:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-medal></use></svg>',screenshot:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-image></use></svg>',report:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>',
@@ -3266,15 +3266,15 @@
     el.innerHTML=items.map(function(v){
       var icon=catIcons[v.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var sizeStr=v.file_size?(v.file_size>1048576?(v.file_size/1048576).toFixed(1)+' MB':(v.file_size/1024).toFixed(0)+' KB'):'—';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer" '+
+      return '<div data-s="s3afc13e" data-sd="flex" '+
         'data-grid-click="attachVaultItem('+cid+','+v.id+')" '+
         'class="grid-pick-row">'+
-        '<span style="font-size:20px;flex-shrink:0">'+icon+'</span>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(v.title)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">'+esc(v.category||'')+' · '+sizeStr+'</div>'+
+        '<span data-s="s5f5422b">'+icon+'</span>'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="s48a1c22">'+esc(v.title)+'</div>'+
+          '<div data-s="s1fd8c81">'+esc(v.category||'')+' · '+sizeStr+'</div>'+
         '</div>'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" data-s="sc407074"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'+
       '</div>';
     }).join('');
   };
@@ -3369,7 +3369,7 @@
     var el=document.getElementById('evPageTable');
     if(!el)return;
     if(!files||!files.length){
-      el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">No evidence files found.</div>';
+      el.innerHTML='<div data-s="s810afb2">No evidence files found.</div>';
       return;
     }
     var rows=files.map(function(f){
@@ -3377,39 +3377,39 @@
       var stLabel=f.status||'Uploaded';
       var sizeStr=f.file_size?(f.file_size<1024?f.file_size+'B':f.file_size<1048576?Math.round(f.file_size/1024)+'KB':Math.round(f.file_size/1048576*10)/10+'MB'):'';
       return '<tr>'+
-        '<td style="text-align:center"><input type="checkbox" data-evid="'+f.id+'" data-grid-change="toggleEvSelect(this)"></td>'+
-        '<td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(f.original_name||f.filename)+'">'+esc(f.original_name||f.filename)+'</td>'+
+        '<td data-s="s91a8701"><input type="checkbox" data-evid="'+f.id+'" data-grid-change="toggleEvSelect(this)"></td>'+
+        '<td data-s="se49a171" title="'+esc(f.original_name||f.filename)+'">'+esc(f.original_name||f.filename)+'</td>'+
         '<td>'+esc(f.audit_name||'—')+'</td>'+
-        '<td style="font-family:var(--mono);font-size:12px">'+esc(f.ctrl_ref||'')+'</td>'+
-        '<td><span style="display:inline-block;background:'+stColor+';color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">'+stLabel+'</span></td>'+
+        '<td data-s="se1e124f">'+esc(f.ctrl_ref||'')+'</td>'+
+        '<td><span data-sv="display:inline-block;background:'+stColor+';color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px">'+stLabel+'</span></td>'+
         '<td>'+sizeStr+'</td>'+
         '<td>'+esc(f.uploader_name||'—')+'</td>'+
         '<td>'+fmtDate(f.created_at)+'</td>'+
-        '<td><button data-grid-click="downloadEvidence('+f.id+')" style="background:none;border:none;cursor:pointer;color:var(--accent);padding:2px" title="Download">'+
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
+        '<td><button data-grid-click="downloadEvidence('+f.id+')" data-s="s3a27632" title="Download">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
         '</button></td>'+
       '</tr>';
     }).join('');
 
-    el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'+
-      '<thead><tr style="border-bottom:2px solid var(--border);text-align:left">'+
-        '<th style="padding:10px 8px;width:30px"><input type="checkbox" data-grid-change="toggleEvSelectAll(this)"></th>'+
-        '<th style="padding:10px 8px">Filename</th>'+
-        '<th style="padding:10px 8px">Audit</th>'+
-        '<th style="padding:10px 8px">Control</th>'+
-        '<th style="padding:10px 8px">Status</th>'+
-        '<th style="padding:10px 8px">Size</th>'+
-        '<th style="padding:10px 8px">Uploaded By</th>'+
-        '<th style="padding:10px 8px">Date</th>'+
-        '<th style="padding:10px 8px;width:30px"></th>'+
+    el.innerHTML='<div data-s="s0ddf068"><table data-s="s05e3218">'+
+      '<thead><tr data-s="saf8704f">'+
+        '<th data-s="sbaf4f9a"><input type="checkbox" data-grid-change="toggleEvSelectAll(this)"></th>'+
+        '<th data-s="s862e558">Filename</th>'+
+        '<th data-s="s862e558">Audit</th>'+
+        '<th data-s="s862e558">Control</th>'+
+        '<th data-s="s862e558">Status</th>'+
+        '<th data-s="s862e558">Size</th>'+
+        '<th data-s="s862e558">Uploaded By</th>'+
+        '<th data-s="s862e558">Date</th>'+
+        '<th data-s="sbaf4f9a"></th>'+
       '</tr></thead>'+
       '<tbody>'+rows+'</tbody></table></div>';
   }
 
   function _evStatCard(label,value,color){
-    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;text-align:center">'+
-      '<div style="font-size:24px;font-weight:800;color:'+color+'">'+value+'</div>'+
-      '<div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px">'+label+'</div>'+
+    return '<div data-s="s708b45d">'+
+      '<div data-sv="font-size:24px;font-weight:800;color:'+color+'">'+value+'</div>'+
+      '<div data-s="s76a0fcf">'+label+'</div>'+
     '</div>';
   }
 

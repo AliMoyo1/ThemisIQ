@@ -13,44 +13,44 @@
 
 <div class="content">
   <!-- Stats -->
-  <div id="reportStats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px;"></div>
+  <div id="reportStats" data-s="s2fa9814" data-sd="grid"></div>
 
   <!-- A refusal or a failure is said here, in words. Nothing is shown as a report that was not generated. -->
-  <div id="reportNotice" class="card" role="alert" style="display:none; padding:12px 16px; margin-bottom:16px; border-left:4px solid var(--bad);"></div>
+  <div id="reportNotice" class="card" role="alert" data-s="sf0c08a1" data-sd="none"></div>
 
   {% if can_manage_report_retention %}
-  <section class="card" aria-labelledby="retentionPolicyTitle" style="padding:16px;margin-bottom:16px;">
-    <h2 id="retentionPolicyTitle" style="font-size:14px;margin:0 0 6px;">Saved report retention</h2>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Starting period for new saved reports. The initial seven-year period is a product default, not a legal determination. Existing reports keep their dates and documented holds.</p>
-    <form id="reportPolicyForm" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
-      <label>Retain new reports for <input id="reportPolicyDays" type="number" min="30" max="3650" required style="width:90px;"> days</label>
+  <section class="card" aria-labelledby="retentionPolicyTitle" data-s="sec21eec">
+    <h2 id="retentionPolicyTitle" data-s="s98409ea">Saved report retention</h2>
+    <p data-s="s1de9d86">Starting period for new saved reports. The initial seven-year period is a product default, not a legal determination. Existing reports keep their dates and documented holds.</p>
+    <form id="reportPolicyForm" data-s="s2fa855f" data-sd="flex">
+      <label>Retain new reports for <input id="reportPolicyDays" type="number" min="30" max="3650" required data-s="s581be41"> days</label>
       <label>Reason for change <input id="reportPolicyReason" type="text" minlength="10" maxlength="500" required></label>
       <button type="submit" class="btn btn-secondary">Save tenant policy</button>
     </form>
-    <p id="reportPolicyStatus" role="status" style="font-size:12px;margin:8px 0 0;"></p>
-    <h3 id="sourcePolicyTitle" style="font-size:13px;margin:16px 0 6px;">Document register source workbooks</h3>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">How long a confirmed register workbook is kept in the Evidence Vault. Leave the period empty to keep workbooks until you choose one. When a workbook's date passes, only its file is removed: its Vault record, hash and register entries stay. A legal hold on a workbook always stops removal.</p>
-    <form id="sourcePolicyForm" aria-labelledby="sourcePolicyTitle" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
-      <label>Keep newly confirmed workbooks for <input id="sourcePolicyDays" type="number" min="30" max="3650" style="width:90px;"> days</label>
+    <p id="reportPolicyStatus" role="status" data-s="s11365be"></p>
+    <h3 id="sourcePolicyTitle" data-s="s9ac3205">Document register source workbooks</h3>
+    <p data-s="s1de9d86">How long a confirmed register workbook is kept in the Evidence Vault. Leave the period empty to keep workbooks until you choose one. When a workbook's date passes, only its file is removed: its Vault record, hash and register entries stay. A legal hold on a workbook always stops removal.</p>
+    <form id="sourcePolicyForm" aria-labelledby="sourcePolicyTitle" data-s="s2fa855f" data-sd="flex">
+      <label>Keep newly confirmed workbooks for <input id="sourcePolicyDays" type="number" min="30" max="3650" data-s="s581be41"> days</label>
       <label>Reason for change <input id="sourcePolicyReason" type="text" minlength="10" maxlength="500" required></label>
       <button type="submit" class="btn btn-secondary">Save workbook policy</button>
     </form>
-    <p id="sourcePolicyStatus" role="status" style="font-size:12px;margin:8px 0 0;"></p>
+    <p id="sourcePolicyStatus" role="status" data-s="s11365be"></p>
   </section>
   {% endif %}
 
   <!-- Quick Run Buttons -->
-  <div class="card" style="padding:16px; margin-bottom:16px;">
-    <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:12px;">Quick Generate</div>
+  <div class="card" data-s="sec21eec">
+    <div data-s="s9b5602c">Quick Generate</div>
     {% for title, items in report_groups %}
-    <div style="margin-bottom:10px;">
-      <div style="font-size:11px; color:var(--muted); margin-bottom:6px;">{{ title }}
-        <span style="margin-left:6px;">{% if title == 'Board reports' %}Short, summary first and decision oriented: headline measures, the movement over saved runs, the top items and what needs a decision.{% else %}Operational: the working detail, with supporting charts and tables.{% endif %}</span></div>
-      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+    <div data-s="s761d3ad">
+      <div data-s="s73465d7">{{ title }}
+        <span data-s="s391ef12">{% if title == 'Board reports' %}Short, summary first and decision oriented: headline measures, the movement over saved runs, the top items and what needs a decision.{% else %}Operational: the working detail, with supporting charts and tables.{% endif %}</span></div>
+      <div data-s="s1bdcdd1" data-sd="flex">
         {% for key, label in items %}
         {% if key == 'executive_summary' %}
-        <button type="button" class="btn btn-primary" data-quick="{{ key }}" data-report-action="executive" style="display:inline-flex;align-items:center;gap:4px">
-          <span style="font-size:14px" aria-hidden="true"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Executive Summary
+        <button type="button" class="btn btn-primary" data-quick="{{ key }}" data-report-action="executive" data-s="sdde572e" data-sd="inline-flex">
+          <span data-s="s433de30" aria-hidden="true"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Executive Summary
         </button>
         {% else %}
         <button type="button" class="btn btn-secondary js-quick-report" data-quick="{{ key }}">{{ label }}</button>
@@ -59,75 +59,75 @@
       </div>
     </div>
     {% endfor %}
-    <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+    <div data-s="sbc021dc">
       Each report is saved as it was generated. Opening it later shows the same figures, whatever has changed since.
     </div>
   </div>
 
   <!-- AI Executive Summary Panel -->
-  <div id="execSummaryPanel" class="card" style="padding:24px;margin-bottom:16px;display:none;border-left:3px solid var(--accent)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div style="font-size:16px;font-weight:700;color:var(--text)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Executive Board Summary <span style="font-size:11px;font-weight:600;color:var(--muted);margin-left:8px">Draft: not reviewed</span></div>
-      <div style="display:flex;gap:8px">
-        <button type="button" class="btn btn-secondary" id="execPdf" data-report-action="exec-pdf" style="font-size:12px" disabled>Download PDF</button>
-        <button type="button" class="btn btn-secondary" id="execPrint" data-report-action="exec-print" style="font-size:12px" disabled>Print view</button>
-        <button class="btn btn-secondary" data-report-action="close-exec" style="font-size:12px">Close</button>
+  <div id="execSummaryPanel" class="card" data-s="sa42402c" data-sd="none">
+    <div data-s="scfaf980" data-sd="flex">
+      <div data-s="s0e30530"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Executive Board Summary <span data-s="se4668c1">Draft: not reviewed</span></div>
+      <div data-s="s33fcd4c" data-sd="flex">
+        <button type="button" class="btn btn-secondary" id="execPdf" data-report-action="exec-pdf" data-s="s6cb285c" disabled>Download PDF</button>
+        <button type="button" class="btn btn-secondary" id="execPrint" data-report-action="exec-print" data-s="s6cb285c" disabled>Print view</button>
+        <button class="btn btn-secondary" data-report-action="close-exec" data-s="s6cb285c">Close</button>
       </div>
     </div>
-    <div id="execSummaryStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:20px"></div>
-    <div id="execSummaryNarrative" style="font-size:14px;color:var(--text);line-height:1.7"></div>
-    <div id="execSummaryMeta" style="margin-top:16px;font-size:11px;color:var(--muted)"></div>
+    <div id="execSummaryStats" data-s="s14e820a" data-sd="grid"></div>
+    <div id="execSummaryNarrative" data-s="s2b23eef"></div>
+    <div id="execSummaryMeta" data-s="s773c4e2"></div>
   </div>
 
   <!-- Tabs -->
   <div id="tabRuns">
-    <div class="card" style="padding:0; overflow:hidden;">
-      <table style="width:100%; border-collapse:collapse;">
-        <caption class="sr-only" style="position:absolute;left:-9999px">Saved report runs</caption>
+    <div class="card" data-s="s22a2674">
+      <table data-s="sa55f31d">
+        <caption class="sr-only" data-s="sf93d128">Saved report runs</caption>
         <thead>
-          <tr style="border-bottom:1px solid var(--border);">
-            <th scope="col" style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Report</th>
-            <th scope="col" style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Type</th>
-            <th scope="col" style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Generated</th>
-            <th scope="col" style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
-            <th scope="col" style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
+          <tr data-s="s1008415">
+            <th scope="col" data-s="s4a28c65">Report</th>
+            <th scope="col" data-s="s4a28c65">Type</th>
+            <th scope="col" data-s="s4a28c65">Generated</th>
+            <th scope="col" data-s="s3e8747c">Status</th>
+            <th scope="col" data-s="s3e8747c">Actions</th>
           </tr>
         </thead>
         <tbody id="runsBody">
-          <tr><td colspan="5" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+          <tr><td colspan="5" data-s="sc0add8c">Loading...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <div id="tabDefinitions" style="display:none;">
-    <div class="card" style="padding:0; overflow:hidden;">
-      <table style="width:100%; border-collapse:collapse;">
-        <caption class="sr-only" style="position:absolute;left:-9999px">Report definitions</caption>
+  <div id="tabDefinitions" data-sd="none">
+    <div class="card" data-s="s22a2674">
+      <table data-s="sa55f31d">
+        <caption class="sr-only" data-s="sf93d128">Report definitions</caption>
         <thead>
-          <tr style="border-bottom:1px solid var(--border);">
-            <th scope="col" style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Name</th>
-            <th scope="col" style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Type</th>
-            <th scope="col" style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Schedule</th>
-            <th scope="col" style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
-            <th scope="col" style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
+          <tr data-s="s1008415">
+            <th scope="col" data-s="s4a28c65">Name</th>
+            <th scope="col" data-s="s4a28c65">Type</th>
+            <th scope="col" data-s="s4a28c65">Schedule</th>
+            <th scope="col" data-s="s3e8747c">Status</th>
+            <th scope="col" data-s="s3e8747c">Actions</th>
           </tr>
         </thead>
         <tbody id="defsBody">
-          <tr><td colspan="5" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+          <tr><td colspan="5" data-s="sc0add8c">Loading...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
   <!-- Report Viewer -->
-  <div id="reportViewer" class="card" style="padding:20px; margin-top:16px; display:none;" aria-live="polite">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+  <div id="reportViewer" class="card" data-s="scc4d67f" data-sd="none" aria-live="polite">
+    <div data-s="s2ad2f49" data-sd="flex">
       <div>
-        <h2 id="viewerTitle" style="font-size:16px; font-weight:600; margin:0;"></h2>
-        <div id="viewerMeta" style="font-size:11px; color:var(--muted); margin-top:2px;"></div>
+        <h2 id="viewerTitle" data-s="s64a8139"></h2>
+        <div id="viewerMeta" data-s="s3823a5b"></div>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div data-s="s4725bb7" data-sd="flex">
         <button type="button" class="btn btn-secondary" id="viewerRerun" data-report-action="rerun">Run again</button>
         <button type="button" class="btn btn-primary" id="viewerPdf" data-report-action="pdf">Download PDF</button>
         <button type="button" class="btn btn-secondary" id="viewerXlsx" data-report-action="xlsx">Download Excel</button>
@@ -144,30 +144,30 @@
     <div id="viewerSources"></div>
     <div id="viewerNotes"></div>
     <div id="viewerGovernance"></div>
-    <div id="viewerFoot" style="margin-top:16px; font-size:11px; color:var(--muted);"></div>
+    <div id="viewerFoot" data-s="s773c4e2"></div>
   </div>
 </div>
 
 <!-- New Report Modal -->
 <div class="modal-overlay" id="newReportModal" role="dialog" aria-modal="true" aria-labelledby="newReportModal-title">
-  <div class="modal" style="max-width:500px;">
+  <div class="modal" data-s="s4294bfa">
     <div class="modal-header">
-      <h3 id="newReportModal-title" style="margin:0; font-size:16px;">Create Report Definition</h3>
+      <h3 id="newReportModal-title" data-s="s4499790">Create Report Definition</h3>
       <button class="modal-close" data-report-action="close-new" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px;">
+    <div class="modal-body" data-s="s769fed3">
       <form id="reportForm">
-        <div style="margin-bottom:12px;">
-          <label for="rptName" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Name</label>
-          <input type="text" id="rptName" required style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        <div data-s="sda12f28">
+          <label for="rptName" data-s="s6393cf0" data-sd="block">Name</label>
+          <input type="text" id="rptName" required data-s="se4b4634">
         </div>
-        <div style="margin-bottom:12px;">
-          <label for="rptDesc" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Description</label>
-          <textarea id="rptDesc" rows="2" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px; resize:vertical;"></textarea>
+        <div data-s="sda12f28">
+          <label for="rptDesc" data-s="s6393cf0" data-sd="block">Description</label>
+          <textarea id="rptDesc" rows="2" data-s="scf39ab8"></textarea>
         </div>
-        <div style="margin-bottom:12px;">
-          <label for="rptType" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Report Type</label>
-          <select id="rptType" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        <div data-s="sda12f28">
+          <label for="rptType" data-s="s6393cf0" data-sd="block">Report Type</label>
+          <select id="rptType" data-s="se4b4634">
             {% for title, items in report_groups %}
             <optgroup label="{{ title }}">
               {% for key, label in items %}
@@ -176,13 +176,13 @@
             </optgroup>
             {% endfor %}
           </select>
-          <div style="font-size:11px; color:var(--muted); margin-top:4px;">Reports run when you ask for them. Scheduled runs are not available yet, so there is no schedule to set.</div>
+          <div data-s="sbc021dc">Reports run when you ask for them. Scheduled runs are not available yet, so there is no schedule to set.</div>
         </div>
-        <div style="margin-bottom:14px;">
-          <label for="rptModules" style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Modules (comma-separated)</label>
-          <input type="text" id="rptModules" placeholder="aria,grid,bcm,sentinel" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        <div data-s="s2b583d7">
+          <label for="rptModules" data-s="s6393cf0" data-sd="block">Modules (comma-separated)</label>
+          <input type="text" id="rptModules" placeholder="aria,grid,bcm,sentinel" data-s="se4b4634">
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%;">Create Report</button>
+        <button type="submit" class="btn btn-primary" data-s="s0466783">Create Report</button>
       </form>
     </div>
   </div>

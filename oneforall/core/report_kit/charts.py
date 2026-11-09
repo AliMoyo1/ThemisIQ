@@ -490,11 +490,12 @@ def _css(colour) -> str:
 
 
 def drawing_to_svg(drawing, label="") -> str:
-    """An inline SVG of the scene. It scales to the width of its box, so the print view and the screen both fit."""
+    """An inline SVG of the scene at its natural width. The print view's stylesheet caps it at the width of its box
+    (`max-width:100%;height:auto`), so it shrinks to fit and never grows; no style attribute, which the page policy
+    refuses."""
     width, height = drawing.width, drawing.height
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:g} {height:g}" width="100%" '
-             f'preserveAspectRatio="xMinYMin meet" role="img" aria-label="{_xml(label, quote=True)}" '
-             f'style="max-width:{width:g}pt;height:auto;display:block">']
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:g} {height:g}" width="{width:g}pt" '
+             f'preserveAspectRatio="xMinYMin meet" role="img" aria-label="{_xml(label, quote=True)}">']
     for p in primitives(drawing):
         kind = p["t"]
         if kind == "rect":

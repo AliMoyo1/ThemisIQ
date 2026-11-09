@@ -133,7 +133,7 @@
   <a href="/orm/indicators" class="nav-item" data-spa="/orm/indicators">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
     KRI Indicators
-    <span class="nav-count" id="ormNavKriAlert" style="display:none;background:var(--red)">!</span>
+    <span class="nav-count" id="ormNavKriAlert" data-s="sa14c7d6" data-sd="none">!</span>
   </a>
   <a href="/orm/assessment" class="nav-item" data-spa="/orm/assessment">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
@@ -155,16 +155,16 @@
   </a>
 </div>
 <div class="sidebar-bottom">
-  <a href="/orm/chat" data-spa="/orm/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer">
-    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trending-up></use></svg></div>
-    <div style="font-size:14px;font-weight:700">Ask ORM AI...</div>
-    <div style="font-size:11px;opacity:0.7;margin-top:4px">Root cause &amp; remediation</div>
+  <a href="/orm/chat" data-spa="/orm/chat" data-s="s61a18d9" data-sd="block">
+    <div data-s="s9e5c33b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trending-up></use></svg></div>
+    <div data-s="sa1b26d5">Ask ORM AI...</div>
+    <div data-s="sffd8f2a">Root cause &amp; remediation</div>
   </a>
 </div>
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">ORM</span>
+<span data-s="s456fefd">ORM</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current" id="ormBreadcrumb">Dashboard</span>
 {% endblock %}
@@ -181,42 +181,42 @@
     </div>
     <div class="header-actions">
       <a href="/orm/api/export/csv" class="btn btn-secondary" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="sb17605b"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
       </a>
       <button class="btn btn-primary" data-orm-static-click="s0">+ Log Event</button>
     </div>
   </div>
 
   <!-- SLA overdue banner -->
-  <div id="ormSlaBanner" style="display:none;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
-    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg></span>
-    <span style="flex:1"><strong id="ormSlaCount">0</strong> event(s) have breached SLA response or resolution deadlines.</span>
-    <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" style="flex-shrink:0;cursor:pointer">View Events</a>
+  <div id="ormSlaBanner" data-s="se78a46d" data-sd="none">
+    <span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg></span>
+    <span data-s="s97445a8"><strong id="ormSlaCount">0</strong> event(s) have breached SLA response or resolution deadlines.</span>
+    <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" data-s="s0b18f2c">View Events</a>
   </div>
 
   <!-- Sentinel breach banner -->
-  <div id="ormSentinelBanner" style="display:none;background:rgba(8,145,178,.07);border:1px solid rgba(8,145,178,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
-    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
-    <span style="flex:1"><strong>Active data breach in Sentinel.</strong> Review fraud and system failure events for potential data exposure.</span>
-    <a href="/sentinel/" class="btn btn-sm btn-secondary" style="flex-shrink:0">View Sentinel</a>
+  <div id="ormSentinelBanner" data-s="scfb797c" data-sd="none">
+    <span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
+    <span data-s="s97445a8"><strong>Active data breach in Sentinel.</strong> Review fraud and system failure events for potential data exposure.</span>
+    <a href="/sentinel/" class="btn btn-sm btn-secondary" data-s="s6ee0661">View Sentinel</a>
   </div>
 
   <!-- BCM active incident banner -->
-  <div id="ormBcmBanner" style="display:none;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
-    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg></span>
-    <span style="flex:1"><strong>Active BCM Incident in progress.</strong> Operational events during this period should be logged and linked to the incident.</span>
-    <a href="/bcm/incidents" class="btn btn-sm btn-secondary" style="flex-shrink:0">View Incident</a>
+  <div id="ormBcmBanner" data-s="se053c5b" data-sd="none">
+    <span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg></span>
+    <span data-s="s97445a8"><strong>Active BCM Incident in progress.</strong> Operational events during this period should be logged and linked to the incident.</span>
+    <a href="/bcm/incidents" class="btn btn-sm btn-secondary" data-s="s6ee0661">View Incident</a>
   </div>
 
   <!-- KRI alerts banner -->
-  <div id="ormKriBanner" style="display:none"></div>
-  <div id="ormSourceWarning" role="status" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:12px"></div>
+  <div id="ormKriBanner" data-sd="none"></div>
+  <div id="ormSourceWarning" role="status" data-s="s49e657e" data-sd="none"></div>
 
   <!-- KRI status strip -->
-  <div id="ormKriStrip" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 16px;margin-bottom:16px;display:none;flex-wrap:wrap;gap:8px;align-items:center;cursor:pointer" data-spa="/orm/indicators">
-    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">KRI Status:</span>
-    <div id="ormKriStripDots" style="display:flex;gap:6px;flex-wrap:wrap;flex:1"></div>
-    <span style="font-size:11px;color:var(--accent);font-weight:700">View All &#8250;</span>
+  <div id="ormKriStrip" data-s="s26f80ca" data-sd="none" data-spa="/orm/indicators">
+    <span data-s="sfe349df">KRI Status:</span>
+    <div id="ormKriStripDots" data-s="s2f2d292" data-sd="flex"></div>
+    <span data-s="sedd3c64">View All &#8250;</span>
   </div>
 
   <!-- Hero stats -->
@@ -228,7 +228,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">Financial Loss</div>
-      <div class="stat-value" id="dFinLoss" style="font-size:20px">&mdash;</div>
+      <div class="stat-value" id="dFinLoss" data-s="sb9199e2">&mdash;</div>
       <div class="orm-trend" id="dFinDelta"></div>
     </div>
     <div class="stat-card">
@@ -244,15 +244,15 @@
   </div>
 
   <!-- Getting Started banner -->
-  <div id="ormOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Operational Risk</h3>
-      <button data-orm-static-click="s1" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+  <div id="ormOnboardBanner" class="card animate-fade-up anim-1" data-s="s8ab7f14" data-sd="none">
+    <div data-s="s13c1049" data-sd="flex">
+      <h3 data-s="s0e48de3">Getting Started with Operational Risk</h3>
+      <button data-orm-static-click="s1" data-s="sf06225f" title="Dismiss">&times;</button>
     </div>
-    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-orm-static-change="s2"> Log your first operational event <a href="#" data-orm-static-click="s3" style="color:var(--accent)">Log event</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-orm-static-change="s2"> Set up Key Risk Indicators <a href="#" data-orm-static-click="s4" style="color:var(--accent)">Configure KRIs</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-orm-static-change="s2"> Review the RCSA framework <a href="#" data-orm-static-click="s5" style="color:var(--accent)">Open RCSA</a></label>
+    <div data-s="se495055">
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-orm-static-change="s2"> Log your first operational event <a href="#" data-orm-static-click="s3" data-s="sa805525">Log event</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-orm-static-change="s2"> Set up Key Risk Indicators <a href="#" data-orm-static-click="s4" data-s="sa805525">Configure KRIs</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-orm-static-change="s2"> Review the RCSA framework <a href="#" data-orm-static-click="s5" data-s="sa805525">Open RCSA</a></label>
     </div>
   </div>
 
@@ -260,11 +260,11 @@
   <div class="three-col animate-fade-up anim-2">
     <div class="panel-card">
       <div class="panel-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Smart Insights</div>
-      <div id="ormInsights" style="font-size:13px;line-height:1.8;color:var(--text)"><div style="color:var(--muted)">Loading…</div></div>
+      <div id="ormInsights" data-s="sbebe92a"><div data-s="s57f9e31">Loading…</div></div>
     </div>
-    <div class="panel-card" style="grid-column:span 2">
+    <div class="panel-card" data-s="s94a5b46">
       <div class="panel-title">Events by Type (Last 30 Days)</div>
-      <div id="ormTypeChart" style="padding:8px 0"></div>
+      <div id="ormTypeChart" data-s="sd8c0226"></div>
     </div>
   </div>
 
@@ -274,15 +274,15 @@
       <div class="panel-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-banknote></use></svg> Top 5 by Financial Impact</div>
       <div id="ormTop5"></div>
     </div>
-    <div class="card" style="grid-column:span 2">
+    <div class="card" data-s="s94a5b46">
       <div class="card-header">
         <span class="card-title">Recent Events</span>
-        <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" style="cursor:pointer">View All</a>
+        <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" data-s="s3b6a3a6">View All</a>
       </div>
-      <div style="overflow-x:auto">
+      <div data-s="s0ddf068">
         <table class="data-table">
           <thead><tr><th>Event</th><th>Type</th><th>Severity</th><th>Financial Impact</th><th>Status</th><th>Date</th></tr></thead>
-          <tbody id="ormRecentBody"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+          <tbody id="ormRecentBody"><tr><td colspan="6" data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -298,7 +298,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-sm btn-secondary" data-orm-static-click="s6">&#8595; Export CSV</button>
-      <button class="btn btn-sm btn-secondary" data-orm-static-click="s7" style="gap:5px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Templates</button>
+      <button class="btn btn-sm btn-secondary" data-orm-static-click="s7" data-s="se51ab5a"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Templates</button>
       <button class="btn btn-primary" data-orm-static-click="s0">+ Log Event</button>
     </div>
   </div>
@@ -314,7 +314,7 @@
   </div>
 
   <!-- Type chip bar -->
-  <div class="orm-filter-bar" id="evtTypeBar" style="margin-bottom:14px">
+  <div class="orm-filter-bar" id="evtTypeBar" data-s="s2b583d7">
     <button class="orm-chip active" data-val="" data-orm-static-click="s9">All Types</button>
     <button class="orm-chip" data-val="process_failure" data-orm-static-click="s9"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg> Process Failure</button>
     <button class="orm-chip" data-val="fraud" data-orm-static-click="s9"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Fraud</button>
@@ -326,31 +326,31 @@
   </div>
 
   <!-- Search + severity + dept row -->
-  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+  <div data-s="sd622dce" data-sd="flex">
     <input class="orm-search" id="evtSearch" placeholder="Search events…" data-orm-static-input="s10">
-    <select id="evtSevFilter" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-orm-static-change="s11">
+    <select id="evtSevFilter" data-s="se025956" data-orm-static-change="s11">
       <option value="">All Severities</option>
       <option value="critical">Critical</option>
       <option value="high">High</option>
       <option value="medium">Medium</option>
       <option value="low">Low</option>
     </select>
-    <select id="evtDeptFilter" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-orm-static-change="s12">
+    <select id="evtDeptFilter" data-s="se025956" data-orm-static-change="s12">
       <option value="">All Departments</option>
     </select>
   </div>
 
   <!-- Stats strip -->
-  <div id="evtStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+  <div id="evtStats" class="stats-row" data-s="sdbb1a91"></div>
 
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr>
-          <th style="width:32px"><input type="checkbox" id="evtSelectAll" data-orm-static-change="s13" title="Select all"></th>
+          <th data-s="s82b9d86"><input type="checkbox" id="evtSelectAll" data-orm-static-change="s13" title="Select all"></th>
           <th>Event</th><th>Type</th><th>Severity</th><th>Dept</th><th>Financial Impact</th><th>Status</th><th>SLA</th><th>Detected</th><th>Actions</th>
         </tr></thead>
-        <tbody id="ormEvtBody"><tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="ormEvtBody"><tr><td colspan="10" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -363,26 +363,26 @@
       <div class="section-title">Key Risk Indicators</div>
       <div class="section-sub">Monitor operational risk thresholds and trigger alerts</div>
     </div>
-    <div style="display:flex;gap:6px">
+    <div data-s="sf0abc1d" data-sd="flex">
       <button class="btn btn-secondary" data-orm-static-click="s14"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-library></use></svg> From Library</button>
       <button class="btn btn-primary" data-orm-static-click="s15">+ Add KRI</button>
     </div>
   </div>
 
   <!-- Stats strip -->
-  <div id="kriStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+  <div id="kriStats" class="stats-row" data-s="sdbb1a91"></div>
 
   <!-- Filter chips -->
-  <div id="kriFilterBar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+  <div id="kriFilterBar" data-s="s1373eb9" data-sd="flex"></div>
 
   <!-- Stale KRI banner -->
-  <div id="ormKriStaleBanner" style="display:none"></div>
+  <div id="ormKriStaleBanner" data-sd="none"></div>
 
   <!-- Breach banner -->
-  <div id="ormKriBreachBanner" style="display:none"></div>
+  <div id="ormKriBreachBanner" data-sd="none"></div>
 
   <!-- KRI grid -->
-  <div id="ormKriGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+  <div id="ormKriGrid" data-s="s0711ddc" data-sd="grid"></div>
 </div>
 
 <!-- ═══════════════════════════════════════ REPORTS ═════════════════════════ -->
@@ -400,39 +400,39 @@
   </div>
 
   <!-- Stats strip -->
-  <div id="rptStatCards" class="stats-row" style="margin-bottom:24px"></div>
+  <div id="rptStatCards" class="stats-row" data-s="s8677744"></div>
 
   <!-- Ring charts + Events by type -->
-  <div class="three-col" style="margin-bottom:20px">
+  <div class="three-col" data-s="s49f14f8">
     <div class="panel-card">
       <div class="panel-title">Events by Severity</div>
-      <div style="display:flex;align-items:center;padding:4px 0">
-        <div id="rptSevRing" style="flex-shrink:0"></div>
-        <div id="rptSevLegend" style="margin-left:12px;flex:1"></div>
+      <div data-s="sb48aa1a" data-sd="flex">
+        <div id="rptSevRing" data-s="s6ee0661"></div>
+        <div id="rptSevLegend" data-s="s27ad5d2"></div>
       </div>
     </div>
     <div class="panel-card">
       <div class="panel-title">By Root Cause</div>
-      <div style="display:flex;align-items:center;padding:4px 0">
-        <div id="rptRcaRing" style="flex-shrink:0"></div>
-        <div id="rptRcaLegend" style="margin-left:12px;flex:1"></div>
+      <div data-s="sb48aa1a" data-sd="flex">
+        <div id="rptRcaRing" data-s="s6ee0661"></div>
+        <div id="rptRcaLegend" data-s="s27ad5d2"></div>
       </div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Events by Type</div>
-      <div id="rptTypeChart" style="padding:8px 0"></div>
+      <div id="rptTypeChart" data-s="sd8c0226"></div>
     </div>
   </div>
 
   <!-- Dept heat + Loss trend -->
-  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
+  <div data-s="s5441317" data-sd="grid">
     <div class="panel-card">
       <div class="panel-title">Department Risk Heat Map</div>
-      <div id="rptDeptHeat" style="overflow-x:auto;margin-top:4px"></div>
+      <div id="rptDeptHeat" data-s="s790cd60"></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Financial Loss Trend</div>
-      <div id="rptLossTrend" style="padding:4px 0"></div>
+      <div id="rptLossTrend" data-s="sb7c21f2"></div>
     </div>
   </div>
 </div>
@@ -444,23 +444,23 @@
       <div class="section-title">Risk Control Self-Assessment</div>
       <div class="section-sub">Assess operational risks and control effectiveness across business units</div>
     </div>
-    <div style="display:flex;gap:6px">
+    <div data-s="sf0abc1d" data-sd="flex">
       <button class="btn btn-primary" data-orm-static-click="s18">+ New (Blank)</button>
       <button class="btn btn-primary" data-orm-static-click="s19"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> From Template</button>
     </div>
   </div>
 
   <!-- Stats strip -->
-  <div id="rcsaStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+  <div id="rcsaStats" class="stats-row" data-s="sdbb1a91"></div>
 
   <!-- Assessments table -->
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr>
           <th>Assessment</th><th>Scope</th><th>Period</th><th>Status</th><th>Owner</th><th>Due Date</th><th>Risks</th><th>Open Actions</th><th>Actions</th>
         </tr></thead>
-        <tbody id="rcsaBody"><tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="rcsaBody"><tr><td colspan="9" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -486,15 +486,15 @@
     <button class="orm-chip" data-val="Technology" data-orm-static-click="s21">Technology</button>
     <button class="orm-chip" data-val="Tools" data-orm-static-click="s21">Tools</button>
   </div>
-  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
+  <label data-s="s9326ee0" data-sd="inline-flex">
     <input type="checkbox" id="aicShowInactive" data-orm-static-change="s22"> Show deactivated controls
   </label>
 
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Ref</th><th>Title</th><th>Pillar</th><th>Source</th><th>Linked Risks</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="aicBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="aicBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -507,18 +507,18 @@
       <div class="section-title">AI Risk Management (AIMS / ORAAT)</div>
       <div class="section-sub">AI risk register with multi-control mitigation, ICE scoring and residual rating</div>
     </div>
-    <div style="display:flex;gap:6px">
+    <div data-s="sf0abc1d" data-sd="flex">
       <button class="btn btn-primary" data-orm-static-click="s23">+ New Assessment</button>
     </div>
   </div>
 
-  <div id="aimsStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+  <div id="aimsStats" class="stats-row" data-s="sdbb1a91"></div>
 
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Ref</th><th>Title</th><th>Mode</th><th>Status</th><th>Owner</th><th>Risks</th><th>Actions</th></tr></thead>
-        <tbody id="aimsBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="aimsBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -532,20 +532,20 @@
       <div class="section-sub">Root cause analysis, remediation guidance, industry benchmarks</div>
     </div>
   </div>
-  <div class="card" style="overflow:hidden">
-    <div style="display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:400px">
-      <div class="chat-messages" id="ormChatMsgs" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px">
-        <div style="align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%">Hello! I'm your ORM AI. Ask me about root cause analysis, corrective actions, industry benchmarks, or operational risk frameworks.</div>
+  <div class="card" data-s="s6982440">
+    <div data-s="sc5d703d" data-sd="flex">
+      <div class="chat-messages" id="ormChatMsgs" data-s="s319cc41" data-sd="flex">
+        <div data-s="sf71e6be">Hello! I'm your ORM AI. Ask me about root cause analysis, corrective actions, industry benchmarks, or operational risk frameworks.</div>
       </div>
       <!-- Suggested prompt chips -->
-      <div id="ormPromptChips" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px;border-top:1px solid var(--border);background:var(--surface2)">
+      <div id="ormPromptChips" data-s="s5d1c796" data-sd="flex">
         <button class="orm-chip" data-orm-static-click="s24"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-banknote></use></svg> Top loss events</button>
         <button class="orm-chip" data-orm-static-click="s25"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring failures</button>
         <button class="orm-chip" data-orm-static-click="s26"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-house></use></svg> Department breakdown</button>
         <button class="orm-chip" data-orm-static-click="s27"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Board summary</button>
       </div>
-      <div style="display:flex;gap:10px;padding:16px;border-top:1px solid var(--border)">
-        <input type="text" id="ormChatInput" placeholder="Ask about operational risks…" style="flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);font-size:14px" data-orm-static-keydown="s28">
+      <div data-s="sb3ff288" data-sd="flex">
+        <input type="text" id="ormChatInput" placeholder="Ask about operational risks…" data-s="sc6f91a3" data-orm-static-keydown="s28">
         <button class="btn btn-primary" data-orm-static-click="s29">Send</button>
       </div>
     </div>
@@ -559,12 +559,12 @@
 <div id="ormDocRoot"></div>
 
 <!-- Bulk action bar -->
-<div class="orm-bulk-bar" id="ormBulkBar" style="display:none">
-  <span style="font-size:13px;font-weight:700;color:var(--text)" id="ormBulkCount">0 selected</span>
-  <div style="width:1px;background:var(--border);height:20px"></div>
+<div class="orm-bulk-bar" id="ormBulkBar" data-sd="none">
+  <span data-s="s36970da" id="ormBulkCount">0 selected</span>
+  <div data-s="s29122b0"></div>
   <button class="btn btn-sm btn-secondary" data-orm-static-click="s30">Change Status &#9660;</button>
-  <button class="btn btn-sm btn-secondary" data-orm-static-click="s31" style="color:var(--red)">Delete Selected</button>
-  <button class="btn btn-sm btn-secondary" data-orm-static-click="s32" style="color:var(--muted)">&#10005; Clear</button>
+  <button class="btn btn-sm btn-secondary" data-orm-static-click="s31" data-s="s45e7ae4">Delete Selected</button>
+  <button class="btn btn-sm btn-secondary" data-orm-static-click="s32" data-s="s57f9e31">&#10005; Clear</button>
 </div>
 
 {% endblock %}

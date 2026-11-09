@@ -44,7 +44,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">ARIA</span>
+<span data-s="s456fefd">ARIA</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Dashboard</span>
 {% endblock %}
@@ -76,7 +76,7 @@
     <div class="stat-label">Overall Compliance</div>
     <div class="stat-value" id="ariaCompliancePct">{{ totals.overall_pct }}%</div>
     <div class="stat-sub">{{ totals.implemented }} of {{ totals.total }} controls implemented</div>
-    <div class="pbar"><div class="pbar-fill" id="ariaComplianceBar" style="width:{{ totals.overall_pct }}%"></div></div>
+    <div class="pbar"><div class="pbar-fill" id="ariaComplianceBar" data-sv="width:{{ totals.overall_pct }}%"></div></div>
   </div>
 
   <!-- Active Frameworks -->
@@ -85,36 +85,36 @@
     <div class="stat-value">{{ fw_stats|length }}</div>
     <div class="stat-sub">Regulatory & standard frameworks</div>
     {% if fw_stats|length == 0 %}
-    <a href="/aria/frameworks" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first framework</a>
+    <a href="/aria/frameworks" data-s="s61d2d1c" data-sd="block">+ Add first framework</a>
     {% endif %}
   </div>
 
   <!-- Controls Implemented -->
   <div class="stat-card">
     <div class="stat-label">Controls Implemented</div>
-    <div class="stat-value" style="color:var(--green-status)">{{ totals.implemented }} / {{ totals.total }}</div>
-    <div class="pbar"><div class="pbar-fill" style="width:{{ totals.overall_pct }}%;background:var(--green-status)"></div></div>
+    <div class="stat-value" data-s="sf941d6e">{{ totals.implemented }} / {{ totals.total }}</div>
+    <div class="pbar"><div class="pbar-fill" data-sv="width:{{ totals.overall_pct }}%;background:var(--green-status)"></div></div>
   </div>
 
   <!-- Pending Reviews -->
   <div class="stat-card">
     <div class="stat-label">Pending Reviews</div>
-    <div class="stat-value" style="color:var(--amber)">{{ totals.in_progress + totals.not_started }}</div>
+    <div class="stat-value" data-s="s08935a7">{{ totals.in_progress + totals.not_started }}</div>
     <div class="stat-sub">{{ totals.in_progress }} in progress &middot; {{ totals.not_started }} not started</div>
   </div>
 </div>
 
 <!-- Onboarding Banner -->
 {% if fw_stats|length == 0 %}
-<div id="ariaOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px">
-  <div style="display:flex;justify-content:space-between;align-items:flex-start">
-    <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with ARIA</h3>
-    <button type="button" id="ariaDismissOnboard" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+<div id="ariaOnboardBanner" class="card animate-fade-up anim-1" data-s="s8ab7f14">
+  <div data-s="s13c1049" data-sd="flex">
+    <h3 data-s="s0e48de3">Getting Started with ARIA</h3>
+    <button type="button" id="ariaDismissOnboard" data-s="sf06225f" title="Dismiss">&times;</button>
   </div>
-  <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-    <label style="display:block;cursor:pointer"><input type="checkbox" class="aria-onboard-check"> Add a compliance framework <a href="/aria/frameworks" style="color:var(--accent)">Browse frameworks</a></label>
-    <label style="display:block;cursor:pointer"><input type="checkbox" class="aria-onboard-check"> Map controls to your organisation <a href="/aria/mapping" style="color:var(--accent)">Control mapping</a></label>
-    <label style="display:block;cursor:pointer"><input type="checkbox" class="aria-onboard-check"> Generate your first compliance report <button type="button" id="ariaOnboardReport" style="border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font:inherit">Generate report</button></label>
+  <div data-s="se495055">
+    <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Add a compliance framework <a href="/aria/frameworks" data-s="sa805525">Browse frameworks</a></label>
+    <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Map controls to your organisation <a href="/aria/mapping" data-s="sa805525">Control mapping</a></label>
+    <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Generate your first compliance report <button type="button" id="ariaOnboardReport" data-s="s7a8f814">Generate report</button></label>
   </div>
 </div>
 {% endif %}
@@ -127,14 +127,14 @@
     <div id="ariaFrameworkHealth">
       {% for fw in fw_stats %}
       <div class="fw-health-item">
-        <div class="fh-dot" style="background:{{ fw.color }}"></div>
+        <div class="fh-dot" data-sv="background:{{ fw.color }}"></div>
         <div class="fh-name">{{ fw.name }}</div>
-        <div class="fh-pct" style="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 60 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}%</div>
-        <div class="fh-bar"><div class="fh-bar-fill" style="width:{{ fw.pct }}%;background:{{ fw.color }}"></div></div>
+        <div class="fh-pct" data-sv="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 60 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}%</div>
+        <div class="fh-bar"><div class="fh-bar-fill" data-sv="width:{{ fw.pct }}%;background:{{ fw.color }}"></div></div>
       </div>
       {% endfor %}
       {% if not fw_stats %}
-      <div style="color:var(--muted);font-size:13px;padding:12px">No frameworks configured</div>
+      <div data-s="s35ad83f">No frameworks configured</div>
       {% endif %}
     </div>
   </div>
@@ -149,15 +149,15 @@
           <!-- Implemented arc -->
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--green-status)" stroke-width="10"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                  transform="rotate(-90 70 70)" id="ariaArcImpl" style="transition:stroke-dashoffset 1s ease"><title>Implemented: {{ totals.implemented }} controls</title></circle>
+                  transform="rotate(-90 70 70)" id="ariaArcImpl" data-s="s9ed859d"><title>Implemented: {{ totals.implemented }} controls</title></circle>
           <!-- In Progress arc -->
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--amber)" stroke-width="10"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                  transform="rotate(-90 70 70)" id="ariaArcProg" style="transition:stroke-dashoffset 1s ease"><title>In progress: {{ totals.in_progress }} controls</title></circle>
+                  transform="rotate(-90 70 70)" id="ariaArcProg" data-s="s9ed859d"><title>In progress: {{ totals.in_progress }} controls</title></circle>
           <!-- Not started is a real segment, not an unlabelled empty track. -->
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--red)" stroke-width="11"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="butt"
-                  transform="rotate(-90 70 70)" id="ariaArcNotStarted" style="transition:stroke-dashoffset 1s ease"><title>Not started: {{ totals.not_started }} controls</title></circle>
+                  transform="rotate(-90 70 70)" id="ariaArcNotStarted" data-s="s9ed859d"><title>Not started: {{ totals.not_started }} controls</title></circle>
         </svg>
         <div class="aria-donut-center">
           <div class="aria-donut-pct">{{ totals.total }}</div>
@@ -166,17 +166,17 @@
       </div>
       <div class="aria-donut-legend">
         <div class="aria-legend-item">
-          <div class="aria-legend-dot" style="background:var(--green-status)"></div>
+          <div class="aria-legend-dot" data-s="s5568726"></div>
           Implemented
           <div class="aria-legend-val">{{ totals.implemented }}</div>
         </div>
         <div class="aria-legend-item">
-          <div class="aria-legend-dot" style="background:var(--amber)"></div>
+          <div class="aria-legend-dot" data-s="s8014d76"></div>
           In Progress
           <div class="aria-legend-val">{{ totals.in_progress }}</div>
         </div>
         <div class="aria-legend-item">
-          <div class="aria-legend-dot" style="background:var(--red)"></div>
+          <div class="aria-legend-dot" data-s="sa14c7d6"></div>
           Not Started
           <div class="aria-legend-val">{{ totals.not_started }}</div>
         </div>
@@ -192,7 +192,7 @@
         {% for log in recent %}
         <div class="tl-item">
           <div class="tl-col">
-            <div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>
+            <div class="tl-dot" data-s="sc7d23eb"></div>
             {% if not loop.last %}<div class="tl-line"></div>{% endif %}
           </div>
           <div class="tl-content">
@@ -202,7 +202,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div style="color:var(--muted);font-size:13px;padding:12px;text-align:center">No recent activity</div>
+        <div data-s="s422d39b">No recent activity</div>
       {% endif %}
     </div>
   </div>
@@ -213,7 +213,7 @@
   <div class="card-header">
     <div class="card-title">Framework Activity</div>
   </div>
-  <div style="overflow-x:auto">
+  <div data-s="s0ddf068">
     <table class="data-table">
       <thead>
         <tr>
@@ -229,14 +229,14 @@
         {% for fw in fw_stats %}
         <tr>
           <td>
-            <span style="display:inline-flex;align-items:center;gap:8px">
-              <span style="width:8px;height:8px;border-radius:50%;background:{{ fw.color }};flex-shrink:0"></span>
-              <a href="/aria/framework/{{ fw.id }}" style="color:var(--text);font-weight:600;text-decoration:none">{{ fw.name }}</a>
+            <span data-s="s250fc4e" data-sd="inline-flex">
+              <span data-sv="width:8px;height:8px;border-radius:50%;background:{{ fw.color }};flex-shrink:0"></span>
+              <a href="/aria/framework/{{ fw.id }}" data-s="s75ad88d">{{ fw.name }}</a>
             </span>
           </td>
-          <td style="font-family:var(--mono)">{{ fw.total }}</td>
-          <td style="font-family:var(--mono);color:var(--green-status)">{{ fw.implemented }}</td>
-          <td style="font-family:var(--mono);color:var(--amber)">{{ fw.in_progress }}</td>
+          <td data-s="s0f19432">{{ fw.total }}</td>
+          <td data-s="s2a28bd4">{{ fw.implemented }}</td>
+          <td data-s="s8d25491">{{ fw.in_progress }}</td>
           <td>
             {% if fw.pct >= 90 %}
               <span class="badge badge-complete">Complete</span>
@@ -249,17 +249,17 @@
             {% endif %}
           </td>
           <td>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="width:60px;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">
-                <div style="width:{{ fw.pct }}%;height:100%;background:{{ fw.color }};border-radius:3px"></div>
+            <div data-s="s250fc4e" data-sd="flex">
+              <div data-s="s15372a7">
+                <div data-sv="width:{{ fw.pct }}%;height:100%;background:{{ fw.color }};border-radius:3px"></div>
               </div>
-              <span style="font-family:var(--mono);font-weight:700;font-size:13px">{{ fw.pct }}%</span>
+              <span data-s="s6f3d482">{{ fw.pct }}%</span>
             </div>
           </td>
         </tr>
         {% endfor %}
         {% if not fw_stats %}
-        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No frameworks configured yet</td></tr>
+        <tr><td colspan="6" data-s="s2e587c2">No frameworks configured yet</td></tr>
         {% endif %}
       </tbody>
     </table>

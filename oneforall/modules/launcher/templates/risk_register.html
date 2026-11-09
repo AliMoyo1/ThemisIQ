@@ -6,7 +6,7 @@
   <span class="page-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Cross-Module Risk Register</span>
   <div class="topbar-actions">
     <label class="sr-only" for="filterModule">Filter by module</label>
-    <select id="filterModule" style="padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:12px;">
+    <select id="filterModule" data-s="s5229078">
       <option value="">All Modules</option>
       <option value="aria">ARIA</option>
       <option value="sentinel">Sentinel</option>
@@ -14,7 +14,7 @@
       <option value="bcm">BCM</option>
     </select>
     <label class="sr-only" for="filterStatus">Filter by status</label>
-    <select id="filterStatus" style="padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:12px;">
+    <select id="filterStatus" data-s="s5229078">
       <option value="">All Status</option>
       <option value="open">Open</option>
       <option value="mitigating">Mitigating</option>
@@ -27,72 +27,72 @@
 
 <div class="content">
   <!-- Stats -->
-  <div id="riskStats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px;"></div>
+  <div id="riskStats" data-s="s7287f63" data-sd="grid"></div>
 
   <!-- Heat Map & Table -->
-  <div style="display:grid; grid-template-columns:280px 1fr; gap:16px;">
+  <div data-s="s7e374ab" data-sd="grid">
     <!-- Heat Map -->
-    <div class="card" style="padding:16px;">
-      <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:12px;">Risk Heat Map</div>
-      <div id="heatMap" style="display:grid; grid-template-columns:repeat(5,1fr); gap:3px;"></div>
-      <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:var(--muted);">
+    <div class="card" data-s="s287f770">
+      <div data-s="s9b5602c">Risk Heat Map</div>
+      <div id="heatMap" data-s="s435ee88" data-sd="grid"></div>
+      <div data-s="s12de901" data-sd="flex">
         <span>← Low Impact</span><span>High Impact →</span>
       </div>
     </div>
 
     <!-- Risk Table -->
-    <div class="card" style="padding:0; overflow:hidden;">
-      <table style="width:100%; border-collapse:collapse;">
+    <div class="card" data-s="s22a2674">
+      <table data-s="sa55f31d">
         <thead>
-          <tr style="border-bottom:1px solid var(--border);">
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Risk</th>
-            <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Score</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Module</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Treatment</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Owner</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
+          <tr data-s="s1008415">
+            <th data-s="s4a28c65">Risk</th>
+            <th data-s="s3e8747c">Score</th>
+            <th data-s="s4a28c65">Module</th>
+            <th data-s="s4a28c65">Treatment</th>
+            <th data-s="s4a28c65">Owner</th>
+            <th data-s="s4a28c65">Status</th>
           </tr>
         </thead>
         <tbody id="riskBody">
-          <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+          <tr><td colspan="6" data-s="sc0add8c">Loading...</td></tr>
         </tbody>
       </table>
-      <div id="riskPager" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border-soft);font-size:12px;color:var(--muted);"></div>
+      <div id="riskPager" data-s="sd3af3db" data-sd="flex"></div>
     </div>
   </div>
 </div>
 
 <!-- New Risk Modal -->
 <div class="modal-overlay" id="newRiskModal" role="dialog" aria-modal="true" aria-labelledby="newRiskModal-title">
-  <div class="modal" style="max-width:550px;">
+  <div class="modal" data-s="s41e0670">
     <div class="modal-header">
-      <h3 id="newRiskModal-title" style="margin:0; font-size:16px;">Register New Risk</h3>
+      <h3 id="newRiskModal-title" data-s="s4499790">Register New Risk</h3>
       <button class="modal-close" id="closeNewRiskBtn" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px;">
+    <div class="modal-body" data-s="s769fed3">
       <form id="riskForm">
-        <div style="margin-bottom:12px;">
-          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Title</label>
-          <input type="text" id="rTitle" required style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        <div data-s="sda12f28">
+          <label data-s="s6393cf0" data-sd="block">Title</label>
+          <input type="text" id="rTitle" required data-s="se4b4634">
         </div>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Description</label>
-          <textarea id="rDesc" rows="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px; resize:vertical;"></textarea>
+        <div data-s="sda12f28">
+          <label data-s="s6393cf0" data-sd="block">Description</label>
+          <textarea id="rDesc" rows="3" data-s="scf39ab8"></textarea>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div data-s="s982044c" data-sd="grid">
           <div>
-            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Likelihood (1-5)</label>
-            <input type="number" id="rLikelihood" min="1" max="5" value="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <label data-s="s6393cf0" data-sd="block">Likelihood (1-5)</label>
+            <input type="number" id="rLikelihood" min="1" max="5" value="3" data-s="se4b4634">
           </div>
           <div>
-            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Impact (1-5)</label>
-            <input type="number" id="rImpact" min="1" max="5" value="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <label data-s="s6393cf0" data-sd="block">Impact (1-5)</label>
+            <input type="number" id="rImpact" min="1" max="5" value="3" data-s="se4b4634">
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div data-s="s982044c" data-sd="grid">
           <div>
-            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Source Module</label>
-            <select id="rModule" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <label data-s="s6393cf0" data-sd="block">Source Module</label>
+            <select id="rModule" data-s="se4b4634">
               <option value="">None</option>
               <option value="aria">ARIA</option>
               <option value="sentinel">Sentinel</option>
@@ -101,8 +101,8 @@
             </select>
           </div>
           <div>
-            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Treatment</label>
-            <select id="rTreatment" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <label data-s="s6393cf0" data-sd="block">Treatment</label>
+            <select id="rTreatment" data-s="se4b4634">
               <option value="mitigate">Mitigate</option>
               <option value="accept">Accept</option>
               <option value="transfer">Transfer</option>
@@ -110,9 +110,9 @@
             </select>
           </div>
         </div>
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Category</label>
-          <select id="rCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        <div data-s="s2b583d7">
+          <label data-s="s6393cf0" data-sd="block">Category</label>
+          <select id="rCategory" data-s="se4b4634">
             <option value="operational">Operational</option>
             <option value="strategic">Strategic</option>
             <option value="compliance">Compliance</option>
@@ -122,7 +122,7 @@
             <option value="continuity">Business Continuity</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%;">Register Risk</button>
+        <button type="submit" class="btn btn-primary" data-s="s0466783">Register Risk</button>
       </form>
     </div>
   </div>

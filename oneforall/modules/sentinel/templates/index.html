@@ -358,7 +358,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
   <a href="/sentinel/breaches" class="nav-item" data-spa="/sentinel/breaches">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     Data Breaches
-    <span class="nav-badge" id="sideNavBreaches" style="display:none">0</span>
+    <span class="nav-badge" id="sideNavBreaches" data-sd="none">0</span>
   </a>
   <a href="/sentinel/dsr" class="nav-item" data-spa="/sentinel/dsr">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -436,19 +436,19 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
 
 <!-- AI Chat Card -->
 <div class="sidebar-bottom">
-  <a href="/sentinel/chat" data-spa="/sentinel/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">
-    <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
+  <a href="/sentinel/chat" data-spa="/sentinel/chat" data-s="s7db2fca" data-sd="block">
+    <div data-s="s5c05df5">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
-    <div style="font-size:14px;font-weight:700">Ask Sentinel AI...</div>
-    <div style="font-size:11px;opacity:0.7;margin-top:4px">Data protection guidance</div>
+    <div data-s="s9e5c33b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
+    <div data-s="sa1b26d5">Ask Sentinel AI...</div>
+    <div data-s="sffd8f2a">Data protection guidance</div>
   </a>
 </div>
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">Sentinel</span>
+<span data-s="s456fefd">Sentinel</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current" id="snBreadcrumb">Dashboard</span>
 {% endblock %}
@@ -476,13 +476,13 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
   <!-- Regulatory Alert Banners -->
   <div class="reg-alert" id="snBreachAlert">
     <div class="reg-alert-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-    <div class="reg-alert-text"><strong id="snBreachAlertTitle">Breach notification deadline approaching</strong><br><span id="snBreachAlertBody" style="color:var(--muted);font-size:12px"></span></div>
-    <button class="btn btn-sm" style="background:#dc2626;color:white;border:none;font-size:12px" data-spa="/sentinel/breaches">View Breaches</button>
+    <div class="reg-alert-text"><strong id="snBreachAlertTitle">Breach notification deadline approaching</strong><br><span id="snBreachAlertBody" data-s="sbf8965d"></span></div>
+    <button class="btn btn-sm" data-s="s92458a4" data-spa="/sentinel/breaches">View Breaches</button>
   </div>
   <div class="reg-alert" id="snDsrAlert">
     <div class="reg-alert-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-    <div class="reg-alert-text"><strong id="snDsrAlertTitle">DSR response deadline approaching</strong><br><span id="snDsrAlertBody" style="color:var(--muted);font-size:12px"></span></div>
-    <button class="btn btn-sm" style="background:#f59e0b;color:white;border:none;font-size:12px" data-spa="/sentinel/dsr">View DSRs</button>
+    <div class="reg-alert-text"><strong id="snDsrAlertTitle">DSR response deadline approaching</strong><br><span id="snDsrAlertBody" data-s="sbf8965d"></span></div>
+    <button class="btn btn-sm" data-s="sab90006" data-spa="/sentinel/dsr">View DSRs</button>
   </div>
 
   <!-- 4 Stat Cards -->
@@ -491,9 +491,9 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       <div class="stat-label">RoPA Records</div>
       <div class="stat-value" id="snRopaCount">&mdash;</div>
       <div class="stat-sub" id="snRopaSub">Processing activities catalogued</div>
-      <div class="pbar"><div class="pbar-fill" id="snRopaBar" style="width:0;background:white"></div></div>
-      <a href="#" id="snRopaGapLink" style="display:none;font-size:11px;color:inherit;text-decoration:underline;margin-top:6px" data-sn-static-click="s1">See the processes without a record</a>
-      <div id="snRopaGapList" style="display:none;font-size:12px;margin-top:6px"></div>
+      <div class="pbar"><div class="pbar-fill" id="snRopaBar" data-s="sbac24d8"></div></div>
+      <a href="#" id="snRopaGapLink" data-s="sc7fb5c5" data-sd="none" data-sn-static-click="s1">See the processes without a record</a>
+      <div id="snRopaGapList" data-s="s2b0979c" data-sd="none"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Active DPIAs</div>
@@ -516,19 +516,19 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
   </div>
 
   <!-- Onboarding Banner -->
-  <div id="snUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+  <div id="snUnavailable" class="card" role="alert" data-s="s5a936fa" data-sd="none">
     <span><strong>The privacy figures could not be read just now.</strong> A dash means "not read", not zero.</span>
     <button type="button" class="btn btn-secondary btn-sm" data-sn-static-click="s2">Try again</button>
   </div>
-  <div id="snOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Sentinel</h3>
-      <button data-sn-static-click="s3" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+  <div id="snOnboardBanner" class="card animate-fade-up anim-1" data-s="s8ab7f14" data-sd="none">
+    <div data-s="s13c1049" data-sd="flex">
+      <h3 data-s="s0e48de3">Getting Started with Sentinel</h3>
+      <button data-sn-static-click="s3" data-s="sf06225f" title="Dismiss">&times;</button>
     </div>
-    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-sn-static-change="s4"> Create your first RoPA record <a href="#" data-sn-static-click="s5" style="color:var(--accent)">Open RoPA</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-sn-static-change="s4"> Run a Data Protection Impact Assessment <a href="#" data-sn-static-click="s6" style="color:var(--accent)">Start DPIA</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-sn-static-change="s4"> Set up vendor privacy assessments <a href="#" data-sn-static-click="s7" style="color:var(--accent)">Vendor privacy</a></label>
+    <div data-s="se495055">
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-sn-static-change="s4"> Create your first RoPA record <a href="#" data-sn-static-click="s5" data-s="sa805525">Open RoPA</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-sn-static-change="s4"> Run a Data Protection Impact Assessment <a href="#" data-sn-static-click="s6" data-s="sa805525">Start DPIA</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-sn-static-change="s4"> Set up vendor privacy assessments <a href="#" data-sn-static-click="s7" data-s="sa805525">Vendor privacy</a></label>
     </div>
   </div>
 
@@ -537,7 +537,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <div class="panel-card">
       <div class="panel-title">DSR Status</div>
       <div id="snDsrStatus">
-        <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+        <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
       </div>
     </div>
     <div class="panel-card">
@@ -548,13 +548,13 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--surface3)" stroke-width="10"/>
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--red)" stroke-width="10"
                     stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
-                    transform="rotate(-90 55 55)" id="snRiskHigh" style="transition:stroke-dashoffset 1s ease"><title>High risk: 0 DPIAs</title></circle>
+                    transform="rotate(-90 55 55)" id="snRiskHigh" data-s="s9ed859d"><title>High risk: 0 DPIAs</title></circle>
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--amber)" stroke-width="10"
                     stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
-                    transform="rotate(-90 55 55)" id="snRiskMed" style="transition:stroke-dashoffset 1s ease"><title>Medium risk: 0 DPIAs</title></circle>
+                    transform="rotate(-90 55 55)" id="snRiskMed" data-s="s9ed859d"><title>Medium risk: 0 DPIAs</title></circle>
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--green-status)" stroke-width="10"
                     stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
-                    transform="rotate(-90 55 55)" id="snRiskLow" style="transition:stroke-dashoffset 1s ease"><title>Low risk: 0 DPIAs</title></circle>
+                    transform="rotate(-90 55 55)" id="snRiskLow" data-s="s9ed859d"><title>Low risk: 0 DPIAs</title></circle>
           </svg>
           <div class="sn-donut-center">
             <div class="sn-donut-pct" id="snRiskTotal">&mdash;</div>
@@ -562,17 +562,17 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
           </div>
         </div>
         <div class="ring-legend">
-          <div class="ring-item"><div class="ring-dot" style="background:var(--red)"></div><div class="ring-lbl">High Risk</div><div class="ring-val" id="snRiskHighVal">0</div></div>
-          <div class="ring-item"><div class="ring-dot" style="background:var(--amber)"></div><div class="ring-lbl">Medium Risk</div><div class="ring-val" id="snRiskMedVal">0</div></div>
-          <div class="ring-item"><div class="ring-dot" style="background:var(--green-status)"></div><div class="ring-lbl">Low Risk</div><div class="ring-val" id="snRiskLowVal">0</div></div>
-          <div class="ring-item"><div class="ring-dot" style="background:var(--surface3)"></div><div class="ring-lbl">Not rated</div><div class="ring-val" id="snRiskUnratedVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="sa14c7d6"></div><div class="ring-lbl">High Risk</div><div class="ring-val" id="snRiskHighVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="s8014d76"></div><div class="ring-lbl">Medium Risk</div><div class="ring-val" id="snRiskMedVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="s5568726"></div><div class="ring-lbl">Low Risk</div><div class="ring-val" id="snRiskLowVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="s392d709"></div><div class="ring-lbl">Not rated</div><div class="ring-val" id="snRiskUnratedVal">0</div></div>
         </div>
       </div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Recent Activity</div>
       <div id="snRecentActivity">
-        <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+        <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
       </div>
     </div>
   </div>
@@ -581,9 +581,9 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
   <div class="card animate-fade-up anim-3">
     <div class="card-header">
       <div class="card-title">Data Subject Requests</div>
-      <a href="/sentinel/dsr" class="btn btn-sm btn-secondary" data-spa="/sentinel/dsr" style="cursor:pointer">View All</a>
+      <a href="/sentinel/dsr" class="btn btn-sm btn-secondary" data-spa="/sentinel/dsr" data-s="s3b6a3a6">View All</a>
     </div>
-    <div class="card-body" style="padding:12px 20px 6px">
+    <div class="card-body" data-s="s7cf50a3">
       <div class="filter-bar" id="snDsrFilters">
         <button type="button" class="filter-chip active" data-status="all" data-sn-static-click="s8">All</button>
         <button type="button" class="filter-chip" data-status="open" data-sn-static-click="s9">Open</button>
@@ -591,11 +591,11 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
         <button type="button" class="filter-chip" data-status="completed" data-sn-static-click="s11">Completed</button>
       </div>
     </div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table" id="snDsrTable">
         <thead><tr><th>Reference</th><th>Type</th><th>Status</th><th>Submitted</th><th>Due Date</th></tr></thead>
         <tbody id="snDsrBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -620,31 +620,31 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div id="snRopaStats" class="ropa-dpia-stats"></div>
-  <div id="snRopaGapBanner" class="sn-expiry-banner" style="display:none"></div>
+  <div id="snRopaGapBanner" class="sn-expiry-banner" data-sd="none"></div>
   <div class="card">
-    <div class="card-body" style="padding:12px 20px 6px">
-      <div class="filter-bar" style="flex-wrap:wrap;gap:8px">
-        <input type="text" id="snRopaSearch" placeholder="Search activities..." style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-sn-static-input="s14">
-        <select id="snRopaStatus" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-sn-static-change="s15">
+    <div class="card-body" data-s="s7cf50a3">
+      <div class="filter-bar" data-s="s1bdcdd1">
+        <input type="text" id="snRopaSearch" placeholder="Search activities..." data-s="s817eafc" data-sn-static-input="s14">
+        <select id="snRopaStatus" data-s="s7a36414" data-sn-static-change="s15">
           <option value="">All Statuses</option>
           <option value="active">Active</option>
           <option value="draft">Draft</option>
           <option value="archived">Archived</option>
         </select>
-        <div id="snRopaRiskChips" class="filter-bar" style="gap:4px">
+        <div id="snRopaRiskChips" class="filter-bar" data-s="sd767683">
           <button type="button" class="filter-chip active" data-sn-static-click="s16">All Risk</button>
-          <button type="button" class="filter-chip" style="border-color:rgba(220,38,38,.4)" data-sn-static-click="s17">Critical</button>
-          <button type="button" class="filter-chip" style="border-color:rgba(245,158,11,.4)" data-sn-static-click="s18">High</button>
+          <button type="button" class="filter-chip" data-s="s03c2c07" data-sn-static-click="s17">Critical</button>
+          <button type="button" class="filter-chip" data-s="sfe13561" data-sn-static-click="s18">High</button>
           <button type="button" class="filter-chip" data-sn-static-click="s19">Medium</button>
           <button type="button" class="filter-chip" data-sn-static-click="s20">Low</button>
         </div>
       </div>
     </div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Activity Name</th><th>Department</th><th>Legal Basis</th><th>Risk</th><th>DPIA</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="snRopaBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -668,12 +668,12 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div id="snDpiaStats" class="ropa-dpia-stats"></div>
-  <div id="snDpiaOverdueBanner" class="sn-expiry-banner" style="display:none"></div>
+  <div id="snDpiaOverdueBanner" class="sn-expiry-banner" data-sd="none"></div>
   <div class="card">
-    <div class="card-body" style="padding:12px 20px 6px">
-      <div class="filter-bar" style="flex-wrap:wrap;gap:8px">
-        <input type="text" id="snDpiaSearch" placeholder="Search DPIAs..." style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-sn-static-input="s22">
-        <div id="snDpiaStatusChips" class="filter-bar" style="gap:4px">
+    <div class="card-body" data-s="s7cf50a3">
+      <div class="filter-bar" data-s="s1bdcdd1">
+        <input type="text" id="snDpiaSearch" placeholder="Search DPIAs..." data-s="s817eafc" data-sn-static-input="s22">
+        <div id="snDpiaStatusChips" class="filter-bar" data-s="sd767683">
           <button type="button" class="filter-chip active" data-sn-static-click="s23">All</button>
           <button type="button" class="filter-chip" data-sn-static-click="s24">Draft</button>
           <button type="button" class="filter-chip" data-sn-static-click="s25">In Progress</button>
@@ -682,11 +682,11 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
         </div>
       </div>
     </div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Title</th><th>Linked RoPA</th><th>Risk</th><th>Residual</th><th>DPO</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="snDpiaBody">
-          <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="8" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -710,16 +710,16 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Reference</th><th>Title</th><th>Severity</th><th>Status</th><th>Reported</th><th>Indicative legacy clock</th><th>Actions</th></tr></thead>
         <tbody id="snBreachBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
   </div>
-  <div class="card" id="snBreachObligationPanel" data-can-manage="{{ 'true' if can_manage_breach_obligations else 'false' }}" style="margin-top:16px;display:none"></div>
+  <div class="card" id="snBreachObligationPanel" data-can-manage="{{ 'true' if can_manage_breach_obligations else 'false' }}" data-s="s1b0f499" data-sd="none"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -739,7 +739,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div class="card">
-    <div class="card-body" style="padding:12px 20px 6px">
+    <div class="card-body" data-s="s7cf50a3">
       <div class="filter-bar">
         <button type="button" class="filter-chip active" data-sn-static-click="s30">All</button>
         <button type="button" class="filter-chip" data-sn-static-click="s31">Open</button>
@@ -747,11 +747,11 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
         <button type="button" class="filter-chip" data-sn-static-click="s33">Completed</button>
       </div>
     </div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Reference</th><th>Type</th><th>Requester</th><th>Status</th><th>Submitted</th><th>Due Date</th><th>Actions</th></tr></thead>
         <tbody id="snDsrViewBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -768,7 +768,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       <div class="section-sub">Data processor / controller oversight — DPA tracking &amp; privacy compliance</div>
     </div>
     <div class="header-actions">
-      <a href="/vendors" class="module-directory-link" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;transition:all .15s">
+      <a href="/vendors" class="module-directory-link" data-s="sa957280" data-sd="inline-flex">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         Directory
       </a>
@@ -779,13 +779,13 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <!-- DPA gap alert banner -->
-  <div id="snVendorAlertBanner" style="display:none;margin-bottom:12px"></div>
+  <div id="snVendorAlertBanner" data-s="sda12f28" data-sd="none"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Vendor Name</th><th>Service</th><th>DPA Status</th><th>Risk Level</th><th>Modules</th><th>Review Date</th><th>Actions</th></tr></thead>
         <tbody id="snVendorBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -809,11 +809,11 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Purpose</th><th>Legal Basis</th><th>Collection Method</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead>
         <tbody id="snConsentBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -830,40 +830,40 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       <div class="section-sub">Export compliance reports and audit data</div>
     </div>
   </div>
-  <div class="stats-row" style="margin-bottom:24px">
-    <div class="stat-card" style="cursor:pointer" data-sn-static-click="s36">
+  <div class="stats-row" data-s="s8677744">
+    <div class="stat-card" data-s="s3b6a3a6" data-sn-static-click="s36">
       <div class="stat-label">Audit Trail</div>
-      <div class="stat-value" style="font-size:16px">CSV</div>
+      <div class="stat-value" data-s="s1444c6e">CSV</div>
       <div class="stat-sub">Every recorded action, newest first</div>
     </div>
-    <div class="stat-card" style="cursor:pointer" data-sn-static-click="s37">
+    <div class="stat-card" data-s="s3b6a3a6" data-sn-static-click="s37">
       <div class="stat-label">RoPA Report</div>
-      <div class="stat-value" style="font-size:16px">PDF</div>
+      <div class="stat-value" data-s="s1444c6e">PDF</div>
       <div class="stat-sub">Operational report: the processing register</div>
-      <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px" data-sn-static-click="s38">Excel</button>
+      <button type="button" class="btn btn-sm btn-secondary" data-s="s8a77e5a" data-sn-static-click="s38">Excel</button>
     </div>
-    <div class="stat-card" style="cursor:pointer" data-sn-static-click="s39">
+    <div class="stat-card" data-s="s3b6a3a6" data-sn-static-click="s39">
       <div class="stat-label">Compliance Score</div>
-      <div class="stat-value" id="snCompScore" style="font-size:16px">&mdash;</div>
+      <div class="stat-value" id="snCompScore" data-s="s1444c6e">&mdash;</div>
       <div class="stat-sub">Board report: the score and what drives it</div>
-      <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px" data-sn-static-click="s40">Excel</button>
+      <button type="button" class="btn btn-sm btn-secondary" data-s="s8a77e5a" data-sn-static-click="s40">Excel</button>
     </div>
     {% if can_manage_breach_obligations %}
-    <div class="stat-card" style="cursor:pointer" data-sn-static-click="s41">
+    <div class="stat-card" data-s="s3b6a3a6" data-sn-static-click="s41">
       <div class="stat-label">Breach Report</div>
-      <div class="stat-value" style="font-size:16px">PDF</div>
+      <div class="stat-value" data-s="s1444c6e">PDF</div>
       <div class="stat-sub">Operational report: the breach register</div>
-      <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px" data-sn-static-click="s42">Excel</button>
+      <button type="button" class="btn btn-sm btn-secondary" data-s="s8a77e5a" data-sn-static-click="s42">Excel</button>
     </div>
     {% endif %}
   </div>
   <div class="card">
     <div class="card-header"><div class="card-title">Audit Trail</div></div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
         <tbody id="snAuditBody">
-          <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="5" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -880,7 +880,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       <div class="section-sub">Data protection guidance &amp; regulatory assistance</div>
     </div>
   </div>
-  <div class="card" style="overflow:hidden">
+  <div class="card" data-s="s6982440">
     <div class="chat-container">
       <div class="chat-messages" id="snChatMessages">
         <div class="chat-msg ai">Hello! I'm Sentinel AI, your data protection assistant. Ask me anything about GDPR compliance, DPIAs, breach management, or privacy best practices.</div>
@@ -905,10 +905,10 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <button class="btn btn-primary" data-sn-static-click="s45">+ New LIA</button>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Title</th><th>Linked RoPA</th><th>Purpose Test</th><th>Necessity Test</th><th>Balance Test</th><th>Result</th><th>Actions</th></tr></thead>
-        <tbody id="snLiaBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="snLiaBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -926,11 +926,11 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <button class="btn btn-primary" data-sn-static-click="s46">+ Add Transfer</button>
   </div>
   <div id="snTransfersStats" class="sn-tab-stats"></div>
-  <div id="snTransfersBanner" class="sn-expiry-banner" style="display:none"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div id="snTransfersBanner" class="sn-expiry-banner" data-sd="none"></div>
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Ref</th><th>Destination</th><th>Recipient</th><th>Safeguard</th><th>Adequacy</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="snTransfersBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snTransfersBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -947,11 +947,11 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <button class="btn btn-primary" data-sn-static-click="s47">+ Add Schedule</button>
   </div>
   <div id="snRetentionStats" class="sn-tab-stats"></div>
-  <div id="snRetentionBanner" class="sn-suggestion-banner" style="display:none"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div id="snRetentionBanner" class="sn-suggestion-banner" data-sd="none"></div>
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Category</th><th>Data Type</th><th>Period</th><th>Trigger</th><th>Legal Basis</th><th>Owner</th><th>Review Date</th><th>Actions</th></tr></thead>
-      <tbody id="snRetentionBody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snRetentionBody"><tr><td colspan="8" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -968,10 +968,10 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <button class="btn btn-primary" data-sn-static-click="s48">+ Add Measure</button>
   </div>
   <div id="snSecurityStats" class="sn-tab-stats"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Measure</th><th>Category</th><th>Status</th><th>Evidence</th><th>Owner</th><th>Review Date</th><th>Actions</th></tr></thead>
-      <tbody id="snSecurityBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snSecurityBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -991,10 +991,10 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div id="snPoliciesStats" class="sn-tab-stats"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Title</th><th>Type</th><th>Version</th><th>Status</th><th>Owner</th><th>Tags</th><th>Next Review</th><th>Actions</th></tr></thead>
-      <tbody id="snPoliciesBody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snPoliciesBody"><tr><td colspan="8" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -1014,10 +1014,10 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div id="snNoticesStats" class="sn-tab-stats"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Title</th><th>Audience</th><th>Version</th><th>Status</th><th>URL</th><th>Review Date</th><th>Actions</th></tr></thead>
-      <tbody id="snNoticesBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snNoticesBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -1040,19 +1040,19 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     </div>
   </div>
   <div id="snFlowsStats" class="sn-tab-stats"></div>
-  <div id="snFlowsBanner" class="sn-expiry-banner" style="display:none"></div>
+  <div id="snFlowsBanner" class="sn-expiry-banner" data-sd="none"></div>
   <!-- Diagram view (SENT-12) -->
-  <div id="snFlowDiagramWrap" class="card" style="padding:20px">
-    <div id="snFlowDiagram" style="min-height:400px;display:flex;align-items:center;justify-content:center;color:var(--muted)">
-      <div class="spinner" style="margin:0 auto"></div>
+  <div id="snFlowDiagramWrap" class="card" data-s="s769fed3">
+    <div id="snFlowDiagram" data-s="s777158a" data-sd="flex">
+      <div class="spinner" data-s="s266e9b0"></div>
     </div>
   </div>
   <!-- Table view -->
-  <div id="snFlowTableWrap" style="display:none">
-    <div class="card"><div style="overflow-x:auto">
+  <div id="snFlowTableWrap" data-sd="none">
+    <div class="card"><div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Flow Name</th><th>Source</th><th>Destination</th><th>Data Types</th><th>Safeguards</th><th>Actions</th></tr></thead>
-        <tbody id="snFlowsBody"><tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="snFlowsBody"><tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div></div>
   </div>
@@ -1070,10 +1070,10 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <button class="btn btn-primary" data-sn-static-click="s56">+ Add Controller</button>
   </div>
   <div id="snControllersStats" class="sn-tab-stats"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Organisation</th><th>Country</th><th>Sector</th><th>DPO</th><th>Regulator</th><th>Primary</th><th>Actions</th></tr></thead>
-      <tbody id="snControllersBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snControllersBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -1092,18 +1092,18 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Import Excel
       </button>
-      <input type="file" id="snTrainingUpload" accept=".xlsx,.xls" style="display:none" data-sn-static-change="s58">
+      <input type="file" id="snTrainingUpload" accept=".xlsx,.xls" data-sd="none" data-sn-static-change="s58">
       <button class="btn btn-primary" data-sn-static-click="s59">+ Add Record</button>
     </div>
   </div>
   <div id="snTrainingStats" class="sn-tab-stats"></div>
-  <div id="snTrainingExpiryBanner" class="sn-expiry-banner" style="display:none"></div>
-  <div id="snTrainingDeptFilters" style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
-  <div id="snTrainingImportResult" style="display:none" class="card" style="margin-bottom:16px;padding:16px"></div>
-  <div class="card"><div style="overflow-x:auto">
+  <div id="snTrainingExpiryBanner" class="sn-expiry-banner" data-sd="none"></div>
+  <div id="snTrainingDeptFilters" data-s="s6c7c018" data-sd="flex"></div>
+  <div id="snTrainingImportResult" data-sd="none" class="card" data-s="s16b2cdd"></div>
+  <div class="card"><div data-s="s0ddf068">
     <table class="data-table">
       <thead><tr><th>Staff Name</th><th>Training</th><th>Type</th><th>Department</th><th>Completed</th><th>Expires</th><th>Passed</th><th>Actions</th></tr></thead>
-      <tbody id="snTrainingBody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      <tbody id="snTrainingBody"><tr><td colspan="8" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
     </table>
   </div></div>
 </div>
@@ -1121,10 +1121,10 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
   </div>
 
   <!-- Active Jurisdictions Grid -->
-  <div class="card sn-section-card animate-fade-up anim-1" style="margin-bottom:20px">
+  <div class="card sn-section-card animate-fade-up anim-1" data-s="s49f14f8">
     <h2 class="panel-title">Active Jurisdictions</h2>
     <div id="snActiveJurisdictions">
-      <div style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+      <div data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
@@ -1137,12 +1137,12 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
           <tr><th>Jurisdiction</th><th>RoPA Records</th><th>DPIAs</th><th>Breaches</th><th>DSRs</th><th>Total</th></tr>
         </thead>
         <tbody id="snJurisStatsBody">
-          <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Loading...</td></tr>
+          <tr><td colspan="6" data-s="s6629491">Loading...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
-  <div class="card sn-section-card" id="snRuleCardPanel" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
+  <div class="card sn-section-card" id="snRuleCardPanel" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" data-s="sa26bda7">
     <div class="sn-section-heading">
       <h2 class="panel-title">Versioned notification rule cards</h2>
       {% if can_draft_jurisdiction %}<button type="button" class="btn btn-secondary" id="snCreateRuleCard">Draft a rule card</button>{% endif %}
@@ -1151,7 +1151,7 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
     <div id="snRuleCards" class="sn-card-stack">Open Jurisdiction Manager to load rule cards.</div>
     <div id="snRuleCardForm"></div>
   </div>
-  <div class="card sn-section-card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" data-can-propose="{{ 'true' if can_propose_source_change else 'false' }}" style="margin-top:20px">
+  <div class="card sn-section-card animate-fade-up" id="snLawMonitor" data-can-manage="{{ 'true' if can_draft_jurisdiction else 'false' }}" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" data-can-propose="{{ 'true' if can_propose_source_change else 'false' }}" data-s="sa26bda7">
     <h2 class="panel-title">Official-source watch</h2>
     <p class="sn-section-note">Checks capture changes from pinned authority sites. A changed page is a review item, not an amended law or an approved deadline.</p>
     <details class="sn-watch-settings">
@@ -1186,18 +1186,18 @@ body[data-module] .sn-section-heading .panel-title{margin:0}
       </section>
     </div>
   </div>
-  <div class="card sn-section-card animate-fade-up" id="snAskLaw" style="margin-top:20px">
+  <div class="card sn-section-card animate-fade-up" id="snAskLaw" data-s="sa26bda7">
     <h2 class="panel-title">Ask Sentinel · active jurisdictions</h2>
     <p class="sn-section-note">Searches DPO-approved authority captures and shows exact passages. No AI tokens are used.</p>
     <form id="snAskLawForm" class="sn-ask-form">
       <label class="sr-only" for="snAskLawJurisdiction">Jurisdiction</label>
       <select id="snAskLawJurisdiction" class="form-input"><option value="">All active jurisdictions</option></select>
       <label class="sr-only" for="snAskLawQuestion">Question</label>
-      <input id="snAskLawQuestion" class="form-input" type="search" maxlength="500" required placeholder="Ask about a requirement in an active jurisdiction" style="flex:1;min-width:250px">
+      <input id="snAskLawQuestion" class="form-input" type="search" maxlength="500" required placeholder="Ask about a requirement in an active jurisdiction" data-s="sf7e3bb9">
       <button type="submit" class="btn btn-primary">Find cited answer</button>
-      {% if can_ai_law %}<label style="display:flex;align-items:center;gap:6px"><input id="snAskLawAiDraft" type="checkbox"> Request an AI draft if organization policy permits</label>{% endif %}
+      {% if can_ai_law %}<label data-s="s2ce310b" data-sd="flex"><input id="snAskLawAiDraft" type="checkbox"> Request an AI draft if organization policy permits</label>{% endif %}
     </form>
-    <div id="snAskLawAnswer" aria-live="polite" style="margin-top:14px"></div>
+    <div id="snAskLawAnswer" aria-live="polite" data-s="sd6f2af6"></div>
   </div>
 </div>
 

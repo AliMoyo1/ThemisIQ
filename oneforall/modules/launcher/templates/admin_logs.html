@@ -14,73 +14,73 @@
 <div class="content">
 
   <!-- Filters -->
-  <div class="card" style="padding:16px 20px; margin-bottom:16px;">
-    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
-      <div style="flex:1; min-width:140px;">
-        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">Module</label>
-        <select id="filterModule" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+  <div class="card" data-s="s7da4293">
+    <div data-s="sf7d9abe" data-sd="flex">
+      <div data-s="saae0403">
+        <label data-s="s3f77a9a" data-sd="block">Module</label>
+        <select id="filterModule" data-s="s6f540d7">
           <option value="">All Modules</option>
         </select>
       </div>
-      <div style="flex:1; min-width:140px;">
-        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">Action</label>
-        <input id="filterAction" type="text" placeholder="Filter by action..." style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      <div data-s="saae0403">
+        <label data-s="s3f77a9a" data-sd="block">Action</label>
+        <input id="filterAction" type="text" placeholder="Filter by action..." data-s="s6f540d7">
       </div>
-      <div style="flex:1; min-width:140px;">
-        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">User</label>
-        <input id="filterUser" type="text" placeholder="Filter by user..." style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      <div data-s="saae0403">
+        <label data-s="s3f77a9a" data-sd="block">User</label>
+        <input id="filterUser" type="text" placeholder="Filter by user..." data-s="s6f540d7">
       </div>
-      <div style="flex:1; min-width:140px;">
-        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">From</label>
-        <input id="filterFrom" type="date" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      <div data-s="saae0403">
+        <label data-s="s3f77a9a" data-sd="block">From</label>
+        <input id="filterFrom" type="date" data-s="s6f540d7">
       </div>
-      <div style="flex:1; min-width:140px;">
-        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">To</label>
-        <input id="filterTo" type="date" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      <div data-s="saae0403">
+        <label data-s="s3f77a9a" data-sd="block">To</label>
+        <input id="filterTo" type="date" data-s="s6f540d7">
       </div>
       <div>
-        <button id="clearLogFilters" class="btn btn-secondary" style="padding:8px 14px; font-size:12px;">Clear</button>
+        <button id="clearLogFilters" class="btn btn-secondary" data-s="sdfcfdd4">Clear</button>
       </div>
     </div>
   </div>
 
   <!-- Quick Filters -->
-  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-    <button class="btn btn-secondary log-preset" data-preset="login_failed" style="padding:5px 12px;font-size:12px;border-radius:20px">Login Failures</button>
-    <button class="btn btn-secondary log-preset" data-preset="delete" style="padding:5px 12px;font-size:12px;border-radius:20px">Deletions</button>
-    <button class="btn btn-secondary log-preset" data-preset="export" style="padding:5px 12px;font-size:12px;border-radius:20px">Exports</button>
-    <button class="btn btn-secondary log-preset" data-preset="create" style="padding:5px 12px;font-size:12px;border-radius:20px">Creations</button>
-    <button class="btn btn-secondary log-preset" data-preset="today" style="padding:5px 12px;font-size:12px;border-radius:20px">Today</button>
-    <button class="btn btn-secondary log-preset" data-preset="week" style="padding:5px 12px;font-size:12px;border-radius:20px">This Week</button>
+  <div data-s="sf9eb253" data-sd="flex">
+    <button class="btn btn-secondary log-preset" data-preset="login_failed" data-s="s9338cb0">Login Failures</button>
+    <button class="btn btn-secondary log-preset" data-preset="delete" data-s="s9338cb0">Deletions</button>
+    <button class="btn btn-secondary log-preset" data-preset="export" data-s="s9338cb0">Exports</button>
+    <button class="btn btn-secondary log-preset" data-preset="create" data-s="s9338cb0">Creations</button>
+    <button class="btn btn-secondary log-preset" data-preset="today" data-s="s9338cb0">Today</button>
+    <button class="btn btn-secondary log-preset" data-preset="week" data-s="s9338cb0">This Week</button>
   </div>
 
   <!-- Log Table -->
-  <div class="card" style="padding:0; overflow:hidden;">
-    <div id="logTableWrap" style="overflow-x:auto;">
-      <table style="width:100%; border-collapse:collapse; min-width:800px;">
+  <div class="card" data-s="s22a2674">
+    <div id="logTableWrap" data-s="s0ddf068">
+      <table data-s="sa45600e">
         <thead>
-          <tr style="border-bottom:1px solid var(--border);">
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); white-space:nowrap;">Timestamp</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">User</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">Module</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">Action</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">Details</th>
-            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">IP</th>
+          <tr data-s="s1008415">
+            <th data-s="s1135550">Timestamp</th>
+            <th data-s="s4050279">User</th>
+            <th data-s="s4050279">Module</th>
+            <th data-s="s4050279">Action</th>
+            <th data-s="s4050279">Details</th>
+            <th data-s="s4050279">IP</th>
           </tr>
         </thead>
         <tbody id="logBody">
-          <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+          <tr><td colspan="6" data-s="sc0add8c">Loading...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
   <!-- Pagination -->
-  <div id="pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; padding:0 4px;">
-    <span id="pageInfo" style="font-size:12px; color:var(--muted);"></span>
-    <div style="display:flex; gap:6px;">
-      <button id="btnPrev" class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" disabled>← Prev</button>
-      <button id="btnNext" class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" disabled>Next →</button>
+  <div id="pagination" data-s="s1701e60" data-sd="flex">
+    <span id="pageInfo" data-s="s7fc448e"></span>
+    <div data-s="sf0abc1d" data-sd="flex">
+      <button id="btnPrev" class="btn btn-secondary" data-s="s831e0bd" disabled>← Prev</button>
+      <button id="btnNext" class="btn btn-secondary" data-s="s831e0bd" disabled>Next →</button>
     </div>
   </div>
 

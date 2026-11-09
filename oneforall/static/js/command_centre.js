@@ -206,7 +206,7 @@
       html += '</div>';
 
       if(a.authority_notified){
-        html += '<div class="ba-countdown" style="display:flex;align-items:center;gap:8px">';
+        html += '<div class="ba-countdown" data-s="s250fc4e" data-sd="flex">';
         html += '<span class="ba-notified-badge">Authority notified</span>';
         html += '</div>';
       } else {
@@ -269,7 +269,7 @@
   function populateModuleHealth(items){
     const el = document.getElementById('ccModuleHealth');
     if(!items || !items.length){
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">' + (readFailed ? 'Not read just now' : 'No module data') + '</div>';
+      el.innerHTML = '<div data-s="s35ad83f">' + (readFailed ? 'Not read just now' : 'No module data') + '</div>';
       return;
     }
     el.innerHTML = items.map(m => {
@@ -282,12 +282,12 @@
       const pct = measured ? (parseInt(m.value, 10) || 0) : 0;
       const pctColor = !measured ? 'var(--muted)' : pct >= 80 ? 'var(--green-status)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
       const words = measured ? esc(name) + ': ' + pct + '% of ' + (detail.of || '') + ' records are in their good state' : esc(name) + ': ' + esc(stateWords(m));
-      return `<div class="module-health-item" style="cursor:pointer" title="${words}"
+      return `<div class="module-health-item" data-s="s3b6a3a6" title="${words}"
                    data-cc-href="${esc(link)}">
-        <div class="mh-dot" style="background:${safeColor}"></div>
+        <div class="mh-dot" data-sv="background:${safeColor}"></div>
         <div class="mh-name">${esc(name)}</div>
-        <div class="mh-pct" style="color:${pctColor}">${measured ? pct + '%' : 'n/a'}</div>
-        <div class="mh-bar"><div class="mh-bar-fill" style="width:${pct}%;background:${safeColor}"></div></div>
+        <div class="mh-pct" data-sv="color:${pctColor}">${measured ? pct + '%' : 'n/a'}</div>
+        <div class="mh-bar"><div class="mh-bar-fill" data-sv="width:${pct}%;background:${safeColor}"></div></div>
         ${measured ? '' : '<span class="sr-only">' + esc(stateWords(m)) + '</span>'}
       </div>`;
     }).join('');
@@ -354,7 +354,7 @@
   function populateActivity(items){
     const el = document.getElementById('ccRecentActivity');
     if(!items || !items.length){
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">' + (readFailed ? 'Not read just now' : 'No recent activity') + '</div>';
+      el.innerHTML = '<div data-s="s35ad83f">' + (readFailed ? 'Not read just now' : 'No recent activity') + '</div>';
       return;
     }
     el.innerHTML = items.map((a, i) => {
@@ -362,7 +362,7 @@
       const isLast = i === items.length - 1;
       return `<div class="tl-item">
         <div class="tl-col">
-          <div class="tl-dot" style="box-shadow:0 0 0 2px ${color};border-color:var(--surface)"></div>
+          <div class="tl-dot" data-sv="box-shadow:0 0 0 2px ${color};border-color:var(--surface)"></div>
           ${isLast ? '' : '<div class="tl-line"></div>'}
         </div>
         <div class="tl-content">
@@ -381,7 +381,7 @@
     const body = document.getElementById('ccOverdueBody');
     if(!items || !items.length){
       const unread = readFailed || (overdueMetric && !hasValue(overdueMetric));
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">' +
+      body.innerHTML = '<tr><td colspan="6" data-s="s2e587c2">' +
         (unread ? 'The overdue items could not be read just now. This is not an empty list.' : 'No overdue items') + '</td></tr>';
       return;
     }
@@ -391,9 +391,9 @@
       const priBadge = row.priority === 'critical' ? 'badge-critical' : row.priority === 'high' ? 'badge-high' : row.priority === 'medium' ? 'badge-medium' : 'badge-low';
       return `<tr>
         <td><span class="item-id">${esc(row.id)}</span> ${esc(row.item)}</td>
-        <td><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${modColors[row.module]||'var(--muted)'}"></span>${esc(modNames[row.module]||row.module)}</span></td>
+        <td><span data-s="s2ce310b" data-sd="inline-flex"><span data-sv="width:8px;height:8px;border-radius:50%;background:${modColors[row.module]||'var(--muted)'}"></span>${esc(modNames[row.module]||row.module)}</span></td>
         <td>${esc(row.assigned || '—')}</td>
-        <td style="font-family:var(--mono);font-size:12px">${fmtDate(row.due)}</td>
+        <td data-s="se1e124f">${fmtDate(row.due)}</td>
         <td><span class="badge ${slaBadge}">${slaLabel}</span></td>
         <td><span class="badge ${priBadge}">${esc((row.priority||'').toUpperCase())}</span></td>
       </tr>`;
@@ -468,16 +468,16 @@
       document.getElementById('briefingStrip').style.display = '';
       var html = unacked.map(function(a){
         var dotColor = a.severity === 'high' ? '#dc2626' : a.severity === 'medium' ? '#d97706' : '#6366f1';
-        var link = a.link ? '<a href="'+esc(a.link)+'" style="color:var(--accent);text-decoration:none;margin-left:8px;font-weight:600">Open</a>' : '';
-        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">'+
-          '<span style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;margin-top:5px"></span>'+
-          '<div style="flex:1;font-size:13px">'+
+        var link = a.link ? '<a href="'+esc(a.link)+'" data-s="s0692110">Open</a>' : '';
+        return '<div data-s="sd9b5bf1" data-sd="flex">'+
+          '<span data-sv="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;margin-top:5px"></span>'+
+          '<div data-s="s7829123">'+
           '<strong>'+esc(a.title)+'</strong>'+
-          (a.detail ? '<br><span style="color:var(--muted)">'+esc(a.detail)+'</span>' : '')+
-          (a.ai_narrative ? '<br><span style="font-size:12px;color:var(--text-mid);font-style:italic">'+esc(a.ai_narrative)+'</span>' : '')+
+          (a.detail ? '<br><span data-s="s57f9e31">'+esc(a.detail)+'</span>' : '')+
+          (a.ai_narrative ? '<br><span data-s="s3bb5652">'+esc(a.ai_narrative)+'</span>' : '')+
           '</div>'+
-          '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+link+
-          '<button class="btn btn-sm btn-secondary" data-cc-ack="'+Number(a.id)+'" style="padding:3px 10px;font-size:11px">✓</button></div></div>';
+          '<div data-s="saf28781" data-sd="flex">'+link+
+          '<button class="btn btn-sm btn-secondary" data-cc-ack="'+Number(a.id)+'" data-s="s7aa82d7">✓</button></div></div>';
       }).join('');
       document.getElementById('briefingItems').innerHTML = html;
     } catch(e){}
@@ -609,13 +609,13 @@ function _renderPredictivePanel(d, col) {
   var arc  = (Math.max(0, Math.min(100, Number(dp) || 0)) / 100) * circ;
   var gaugeColor = col.hex;
   var gaugeSvg =
-    '<svg viewBox="0 0 100 60" role="img" aria-label="Predicted risk increase: '+dp+' percent" style="width:130px;height:78px;display:block;margin:0 auto;overflow:visible">' +
+    '<svg viewBox="0 0 100 60" role="img" aria-label="Predicted risk increase: '+dp+' percent" data-s="s82c88f7" data-sd="block">' +
     '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface3)" stroke-width="10" ' +
     'stroke-dasharray="' + (circ*0.5).toFixed(1) + ' ' + circ + '" transform="rotate(180 50 50)"/>' +
     '<circle class="premium-gauge-arc" cx="50" cy="50" r="40" fill="none" stroke="' + gaugeColor + '" stroke-width="10" ' +
     'stroke-linecap="round" ' +
     'stroke-dasharray="' + (arc*0.5).toFixed(1) + ' ' + circ + '" transform="rotate(180 50 50)" ' +
-    'style="filter:drop-shadow(0 3px 6px rgba(var(--accent-rgb),.2))"><title>Predicted risk increase: '+dp+'%</title></circle>' +
+    'data-s="s93484b4"><title>Predicted risk increase: '+dp+'%</title></circle>' +
     '<text x="50" y="46" text-anchor="middle" fill="' + gaugeColor + '" font-size="16" font-weight="800" font-family="Manrope,sans-serif">+' + dp + '%</text>' +
     '<text x="50" y="56" text-anchor="middle" fill="var(--muted)" font-size="7" font-family="Manrope,sans-serif">ΔP RISK</text>' +
     '</svg>';
@@ -627,13 +627,13 @@ function _renderPredictivePanel(d, col) {
     {label:'Compliance',  val:d.delta_compliance||0,   color:'var(--accent-ink)'},
   ];
   var domainHtml = domains.map(function(dm){
-    return '<div style="margin-bottom:8px">' +
-      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">' +
-        '<span style="color:var(--muted)">' + dm.label + '</span>' +
-        '<span style="font-weight:700;color:' + dm.color + '">' + dm.val + '%</span>' +
+    return '<div data-s="sfdf33f2">' +
+      '<div data-s="s5d1b268" data-sd="flex">' +
+        '<span data-s="s57f9e31">' + dm.label + '</span>' +
+        '<span data-sv="font-weight:700;color:' + dm.color + '">' + dm.val + '%</span>' +
       '</div>' +
-      '<div style="height:5px;background:var(--surface3);border-radius:100px">' +
-        '<div class="cc-predictive-fill" style="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
+      '<div data-s="s1b3d8e4">' +
+        '<div class="cc-predictive-fill" data-sv="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
       '</div></div>';
   }).join('');
 
@@ -642,12 +642,12 @@ function _renderPredictivePanel(d, col) {
   var sigHtml = sigEntries.map(function(kv){
     var lbl = sigLabels[kv[0]] || kv[0];
     var pct = kv[1];
-    return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px">' +
-      '<span style="flex:1;color:var(--muted)">' + lbl + '</span>' +
-      '<div style="width:80px;height:4px;background:var(--surface3);border-radius:100px">' +
-        '<div class="cc-predictive-fill" style="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
+    return '<div data-s="scc0d6e3" data-sd="flex">' +
+      '<span data-s="scead9f3">' + lbl + '</span>' +
+      '<div data-s="see68174">' +
+        '<div class="cc-predictive-fill" data-sv="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
       '</div>' +
-      '<span style="width:30px;text-align:right;font-weight:700;color:var(--text)">' + pct + '%</span>' +
+      '<span data-s="s8488817">' + pct + '%</span>' +
     '</div>';
   }).join('');
 
@@ -661,9 +661,9 @@ function _renderPredictivePanel(d, col) {
       return x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
     sparkHtml =
-      '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">' +
-      '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">7-Day Trend</div>' +
-      '<svg class="cc-trend-sparkline" viewBox="0 0 200 32" style="width:100%;height:32px;display:block"><title>7-day risk trend, latest '+Number(hist[hist.length-1].delta_p||0).toFixed(1)+'</title>' +
+      '<div data-s="s10a65a8">' +
+      '<div data-s="s339c264">7-Day Trend</div>' +
+      '<svg class="cc-trend-sparkline" viewBox="0 0 200 32" data-s="s3b89a1a" data-sd="block"><title>7-day risk trend, latest '+Number(hist[hist.length-1].delta_p||0).toFixed(1)+'</title>' +
         '<polyline points="' + pts + '" fill="none" stroke="' + col.hex + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>' +
         '<polyline points="0,' + H + ' ' + pts + ' ' + W + ',' + H + '" fill="' + col.hex + '" opacity=".08"/>' +
       '</svg></div>';
@@ -681,8 +681,8 @@ function _renderPredictivePanel(d, col) {
     {icon:'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>', label:'Appetite',    val:telVal(tel.appetite_breaches), link:'/erm/'},
   ];
   var chipHtml = telChips.map(function(c){
-    return '<a href="' + esc(/^\/(?!\/)/.test(c.link || '') ? c.link : '#') + '" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text);text-decoration:none;transition:all .15s" class="cc-hover-chip">' +
-      c.icon + ' ' + c.label + ': <span style="margin-left:2px;color:var(--accent)">' + c.val + '</span></a>';
+    return '<a href="' + esc(/^\/(?!\/)/.test(c.link || '') ? c.link : '#') + '" data-s="s17c85ee" data-sd="inline-flex" class="cc-hover-chip">' +
+      c.icon + ' ' + c.label + ': <span data-s="s0ca2862">' + c.val + '</span></a>';
   }).join('');
 
   // ── Advisory block ──
@@ -690,16 +690,16 @@ function _renderPredictivePanel(d, col) {
   if(d.advisory_text){
     // Convert simple markdown to HTML
     var adv = d.advisory_text
-      .replace(/### (.*)/g, '<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">$1</div>')
+      .replace(/### (.*)/g, '<div data-s="sd7b7b2e">$1</div>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/^(\d+\.) (.+)$/gm, '<div style="display:flex;gap:8px;margin-bottom:4px"><span style="color:' + col.hex + ';font-weight:700;flex-shrink:0">$1</span><span>$2</span></div>')
+      .replace(/^(\d+\.) (.+)$/gm, '<div data-s="s29dc5d2" data-sd="flex"><span data-sv="color:' + col.hex + ';font-weight:700;flex-shrink:0">$1</span><span>$2</span></div>')
       .replace(/\n\n/g, '<br>')
       .replace(/\n/g, '<br>');
     advHtml =
-      '<div style="background:rgba(' + _hexToRgb(col.hex) + ',.06);border:1px solid rgba(' + _hexToRgb(col.hex) + ',.2);border-radius:var(--radius);padding:14px 16px;margin-top:16px">' +
-      '<div style="font-size:10px;font-weight:700;color:' + col.hex + ';text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Advisory</div>' +
-      '<div style="font-size:13px;line-height:1.7;color:var(--text)">' + adv + '</div>' +
+      '<div data-sv="background:rgba(' + _hexToRgb(col.hex) + ',.06);border:1px solid rgba(' + _hexToRgb(col.hex) + ',.2);border-radius:var(--radius);padding:14px 16px;margin-top:16px">' +
+      '<div data-sv="font-size:10px;font-weight:700;color:' + col.hex + ';text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Advisory</div>' +
+      '<div data-s="sb419dc6">' + adv + '</div>' +
       '</div>';
   }
 
@@ -707,31 +707,31 @@ function _renderPredictivePanel(d, col) {
   var conf = Math.round((d.confidence||0)*100);
   var confColor = conf >= 70 ? 'var(--good,#16a34a)' : conf >= 40 ? 'var(--amber)' : 'var(--muted)';
 
-  return '<div style="display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:start">' +
+  return '<div data-s="sb5d33d6" data-sd="grid">' +
     // Left: gauge
-    '<div style="text-align:center">' +
+    '<div data-s="s91a8701">' +
       gaugeSvg +
-      '<div style="font-size:10px;color:' + confColor + ';font-weight:700;margin-top:4px">Confidence: ' + conf + '%</div>' +
+      '<div data-sv="font-size:10px;color:' + confColor + ';font-weight:700;margin-top:4px">Confidence: ' + conf + '%</div>' +
     '</div>' +
     // Right: domains + signals
     '<div>' +
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Domain Breakdown</div>' +
+      '<div data-s="se0d8140">Domain Breakdown</div>' +
       domainHtml +
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:8px">Signal Contributions</div>' +
+      '<div data-s="s0637acc">Signal Contributions</div>' +
       sigHtml +
     '</div>' +
   '</div>' +
   // Telemetry chips row
-  '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">' +
-    '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin-right:4px">Live Telemetry</span>' +
+  '<div data-s="s27c381b" data-sd="flex">' +
+    '<span data-s="s2ad312f">Live Telemetry</span>' +
     chipHtml +
   '</div>' +
   sparkHtml +
   advHtml +
   // Why this number: the records behind each signal, and a place to dispute one (loaded on demand)
-  '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">' +
+  '<div data-s="sb406dea">' +
     '<button type="button" class="btn btn-secondary" id="prTraceBtn" data-cc-action="loadPredictiveTrace">Why this number?</button>' +
-    '<div id="prTrace" role="region" aria-label="What this prediction was made from" aria-live="polite" style="margin-top:10px"></div>' +
+    '<div id="prTrace" role="region" aria-label="What this prediction was made from" aria-live="polite" data-s="sd2c171b"></div>' +
   '</div>';
 }
 
@@ -740,6 +740,7 @@ function _prEl(tag, props, kids){
   var node = document.createElement(tag);
   Object.keys(props || {}).forEach(function(k){
     if(k === 'text') node.textContent = props[k];
+    else if(k === 'style') node.style.cssText = props[k];
     else node.setAttribute(k, props[k]);
   });
   (kids || []).forEach(function(c){ if(c) node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
@@ -864,7 +865,7 @@ async function acknowledgePrediction() {
     var node = document.createElement(tag);
     Object.keys(props || {}).forEach(function(k){
       if(k === 'text') node.textContent = props[k];
-      else if(k === 'style') node.setAttribute('style', props[k]);
+      else if(k === 'style') node.style.cssText = props[k];
       else node.setAttribute(k, props[k]);
     });
     (children || []).forEach(function(c){ if(c) node.appendChild(c); });

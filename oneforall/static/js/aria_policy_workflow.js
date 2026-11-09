@@ -619,7 +619,7 @@
     var job = res.data.job;
     if (!(job.state === 'failed' || job.needs_attention)) return;
     var retryBtn = job.id
-      ? '<button type="button" class="btn btn-ghost" style="font-size:12px;padding:4px 10px" data-retry-job="' + job.id + '">Retry now</button>'
+      ? '<button type="button" class="btn btn-ghost" data-s="sab5fb27" data-retry-job="' + job.id + '">Retry now</button>'
       : '';
     container.innerHTML =
       '<div class="aria-publication-warning">' +

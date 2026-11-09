@@ -44,26 +44,26 @@
   {% endif %}
 
   {% if mfa_required_by_policy and not mfa_active %}
-    <div class="notice-bad" style="border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.06)">
+    <div class="notice-bad" data-s="s59a08da">
       <strong>Two-factor authentication is required by your organization's security policy.</strong>
       You must complete setup below before you can use ThemisIQ. If you lose access to your authenticator device, contact an administrator for recovery.
     </div>
   {% endif %}
   {% if mfa_required_by_policy and mfa_active %}
-    <div class="notice-ok" style="border-color:#6ee7b7">
+    <div class="notice-ok" data-s="s8547508">
       <strong>Two-factor authentication is required by your organization's security policy</strong> and is active on your account. It cannot be disabled while the policy is in effect.
     </div>
   {% endif %}
 
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px">
-    <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0">Two-Factor Authentication</h1>
+  <div data-s="sa22fe6d" data-sd="flex">
+    <h1 data-s="sccfd5e1">Two-Factor Authentication</h1>
     {% if mfa_active %}
       <span class="status-pill on">&#10003; Active</span>
     {% else %}
       <span class="status-pill off">Not enabled</span>
     {% endif %}
   </div>
-  <p style="color:var(--muted);font-size:13px;margin-bottom:22px">Add a second step at sign-in using an authenticator app (Google Authenticator, 1Password, Authy, etc.).</p>
+  <p data-s="s1821e40">Add a second step at sign-in using an authenticator app (Google Authenticator, 1Password, Authy, etc.).</p>
 
   {% if mfa_active %}
 
@@ -74,8 +74,8 @@
     </div>
 
   {% if not mfa_required_by_policy %}
-    <div class="mfa-card" style="border-color:rgba(220,38,38,.2)">
-      <h2 style="color:#dc2626">Disable 2FA</h2>
+    <div class="mfa-card" data-s="sfec84ec">
+      <h2 data-s="s2056554">Disable 2FA</h2>
       <p>Re-enter your current password to turn 2FA off. Your backup codes will be revoked.</p>
       <form method="post" action="/mfa/disable" class="disable-form" autocomplete="off" data-mfa-disable>
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -97,10 +97,10 @@
       <p>Open your authenticator app and scan the code. If you can't scan, enter the secret manually instead.</p>
       <div class="mfa-row">
         <div class="qr-box"><img src="{{ qr }}" alt="TOTP QR code"></div>
-        <div style="flex:1;min-width:240px">
-          <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Secret</div>
+        <div data-s="s9405df2">
+          <div data-s="s9aef435">Secret</div>
           <div class="secret">{{ secret }}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:8px">Issuer: <strong>ThemisIQ</strong> &nbsp;|&nbsp; Account: <strong>{{ user.username }}</strong></div>
+          <div data-s="s6c708b2">Issuer: <strong>ThemisIQ</strong> &nbsp;|&nbsp; Account: <strong>{{ user.username }}</strong></div>
         </div>
       </div>
     </div>

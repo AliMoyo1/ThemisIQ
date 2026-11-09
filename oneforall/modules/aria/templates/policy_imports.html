@@ -49,24 +49,24 @@
 {% block content %}
 <div class="intake-top"><h1>Bring existing policies into ThemisIQ</h1><p>Upload policies you already use. Review what the document actually says, confirm relevant controls, then register the original. A suggested match never counts as control effectiveness or approval.</p></div>
 {% if has_capability(user, 'aria.policy.create') %}
-<section class="intake-card" style="margin-bottom:18px" aria-labelledby="register-title">
+<section class="intake-card" data-s="s905d8b3" aria-labelledby="register-title">
  <h2 id="register-title">Reconcile a document control register</h2>
  <p>Upload an XLSX register to identify exact document-code and version matches. Confirmation files the original workbook in the scoped Vault as unverified source material; its approval and control references remain claims. Upload actual policies above before they can become controlled files.</p>
  <form id="doc-register-form" class="intake-fields">
   <label class="wide">Document register XLSX<input id="doc-register-file" type="file" accept=".xlsx" required></label>
   <label>Business unit ID<input id="doc-register-bu" type="number" min="1" value="{{ user.business_unit_id or '' }}"></label>
-  <label style="display:flex;align-items:center;gap:8px">Organization-wide register<input id="doc-register-orgwide" type="checkbox" style="width:auto;min-height:auto"></label>
+  <label data-s="s250fc4e" data-sd="flex">Organization-wide register<input id="doc-register-orgwide" type="checkbox" data-s="s3a87f53"></label>
   <div class="wide"><button class="btn btn-primary" type="submit">Preview register</button></div>
  </form>
  <div id="doc-register-status" class="intake-status" role="status" aria-live="polite"></div>
  <div id="doc-register-preview" hidden>
   <p id="doc-register-summary"></p><div id="doc-register-warnings"></div>
   <div class="intake-list" id="doc-register-rows"></div>
-  <label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input id="doc-register-ack" type="checkbox" style="width:auto;min-height:auto"> I reviewed all discrepancies and understand these are unverified workbook claims.</label>
+  <label data-s="s7b9cded" data-sd="flex"><input id="doc-register-ack" type="checkbox" data-s="s3a87f53"> I reviewed all discrepancies and understand these are unverified workbook claims.</label>
   <button class="btn btn-ghost" id="doc-register-confirm" type="button">File reconciliation queue</button>
  </div>
  {% if register_claims %}<h3>Recent register claims</h3><p>Matches below identify a possible source version; they do not verify external approval or the claimed control reference. <a href="/aria/documents">Open controlled documents</a>.</p>
- <div class="intake-list" style="max-height:300px">
+ <div class="intake-list" data-s="s877bbeb">
  {% for claim in register_claims %}<div class="intake-item" data-register-claim="{{ claim.id }}" data-claim-version="{{ claim.version }}">
   <strong>{{ claim.document_code }} · v{{ claim.document_version }}</strong><span>{{ claim.title }} · {{ claim.state|replace('_',' ') }}</span>
   {% if claim.source_evidence_id %}<a href="/evidence/api/items/{{ claim.source_evidence_id }}/download">Source workbook</a>{% endif %}
@@ -86,7 +86,7 @@
   <form id="intake-upload" class="intake-upload">
    <label class="form-label" for="intake-files">Documents</label><input id="intake-files" type="file" accept=".docx,.pdf" multiple required>
    <label class="form-label" for="intake-bu">Business unit ID</label><input id="intake-bu" type="number" min="1" value="{{ user.business_unit_id or '' }}" placeholder="Your business unit">
-   <label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input id="intake-orgwide" type="checkbox" style="width:auto;min-height:auto"> Organization-wide document</label>
+   <label data-s="s7b9cded" data-sd="flex"><input id="intake-orgwide" type="checkbox" data-s="s3a87f53"> Organization-wide document</label>
    <button type="submit" class="btn btn-primary">Stage for review</button>
   </form>
   {% endif %}

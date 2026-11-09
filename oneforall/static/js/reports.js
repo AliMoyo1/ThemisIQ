@@ -5,7 +5,7 @@ var currentRun = null;
 
 function tierChip(type) {
   const board = typeTiers[type] === 'board';
-  return `<span style="padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${board ? 'var(--text)' : 'var(--surface3)'};color:${board ? 'var(--surface)' : 'var(--muted)'};">${board ? 'Board' : 'Operational'}</span>`;
+  return `<span data-sv="padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:${board ? 'var(--text)' : 'var(--surface3)'};color:${board ? 'var(--surface)' : 'var(--muted)'};">${board ? 'Board' : 'Operational'}</span>`;
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=(s===null||s===undefined)?'':String(s); return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -29,17 +29,17 @@ async function readJson(resp) {
 
 async function loadDefinitions() {
   const resp = await fetch('/api/reports/definitions');
-  if (!resp.ok) { document.getElementById('defsBody').innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--bad);">The definitions could not be read just now.</td></tr>'; return; }
+  if (!resp.ok) { document.getElementById('defsBody').innerHTML = '<tr><td colspan="5" data-s="s56d062b">The definitions could not be read just now.</td></tr>'; return; }
   const defs = await resp.json();
   const tbody = document.getElementById('defsBody');
-  if (!defs.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">No report definitions</td></tr>'; return; }
+  if (!defs.length) { tbody.innerHTML = '<tr><td colspan="5" data-s="sc0add8c">No report definitions</td></tr>'; return; }
   tbody.innerHTML = defs.map(d => `
-    <tr style="border-bottom:1px solid var(--border-soft);">
-      <td style="padding:10px 14px;"><div style="font-weight:500;font-size:13px;">${esc(d.name)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(d.description||'')}</div></td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(typeLabels[d.report_type]||d.report_type)} ${tierChip(d.report_type)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${d.schedule ? 'Not automated yet' : 'Run on request'}</td>
-      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${d.is_active?'var(--good-soft)':'var(--surface3)'};color:${d.is_active?'var(--good)':'var(--muted)'};">${d.is_active?'Active':'Disabled'}</span></td>
-      <td style="padding:10px 14px;text-align:center;"><button class="btn btn-primary" style="font-size:11px;padding:3px 10px;" data-report-action="run" data-run-id="${Number(d.id)}">Run Now</button></td>
+    <tr data-s="sc91b18f">
+      <td data-s="s9944357"><div data-s="sb192d9f">${esc(d.name)}</div><div data-s="s3823a5b">${esc(d.description||'')}</div></td>
+      <td data-s="s40dee16">${esc(typeLabels[d.report_type]||d.report_type)} ${tierChip(d.report_type)}</td>
+      <td data-s="s40dee16">${d.schedule ? 'Not automated yet' : 'Run on request'}</td>
+      <td data-s="s9c0b302"><span data-sv="padding:2px 8px;border-radius:4px;font-size:11px;background:${d.is_active?'var(--good-soft)':'var(--surface3)'};color:${d.is_active?'var(--good)':'var(--muted)'};">${d.is_active?'Active':'Disabled'}</span></td>
+      <td data-s="s9c0b302"><button class="btn btn-primary" data-s="sc8e560d" data-report-action="run" data-run-id="${Number(d.id)}">Run Now</button></td>
     </tr>
   `).join('');
 }
@@ -63,19 +63,19 @@ function timeAgo(dt) {
 async function loadRuns() {
   const resp = await fetch('/api/reports/runs');
   const tbody = document.getElementById('runsBody');
-  if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--bad);">The saved reports could not be read just now. This is not an empty list.</td></tr>'; return; }
+  if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="5" data-s="s56d062b">The saved reports could not be read just now. This is not an empty list.</td></tr>'; return; }
   const runs = await resp.json();
-  if (!runs.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">No reports generated yet. Use Quick Generate above.</td></tr>'; return; }
+  if (!runs.length) { tbody.innerHTML = '<tr><td colspan="5" data-s="sc0add8c">No reports generated yet. Use Quick Generate above.</td></tr>'; return; }
   tbody.innerHTML = runs.map(r => {
     const ok = r.status === 'completed';
     const kind = r.frozen ? 'Saved as generated' : (ok ? 'Legacy: not frozen' : '');
     return `
-    <tr style="border-bottom:1px solid var(--border-soft);">
-      <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(r.report_name||'Ad-hoc')}${r.previous_run_id ? `<div style="font-size:11px;color:var(--muted);font-weight:400;">Run again after #${Number(r.previous_run_id)}</div>` : ''}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(typeLabels[r.report_type]||r.report_type||'n/a')} ${tierChip(r.report_type)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${timeAgo(r.completed_at||r.started_at)}</td>
-      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${ok?'var(--good-soft)':'var(--warn-soft)'};color:${ok?'var(--good)':'var(--warn)'};">${esc(r.status)}</span>${kind ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">${kind}</div>` : ''}</td>
-      <td style="padding:10px 14px;text-align:center;">${ok ? `<button class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" data-report-action="view" data-run-id="${Number(r.id)}">View</button>` : ''}</td>
+    <tr data-s="sc91b18f">
+      <td data-s="s26c9a4e">${esc(r.report_name||'Ad-hoc')}${r.previous_run_id ? `<div data-s="s75a47e6">Run again after #${Number(r.previous_run_id)}</div>` : ''}</td>
+      <td data-s="s40dee16">${esc(typeLabels[r.report_type]||r.report_type||'n/a')} ${tierChip(r.report_type)}</td>
+      <td data-s="s40dee16">${timeAgo(r.completed_at||r.started_at)}</td>
+      <td data-s="s9c0b302"><span data-sv="padding:2px 8px;border-radius:4px;font-size:11px;background:${ok?'var(--good-soft)':'var(--warn-soft)'};color:${ok?'var(--good)':'var(--warn)'};">${esc(r.status)}</span>${kind ? `<div data-s="s54c41d6">${kind}</div>` : ''}</td>
+      <td data-s="s9c0b302">${ok ? `<button class="btn btn-secondary" data-s="sc8e560d" data-report-action="view" data-run-id="${Number(r.id)}">View</button>` : ''}</td>
     </tr>`;
   }).join('');
 }
@@ -88,9 +88,9 @@ async function loadStats() {
   const runs = await rResp.json();
   const boardRuns = runs.filter(r => typeTiers[r.report_type] === 'board').length;
   el.innerHTML = `
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Definitions</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${defs.length}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Board runs</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${boardRuns}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Total Runs</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${runs.length}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Definitions</div><div data-s="s745dcfb">${defs.length}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Board runs</div><div data-s="s745dcfb">${boardRuns}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Total Runs</div><div data-s="s745dcfb">${runs.length}</div></div>
   `;
 }
 
@@ -186,7 +186,7 @@ function printCurrent() {
 /* ── Rendering a frozen run ──────────────────────────────────────────── */
 
 function humanize(k) { return String(k).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()); }
-const NA = '<span style="color:var(--muted);">Not available</span>';
+const NA = '<span data-s="s57f9e31">Not available</span>';
 
 function isScalar(v) { return v === null || typeof v !== 'object'; }
 
@@ -200,18 +200,18 @@ function renderTable(rows) {
   const cols = [];
   rows.forEach(r => Object.keys(r).forEach(k => { if (isScalar(r[k]) && cols.indexOf(k) < 0) cols.push(k); }));
   if (!cols.length) return '';
-  return `<div style="overflow-x:auto;margin-bottom:12px;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead><tr>${cols.map(c => `<th scope="col" style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600;">${esc(humanize(c))}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${cols.map(c => `<td style="padding:6px 8px;border-bottom:1px solid var(--border-soft);">${renderScalar(r[c])}</td>`).join('')}</tr>`).join('')}</tbody>
+  return `<div data-s="s6827224"><table data-s="s6b26614">
+    <thead><tr>${cols.map(c => `<th scope="col" data-s="s2ecafbf">${esc(humanize(c))}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${cols.map(c => `<td data-s="s159b284">${renderScalar(r[c])}</td>`).join('')}</tr>`).join('')}</tbody>
   </table></div>`;
 }
 
 function renderValue(v, depth) {
   if (isScalar(v)) return renderScalar(v);
   if (Array.isArray(v)) {
-    if (!v.length) return '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">None.</div>';
+    if (!v.length) return '<div data-s="s3066b2e">None.</div>';
     if (v.every(i => i && typeof i === 'object' && !Array.isArray(i))) return renderTable(v);
-    return `<div style="font-size:12px;margin-bottom:12px;">${v.map(i => renderScalar(i)).join(', ')}</div>`;
+    return `<div data-s="s7e9c8d1">${v.map(i => renderScalar(i)).join(', ')}</div>`;
   }
   return renderObject(v, depth);
 }
@@ -221,14 +221,14 @@ function renderObject(o, depth) {
   const nested = Object.keys(o).filter(k => !isScalar(o[k]));
   let html = '';
   if (scalars.length) {
-    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;">${
-      scalars.map(k => `<div style="padding:10px 12px;border-radius:8px;background:var(--surface2);">
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;">${esc(humanize(k))}</div>
-        <div style="font-size:18px;font-weight:700;margin-top:4px;">${renderScalar(o[k])}</div></div>`).join('')}</div>`;
+    html += `<div data-s="se45c89e" data-sd="grid">${
+      scalars.map(k => `<div data-s="s4b136ec">
+        <div data-s="s399eda3">${esc(humanize(k))}</div>
+        <div data-s="s41ad882">${renderScalar(o[k])}</div></div>`).join('')}</div>`;
   }
   nested.forEach(k => {
     const level = Math.min(depth + 3, 5);
-    html += `<h${level} style="font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 8px;text-transform:uppercase;">${esc(typeLabels[k] || humanize(k))}</h${level}>` + renderValue(o[k], depth + 1);
+    html += `<h${level} data-s="sefd040b">${esc(typeLabels[k] || humanize(k))}</h${level}>` + renderValue(o[k], depth + 1);
   });
   return html;
 }
@@ -244,27 +244,27 @@ function renderFacts(snap) {
     ['Complete', snap.complete ? 'Every source was read.' : 'No. A source could not be read; its figures are blank, not zero.'],
     ['Decision status at generation', (snap.decision_status || {}).text || ''],
   ];
-  return `<dl style="display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;font-size:12px;margin:0 0 16px;">${
-    rows.map(r => `<dt style="color:var(--muted);">${esc(r[0])}</dt><dd style="margin:0;">${esc(r[1])}</dd>`).join('')}</dl>`;
+  return `<dl data-s="s395e297" data-sd="grid">${
+    rows.map(r => `<dt data-s="s57f9e31">${esc(r[0])}</dt><dd data-s="s1169661">${esc(r[1])}</dd>`).join('')}</dl>`;
 }
 
 function renderChanges(ch) {
   if (!ch) return '';
-  const head = `<div style="font-size:12px;margin-bottom:8px;"><strong>Since run #${Number(ch.previous_run_id)}</strong>` +
+  const head = `<div data-s="s8d2c709"><strong>Since run #${Number(ch.previous_run_id)}</strong>` +
     (ch.previous_generated_at ? ` (${esc(ch.previous_generated_at)} UTC)` : '') +
     `: ${Number(ch.changed)} figure${ch.changed === 1 ? '' : 's'} changed, ${Number(ch.unchanged)} unchanged.` +
     (ch.scope_changed ? ' The scope is not the same as then.' : '') +
     (ch.definition_changed ? ' The report definition has changed.' : '') +
-    ` <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px;" data-report-action="view" data-run-id="${Number(ch.previous_run_id)}">Open that run</button></div>`;
+    ` <button type="button" class="btn btn-secondary" data-s="se2b3d6e" data-report-action="view" data-run-id="${Number(ch.previous_run_id)}">Open that run</button></div>`;
   const rows = (ch.changes || []).slice(0, 20).map(c => ({ Figure: c.label, Was: c.was, Now: c.now, Change: c.delta }));
-  return `<section aria-label="Changes since the previous run" style="margin-bottom:16px;">${head}${rows.length ? renderTable(rows) : ''}</section>`;
+  return `<section aria-label="Changes since the previous run" data-s="s87c136d">${head}${rows.length ? renderTable(rows) : ''}</section>`;
 }
 
 function renderLimitations(snap) {
   const items = (snap.limitations || []).concat((snap.exclusions || []).map(e => 'Left out: ' + e));
   if (!items.length) return '';
-  return `<section aria-label="What this report leaves out" style="margin:16px 0;"><h3 style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;margin:0 0 6px;">What this report cannot tell you</h3>
-    <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6;">${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>`;
+  return `<section aria-label="What this report leaves out" data-s="sf63b87b"><h3 data-s="s8311fb7">What this report cannot tell you</h3>
+    <ul data-s="sd8927d4">${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>`;
 }
 
 const SOURCE_STATE = { read: 'Read', not_in_scope: 'Not open to the person who generated it', unavailable: 'Could not be read' };
@@ -290,10 +290,10 @@ function renderSources(snap) {
       return { ID: id, Version: version.version != null ? version.version : 'Not recorded',
                'Last recorded change': version.last_recorded_change != null ? version.last_recorded_change : 'Not recorded' };
     });
-    return `<details style="margin:8px 0;"><summary style="cursor:pointer;font-size:12px;">${esc(s.label)}: view first ${records.length} recorded inputs</summary>` +
-      `${renderTable(records)}<p class="gc-muted" style="font-size:11px;">Download CSV for the full frozen identifier list. A recorded timestamp may not capture every edit.</p></details>`;
+    return `<details data-s="sf5554e4"><summary data-s="sdecbbb8">${esc(s.label)}: view first ${records.length} recorded inputs</summary>` +
+      `${renderTable(records)}<p class="gc-muted" data-s="s11a5081">Download CSV for the full frozen identifier list. A recorded timestamp may not capture every edit.</p></details>`;
   }).join('');
-  return `<section aria-label="Sources read" style="margin-top:16px;"><h3 style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;margin:0 0 6px;">Sources read</h3>${renderTable(rows)}${details}</section>`;
+  return `<section aria-label="Sources read" data-s="s1b0f499"><h3 data-s="s8311fb7">Sources read</h3>${renderTable(rows)}${details}</section>`;
 }
 
 /* A note or a dispute sits beside the figure it is about. The saved figure is never edited. */
@@ -303,24 +303,24 @@ function renderNotes(data) {
   const notes = data.notes || [];
   const figures = data.figures || [];
   const list = notes.length
-    ? `<ul style="margin:0 0 10px;padding-left:18px;font-size:12px;line-height:1.6;">${notes.map(n =>
+    ? `<ul data-s="s4547764">${notes.map(n =>
         `<li><strong>${n.kind === 'dispute' ? 'Disputed' : 'Note'}</strong>${n.figure ? ' (' + esc(humanize(n.figure)) + ')' : ''}: ${esc(n.body)}
-         <span style="color:var(--muted);">${esc(n.author_name || '')}, ${esc(String(n.created_at || '').slice(0, 16))}</span></li>`).join('')}</ul>`
-    : '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">No notes or disputes yet.</p>';
-  box.innerHTML = `<section aria-label="Notes and disputes" style="margin-top:16px;">
-    <h3 style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;margin:0 0 6px;">Notes and disputes</h3>
+         <span data-s="s57f9e31">${esc(n.author_name || '')}, ${esc(String(n.created_at || '').slice(0, 16))}</span></li>`).join('')}</ul>`
+    : '<p data-s="s1de9d86">No notes or disputes yet.</p>';
+  box.innerHTML = `<section aria-label="Notes and disputes" data-s="s1b0f499">
+    <h3 data-s="s8311fb7">Notes and disputes</h3>
     ${list}
-    <form id="noteForm" style="display:grid;gap:8px;max-width:560px;">
-      <label style="font-size:12px;color:var(--muted);">Kind
-        <select id="noteKind" style="display:block;margin-top:2px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">
+    <form id="noteForm" data-s="s714380c" data-sd="grid">
+      <label data-s="s7fc448e">Kind
+        <select id="noteKind" data-s="s068b595" data-sd="block">
           <option value="note">Note</option><option value="dispute">Dispute a figure</option></select></label>
-      <label style="font-size:12px;color:var(--muted);">Figure (optional)
-        <select id="noteFigure" style="display:block;margin-top:2px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);">
+      <label data-s="s7fc448e">Figure (optional)
+        <select id="noteFigure" data-s="s068b595" data-sd="block">
           <option value="">This report as a whole</option>${figures.map(f => `<option value="${esc(f)}">${esc(humanize(f))}</option>`).join('')}</select></label>
-      <label style="font-size:12px;color:var(--muted);">What you want to record
-        <textarea id="noteBody" rows="3" maxlength="1000" required style="display:block;width:100%;margin-top:2px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);"></textarea></label>
+      <label data-s="s7fc448e">What you want to record
+        <textarea id="noteBody" rows="3" maxlength="1000" required data-s="sc6a2cab" data-sd="block"></textarea></label>
       <div><button type="submit" class="btn btn-secondary">Add to this run</button>
-        <span style="font-size:11px;color:var(--muted);margin-left:8px;">The saved figures do not change.</span></div>
+        <span data-s="sec0c92b">The saved figures do not change.</span></div>
     </form></section>`;
   document.getElementById('noteForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -346,33 +346,33 @@ function renderGovernance(data) {
   const formStyle = 'display:grid;gap:8px;max-width:560px;margin:10px 0 18px;';
   const inputStyle = 'padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);';
   const attrEsc = value => esc(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  box.innerHTML = `<section aria-label="Report review and sharing" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
-    <h3 style="font-size:14px;margin:0 0 8px;">Review, sharing and retention</h3>
-    <p style="font-size:12px;color:var(--muted);">The snapshot is frozen. Access is checked again when a recipient opens it. A sign-off records a human decision beside the saved figures.</p>
-    <div style="font-size:12px;margin-bottom:10px;"><strong>Review:</strong> ${esc(data.signoff_state || 'not_reviewed')}</div>
-    <div style="font-size:12px;margin-bottom:10px;"><strong>Needs attention at generation:</strong> ${esc((data.snapshot || {}).assurance?.state || 'not recorded')} · ${esc((data.snapshot || {}).assurance?.open ?? 'not measured')} open</div>
-    ${!['measured', 'partial'].includes((data.snapshot || {}).assurance?.state) ? '<p style="font-size:12px;color:var(--muted);">Approval is unavailable because Needs attention was not measured for this snapshot. An authorized specialist can generate a new report.</p>' : ''}
-    ${(data.snapshot || {}).assurance?.scope_note ? `<p style="font-size:12px;color:var(--muted);">${esc(data.snapshot.assurance.scope_note)}</p>` : ''}
-    ${signoffs.length ? `<ul style="font-size:12px;padding-left:18px;">${signoffs.map(s =>
+  box.innerHTML = `<section aria-label="Report review and sharing" data-s="s6dbe22a">
+    <h3 data-s="sa59bf18">Review, sharing and retention</h3>
+    <p data-s="s7fc448e">The snapshot is frozen. Access is checked again when a recipient opens it. A sign-off records a human decision beside the saved figures.</p>
+    <div data-s="s195de0c"><strong>Review:</strong> ${esc(data.signoff_state || 'not_reviewed')}</div>
+    <div data-s="s195de0c"><strong>Needs attention at generation:</strong> ${esc((data.snapshot || {}).assurance?.state || 'not recorded')} · ${esc((data.snapshot || {}).assurance?.open ?? 'not measured')} open</div>
+    ${!['measured', 'partial'].includes((data.snapshot || {}).assurance?.state) ? '<p data-s="s7fc448e">Approval is unavailable because Needs attention was not measured for this snapshot. An authorized specialist can generate a new report.</p>' : ''}
+    ${(data.snapshot || {}).assurance?.scope_note ? `<p data-s="s7fc448e">${esc(data.snapshot.assurance.scope_note)}</p>` : ''}
+    ${signoffs.length ? `<ul data-s="sb3a2bf7">${signoffs.map(s =>
       `<li>${esc(s.decision)} by user #${Number(s.signer_id)} on ${esc(s.signed_at || '')}: ${esc(s.reason)}</li>`).join('')}</ul>` : ''}
-    ${data.can_signoff ? `<form id="reportSignoffForm" style="${formStyle}">
-      <label>Decision <select id="reportSignoffDecision" style="${inputStyle}"><option value="approved">Approve</option><option value="rejected">Reject</option></select></label>
-      <label>Reason <textarea id="reportSignoffReason" minlength="10" maxlength="2000" required style="${inputStyle}"></textarea></label>
+    ${data.can_signoff ? `<form id="reportSignoffForm" data-sv="${formStyle}">
+      <label>Decision <select id="reportSignoffDecision" data-sv="${inputStyle}"><option value="approved">Approve</option><option value="rejected">Reject</option></select></label>
+      <label>Reason <textarea id="reportSignoffReason" minlength="10" maxlength="2000" required data-sv="${inputStyle}"></textarea></label>
       ${(data.snapshot || {}).narrative ? '<label><input id="reportNarrativeReviewed" type="checkbox"> I reviewed the draft AI narrative and its source figures</label>' : ''}
       ${((data.snapshot || {}).assurance?.state === 'partial' || ((data.snapshot || {}).assurance?.open || 0) > 0) ? '<label><input id="reportAssuranceReviewed" type="checkbox"> I reviewed the frozen Needs attention count and its limitations</label>' : ''}
       <button type="submit" class="btn btn-primary">Record independent decision</button></form>` : ''}
-    ${data.can_share ? `<form id="reportShareForm" style="${formStyle}">
-      <label>Share with a colleague in this organization <input id="reportShareEmail" type="email" required style="${inputStyle}" placeholder="colleague@example.com"></label>
-      <label>Days until access expires <input id="reportShareDays" type="number" min="1" max="90" value="30" required style="${inputStyle}"></label>
+    ${data.can_share ? `<form id="reportShareForm" data-sv="${formStyle}">
+      <label>Share with a colleague in this organization <input id="reportShareEmail" type="email" required data-sv="${inputStyle}" placeholder="colleague@example.com"></label>
+      <label>Days until access expires <input id="reportShareDays" type="number" min="1" max="90" value="30" required data-sv="${inputStyle}"></label>
       <button type="submit" class="btn btn-secondary">Grant scoped access</button></form>` : ''}
-    ${shares.length ? `<ul style="font-size:12px;padding-left:18px;">${shares.map(s =>
+    ${shares.length ? `<ul data-s="sb3a2bf7">${shares.map(s =>
       `<li>${esc(s.full_name || s.email || '')} (${esc(s.email || '')}), expires ${esc(s.expires_at || '')}` +
       (s.revoked_at ? ' (revoked)' : ` <button type="button" class="btn btn-secondary report-revoke" data-user="${Number(s.recipient_user_id)}">Revoke</button>`) + '</li>').join('')}</ul>` : ''}
-    <div style="font-size:12px;"><strong>Retention:</strong> ${retention.delete_after ? 'Delete after ' + esc(retention.delete_after) : 'No deletion date approved'}${retention.hold_reason ? '; on hold: ' + esc(retention.hold_reason) : ''}</div>
-    ${data.can_manage_retention ? `<form id="reportRetentionForm" style="${formStyle}">
-      <label>Deletion date (leave blank to remove the date) <input id="reportDeleteAfter" type="date" value="${attrEsc(retention.delete_after || '')}" style="${inputStyle}"></label>
-      <label>Hold reason (optional) <input id="reportHoldReason" maxlength="500" value="${attrEsc(retention.hold_reason || '')}" style="${inputStyle}"></label>
-      <label>Reason for this retention decision <textarea id="reportRetentionReason" minlength="10" maxlength="500" required style="${inputStyle}"></textarea></label>
+    <div data-s="s6cb285c"><strong>Retention:</strong> ${retention.delete_after ? 'Delete after ' + esc(retention.delete_after) : 'No deletion date approved'}${retention.hold_reason ? '; on hold: ' + esc(retention.hold_reason) : ''}</div>
+    ${data.can_manage_retention ? `<form id="reportRetentionForm" data-sv="${formStyle}">
+      <label>Deletion date (leave blank to remove the date) <input id="reportDeleteAfter" type="date" value="${attrEsc(retention.delete_after || '')}" data-sv="${inputStyle}"></label>
+      <label>Hold reason (optional) <input id="reportHoldReason" maxlength="500" value="${attrEsc(retention.hold_reason || '')}" data-sv="${inputStyle}"></label>
+      <label>Reason for this retention decision <textarea id="reportRetentionReason" minlength="10" maxlength="500" required data-sv="${inputStyle}"></textarea></label>
       <button type="submit" class="btn btn-secondary">Save retention decision</button></form>` : ''}
   </section>`;
   const send = async (url, method, body) => {
@@ -423,7 +423,7 @@ function viewRunData(data) {
 
   const banner = document.getElementById('viewerBanner');
   banner.innerHTML = data.legacy
-    ? `<div role="note" style="padding:10px 12px;border-radius:8px;background:var(--warn-soft);color:var(--text);font-size:12px;margin-bottom:12px;">${esc(data.legacy_note || '')}</div>`
+    ? `<div role="note" data-s="sb855067">${esc(data.legacy_note || '')}</div>`
     : '';
   document.getElementById('viewerFacts').innerHTML = snap ? renderFacts(snap) : '';
   document.getElementById('viewerChanges').innerHTML = snap ? renderChanges(snap.changes) : '';
@@ -431,13 +431,13 @@ function viewRunData(data) {
   const result = data.result;
   document.getElementById('viewerContent').innerHTML = (result && typeof result === 'object')
     ? renderValue(result, 0)
-    : '<div style="font-size:13px;color:var(--muted);">There is no saved output for this run.</div>';
+    : '<div data-s="s17d902b">There is no saved output for this run.</div>';
 
   const narrative = snap && snap.narrative;
   document.getElementById('viewerNarrative').innerHTML = narrative && narrative.text
-    ? `<section aria-label="Draft narrative" style="margin-top:16px;border-left:3px solid var(--accent);padding-left:12px;">
-         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Draft narrative, not reviewed${narrative.model ? ' &bull; written by ' + esc(narrative.model) : ''}. ${esc(narrative.basis || '')} ${esc(data.narrative_check || '')}</div>
-         ${String(narrative.text).split(/\n\n+/).map(p => `<p style="margin:0 0 10px;font-size:13px;line-height:1.6;">${esc(p)}</p>`).join('')}</section>`
+    ? `<section aria-label="Draft narrative" data-s="sbbcbc13">
+         <div data-s="s73465d7">Draft narrative, not reviewed${narrative.model ? ' &bull; written by ' + esc(narrative.model) : ''}. ${esc(narrative.basis || '')} ${esc(data.narrative_check || '')}</div>
+         ${String(narrative.text).split(/\n\n+/).map(p => `<p data-s="s56ff3d0">${esc(p)}</p>`).join('')}</section>`
     : '';
 
   document.getElementById('viewerSources').innerHTML = snap ? renderLimitations(snap) + renderSources(snap) : '';
@@ -457,7 +457,7 @@ async function generateExecSummary() {
   window.execRunId = null;
   document.getElementById('execPdf').disabled = true;
   document.getElementById('execPrint').disabled = true;
-  document.getElementById('execSummaryNarrative').innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent)"><div class="spinner" style="margin:0 auto 8px;width:20px;height:20px"></div>Generating the executive figures and a draft narrative...</div>';
+  document.getElementById('execSummaryNarrative').innerHTML = '<div data-s="s9040324"><div class="spinner" data-s="s72da564"></div>Generating the executive figures and a draft narrative...</div>';
   document.getElementById('execSummaryStats').innerHTML = '';
   document.getElementById('execSummaryMeta').textContent = '';
   try {
@@ -481,12 +481,12 @@ async function generateExecSummary() {
       item('Tasks Overdue', s.tasks_overdue, s.tasks_overdue > 0 ? 'var(--red)' : 'var(--green-status)'),
     ];
     document.getElementById('execSummaryStats').innerHTML = statItems.map(si =>
-      '<div style="text-align:center;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">' +
-      '<div style="font-size:22px;font-weight:800;color:' + si.color + '">' + esc(si.value) + '</div>' +
-      '<div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:3px">' + esc(si.label) + '</div></div>').join('');
+      '<div data-s="se51080b">' +
+      '<div data-sv="font-size:22px;font-weight:800;color:' + si.color + '">' + esc(si.value) + '</div>' +
+      '<div data-s="s54f80b7">' + esc(si.label) + '</div></div>').join('');
     const narrative = document.getElementById('execSummaryNarrative');
     if (data.narrative) {
-      narrative.innerHTML = String(data.narrative).split('\n\n').filter(p => p.trim()).map(p => '<p style="margin:0 0 12px">' + esc(p) + '</p>').join('');
+      narrative.innerHTML = String(data.narrative).split('\n\n').filter(p => p.trim()).map(p => '<p data-s="s249d010">' + esc(p) + '</p>').join('');
     } else {
       narrative.textContent = data.narrative_note || 'No narrative was written. The figures above are complete.';
     }

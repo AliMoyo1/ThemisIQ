@@ -239,19 +239,17 @@
 } %}
 
 {# ── CSRF anchor for JS fetch ─────────────────────────────────────────────── #}
-<div id="usersPageData" data-csrf="{{ csrf_token }}" style="display:none;"></div>
+<div id="usersPageData" data-csrf="{{ csrf_token }}" data-sd="none"></div>
 
 {# ── Page header ──────────────────────────────────────────────────────────── #}
-<div style="display:flex; align-items:center; justify-content:space-between;
-            flex-wrap:wrap; gap:12px; margin-bottom:22px;">
+<div data-s="s3109a13" data-sd="flex">
   <div>
-    <h1 style="font-size:22px; font-weight:800; color:var(--text); margin:0 0 3px;
-               letter-spacing:-0.02em;">Users &amp; Roles</h1>
-    <p style="font-size:13px; color:var(--muted); margin:0;">
+    <h1 data-s="s9f40582">Users &amp; Roles</h1>
+    <p data-s="sb0225b5">
       Manage user accounts, roles, and platform access
     </p>
   </div>
-  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+  <div data-s="s4725bb7" data-sd="flex">
     <a class="btn btn-ghost" href="/admin/api/users/export" title="Export current users to CSV">
       Export
     </a>
@@ -262,9 +260,9 @@
             data-users-action="choose-import">
       Import Excel
     </button>
-    <input type="file" id="userImportFile" accept=".xlsx,.xls,.xlsm" style="display:none;"
+    <input type="file" id="userImportFile" accept=".xlsx,.xls,.xlsm" data-sd="none"
            >
-    <button class="btn btn-primary" style="gap:6px; display:inline-flex; align-items:center;"
+    <button class="btn btn-primary" data-s="saebb47c" data-sd="inline-flex"
             data-users-action="open-create">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -275,13 +273,12 @@
 </div>
 
 {# ── Bulk import status banner ────────────────────────────────────────────── #}
-<div id="userImportResult" style="display:none; margin-bottom:16px;"></div>
+<div id="userImportResult" data-s="s87c136d" data-sd="none"></div>
 
 {# ── Flash: error ────────────────────────────────────────────────────────── #}
 {% if flash and flash.type == 'error' %}
 <div class="flash-error">
-  <div style="display:flex; align-items:center; gap:10px; color:var(--bad);
-              font-weight:600; font-size:13.5px;">
+  <div data-s="s33d561f" data-sd="flex">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
       <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -294,36 +291,33 @@
 {# ── Flash: new user / password reset ─────────────────────────────────────── #}
 {% if flash and flash.type in ('new_user', 'reset_pw') %}
 <div class="flash-ok">
-  <div style="font-size:16px; font-weight:700; color:var(--good); margin-bottom:6px;">
+  <div data-s="s328db5f">
     {% if flash.type == 'new_user' %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg> User created — temporary password below
     {% else %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-key></use></svg> Password reset for {{ flash.full_name or flash.username }}{% endif %}
   </div>
-  <p style="font-size:13px; color:var(--text); margin:0 0 14px;">
+  <p data-s="scd0f4e3">
     This password is shown <strong>once only</strong>. Share it securely with
     <strong>{{ flash.full_name or flash.username }}</strong> — they'll be asked to
     choose a new one at first login.
   </p>
-  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+  <div data-s="sde46668" data-sd="flex">
     <code id="tempPwValue"
-          style="font-family:var(--mono); font-size:15px; font-weight:700;
-                 background:var(--surface); color:var(--text);
-                 padding:9px 14px; border-radius:8px; border:1px dashed var(--accent);
-                 letter-spacing:1px;">{{ flash.temp_password }}</code>
+          data-s="se511818">{{ flash.temp_password }}</code>
     <button class="btn btn-ghost" type="button" data-users-action="copy-password">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="sc6b76b8">
         <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
       </svg>
       Copy
     </button>
-    <span style="font-size:12px; color:var(--muted);">
-      Username: <code style="font-family:var(--mono); color:var(--accent); font-weight:700;">{{ flash.username }}</code>
+    <span data-s="s7fc448e">
+      Username: <code data-s="s3b0d542">{{ flash.username }}</code>
     </span>
   </div>
 </div>
 {% endif %}
 
 {# ── Stats strip ───────────────────────────────────────────────────────────── #}
-<div class="au-stats"{% if is_super %} style="grid-template-columns:repeat(5,1fr);"{% endif %}>
+<div class="au-stats"{% if is_super %} data-s="saafcd3e"{% endif %}>
   {% if is_super %}
   <div class="au-stat">
     <div class="au-stat-label">
@@ -332,7 +326,7 @@
       </svg>
       Organizations
     </div>
-    <div class="au-stat-val" style="color:var(--accent);">{{ stat_orgs }}</div>
+    <div class="au-stat-val" data-s="sa805525">{{ stat_orgs }}</div>
   </div>
   {% endif %}
   <div class="au-stat">
@@ -348,11 +342,11 @@
   </div>
   <div class="au-stat">
     <div class="au-stat-label">Active</div>
-    <div class="au-stat-val" style="color:var(--good);">{{ stat_active }}</div>
+    <div class="au-stat-val" data-s="s544e76c">{{ stat_active }}</div>
   </div>
   <div class="au-stat">
     <div class="au-stat-label">Inactive</div>
-    <div class="au-stat-val" style="color:var(--muted);">{{ stat_inactive }}</div>
+    <div class="au-stat-val" data-s="s57f9e31">{{ stat_inactive }}</div>
   </div>
   <div class="au-stat">
     <div class="au-stat-label">
@@ -361,7 +355,7 @@
       </svg>
       PW Reset Pending
     </div>
-    <div class="au-stat-val" style="color:{% if stat_pw_pending > 0 %}var(--amber){% else %}var(--muted){% endif %};">
+    <div class="au-stat-val" data-sv="color:{% if stat_pw_pending > 0 %}var(--amber){% else %}var(--muted){% endif %};">
       {{ stat_pw_pending }}
     </div>
   </div>
@@ -377,7 +371,7 @@
     <input id="userSearch" type="text" placeholder="Search name, email or username…"
             autocomplete="off">
   </div>
-  <div style="display:flex; gap:6px;">
+  <div data-s="sf0abc1d" data-sd="flex">
     <button class="f-chip active" id="chip-all"      data-users-filter="all">All</button>
     <button class="f-chip"        id="chip-active"   data-users-filter="active">Active</button>
     <button class="f-chip"        id="chip-inactive" data-users-filter="inactive">Inactive</button>
@@ -396,7 +390,7 @@
   </select>
   {% if business_units %}
   <label class="sr-only" for="buFilter">Filter by business unit</label>
-  <select id="buFilter" class="au-role-sel"  style="min-width:170px;">
+  <select id="buFilter" class="au-role-sel"  data-s="s7d03ac6">
     <option value="">All Business Units</option>
     <option value="0">Org-wide (no unit)</option>
     {% for b in business_units %}
@@ -406,7 +400,7 @@
   {% endif %}
   {% if is_super and orgs_grouped|length > 1 %}
   <label class="sr-only" for="orgFilter">Filter by organization</label>
-  <select id="orgFilter" class="au-role-sel"  style="min-width:160px;">
+  <select id="orgFilter" class="au-role-sel"  data-s="s94253f9">
     <option value="">All Organizations</option>
     {% for og in orgs_grouped %}
     <option value="{{ og.org_id or 0 }}">{{ og.org_name }}</option>
@@ -432,20 +426,19 @@
 
   {# ── User cell ── #}
   <td>
-    <div style="display:flex; align-items:center; gap:10px;">
+    <div data-s="sd57ae4c" data-sd="flex">
       <div id="avatar-{{ u.id }}" class="ua-circle">
         {{ u.avatar_initials or ((u.full_name or u.username or '?')[0]|upper) }}
       </div>
-      <div style="min-width:0;">
-        <div style="font-weight:600; color:var(--text); font-size:13.5px;
-                    display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+      <div data-s="s3922d32">
+        <div data-s="s194b7a2" data-sd="flex">
           <span id="fullname-{{ u.id }}">{{ u.full_name or u.username }}</span>
           {% if is_self %}<span class="b-you">you</span>{% endif %}
           {% if u.must_change_password %}<span class="b-pwrst" title="Must change password at next login">pw reset</span>{% endif %}
         </div>
-        <div style="font-size:11.5px; color:var(--muted); font-family:var(--mono); margin-top:2px;">
+        <div data-s="se40b3f7">
           @{{ u.username }}
-          <span style="margin:0 4px; color:var(--dim);">·</span>
+          <span data-s="s1d1938f">·</span>
           <span id="email-{{ u.id }}">{{ u.email or '—' }}</span>
         </div>
       </div>
@@ -454,32 +447,32 @@
 
   {# ── Roles cell ── #}
   <td>
-    <div style="display:flex; flex-wrap:wrap; gap:5px; max-width:320px;">
+    <div data-s="sab0a5c5" data-sd="flex">
       {% for rk in u.role_keys %}
         {% set tone = role_chip_tone.get(rk, 'neutral') %}
         <form method="post" action="/admin/users/{{ u.id }}/roles/revoke"
-              style="display:inline-block;"
+              data-sd="inline-block"
               data-confirm-action="revoke-role" data-confirm-role="{{ role_labels.get(rk, rk) }}"
               data-confirm-user="{{ u.full_name or u.username }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="role_key" value="{{ rk }}">
           <button type="submit" class="role-chip" title="Click to revoke"
-                  style="background:{{ tone_bg[tone] }};
+                  data-sv="background:{{ tone_bg[tone] }};
                          color:{{ tone_fg[tone] }};
                          border:1px solid {{ tone_bd[tone] }};">
             {{ role_labels.get(rk, rk) }}
-            <span style="margin-left:5px; opacity:0.5; font-weight:700;">×</span>
+            <span data-s="sd85ac7b">×</span>
           </button>
         </form>
       {% else %}
-        <span style="font-size:11.5px; color:var(--muted); font-style:italic;">no roles</span>
+        <span data-s="s58022bf">no roles</span>
       {% endfor %}
       {# ── Add-role picker ── #}
       {% set ns = namespace(has_missing=false) %}
       {% for rk in all_roles %}{% if rk not in u.role_keys %}{% set ns.has_missing = true %}{% endif %}{% endfor %}
       {% if ns.has_missing %}
       <form method="post" action="/admin/users/{{ u.id }}/roles/grant"
-            style="display:inline-flex;">
+            data-sd="inline-flex">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <select name="role_key"
                 class="role-add-select" aria-label="Grant role">
@@ -494,7 +487,7 @@
   </td>
 
   {# ── Status cell ── #}
-  <td style="text-align:center;">
+  <td data-s="s91a8701">
     {% if u.deleted_at %}
       <span class="b-deleted" title="Deleted {{ u.deleted_at | format_dt('datetime') }}">Deleted</span>
     {% elif u.is_active %}
@@ -505,27 +498,27 @@
   </td>
 
   {# ── Last Login cell ── #}
-  <td style="font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap;">
+  <td data-s="s81c0043">
     {{ u.last_login | format_dt("datetime") if u.last_login else '—' }}
   </td>
 
   {# ── Actions cell ── #}
-  <td style="text-align:right; white-space:nowrap;">
+  <td data-s="s4ede699">
     {% if u.deleted_at %}
       {# ── Deleted user: Restore or purge permanently ── #}
       <form method="post" action="/admin/users/{{ u.id }}/restore"
-            style="display:inline-block;"
+            data-sd="inline-block"
             data-confirm-action="restore" data-confirm-user="{{ u.full_name or u.username }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
+        <button type="submit" class="btn btn-ghost" data-s="s113f66a">
           Restore
         </button>
       </form>
       <form method="post" action="/admin/users/{{ u.id }}/hard-delete"
-            style="display:inline-block; margin-left:4px;"
+            data-s="s46cec89" data-sd="inline-block"
             data-confirm-action="hard-delete" data-confirm-user="{{ u.full_name or u.username }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
+        <button type="submit" class="btn btn-ghost" data-s="s9d14865">
           Delete Permanently
         </button>
       </form>
@@ -545,7 +538,7 @@
     </button>
     {% if can_assign_bu and not is_self and u.org_id|string == user.org_id|string and business_units %}
     <button type="button" class="btn btn-ghost"
-            style="padding:5px 10px; font-size:12px; margin-left:4px;"
+            data-s="s228f40f"
             data-uid="{{ u.id }}"
             data-name="{{ u.full_name or u.username }}"
             data-current-bu="{{ u.business_unit_id or '' }}"
@@ -556,10 +549,10 @@
     {% endif %}
     {# Reset password #}
     <form method="post" action="/admin/users/{{ u.id }}/reset-password"
-          style="display:inline-block; margin-left:4px;"
+          data-s="s46cec89" data-sd="inline-block"
           data-confirm-action="reset-password" data-confirm-user="{{ u.full_name or u.username }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px;">
+      <button type="submit" class="btn btn-ghost" data-s="sb812543">
         Reset PW
       </button>
     </form>
@@ -567,19 +560,19 @@
     {% if u.is_active %}
       {% if not is_self %}
       <form method="post" action="/admin/users/{{ u.id }}/deactivate"
-            style="display:inline-block;"
+            data-sd="inline-block"
             data-confirm-action="deactivate" data-confirm-user="{{ u.full_name or u.username }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
+        <button type="submit" class="btn btn-ghost" data-s="s9d14865">
           Deactivate
         </button>
       </form>
       {% endif %}
     {% else %}
       <form method="post" action="/admin/users/{{ u.id }}/activate"
-            style="display:inline-block;">
+            data-sd="inline-block">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
+        <button type="submit" class="btn btn-ghost" data-s="s113f66a">
           Reactivate
         </button>
       </form>
@@ -587,10 +580,10 @@
     {# Delete (safe delete -- reversible via Restore) #}
     {% if not is_self %}
     <form method="post" action="/admin/users/{{ u.id }}/delete"
-          style="display:inline-block; margin-left:4px;"
+          data-s="s46cec89" data-sd="inline-block"
           >
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="button" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);"
+      <button type="button" class="btn btn-ghost" data-s="s9d14865"
               data-name="{{ (u.full_name or u.username)|e }}"
               data-users-action="delete">
         Delete
@@ -607,10 +600,10 @@
 <thead>
   <tr>
     <th>User</th>
-    <th style="min-width:180px;">Roles</th>
-    <th style="text-align:center; width:100px;">Status</th>
-    <th style="white-space:nowrap; width:130px;">Last Login</th>
-    <th style="text-align:right; width:240px;">Actions</th>
+    <th data-s="s66dbd5d">Roles</th>
+    <th data-s="s789c08d">Status</th>
+    <th data-s="s71dddd2">Last Login</th>
+    <th data-s="sc92182f">Actions</th>
   </tr>
 </thead>
 {% endmacro %}
@@ -697,9 +690,7 @@
 </div>
 
 {# Empty state for filtered results #}
-<div id="filterEmptyHost" style="display:none; padding:48px; text-align:center;
-     color:var(--muted); background:var(--surface); border:1px solid var(--border);
-     border-radius:var(--radius); margin-bottom:20px;">
+<div id="filterEmptyHost" data-s="s6bd4aae" data-sd="none">
   No users match the current filters.
 </div>
 
@@ -708,43 +699,36 @@
    ═══════════════════════════════════════════════════════════════════════════ #}
 {% else %}
 {% if bu_groups %}
-<div style="background:var(--surface); border:1px solid var(--border);
-            border-radius:var(--radius); overflow:hidden; margin-bottom:20px;">
+<div data-s="s683bb1a">
   {{ bu_grouped_table(bu_groups) }}
 </div>
 {% else %}
-<div style="background:var(--surface); border:1px solid var(--border);
-            border-radius:var(--radius); padding:48px; text-align:center; color:var(--muted);
-            margin-bottom:20px;">
+<div data-s="sb7479df">
   No users yet. Create the first user with the button above.
 </div>
 {% endif %}
 
 {# Empty state for filtered results (same element the grouped view uses) #}
-<div id="filterEmptyHost" style="display:none; padding:48px; text-align:center;
-     color:var(--muted); background:var(--surface); border:1px solid var(--border);
-     border-radius:var(--radius); margin-bottom:20px;">
+<div id="filterEmptyHost" data-s="s6bd4aae" data-sd="none">
   No users match the current filters.
 </div>
 {% endif %}
 
 {# ── Role legend ────────────────────────────────────────────────────────────── #}
-<div style="background:var(--surface); border:1px solid var(--border);
-            border-radius:var(--radius); padding:20px 22px;">
-  <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:14px;
-              letter-spacing:-0.01em;">Role Reference</div>
+<div data-s="s701e3dc">
+  <div data-s="sfb2c784">Role Reference</div>
   <div class="role-legend">
     {% for rk in all_roles %}
     {% set tone = role_chip_tone.get(rk, 'neutral') %}
     <div class="role-legend-item">
       <span class="role-chip"
-            style="background:{{ tone_bg[tone] }};
+            data-sv="background:{{ tone_bg[tone] }};
                    color:{{ tone_fg[tone] }};
                    border:1px solid {{ tone_bd[tone] }};
                    flex-shrink:0; cursor:default;">
         {{ role_labels.get(rk, rk) }}
       </span>
-      <span style="font-size:12px; color:var(--muted); line-height:1.45;">
+      <span data-s="sd57524a">
         {{ role_descriptions.get(rk, '') }}
       </span>
     </div>
@@ -775,29 +759,29 @@
       <label class="form-label" for="drawerFullName">Full Name</label>
       <input type="text" id="drawerFullName" class="form-input"
              placeholder="e.g. Tatenda Chikomba" maxlength="120" autocomplete="off"
-             style="width:100%; box-sizing:border-box;">
+             data-s="s62e68e0">
     </div>
-    <div class="form-group" style="margin-top:14px;">
+    <div class="form-group" data-s="sd6f2af6">
       <label class="form-label" for="drawerEmail">Email Address</label>
       <input type="email" id="drawerEmail" class="form-input"
              placeholder="user@example.com" maxlength="254" autocomplete="off"
-             style="width:100%; box-sizing:border-box;">
+             data-s="s62e68e0">
     </div>
-    <div class="form-group" style="margin-top:14px;">
+    <div class="form-group" data-s="sd6f2af6">
       <label class="form-label" for="drawerUsername">
         Username
-        <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
+        <span data-s="s051e7dc">(read-only)</span>
       </label>
       <input type="text" id="drawerUsername" class="form-input ed-ro"
-             readonly style="width:100%; box-sizing:border-box;">
+             readonly data-s="s62e68e0">
     </div>
-    <div class="form-group" style="margin-top:14px;">
+    <div class="form-group" data-s="sd6f2af6">
       <label class="form-label" for="drawerCreated">
         Account Created
-        <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
+        <span data-s="s051e7dc">(read-only)</span>
       </label>
       <input type="text" id="drawerCreated" class="form-input ed-ro"
-             readonly style="width:100%; box-sizing:border-box;">
+             readonly data-s="s62e68e0">
     </div>
   </div>
   <div class="ed-foot">
@@ -814,13 +798,13 @@
 {% if can_assign_bu %}
 <div class="modal-overlay" id="transferModal"
      >
-  <div class="modal" style="max-width:560px; width:94vw;">
+  <div class="modal" data-s="sb93ed80">
     <div class="modal-header">
       <div>
         <div class="modal-title">Move to Another SBU</div>
-        <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+        <div data-s="sfc85ba5">
           <span id="transferUserName"></span>
-          <span style="margin:0 5px;">from</span>
+          <span data-s="s10afa0a">from</span>
           <strong id="transferCurrentBu"></strong>
         </div>
       </div>
@@ -831,37 +815,32 @@
       </button>
     </div>
     <div class="modal-body">
-      <div id="transferError" class="ed-error" style="margin-bottom:12px;"></div>
+      <div id="transferError" class="ed-error" data-s="sda12f28"></div>
       <div class="form-group">
         <label class="form-label">Destination Business Unit</label>
         <select id="transferDestination" class="form-input"
-                style="width:100%; box-sizing:border-box;"
+                data-s="s62e68e0"
                 >
           <option value="">Select a destination</option>
           {% for b in business_units %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
         </select>
       </div>
-      <div id="transferPreview" style="display:none; margin-top:14px; padding:12px;
-           border:1px solid var(--border); border-radius:8px; background:var(--surface2);
-           font-size:12px; color:var(--muted);"></div>
-      <div class="form-group" style="margin-top:14px;">
+      <div id="transferPreview" data-s="s122dd91" data-sd="none"></div>
+      <div class="form-group" data-s="sd6f2af6">
         <label class="form-label">Reason for Transfer</label>
         <textarea id="transferReason" class="form-input" rows="3" maxlength="1000"
                   placeholder="Example: Internal transfer from EcoCash operations to Omni customer experience"
-                  style="width:100%; box-sizing:border-box; resize:vertical;"></textarea>
+                  data-s="sd985652"></textarea>
       </div>
-      <label style="display:flex; gap:9px; align-items:flex-start; margin-top:14px;
-                    font-size:12.5px; color:var(--text);">
-        <input type="checkbox" id="transferRolesReviewed" style="margin-top:2px;">
+      <label data-s="sca64741" data-sd="flex">
+        <input type="checkbox" id="transferRolesReviewed" data-s="s7a21c6a">
         <span>I reviewed the user's roles and confirmed they remain appropriate in the destination SBU.</span>
       </label>
-      <label style="display:flex; gap:9px; align-items:flex-start; margin-top:11px;
-                    font-size:12.5px; color:var(--text);">
-        <input type="checkbox" id="transferHandoverConfirmed" style="margin-top:2px;">
+      <label data-s="sd7fde6e" data-sd="flex">
+        <input type="checkbox" id="transferHandoverConfirmed" data-s="s7a21c6a">
         <span>I reviewed the responsibilities shown above and confirmed the required handover.</span>
       </label>
-      <div style="margin-top:13px; padding:10px 12px; border-radius:7px;
-                  background:var(--warn-soft); color:var(--muted); font-size:11.5px;">
+      <div data-s="sb50f02e">
         The move takes effect immediately. Existing sessions are revoked so the new SBU scope
         applies at the user's next sign-in. Historical ownership remains unchanged.
       </div>
@@ -880,12 +859,10 @@
    ════════════════════════════════════════════════════════════════════════════ #}
 <div class="modal-overlay" id="newUserModal"
      >
-  <div class="modal" style="max-width:480px; width:94vw;">
+  <div class="modal" data-s="sc09e848">
     <div class="modal-header">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width:38px; height:38px; border-radius:10px; flex-shrink:0;
-                    background:rgba(var(--accent-rgb),0.12);
-                    display:flex; align-items:center; justify-content:center;">
+      <div data-s="s12bf1ab" data-sd="flex">
+        <div data-s="s9f0ff4e" data-sd="flex">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
@@ -896,7 +873,7 @@
         </div>
         <div>
           <div class="modal-title">New User</div>
-          <div style="font-size:12px; color:var(--muted); margin-top:1px;">
+          <div data-s="s7ba2ea5">
             Creates an account with the <strong>Employee</strong> role
           </div>
         </div>
@@ -912,10 +889,10 @@
 
     <form method="post" action="/admin/users/create">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:4px;">
+      <div class="modal-body" data-s="s0f1ac4f" data-sd="flex">
 
         {% if is_super and all_orgs %}
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group" data-s="sef0b7a1">
           <label class="form-label">Organization</label>
           <select class="form-input" name="target_org_id" required>
             {% for og in all_orgs %}
@@ -927,31 +904,28 @@
         </div>
         {% endif %}
 
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group" data-s="sef0b7a1">
           <label class="form-label">Full Name</label>
           <input class="form-input" type="text" name="full_name" required
                  placeholder="e.g. Tatenda Chikomba">
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-          <div class="form-group" style="margin-bottom:0;">
+        <div data-s="s368b401" data-sd="grid">
+          <div class="form-group" data-s="sef0b7a1">
             <label class="form-label">Username</label>
             <input class="form-input" type="text" name="username" required
                    pattern="[A-Za-z0-9_.-]{3,32}" placeholder="tatenda.c" autocomplete="off">
           </div>
-          <div class="form-group" style="margin-bottom:0;">
+          <div class="form-group" data-s="sef0b7a1">
             <label class="form-label">Email</label>
             <input class="form-input" type="email" name="email" required
                    placeholder="user@example.com">
           </div>
         </div>
 
-        <div style="padding:11px 14px; border-radius:var(--radius);
-                    background:rgba(var(--accent-rgb),0.06);
-                    border:1px solid rgba(var(--accent-rgb),0.15);
-                    font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:flex-start;">
+        <div data-s="safb359c" data-sd="flex">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
-               stroke-width="2" style="flex-shrink:0; margin-top:1px;">
+               stroke-width="2" data-s="s82d341f">
             <circle cx="12" cy="12" r="10"/>
             <line x1="12" y1="8" x2="12" y2="12"/>
             <line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -968,7 +942,7 @@
         </button>
         <button type="submit" class="btn btn-primary">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.5" style="margin-right:5px;">
+               stroke-width="2.5" data-s="s8896c95">
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
           </svg>

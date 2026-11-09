@@ -156,7 +156,7 @@
   function entityLink(module, entityType, entityId){
     if(!module && !entityType) return '';
     var label=(module||'')+(entityType?' / '+entityType.replace(/_/g,' '):'')+(entityId?' #'+entityId:'');
-    if(!module) return '<span style="font-size:11px;color:var(--muted)">'+esc(label)+'</span>';
+    if(!module) return '<span data-s="s1fd8c81">'+esc(label)+'</span>';
     var href=(Object.prototype.hasOwnProperty.call(MODULE_HREF,module)?MODULE_HREF[module]:'/') + '?open=' + entityType + ':' + entityId;
     return '<a class="pending-entity-link" href="'+esc(href)+'" title="Open in '+esc(module)+'" target="_blank" rel="noopener noreferrer">'+
       '↗ '+esc(label)+'</a>';
@@ -247,11 +247,11 @@
       // Escape strings for inline onclick - use data attribute pattern
       return '<div class="pending-action-row" data-aid="'+wfSafeId(a.id)+'" data-iid="'+wfSafeId(a.instance_id)+'">'+
         '<div>'+
-          '<span style="font-weight:700;font-size:13px;color:var(--text)">'+esc(a.workflow_name)+'</span>'+
+          '<span data-s="seaf3349">'+esc(a.workflow_name)+'</span>'+
           '<div class="pending-meta">'+
-            '<span style="font-size:11px;font-weight:700;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:10px">'+esc(stepName)+'</span>'+
+            '<span data-s="s98d5002">'+esc(stepName)+'</span>'+
             (entityHtml ? entityHtml : '')+
-            '<span style="font-size:11px;color:var(--muted)">· '+timeAgo(a.created_at)+'</span>'+
+            '<span data-s="s1fd8c81">· '+timeAgo(a.created_at)+'</span>'+
           '</div>'+
         '</div>'+
         '<button class="btn btn-sm btn-primary js-workflow-decision" data-action-id="'+wfSafeId(a.id)+'" data-instance-id="'+wfSafeId(a.instance_id)+'" data-workflow-name="'+esc(a.workflow_name)+'" data-step-name="'+esc(stepName)+'">'+
@@ -277,7 +277,7 @@
       }).join('');
       renderTemplates();
     }catch(e){
-      document.getElementById('tplGrid').innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">Failed to load templates</div>';
+      document.getElementById('tplGrid').innerHTML='<div data-s="sf649963">Failed to load templates</div>';
     }
   }
 
@@ -291,7 +291,7 @@
   function renderTemplates(){
     var items=tplFilter==='All'?tplCache:tplCache.filter(function(t){return t.category===tplFilter;});
     if(!items.length){
-      document.getElementById('tplGrid').innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">No templates in this category</div>';
+      document.getElementById('tplGrid').innerHTML='<div data-s="sf649963">No templates in this category</div>';
       return;
     }
     document.getElementById('tplGrid').innerHTML=items.map(function(t){
@@ -304,16 +304,16 @@
           '<span class="tpl-step">'+icon+esc(s.name)+'</span>';
       }).join('');
       return '<div class="tpl-card">'+
-        '<div class="tpl-badge" style="background:color-mix(in srgb,'+color+' 12%,transparent);color:'+color+'">'+esc(t.category)+'</div>'+
+        '<div class="tpl-badge" data-sv="background:color-mix(in srgb,'+color+' 12%,transparent);color:'+color+'">'+esc(t.category)+'</div>'+
         '<div class="tpl-name">'+esc(t.name)+'</div>'+
         '<div class="tpl-desc">'+esc(t.description)+'</div>'+
         '<div class="tpl-steps">'+stepsHtml+'</div>'+
         '<div class="tpl-meta">'+
           '<span><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> '+esc(t.trigger_module)+'</span>'+
-          '<span style="color:var(--border)">&middot;</span>'+
+          '<span data-s="s453655a">&middot;</span>'+
           '<span>'+t.steps.length+' steps</span>'+
         '</div>'+
-        '<div style="margin-top:14px">'+(installedDefNames.indexOf((t.name||'').toLowerCase())>-1?'<span style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:var(--radius);font-size:12px;font-weight:700;background:rgba(34,197,94,.1);color:var(--green-status)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Installed</span>':canAuthorWorkflow?'<button class="btn btn-sm btn-primary js-workflow-install" data-template-id="'+esc(t.id)+'">Install Workflow</button>':'<span style="font-size:12px;color:var(--muted)">View only</span>')+'</div>'+
+        '<div data-s="sd6f2af6">'+(installedDefNames.indexOf((t.name||'').toLowerCase())>-1?'<span data-s="s2871b8f" data-sd="inline-flex"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Installed</span>':canAuthorWorkflow?'<button class="btn btn-sm btn-primary js-workflow-install" data-template-id="'+esc(t.id)+'">Install Workflow</button>':'<span data-s="s7fc448e">View only</span>')+'</div>'+
       '</div>';
     }).join('');
   }
@@ -341,7 +341,7 @@
 
   async function loadDefinitions(){
     var body=document.getElementById('defBody');
-    body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+    body.innerHTML='<tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';
     try{
       var [defs, insts]=await Promise.all([
         apiFetch('/api/workflows/definitions'),
@@ -356,33 +356,33 @@
         }
       });
       if(!defCache.length){
-        body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">No workflow definitions yet. Install from Templates or create a custom one.</td></tr>';
+        body.innerHTML='<tr><td colspan="7" data-s="s810afb2">No workflow definitions yet. Install from Templates or create a custom one.</td></tr>';
         return;
       }
       body.innerHTML=defCache.map(function(d){
         var steps=[];try{steps=JSON.parse(d.steps_json||'[]');}catch(e){}
         var activeInst=instCountMap[d.id]||0;
         var instCell=activeInst>0
-          ? '<span style="color:var(--accent);font-weight:700">'+activeInst+' active</span>'
-          : '<span style="color:var(--muted)">—</span>';
+          ? '<span data-s="s456fefd">'+activeInst+' active</span>'
+          : '<span data-s="s57f9e31">—</span>';
         return '<tr>'+
-          '<td><div style="font-weight:600;font-size:13px">'+esc(d.name)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(d.description||'')+'</div></td>'+
-          '<td style="font-size:12px;color:var(--muted)">'+esc(d.trigger_module||'manual')+' / '+esc(d.trigger_action||'manual')+'</td>'+
-          '<td style="text-align:center;font-weight:700">'+steps.length+'</td>'+
-          '<td style="text-align:center">'+instCell+'</td>'+
-          '<td style="font-size:12px">'+esc(d.creator_name||'System')+'</td>'+
-          '<td style="text-align:center">'+statusBadge(d.is_active?'active':'disabled')+'</td>'+
-          '<td style="text-align:center">'+
-            '<div style="display:flex;gap:4px;justify-content:center">'+
+          '<td><div data-s="s160b067">'+esc(d.name)+'</div>'+
+            '<div data-s="s3823a5b">'+esc(d.description||'')+'</div></td>'+
+          '<td data-s="s7fc448e">'+esc(d.trigger_module||'manual')+' / '+esc(d.trigger_action||'manual')+'</td>'+
+          '<td data-s="s0a23f66">'+steps.length+'</td>'+
+          '<td data-s="s91a8701">'+instCell+'</td>'+
+          '<td data-s="s6cb285c">'+esc(d.creator_name||'System')+'</td>'+
+          '<td data-s="s91a8701">'+statusBadge(d.is_active?'active':'disabled')+'</td>'+
+          '<td data-s="s91a8701">'+
+            '<div data-s="s3477027" data-sd="flex">'+
               '<button class="btn btn-sm btn-primary js-workflow-start" data-definition-id="'+wfSafeId(d.id)+'" data-definition-name="'+esc(d.name)+'">Start</button>'+
               (canAuthorWorkflow?'<button class="btn btn-sm btn-secondary" data-wf-action="edit-def" data-id="'+wfSafeId(d.id)+'" title="Edit definition">Edit</button>':'')+
-              (canAuthorWorkflow?'<button class="btn btn-sm btn-secondary" data-wf-action="toggle-def" data-id="'+wfSafeId(d.id)+'" data-current-active="'+Boolean(d.is_active)+'" title="'+(d.is_active?'Disable':'Enable')+'" style="'+(d.is_active?'color:var(--muted)':'')+'">'+(d.is_active?'Disable':'Enable')+'</button>':'')+
+              (canAuthorWorkflow?'<button class="btn btn-sm btn-secondary" data-wf-action="toggle-def" data-id="'+wfSafeId(d.id)+'" data-current-active="'+Boolean(d.is_active)+'" title="'+(d.is_active?'Disable':'Enable')+'" data-sv="'+(d.is_active?'color:var(--muted)':'')+'">'+(d.is_active?'Disable':'Enable')+'</button>':'')+
             '</div>'+
           '</td></tr>';
       }).join('');
     }catch(e){
-      body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Failed to load definitions</td></tr>';
+      body.innerHTML='<tr><td colspan="7" data-s="s810afb2">Failed to load definitions</td></tr>';
     }
   }
 
@@ -392,7 +392,7 @@
     try{orgField=await wfTargetOrgField();}
     catch(e){if(typeof showToast==='function') showToast(e.message||'Failed to load organizations','error');return;}
     var html='<div class="modal-overlay" data-wf-backdrop="true">'+
-      '<div class="modal-box" style="max-width:440px">'+
+      '<div class="modal-box" data-s="s5521062">'+
       '<button class="modal-close" data-wf-action="close-modal">&times;</button>'+
       '<div class="modal-title">Start Workflow</div>'+
       (wfIsSuperAdmin?'':'<div class="ctx-block"><div class="ctx-label">Workflow</div><div class="ctx-val">'+esc(defName)+'</div></div>')+
@@ -408,8 +408,8 @@
         '</div>'+
         '<div class="form-group"><label>Entity ID (optional)</label>'+
           '<input type="number" id="siId" placeholder="Record ID to attach to this flow"></div>'+
-        '<div style="margin-top:16px;display:flex;gap:8px">'+
-          '<button type="submit" class="btn btn-primary" style="flex:1">Start Flow</button>'+
+        '<div data-s="s9d5b107" data-sd="flex">'+
+          '<button type="submit" class="btn btn-primary" data-s="s97445a8">Start Flow</button>'+
           '<button type="button" class="btn btn-secondary" data-wf-action="close-modal">Cancel</button>'+
         '</div>'+
       '</form></div></div>';
@@ -467,9 +467,9 @@
           '<div class="form-group"><label>Trigger Action</label><input type="text" id="wfAction" value="'+esc(d.trigger_action||'')+'" placeholder="e.g. policy.created"></div>'+
         '</div>'+
         '<div class="form-group"><label>Approval Steps</label><div id="stepBuilder"></div>'+
-          '<button type="button" class="btn btn-sm btn-secondary" data-wf-action="add-step" style="margin-top:8px">+ Add Step</button></div>'+
-        '<div style="margin-top:20px;display:flex;gap:8px">'+
-          '<button type="submit" class="btn btn-primary" style="flex:1">Save Changes</button>'+
+          '<button type="button" class="btn btn-sm btn-secondary" data-wf-action="add-step" data-s="s8a77e5a">+ Add Step</button></div>'+
+        '<div data-s="s14ef34a" data-sd="flex">'+
+          '<button type="submit" class="btn btn-primary" data-s="s97445a8">Save Changes</button>'+
           '<button type="button" class="btn btn-secondary" data-wf-action="close-modal">Cancel</button>'+
         '</div>'+
       '</form></div></div>';
@@ -523,12 +523,12 @@
 
   async function loadInstances(){
     var body=document.getElementById('instBody');
-    body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+    body.innerHTML='<tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';
     try{
       instCache=await apiFetch('/api/workflows/instances');
       renderInstances();
     }catch(e){
-      body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Failed to load instances</td></tr>';
+      body.innerHTML='<tr><td colspan="7" data-s="s810afb2">Failed to load instances</td></tr>';
     }
   }
 
@@ -548,7 +548,7 @@
 
     var body=document.getElementById('instBody');
     if(!items.length){
-      body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">No workflow instances found</td></tr>';
+      body.innerHTML='<tr><td colspan="7" data-s="s810afb2">No workflow instances found</td></tr>';
       return;
     }
 
@@ -560,11 +560,11 @@
       if(i.status==='active' && steps[i.current_step]){
         currentStepName=steps[i.current_step].name||steps[i.current_step].label||('Step '+(i.current_step+1));
       } else if(i.status==='completed'){
-        currentStepName='<span style="color:var(--green-status);font-weight:600">✓ Complete</span>';
+        currentStepName='<span data-s="sabd4f36">✓ Complete</span>';
       } else if(i.status==='rejected'){
-        currentStepName='<span style="color:var(--red);font-weight:600">✗ Rejected</span>';
+        currentStepName='<span data-s="s2cf51c5">✗ Rejected</span>';
       } else if(i.status==='returned'){
-        currentStepName='<span style="color:var(--amber);font-weight:600">↩ Returned</span>';
+        currentStepName='<span data-s="s02e61e3">↩ Returned</span>';
       }
 
       var progressPct=stepCount>0?Math.round(((i.current_step+(i.status==='completed'?1:0))/stepCount)*100):0;
@@ -572,26 +572,26 @@
 
       // Check if current user has a pending action for this instance
       var myAction=myActionCache.find(function(a){return a.instance_id===i.id;});
-      var entityHtml=entityLink(i.entity_module,i.entity_type,i.entity_id)||'<span style="color:var(--muted);font-size:12px">—</span>';
+      var entityHtml=entityLink(i.entity_module,i.entity_type,i.entity_id)||'<span data-s="sbf8965d">—</span>';
 
-      return '<tr style="cursor:pointer" role="button" tabindex="0" data-wf-action="open-instance" data-id="'+wfSafeId(i.id)+'">'+
+      return '<tr data-s="s3b6a3a6" role="button" tabindex="0" data-wf-action="open-instance" data-id="'+wfSafeId(i.id)+'">'+
         '<td>'+
-          '<div style="font-weight:600;font-size:13px">'+esc(i.workflow_name||'--')+'</div>'+
-          (myAction?'<div style="font-size:10px;font-weight:700;color:var(--amber);margin-top:2px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-hourglass></use></svg> Your action needed</div>':'')+
+          '<div data-s="s160b067">'+esc(i.workflow_name||'--')+'</div>'+
+          (myAction?'<div data-s="saf19c6b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-hourglass></use></svg> Your action needed</div>':'')+
         '</td>'+
-        '<td style="font-size:12px">'+entityHtml+'</td>'+
-        '<td style="font-size:12px">'+currentStepName+'</td>'+
-        '<td style="text-align:center">'+
-          '<div style="display:flex;align-items:center;gap:8px;justify-content:center">'+
-            '<div style="flex:1;max-width:70px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">'+
-              '<div style="height:100%;width:'+progressPct+'%;background:'+barColor+';border-radius:3px"></div>'+
+        '<td data-s="s6cb285c">'+entityHtml+'</td>'+
+        '<td data-s="s6cb285c">'+currentStepName+'</td>'+
+        '<td data-s="s91a8701">'+
+          '<div data-s="s6f1cb99" data-sd="flex">'+
+            '<div data-s="sfd10316">'+
+              '<div data-sv="height:100%;width:'+progressPct+'%;background:'+barColor+';border-radius:3px"></div>'+
             '</div>'+
-            '<span style="font-size:11px;font-weight:600;color:var(--muted);width:30px">'+progressPct+'%</span>'+
+            '<span data-s="sf3705df">'+progressPct+'%</span>'+
           '</div>'+
         '</td>'+
-        '<td style="font-size:12px">'+esc(i.started_by_name||'--')+'</td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+timeAgo(i.started_at)+'</td>'+
-        '<td style="text-align:center">'+statusBadge(i.status)+'</td></tr>';
+        '<td data-s="s6cb285c">'+esc(i.started_by_name||'--')+'</td>'+
+        '<td data-s="s7fc448e">'+timeAgo(i.started_at)+'</td>'+
+        '<td data-s="s91a8701">'+statusBadge(i.status)+'</td></tr>';
     }).join('');
   }
 
@@ -603,10 +603,10 @@
     root.innerHTML='<div class="drawer-overlay" data-wf-action="close-drawer"></div>'+
       '<div class="drawer">'+
         '<div class="drawer-header">'+
-          '<span style="font-weight:700;font-size:16px">Loading…</span>'+
+          '<span data-s="s08bdae6">Loading…</span>'+
           '<button class="drawer-close" data-wf-action="close-drawer">&times;</button>'+
         '</div>'+
-        '<div class="drawer-body"><div class="spinner" style="margin:24px auto"></div></div>'+
+        '<div class="drawer-body"><div class="spinner" data-s="s79df636"></div></div>'+
       '</div>';
     try{
       var inst=await apiFetch('/api/workflows/instances/'+iid);
@@ -631,25 +631,25 @@
       pipeHtml+='</div>';
 
       // Action history with comments
-      var histHtml='<div style="margin-top:24px"><div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px">Decision History</div>';
+      var histHtml='<div data-s="s49fcd85"><div data-s="s203bce7">Decision History</div>';
       if(actions.length){
         histHtml+=actions.map(function(a){
           var step=steps[a.step_index]||{};
-          return '<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">'+
-            '<div style="width:32px;height:32px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;flex-shrink:0">'+
-              '<span style="font-size:12px;font-weight:700;color:var(--muted)">'+(a.step_index+1)+'</span></div>'+
-            '<div style="flex:1">'+
-              '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(step.name||step.label||'Step '+(a.step_index+1))+'</div>'+
-              '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+
+          return '<div data-s="s1f9d80d" data-sd="flex">'+
+            '<div data-s="s94cfb79" data-sd="flex">'+
+              '<span data-s="s3c5f42a">'+(a.step_index+1)+'</span></div>'+
+            '<div data-s="s97445a8">'+
+              '<div data-s="s3da0680">'+esc(step.name||step.label||'Step '+(a.step_index+1))+'</div>'+
+              '<div data-s="s3823a5b">'+
                 statusBadge(a.status)+
                 (a.assigned_name?' &middot; '+esc(a.assigned_name):'')+
                 (a.acted_at?' &middot; '+timeAgo(a.acted_at):' &middot; pending')+
               '</div>'+
-              (a.comment?'<div style="font-size:12px;margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius);color:var(--text);font-style:italic">&ldquo;'+esc(a.comment)+'&rdquo;</div>':'')+
+              (a.comment?'<div data-s="sf2f1618">&ldquo;'+esc(a.comment)+'&rdquo;</div>':'')+
             '</div></div>';
         }).join('');
       } else {
-        histHtml+='<div style="font-size:12px;color:var(--muted)">No actions yet</div>';
+        histHtml+='<div data-s="s7fc448e">No actions yet</div>';
       }
       histHtml+='</div>';
 
@@ -662,13 +662,13 @@
 
       root.querySelector('.drawer-header span').textContent=inst.workflow_name||'Instance #'+iid;
       root.querySelector('.drawer-body').innerHTML=
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">'+
-          '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Status</div><div style="margin-top:4px">'+statusBadge(inst.status)+'</div></div>'+
-          '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Started</div><div style="font-size:13px;color:var(--text);margin-top:4px">'+timeAgo(inst.started_at)+' by '+esc(inst.started_by_name||'--')+'</div></div>'+
-          '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Entity</div><div style="font-size:13px;margin-top:4px">'+entityLink(inst.entity_module,inst.entity_type,inst.entity_id)+'</div></div>'+
-          (inst.completed_at?'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Completed</div><div style="font-size:13px;color:var(--text);margin-top:4px">'+timeAgo(inst.completed_at)+'</div></div>':'')+
+        '<div data-s="s63f083e" data-sd="grid">'+
+          '<div><div data-s="s0dab909">Status</div><div data-s="s96ad609">'+statusBadge(inst.status)+'</div></div>'+
+          '<div><div data-s="s0dab909">Started</div><div data-s="s5a505d0">'+timeAgo(inst.started_at)+' by '+esc(inst.started_by_name||'--')+'</div></div>'+
+          '<div><div data-s="s0dab909">Entity</div><div data-s="s5661dcc">'+entityLink(inst.entity_module,inst.entity_type,inst.entity_id)+'</div></div>'+
+          (inst.completed_at?'<div><div data-s="s0dab909">Completed</div><div data-s="s5a505d0">'+timeAgo(inst.completed_at)+'</div></div>':'')+
         '</div>'+
-        '<div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Approval Pipeline</div>'+
+        '<div data-s="s11f832f">Approval Pipeline</div>'+
         pipeHtml+histHtml;
 
       // Add footer if current user can decide
@@ -682,7 +682,7 @@
         footer.innerHTML=decideFooter;
       }
     }catch(e){
-      root.querySelector('.drawer-body').innerHTML='<div style="color:var(--muted);text-align:center;padding:32px">Failed to load instance details</div>';
+      root.querySelector('.drawer-body').innerHTML='<div data-s="s4f60c78">Failed to load instance details</div>';
     }
   };
 
@@ -698,10 +698,10 @@
 
     // Show loading modal immediately
     var html='<div class="modal-overlay" data-wf-backdrop="true">'+
-      '<div class="modal-box" style="max-width:500px">'+
+      '<div class="modal-box" data-s="s4294bfa">'+
       '<button class="modal-close" data-wf-action="close-modal">&times;</button>'+
       '<div class="modal-title">Decision Required</div>'+
-      '<div id="decisionContext"><div class="spinner" style="margin:20px auto"></div></div>'+
+      '<div id="decisionContext"><div class="spinner" data-s="s9ea2322"></div></div>'+
       '</div></div>';
     document.getElementById('wfModalRoot').innerHTML=html;
 
@@ -715,14 +715,14 @@
       var prevDecisions=actions.filter(function(a){return a.acted_at&&a.step_index<inst.current_step;});
       var prevHtml='';
       if(prevDecisions.length){
-        prevHtml='<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px">Previous Decisions</div>'+
+        prevHtml='<div data-s="s2b583d7"><div data-s="s8fbf26b">Previous Decisions</div>'+
           prevDecisions.map(function(a){
             var step=steps[a.step_index]||{};
-            return '<div style="display:flex;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--border)">'+
-              '<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--surface2);color:var(--muted);white-space:nowrap">Step '+(a.step_index+1)+'</span>'+
+            return '<div data-s="s06339aa" data-sd="flex">'+
+              '<span data-s="s517d340">Step '+(a.step_index+1)+'</span>'+
               '<div>'+
-                '<div style="font-size:12px;font-weight:600">'+esc(step.name||step.label||'')+'</div>'+
-                '<div style="font-size:11px;color:var(--muted)">'+statusBadge(a.status)+(a.assigned_name?' · '+esc(a.assigned_name):'')+'</div>'+
+                '<div data-s="seb5cb58">'+esc(step.name||step.label||'')+'</div>'+
+                '<div data-s="s1fd8c81">'+statusBadge(a.status)+(a.assigned_name?' · '+esc(a.assigned_name):'')+'</div>'+
                 (a.comment?'<div class="ctx-comment">&ldquo;'+esc(a.comment)+'&rdquo;</div>':'')+
               '</div>'+
             '</div>';
@@ -734,22 +734,22 @@
         '<div class="ctx-block">'+
           '<div class="ctx-label">Workflow</div><div class="ctx-val">'+esc(inst.workflow_name||workflowName||'')+'</div>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'+
-          '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px">Current Step</div>'+
-            '<div style="font-size:13px;font-weight:600;color:var(--text)">Step '+(inst.current_step+1)+
+        '<div data-s="sdfbd0b1" data-sd="grid">'+
+          '<div><div data-s="s0a2362e">Current Step</div>'+
+            '<div data-s="s3da0680">Step '+(inst.current_step+1)+
             (steps[inst.current_step]?' — '+esc(steps[inst.current_step].name||steps[inst.current_step].label||''):'')+
             '</div></div>'+
-          '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px">Entity</div>'+
-            '<div style="font-size:13px">'+entityLink(inst.entity_module,inst.entity_type,inst.entity_id)+'</div></div>'+
+          '<div><div data-s="s0a2362e">Entity</div>'+
+            '<div data-s="s5e0faad">'+entityLink(inst.entity_module,inst.entity_type,inst.entity_id)+'</div></div>'+
         '</div>'+
         prevHtml+
         '<div class="form-group"><label>Comment (optional)</label>'+
           '<textarea id="decComment" rows="3" placeholder="Add a note for audit trail…"></textarea></div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px">'+
-          '<button class="btn btn-primary" style="background:var(--green-status);border-color:var(--green-status)" data-wf-action="submit-decision" data-decision="approve">'+
+        '<div data-s="saf91b5c" data-sd="grid">'+
+          '<button class="btn btn-primary" data-s="s1929afd" data-wf-action="submit-decision" data-decision="approve">'+
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> Approve</button>'+
           '<button class="btn btn-secondary" data-wf-action="submit-decision" data-decision="return">↩ Return</button>'+
-          '<button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" data-wf-action="submit-decision" data-decision="reject">'+
+          '<button class="btn btn-primary" data-s="sd982cc4" data-wf-action="submit-decision" data-decision="reject">'+
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Reject</button>'+
         '</div>';
 
@@ -758,12 +758,12 @@
       // Fallback if instance detail fails — still show the basic form
       document.getElementById('decisionContext').innerHTML=
         '<div class="ctx-block"><div class="ctx-label">Workflow</div><div class="ctx-val">'+esc(workflowName||'')+'</div></div>'+
-        '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">'+esc(stepName||'')+'</div>'+
+        '<div data-s="s3066b2e">'+esc(stepName||'')+'</div>'+
         '<div class="form-group"><label>Comment (optional)</label><textarea id="decComment" rows="3" placeholder="Add a note…"></textarea></div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px">'+
-          '<button class="btn btn-primary" style="background:var(--green-status);border-color:var(--green-status)" data-wf-action="submit-decision" data-decision="approve">Approve</button>'+
+        '<div data-s="saf91b5c" data-sd="grid">'+
+          '<button class="btn btn-primary" data-s="s1929afd" data-wf-action="submit-decision" data-decision="approve">Approve</button>'+
           '<button class="btn btn-secondary" data-wf-action="submit-decision" data-decision="return">Return</button>'+
-          '<button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" data-wf-action="submit-decision" data-decision="reject">Reject</button>'+
+          '<button class="btn btn-primary" data-s="sd982cc4" data-wf-action="submit-decision" data-decision="reject">Reject</button>'+
         '</div>';
     }
   };
@@ -808,7 +808,7 @@
               '<option value="aria">ARIA</option><option value="sentinel">Sentinel</option>'+
               '<option value="grid">GRID</option><option value="bcm">BCM</option>'+
             '</select></div>'+
-          '<div class="form-group"><label>Trigger Action <span style="font-weight:400;text-transform:none;letter-spacing:0">(e.g. policy.created)</span></label>'+
+          '<div class="form-group"><label>Trigger Action <span data-s="s729b36c">(e.g. policy.created)</span></label>'+
             '<input type="text" id="wfAction" placeholder="leave blank for manual start" list="triggerSuggestions">'+
             '<datalist id="triggerSuggestions">'+
               '<option value="policy.created"><option value="policy.updated"><option value="risk.escalated">'+
@@ -818,9 +818,9 @@
           '</div>'+
         '</div>'+
         '<div class="form-group"><label>Approval Steps</label><div id="stepBuilder"></div>'+
-          '<button type="button" class="btn btn-sm btn-secondary" data-wf-action="add-step" style="margin-top:8px">+ Add Step</button>'+
+          '<button type="button" class="btn btn-sm btn-secondary" data-wf-action="add-step" data-s="s8a77e5a">+ Add Step</button>'+
         '</div>'+
-        '<div style="margin-top:20px"><button type="submit" class="btn btn-primary" style="width:100%">Create Workflow</button></div>'+
+        '<div data-s="sa26bda7"><button type="submit" class="btn btn-primary" data-s="s0466783">Create Workflow</button></div>'+
       '</form></div></div>';
     document.getElementById('wfModalRoot').innerHTML=html;
     wfAddStep();wfAddStep();
@@ -835,8 +835,8 @@
     div.className='step-item';
     div.innerHTML=
       '<div class="step-num">'+idx+'</div>'+
-      '<input type="text" placeholder="Step name (e.g. Manager Review)" data-step="'+idx+'" data-field="label" value="'+esc(label)+'" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
-      '<select data-step="'+idx+'" data-field="action_type" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
+      '<input type="text" placeholder="Step name (e.g. Manager Review)" data-step="'+idx+'" data-field="label" value="'+esc(label)+'" data-s="s8de7f53">'+
+      '<select data-step="'+idx+'" data-field="action_type" data-s="s8de7f53">'+
         '<option value="approve"'+(type==='approve'?' selected':'')+'>Approval</option>'+
         '<option value="review"'+(type==='review'?' selected':'')+'>Review</option>'+
         '<option value="sign_off"'+(type==='sign_off'?' selected':'')+'>Sign Off</option>'+
@@ -925,19 +925,19 @@
 
   async function loadSlaDefs(){
     var grid=document.getElementById('slaGrid');
-    grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>';
+    grid.innerHTML='<div data-s="sf649963"><div class="spinner" data-s="s266e9b0"></div></div>';
     try{
       var items=await apiFetch('/api/sla/definitions');
       if(!items.length){
-        grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">No SLA policies defined yet — create one to start tracking</div>';
+        grid.innerHTML='<div data-s="sf649963">No SLA policies defined yet — create one to start tracking</div>';
         return;
       }
       grid.innerHTML=items.map(function(s){
         return '<div class="sla-card">'+
-          '<div style="display:flex;justify-content:space-between;align-items:start">'+
+          '<div data-s="sf0bc6e2" data-sd="flex">'+
             '<div><div class="sla-name">'+esc(s.name)+'</div>'+
               '<div class="sla-meta">'+esc(s.module||'All modules')+' &middot; '+esc(s.entity_type||'Any entity')+' &middot; '+priBadge(s.priority)+'</div></div>'+
-            '<div style="display:flex;gap:6px;align-items:center">'+
+            '<div data-s="saebb47c" data-sd="flex">'+
               '<span class="badge '+(s.is_active?'badge-complete':'badge-draft')+'">'+(s.is_active?'Active':'Disabled')+'</span>'+
               '<button class="btn btn-sm btn-secondary" data-wf-action="toggle-sla" data-id="'+wfSafeId(s.id)+'" data-current-active="'+Boolean(s.is_active)+'">'+(s.is_active?'Disable':'Enable')+'</button>'+
             '</div>'+
@@ -949,7 +949,7 @@
           '</div></div>';
       }).join('');
     }catch(e){
-      grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">Failed to load SLA policies</div>';
+      grid.innerHTML='<div data-s="sf649963">Failed to load SLA policies</div>';
     }
   }
 
@@ -973,12 +973,12 @@
 
   async function loadSlaInstances(){
     var body=document.getElementById('slaInstBody');
-    body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+    body.innerHTML='<tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';
     try{
       slaInstCache=await apiFetch('/api/sla/instances');
       renderSlaInstances();
     }catch(e){
-      body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Failed to load SLA instances</td></tr>';
+      body.innerHTML='<tr><td colspan="7" data-s="s810afb2">Failed to load SLA instances</td></tr>';
     }
   }
 
@@ -989,7 +989,7 @@
     else if(slaInstFilter==='resolved') items=items.filter(function(i){return i.status==='resolved';});
     var body=document.getElementById('slaInstBody');
     if(!items.length){
-      body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">No SLA instances found</td></tr>';
+      body.innerHTML='<tr><td colspan="7" data-s="s810afb2">No SLA instances found</td></tr>';
       return;
     }
     body.innerHTML=items.map(function(i){
@@ -1000,16 +1000,16 @@
       if(i.status==='active'){
         if(!i.responded_at) actHtml+='<button class="btn btn-sm btn-secondary" data-wf-action="sla-respond" data-id="'+wfSafeId(i.id)+'" title="Mark responded">Respond</button> ';
         actHtml+='<button class="btn btn-sm btn-primary" data-wf-action="sla-resolve" data-id="'+wfSafeId(i.id)+'" title="Mark resolved">Resolve</button> ';
-        if(!i.escalated_at) actHtml+='<button class="btn btn-sm btn-secondary" data-wf-action="sla-escalate" data-id="'+wfSafeId(i.id)+'" style="color:var(--amber)">Escalate</button>';
+        if(!i.escalated_at) actHtml+='<button class="btn btn-sm btn-secondary" data-wf-action="sla-escalate" data-id="'+wfSafeId(i.id)+'" data-s="s08935a7">Escalate</button>';
       }
-      return '<tr'+(i.breached&&i.status==='active'?' style="background:rgba(239,68,68,.04)"':'')+'>'+
-        '<td style="font-weight:600;font-size:13px">'+esc(i.sla_name||'--')+'</td>'+
-        '<td style="font-size:12px">'+entityLink(i.entity_module,i.entity_type,i.entity_id)+'</td>'+
+      return '<tr'+(i.breached&&i.status==='active'?' data-s="s1257a06"':'')+'>'+
+        '<td data-s="s160b067">'+esc(i.sla_name||'--')+'</td>'+
+        '<td data-s="s6cb285c">'+entityLink(i.entity_module,i.entity_type,i.entity_id)+'</td>'+
         '<td>'+priBadge(i.priority)+'</td>'+
-        '<td style="text-align:center">'+respCell+'</td>'+
-        '<td style="text-align:center">'+resCell+'</td>'+
-        '<td style="text-align:center">'+statusHtml+'</td>'+
-        '<td style="text-align:center"><div style="display:flex;gap:4px;justify-content:center">'+actHtml+'</div></td></tr>';
+        '<td data-s="s91a8701">'+respCell+'</td>'+
+        '<td data-s="s91a8701">'+resCell+'</td>'+
+        '<td data-s="s91a8701">'+statusHtml+'</td>'+
+        '<td data-s="s91a8701"><div data-s="s3477027" data-sd="flex">'+actHtml+'</div></td></tr>';
     }).join('');
   }
 
@@ -1050,7 +1050,7 @@
       return '<option value="'+wfSafeId(d.id)+'">'+esc(d.name)+' ('+esc(d.module)+' / '+esc(d.entity_type)+')</option>';
     }).join('');
     var html='<div class="modal-overlay" data-wf-backdrop="true">'+
-      '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-box" data-s="sd2a2635">'+
       '<button class="modal-close" data-wf-action="close-modal">&times;</button>'+
       '<div class="modal-title">Start SLA Tracking</div>'+
       '<form data-wf-submit="start-sla">'+
@@ -1063,7 +1063,7 @@
           '<div class="form-group"><label>Entity Type</label><input type="text" id="slaStartType" placeholder="e.g. incident, finding"></div>'+
         '</div>'+
         '<div class="form-group"><label>Entity ID (optional)</label><input type="number" id="slaStartId" placeholder="Record ID"></div>'+
-        '<div style="margin-top:16px"><button type="submit" class="btn btn-primary" style="width:100%">Start Tracking</button></div>'+
+        '<div data-s="s1b0f499"><button type="submit" class="btn btn-primary" data-s="s0466783">Start Tracking</button></div>'+
       '</form></div></div>';
     document.getElementById('wfModalRoot').innerHTML=html;
   };
@@ -1087,7 +1087,7 @@
 
   window.wfOpenNewSla=function(){
     var html='<div class="modal-overlay" data-wf-backdrop="true">'+
-      '<div class="modal-box" style="max-width:500px">'+
+      '<div class="modal-box" data-s="s4294bfa">'+
       '<button class="modal-close" data-wf-action="close-modal">&times;</button>'+
       '<div class="modal-title">New SLA Policy</div>'+
       '<form data-wf-submit="sla-policy">'+
@@ -1106,7 +1106,7 @@
           '<div class="form-group"><label>Priority</label>'+
             '<select id="slaPri"><option value="low">Low</option><option value="normal" selected>Normal</option><option value="high">High</option><option value="critical">Critical</option></select></div>'+
         '</div>'+
-        '<div style="margin-top:16px"><button type="submit" class="btn btn-primary" style="width:100%">Create SLA Policy</button></div>'+
+        '<div data-s="s1b0f499"><button type="submit" class="btn btn-primary" data-s="s0466783">Create SLA Policy</button></div>'+
       '</form></div></div>';
     document.getElementById('wfModalRoot').innerHTML=html;
   };
@@ -1138,50 +1138,50 @@
   // Breach Monitor
   window.slaRunBreachCheck=async function(){
     var el=document.getElementById('breachResults');
-    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:8px;font-size:12px">Scanning all active SLAs…</div></div>';
+    el.innerHTML='<div data-s="s1ed15db"><div class="spinner" data-s="s266e9b0"></div><div data-s="sc5b0b89">Scanning all active SLAs…</div></div>';
     try{
       var r=await apiFetch('/api/sla/check-breaches',{method:'POST'});
       var total=r.response_breaches+r.resolution_breaches;
       if(total>0){
         el.innerHTML='<div class="breach-banner alert">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" width="24" height="24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'+
-          '<div><div style="font-weight:700;color:var(--red);font-size:14px">'+total+' New Breach'+(total>1?'es':'')+' Detected</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:2px">Response: '+r.response_breaches+' &middot; Resolution: '+r.resolution_breaches+' &middot; Escalation due: '+r.escalation_due+'</div>'+
+          '<div><div data-s="sf528903">'+total+' New Breach'+(total>1?'es':'')+' Detected</div>'+
+            '<div data-s="sfc85ba5">Response: '+r.response_breaches+' &middot; Resolution: '+r.resolution_breaches+' &middot; Escalation due: '+r.escalation_due+'</div>'+
           '</div></div>';
       } else {
         el.innerHTML='<div class="breach-banner ok">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="var(--green-status)" stroke-width="2" width="24" height="24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
-          '<div><div style="font-weight:700;color:var(--green-status);font-size:14px">All Clear</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:2px">No new breaches. Checked '+esc(r.checked_at||'just now')+'</div>'+
+          '<div><div data-s="s9d7d67f">All Clear</div>'+
+            '<div data-s="sfc85ba5">No new breaches. Checked '+esc(r.checked_at||'just now')+'</div>'+
           '</div></div>';
       }
       loadBreachedList();loadSlaStats();loadStats();
     }catch(e){
-      el.innerHTML='<div class="breach-banner alert"><div style="color:var(--red)">Failed to run breach scan</div></div>';
+      el.innerHTML='<div class="breach-banner alert"><div data-s="s45e7ae4">Failed to run breach scan</div></div>';
     }
   };
 
   async function loadBreachedList(){
     var body=document.getElementById('breachBody');
-    body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+    body.innerHTML='<tr><td colspan="6" data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></td></tr>';
     try{
       var items=await apiFetch('/api/sla/instances?breached=1');
-      if(!items.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No breached SLAs ✓</td></tr>';return;}
+      if(!items.length){body.innerHTML='<tr><td colspan="6" data-s="s6629491">No breached SLAs ✓</td></tr>';return;}
       body.innerHTML=items.map(function(i){
         var btHtml=i.breach_type?'<span class="badge badge-critical">'+esc(i.breach_type.toUpperCase())+'</span>':'<span class="badge badge-critical">BREACH</span>';
         var actHtml=i.status==='active'
           ?'<button class="btn btn-sm btn-primary" data-wf-action="sla-resolve" data-id="'+wfSafeId(i.id)+'">Resolve</button>'
           :'<span class="badge badge-draft">Closed</span>';
-        return '<tr style="background:rgba(239,68,68,.04)">'+
-          '<td style="font-weight:600;font-size:13px">'+esc(i.sla_name||'--')+'</td>'+
-          '<td style="font-size:12px">'+entityLink(i.entity_module,i.entity_type,i.entity_id)+'</td>'+
-          '<td style="text-align:center">'+btHtml+'</td>'+
-          '<td style="font-size:12px;color:var(--muted)">'+timeAgo(i.started_at)+'</td>'+
-          '<td style="text-align:center">'+statusBadge(i.status)+'</td>'+
-          '<td style="text-align:center">'+actHtml+'</td></tr>';
+        return '<tr data-s="s1257a06">'+
+          '<td data-s="s160b067">'+esc(i.sla_name||'--')+'</td>'+
+          '<td data-s="s6cb285c">'+entityLink(i.entity_module,i.entity_type,i.entity_id)+'</td>'+
+          '<td data-s="s91a8701">'+btHtml+'</td>'+
+          '<td data-s="s7fc448e">'+timeAgo(i.started_at)+'</td>'+
+          '<td data-s="s91a8701">'+statusBadge(i.status)+'</td>'+
+          '<td data-s="s91a8701">'+actHtml+'</td></tr>';
       }).join('');
     }catch(e){
-      body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Failed to load breached SLAs</td></tr>';
+      body.innerHTML='<tr><td colspan="6" data-s="s6629491">Failed to load breached SLAs</td></tr>';
     }
   }
 
@@ -1190,31 +1190,31 @@
      ════════════════════════════════════════════════════════════════════════ */
   async function loadComms(){
     var body=document.getElementById('commBody');
-    body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+    body.innerHTML='<tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';
     try{
       var items=await apiFetch('/api/comm-templates');
       if(!items.length){
-        body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">No notification templates yet — create one to start</td></tr>';
+        body.innerHTML='<tr><td colspan="7" data-s="s810afb2">No notification templates yet — create one to start</td></tr>';
         return;
       }
       body.innerHTML=items.map(function(t){
         var bodyPreview=(t.body_template||'').slice(0,80).replace(/\n/g,' ')+(t.body_template&&t.body_template.length>80?'…':'');
         return '<tr>'+
-          '<td style="font-weight:600;font-size:13px">'+esc(t.name)+'</td>'+
+          '<td data-s="s160b067">'+esc(t.name)+'</td>'+
           '<td>'+statusBadge(t.category||'general')+'</td>'+
-          '<td style="font-size:12px;color:var(--muted)">'+esc(t.module||'All')+'</td>'+
-          '<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.subject_template||'--')+'</td>'+
+          '<td data-s="s7fc448e">'+esc(t.module||'All')+'</td>'+
+          '<td data-s="sbd19216">'+esc(t.subject_template||'--')+'</td>'+
           '<td class="body-preview">'+esc(bodyPreview||'—')+'</td>'+
-          '<td style="text-align:center;font-weight:600;font-size:12px">v'+esc(t.version||1)+'</td>'+
-          '<td style="text-align:center">'+
-            '<div style="display:flex;gap:4px;justify-content:center">'+
+          '<td data-s="s33cc6da">v'+esc(t.version||1)+'</td>'+
+          '<td data-s="s91a8701">'+
+            '<div data-s="s3477027" data-sd="flex">'+
               '<button class="btn btn-sm btn-secondary" data-wf-action="preview-comm" data-id="'+wfSafeId(t.id)+'" title="Preview">Preview</button>'+
               (canAuthorWorkflow?'<button class="btn btn-sm btn-secondary" data-wf-action="edit-comm" data-id="'+wfSafeId(t.id)+'" title="Edit">Edit</button>':'')+
             '</div>'+
           '</td></tr>';
       }).join('');
     }catch(e){
-      body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Failed to load templates</td></tr>';
+      body.innerHTML='<tr><td colspan="7" data-s="s810afb2">Failed to load templates</td></tr>';
     }
   }
 
@@ -1255,9 +1255,9 @@
           '<input type="text" id="commSubj" value="'+esc(existing?existing.subject_template:'')+'" placeholder="e.g. Action Required: {{item_name}}"></div>'+
         '<div class="form-group"><label>Body Template</label>'+
           '<textarea id="commBodyTpl" rows="6" placeholder="Use {{variable_name}} for placeholders…">'+esc(existing?existing.body_template:'')+'</textarea></div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-bottom:16px">Variables: <code>{{user_name}}</code> <code>{{item_name}}</code> <code>{{module}}</code> <code>{{due_date}}</code> <code>{{link}}</code></div>'+
-        '<div style="display:flex;gap:8px">'+
-          '<button type="submit" class="btn btn-primary" style="flex:1">'+(isEdit?'Save Changes':'Create Template')+'</button>'+
+        '<div data-s="s8a51b10">Variables: <code>{{user_name}}</code> <code>{{item_name}}</code> <code>{{module}}</code> <code>{{due_date}}</code> <code>{{link}}</code></div>'+
+        '<div data-s="s33fcd4c" data-sd="flex">'+
+          '<button type="submit" class="btn btn-primary" data-s="s97445a8">'+(isEdit?'Save Changes':'Create Template')+'</button>'+
           (isEdit?'<button type="button" class="btn btn-secondary" data-wf-action="preview-comm" data-id="'+wfSafeId(existing.id)+'">Preview</button>':'')+
         '</div>'+
       '</form></div></div>';
@@ -1291,14 +1291,14 @@
         user_name:'Jane Smith',item_name:'Sample Record',module:'ARIA',due_date:'2026-06-01',link:'/workflows'
       }}});
       var html='<div class="modal-overlay" data-wf-backdrop="true">'+
-        '<div class="modal-box" style="max-width:520px">'+
+        '<div class="modal-box" data-s="s04391f0">'+
         '<button class="modal-close" data-wf-action="close-modal">&times;</button>'+
         '<div class="modal-title">Template Preview</div>'+
-        '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px">Subject</div>'+
-          '<div style="font-size:14px;font-weight:600;color:var(--text);padding:10px 14px;background:var(--surface2);border-radius:var(--radius)">'+esc(data.subject||'(no subject)')+'</div></div>'+
-        '<div><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px">Body</div>'+
-          '<div style="font-size:13px;color:var(--text);padding:14px;background:var(--surface2);border-radius:var(--radius);line-height:1.7;white-space:pre-wrap;max-height:300px;overflow-y:auto">'+esc(data.body||'(no body)')+'</div></div>'+
-        '<div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:center">Rendered with sample data · actual values will vary</div>'+
+        '<div data-s="sda12f28"><div data-s="sf486ff4">Subject</div>'+
+          '<div data-s="s4d2f7c4">'+esc(data.subject||'(no subject)')+'</div></div>'+
+        '<div><div data-s="sf486ff4">Body</div>'+
+          '<div data-s="s7d5ba30">'+esc(data.body||'(no body)')+'</div></div>'+
+        '<div data-s="s86900ef">Rendered with sample data · actual values will vary</div>'+
       '</div></div>';
       document.getElementById('wfModalRoot').innerHTML=html;
     }catch(e){

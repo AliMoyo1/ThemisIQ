@@ -50,13 +50,13 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start" class="animate-fade-up anim-1">
+<div data-s="seb339ca" data-sd="grid" class="animate-fade-up anim-1">
 
   <!-- Left: Configuration form -->
   <div>
 
     <!-- Step 1: Provider selection -->
-    <div class="panel-card" style="margin-bottom:16px">
+    <div class="panel-card" data-s="s87c136d">
       <div class="panel-title">1 · Select Provider</div>
       <div class="prov-grid" id="provGrid">
         <!-- rendered by JS -->
@@ -64,8 +64,8 @@
     </div>
 
     <!-- Step 2: Connection details -->
-    <div class="panel-card" style="margin-bottom:16px">
-      <div class="panel-title" style="margin-bottom:16px">2 · Connection Details</div>
+    <div class="panel-card" data-s="s87c136d">
+      <div class="panel-title" data-s="s87c136d">2 · Connection Details</div>
       <div class="info-box" id="secretsNote" hidden>
         <strong>Passwords are deployment secrets.</strong> Set <code>SMTP_PASS</code> (or <code>MS_CLIENT_SECRET</code>)
         in the service environment and restart the service. A password typed here is not stored, because the copy in
@@ -79,14 +79,14 @@
           Go to <strong>Google Account → Security → 2-Step Verification → App passwords</strong>,
           create a password for "ThemisIQ", and paste it below. Spaces in the password are fine.
         </div>
-        <div class="ef-row" style="margin-bottom:14px">
-          <div class="ef-field" style="margin-bottom:0">
+        <div class="ef-row" data-s="s2b583d7">
+          <div class="ef-field" data-s="sef0b7a1">
             <label class="ef-label">SMTP Host</label>
-            <input class="ef-input" id="fSmtpHost" value="smtp.gmail.com" readonly style="opacity:.6">
+            <input class="ef-input" id="fSmtpHost" value="smtp.gmail.com" readonly data-s="s6109bb5">
           </div>
-          <div class="ef-field" style="margin-bottom:0">
+          <div class="ef-field" data-s="sef0b7a1">
             <label class="ef-label">Port</label>
-            <input class="ef-input" id="fSmtpPort" value="587" readonly style="opacity:.6">
+            <input class="ef-input" id="fSmtpPort" value="587" readonly data-s="s6109bb5">
           </div>
         </div>
         <div class="ef-field">
@@ -111,14 +111,14 @@
           Requires SMTP AUTH enabled on the mailbox (Exchange Admin Center → Active users → mailbox → Mail → Manage email apps → <strong>Authenticated SMTP ✓</strong>).
           Use an App Password if MFA is enabled on the account.
         </div>
-        <div class="ef-row" style="margin-bottom:14px">
-          <div class="ef-field" style="margin-bottom:0">
+        <div class="ef-row" data-s="s2b583d7">
+          <div class="ef-field" data-s="sef0b7a1">
             <label class="ef-label">SMTP Host</label>
-            <input class="ef-input" id="fSmtpHostMs" value="smtp.office365.com" readonly style="opacity:.6">
+            <input class="ef-input" id="fSmtpHostMs" value="smtp.office365.com" readonly data-s="s6109bb5">
           </div>
-          <div class="ef-field" style="margin-bottom:0">
+          <div class="ef-field" data-s="sef0b7a1">
             <label class="ef-label">Port</label>
-            <input class="ef-input" id="fSmtpPortMs" value="587" readonly style="opacity:.6">
+            <input class="ef-input" id="fSmtpPortMs" value="587" readonly data-s="s6109bb5">
           </div>
         </div>
         <div class="ef-field">
@@ -168,12 +168,12 @@
 
       <!-- Custom SMTP -->
       <div class="ef-section" id="sec-smtp">
-        <div class="ef-row" style="margin-bottom:14px">
-          <div class="ef-field" style="margin-bottom:0">
+        <div class="ef-row" data-s="s2b583d7">
+          <div class="ef-field" data-s="sef0b7a1">
             <label class="ef-label">SMTP Host</label>
             <input class="ef-input" id="fSmtpHostCustom" placeholder="mail.yourserver.com">
           </div>
-          <div class="ef-field" style="margin-bottom:0">
+          <div class="ef-field" data-s="sef0b7a1">
             <label class="ef-label">Port</label>
             <input class="ef-input" id="fSmtpPortCustom" placeholder="587">
           </div>
@@ -194,7 +194,7 @@
 
       <!-- Console -->
       <div class="ef-section" id="sec-console">
-        <div class="info-box" style="background:rgba(100,116,139,.08);border-color:rgba(100,116,139,.2)">
+        <div class="info-box" data-s="sa257679">
           <strong>Console mode.</strong> No emails will be sent. All email activity is written to the application log.
           Useful for development and testing. You can switch to a real provider at any time without restarting.
         </div>
@@ -202,27 +202,27 @@
 
       <!-- Placeholder when nothing selected -->
       <div class="ef-section active" id="sec-none">
-        <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">
+        <div data-s="s88b75c4">
           Select a provider above to see configuration options.
         </div>
       </div>
 
-      <div style="display:flex;gap:10px;margin-top:4px" id="saveRow" style="display:none">
+      <div data-s="s9d29637" data-sd="flex" id="saveRow" data-sd="none">
         <button class="btn btn-primary" id="saveEmailConfigBtn">Save Configuration</button>
         <button class="btn btn-secondary" id="resetEmailConfigBtn">Reset</button>
       </div>
     </div>
 
     <!-- Step 3: Test -->
-    <div class="panel-card" style="margin-bottom:16px">
+    <div class="panel-card" data-s="s87c136d">
       <div class="panel-title">Privacy deadline backup</div>
       <label class="ef-label" for="fPrivacyBackup">Alternate privacy contact</label>
       <input class="ef-input" id="fPrivacyBackup" type="email" autocomplete="off" placeholder="privacy-backup@yourdomain.com">
       <div class="ef-hint">Must be an active DPO or Privacy Analyst in this organization. This person receives the same case reference and deadline alerts as the DPO. Leave blank to remove the backup.</div>
     </div>
     <div class="panel-card">
-      <div class="panel-title" style="margin-bottom:6px">3 · Test Connection</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      <div class="panel-title" data-s="s4e420af">3 · Test Connection</div>
+      <div data-s="sd489e5b">
         Sends a test email to <strong id="adminEmail">your email address</strong>. Save your configuration first.
       </div>
       <button class="btn btn-secondary" id="testBtn">
@@ -230,46 +230,46 @@
         Send Test Email
       </button>
       <div class="test-result" id="testResult"></div>
-      <div id="receiptRow" style="display:none;margin-top:10px">
-        <span style="font-size:12px;color:var(--muted)">Did the message reach your mailbox?</span>
+      <div id="receiptRow" data-s="sd2c171b" data-sd="none">
+        <span data-s="s7fc448e">Did the message reach your mailbox?</span>
         <button type="button" class="btn btn-secondary" id="receiptYesBtn">I received it</button>
         <button type="button" class="btn btn-secondary" id="receiptNoBtn">I did not receive it</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:10px" id="lastTestInfo"></div>
+      <div data-s="s78c2d6f" id="lastTestInfo"></div>
     </div>
 
   </div>
 
   <!-- Right: Info sidebar -->
   <div>
-    <div class="panel-card" style="margin-bottom:14px">
+    <div class="panel-card" data-s="s2b583d7">
       <div class="panel-title">Current Status</div>
-      <div id="sidebarStatus" style="font-size:13px;color:var(--muted)">Loading…</div>
+      <div id="sidebarStatus" data-s="s17d902b">Loading…</div>
     </div>
 
-    <div class="panel-card" style="margin-bottom:14px">
+    <div class="panel-card" data-s="s2b583d7">
       <div class="panel-title">Sender health</div>
-      <ul id="healthWarnings" style="font-size:12px;color:var(--muted);line-height:1.6;margin:0;padding-left:18px"></ul>
-      <div style="margin-top:10px" id="clearSecretsRow" hidden>
+      <ul id="healthWarnings" data-s="sbe7fdf0"></ul>
+      <div data-s="sd2c171b" id="clearSecretsRow" hidden>
         <button type="button" class="btn btn-secondary" id="clearSecretsBtn">Clear stored secrets</button>
         <div class="ef-hint">Use this after the password is set in the service environment and rotated.</div>
       </div>
     </div>
 
-    <div class="panel-card" style="margin-bottom:14px">
+    <div class="panel-card" data-s="s2b583d7">
       <div class="panel-title">Delivery queue</div>
-      <div id="queueCounts" style="font-size:12px;color:var(--muted)">Loading...</div>
-      <div id="queuePaused" role="status" style="font-size:12px;margin-top:6px" hidden></div>
-      <div style="margin-top:8px">
+      <div id="queueCounts" data-s="s7fc448e">Loading...</div>
+      <div id="queuePaused" role="status" data-s="s2b0979c" hidden></div>
+      <div data-s="s8a77e5a">
         <button type="button" class="btn btn-secondary" id="pauseBtn">Pause sending</button>
       </div>
-      <div id="queueProviders" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
-      <ul id="queueAttention" style="font-size:12px;line-height:1.6;margin:8px 0 0;padding-left:0;list-style:none"></ul>
+      <div id="queueProviders" data-s="sea04831"></div>
+      <ul id="queueAttention" data-s="s752356b"></ul>
     </div>
 
-    <div class="panel-card" style="margin-bottom:14px">
+    <div class="panel-card" data-s="s2b583d7">
       <div class="panel-title">What gets emailed</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.8">
+      <div data-s="sc9e3185">
         <div>An action assigned to a named person</div>
         <div>A finding assigned to you, and its response deadline</div>
         <div>Evidence that is about to expire</div>
@@ -281,31 +281,31 @@
 
     <div class="panel-card">
       <div class="panel-title">Provider Comparison</div>
-      <table style="width:100%;font-size:11px;border-collapse:collapse">
-        <tr style="color:var(--muted);text-transform:uppercase;font-size:10px;font-weight:700">
-          <td style="padding:4px 0">Provider</td>
-          <td style="padding:4px 0;text-align:center">Volume</td>
-          <td style="padding:4px 0;text-align:center">Setup</td>
+      <table data-s="sa635bd9">
+        <tr data-s="s86081f3">
+          <td data-s="sb7c21f2">Provider</td>
+          <td data-s="s1b2fdcb">Volume</td>
+          <td data-s="s1b2fdcb">Setup</td>
         </tr>
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:6px 0;color:var(--text);font-weight:600">Gmail</td>
-          <td style="text-align:center;color:var(--amber)">500/day</td>
-          <td style="text-align:center;color:var(--green-status)">Easy</td>
+        <tr data-s="s2eea7e4">
+          <td data-s="s5bd4a25">Gmail</td>
+          <td data-s="s9465965">500/day</td>
+          <td data-s="s18c39c7">Easy</td>
         </tr>
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:6px 0;color:var(--text);font-weight:600">O365 SMTP</td>
-          <td style="text-align:center;color:var(--green-status)">High</td>
-          <td style="text-align:center;color:var(--amber)">Medium</td>
+        <tr data-s="s2eea7e4">
+          <td data-s="s5bd4a25">O365 SMTP</td>
+          <td data-s="s18c39c7">High</td>
+          <td data-s="s9465965">Medium</td>
         </tr>
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:6px 0;color:var(--text);font-weight:600">Graph API</td>
-          <td style="text-align:center;color:var(--green-status)">High</td>
-          <td style="text-align:center;color:var(--red)">Admin needed</td>
+        <tr data-s="s2eea7e4">
+          <td data-s="s5bd4a25">Graph API</td>
+          <td data-s="s18c39c7">High</td>
+          <td data-s="sabf5cc1">Admin needed</td>
         </tr>
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:6px 0;color:var(--text);font-weight:600">Console</td>
-          <td style="text-align:center;color:var(--muted)">∞</td>
-          <td style="text-align:center;color:var(--green-status)">None</td>
+        <tr data-s="s2eea7e4">
+          <td data-s="s5bd4a25">Console</td>
+          <td data-s="s7054371">∞</td>
+          <td data-s="s18c39c7">None</td>
         </tr>
       </table>
     </div>

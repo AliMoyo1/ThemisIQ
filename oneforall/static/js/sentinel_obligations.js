@@ -68,7 +68,7 @@
   var createButton = document.getElementById('snCreateRuleCard');
   if (createButton) createButton.addEventListener('click', function () {
     var root = document.getElementById('snRuleCardForm');
-    root.innerHTML = '<form id="snRuleForm" class="card" style="margin:12px 0;padding:16px">' +
+    root.innerHTML = '<form id="snRuleForm" class="card" data-s="s39d9932">' +
       '<h3>Draft a notification rule card</h3>' +
       '<p>This is an interpretation record. It needs DPO approval before a clock can run.</p>' +
       '<div class="form-group"><label>Jurisdiction key <input name="jurisdiction_key" required maxlength="64"></label></div>' +
@@ -130,18 +130,18 @@
         return '<option value="' + esc(card.id) + '">' + esc(card.jurisdiction_key) + ' · ' +
           esc(card.notice_type) + ' · v' + esc(card.version) + ' (' + esc(card.state) + ')</option>';
       }).join('');
-      panel.innerHTML = '<div style="display:flex;justify-content:space-between"><h3>Jurisdiction obligations for breach #' +
+      panel.innerHTML = '<div data-s="sa562f4f" data-sd="flex"><h3>Jurisdiction obligations for breach #' +
         esc(breachId) + '</h3><button type="button" class="btn btn-secondary" id="snCloseObligations">Close</button></div>' +
         '<p>Each jurisdiction and notice type has its own source, trigger, owner and decision. A legacy countdown is only indicative.</p>' +
         (items.length ? items.map(function (item) {
           var clock = item.clock || {};
-          return '<div class="card" style="margin:10px 0;padding:14px"><strong>' + esc(item.jurisdiction_key) +
+          return '<div class="card" data-s="s20bb82b"><strong>' + esc(item.jurisdiction_key) +
             ' · ' + esc(item.notice_type) + ' · v' + esc(item.version) + '</strong><div>Clock: ' +
             esc(clock.state || 'unresolved') + (clock.deadline_at ? ' · ' + esc(clock.deadline_at) : '') +
             '</div><div>Applicability: ' + esc(item.applicability) + ' · decision: ' + esc(item.decision) +
             '</div><small>Source: <a href="' + esc(item.source_url) + '" target="_blank" rel="noopener noreferrer">' +
             esc(item.source_title) + '</a> · trigger: ' + esc(item.trigger_source || 'not confirmed') + '</small>' +
-            (canManage ? '<form data-obligation-facts="' + esc(item.id) + '" style="margin-top:8px">' +
+            (canManage ? '<form data-obligation-facts="' + esc(item.id) + '" data-s="s8a77e5a">' +
             '<label>Applicability <select name="applicability"><option value="under_review"' +
             (item.applicability === 'under_review' ? ' selected' : '') + '>Under review</option>' +
             '<option value="applies"' + (item.applicability === 'applies' ? ' selected' : '') +
@@ -152,13 +152,13 @@
             '<label>Trigger evidence <input name="trigger_source" maxlength="2000" value="' +
             esc(item.trigger_source || '') + '"></label> ' +
             '<button type="submit" class="btn btn-sm btn-secondary">Update facts</button></form>' +
-            '<form data-obligation-decision="' + esc(item.id) + '" style="margin-top:8px"><select name="decision">' +
+            '<form data-obligation-decision="' + esc(item.id) + '" data-s="s8a77e5a"><select name="decision">' +
             '<option value="notify">Notify</option><option value="do_not_notify">Do not notify</option>' +
             '<option value="deferred">Deferred</option></select> ' +
             '<input name="reason" required minlength="10" placeholder="Reason for this decision"> ' +
             '<button type="submit" class="btn btn-sm btn-secondary">Record decision</button></form>' : '') + '</div>';
         }).join('') : '<p>No obligations recorded. Add each jurisdiction requiring an applicability review.</p>') +
-        (canManage && cards.length ? '<form id="snAddObligation" class="card" style="padding:14px"><h4>Add obligation</h4>' +
+        (canManage && cards.length ? '<form id="snAddObligation" class="card" data-s="s8ebc437"><h4>Add obligation</h4>' +
           '<label>Rule card <select name="rule_card_id" required>' + options + '</select></label> ' +
           '<label>Applicability <select name="applicability"><option value="under_review">Under review</option>' +
           '<option value="applies">Applies</option><option value="not_applicable">Not applicable</option></select></label> ' +

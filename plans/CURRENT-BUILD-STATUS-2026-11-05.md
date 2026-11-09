@@ -287,3 +287,15 @@ The owner asked to build items 1 and 2 of the next list. Plan and evidence: [202
 Also fixed: ARIA Policy Imports crashed with a server error for a platform super administrator outside any organization (found by the new browser test).
 
 Then the owner said to start removing style attributes with the smallest module. Slice 1 converted AI Governance (one attribute) and the shared shell every page sits in (about 130), and AI Governance pages now refuse every style attribute (`STRICT_STYLE_PREFIXES` in `core/middleware.py`). The AI Registers page's card grid works again: a nested style tag had been dropping it. Next by size: Data Readiness (4), Evidence campaigns (9), Governance (40), then the large modules.
+
+## Every module free of style attributes, 2026-11-09 (chat confirmation, not sign-off)
+
+PR 50 merged as 577e1578 (not deployed). The owner then said "do all modules". Plan part 4, decisions D4.1 to D4.6 and evidence: [2026-11-zoom-and-style-policy.md](2026-11-zoom-and-style-policy.md).
+
+| Decision | Why | Cost | How to change |
+| --- | --- | --- | --- |
+| The remaining 5,600 style attributes were converted by a script, not by hand: fixed styles became generated `data-s` tokens in `static/css/style-tokens.css`; a starting `display` and run-time values became `data-sd` and `data-sv`, applied through `element.style` by `static/js/style_tokens.js`. | Hand slicing would take weeks. Checked three ways: every token against its original style (0 differences), the computed style of every element on 139 pages before and after, and the full browser suite under the strict rule. | Token names say nothing about intent; new markup must use ordinary classes (a test refuses new `style=`). | Rename tokens into classes module by module; the tests still hold. |
+| `style-src-attr 'none'` on every page; `STRICT_STYLE_PREFIXES` is gone. | It was the last style exception in the policy. | A page that writes `style=` loses that style; the guard test and the browser suite catch it first. | `security_headers_middleware` in `core/middleware.py`. |
+| Run-time values (`data-sv`) are checked before they apply: listed properties only, no URL, no fixed positioning. | Some come from stored colours; the old attribute applied whatever was stored. | A property not on the list is dropped. | The list in `static/js/style_tokens.js`. |
+
+Also fixed: the ARIA AI Generator page returned a server error once a policy document without a framework or control existed (S6). Two import result cards now show the padding their markup always asked for (S3).

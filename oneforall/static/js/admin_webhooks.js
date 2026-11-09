@@ -2,17 +2,17 @@ async function loadWebhooks() {
   const resp = await fetch('/api/admin/webhooks');
   const hooks = await resp.json();
   const tbody = document.getElementById('webhooksBody');
-  if (!hooks.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">No webhooks configured.</td></tr>'; return; }
+  if (!hooks.length) { tbody.innerHTML = '<tr><td colspan="5" data-s="sc0add8c">No webhooks configured.</td></tr>'; return; }
   tbody.innerHTML = hooks.filter(h => Number.isSafeInteger(Number(h.id)) && Number(h.id) > 0).map(h => `
-    <tr style="border-bottom:1px solid var(--border-soft);">
-      <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(h.name)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(h.url)}</td>
-      <td style="padding:10px 14px;font-size:11px;color:var(--muted);">${(h.events||'').split(',').map(e=>'<span style="padding:1px 5px;border-radius:3px;background:var(--surface3);margin-right:3px;">'+esc(e)+'</span>').join('')}</td>
-      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${h.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${h.is_active?'var(--good)':'var(--bad)'};">${h.is_active?'Active':'Disabled'}</span></td>
-      <td style="padding:10px 14px;text-align:center;display:flex;gap:4px;justify-content:center;">
-        <button id="test-btn-${Number(h.id)}" data-webhook-action="test" data-webhook-id="${Number(h.id)}" class="btn btn-secondary" style="font-size:11px;padding:3px 8px;">Test</button>
-        <button data-webhook-action="logs" data-webhook-id="${Number(h.id)}" class="btn btn-secondary" style="font-size:11px;padding:3px 8px;">Logs</button>
-        <button data-webhook-action="delete" data-webhook-id="${Number(h.id)}" class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:var(--bad);">Del</button>
+    <tr data-s="sc91b18f">
+      <td data-s="s26c9a4e">${esc(h.name)}</td>
+      <td data-s="s5d06683">${esc(h.url)}</td>
+      <td data-s="s4b6e710">${(h.events||'').split(',').map(e=>'<span data-s="sa45e39c">'+esc(e)+'</span>').join('')}</td>
+      <td data-s="s9c0b302"><span data-sv="padding:2px 8px;border-radius:4px;font-size:11px;background:${h.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${h.is_active?'var(--good)':'var(--bad)'};">${h.is_active?'Active':'Disabled'}</span></td>
+      <td data-s="sc4fe166" data-sd="flex">
+        <button id="test-btn-${Number(h.id)}" data-webhook-action="test" data-webhook-id="${Number(h.id)}" class="btn btn-secondary" data-s="sd04c880">Test</button>
+        <button data-webhook-action="logs" data-webhook-id="${Number(h.id)}" class="btn btn-secondary" data-s="sd04c880">Logs</button>
+        <button data-webhook-action="delete" data-webhook-id="${Number(h.id)}" class="btn btn-secondary" data-s="s6868a33">Del</button>
       </td>
     </tr>
   `).join('');
@@ -63,13 +63,13 @@ async function viewLogs(id) {
   const section = document.getElementById('logSection');
   section.style.display = 'block';
   const el = document.getElementById('logList');
-  if (!logs.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;">No delivery attempts yet.</div>'; return; }
+  if (!logs.length) { el.innerHTML = '<div data-s="sbf8965d">No delivery attempts yet.</div>'; return; }
   el.innerHTML = logs.map(l => `
-    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;background:var(--surface2);margin-bottom:4px;">
-      <span style="width:8px;height:8px;border-radius:50%;background:${l.success?'var(--good)':'var(--bad)'};"></span>
-      <span style="font-size:12px;flex:1;">${esc(l.event)}</span>
-      <span style="font-size:11px;color:var(--muted);">HTTP ${esc(String(l.response_code||'—'))}</span>
-      <span style="font-size:11px;color:var(--muted);">${esc(l.attempted_at||'')}</span>
+    <div data-s="s010e521" data-sd="flex">
+      <span data-sv="width:8px;height:8px;border-radius:50%;background:${l.success?'var(--good)':'var(--bad)'};"></span>
+      <span data-s="sceab66c">${esc(l.event)}</span>
+      <span data-s="s1fd8c81">HTTP ${esc(String(l.response_code||'—'))}</span>
+      <span data-s="s1fd8c81">${esc(l.attempted_at||'')}</span>
     </div>
   `).join('');
   section.scrollIntoView({ behavior:'smooth' });

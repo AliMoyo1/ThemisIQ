@@ -157,7 +157,7 @@ async function evLoadLegacy(){
           var source='#'+Number(item.id)+' '+escHtml(item.name||item.title||'Untitled');
           var action=(group.kind==='bcm'&&!data.bcm_reconcile)?'<span>BCM manage access required</span>':
             (group.kind==='bcm')?
-            '<label>Matching Vault ID <input type="number" min="1" id="evLegacyVault-'+Number(item.id)+'" style="width:110px"></label> '+
+            '<label>Matching Vault ID <input type="number" min="1" id="evLegacyVault-'+Number(item.id)+'" data-s="s6074682"></label> '+
             '<button type="button" class="btn btn-secondary" data-legacy-kind="bcm" data-legacy-id="'+Number(item.id)+'">Reconcile</button>':
             !data.grid_migrate?'<span>GRID upload access required</span>':
             item.state==='safe_local_file'?
@@ -165,7 +165,7 @@ async function evLoadLegacy(){
               '<span>Manual source review required</span>';
           return '<tr><td>'+source+'</td><td>'+escHtml(item.state)+'</td><td>'+action+'</td></tr>';
         }).join('')+'</tbody></table>':'<p>No unresolved files in this group.</p>';
-      return '<h3 style="font-size:14px;margin:18px 0 4px">'+group.title+' ('+pending.length+' unresolved)</h3>'+
+      return '<h3 data-s="sd9d8b03">'+group.title+' ('+pending.length+' unresolved)</h3>'+
         (pending.length>visible.length?'<p>Showing the first 100. Resolve them and refresh for the next group.</p>':'')+table;
     }).join('');
     status.textContent='Review each source and its Vault match before changing references.';
@@ -213,25 +213,25 @@ async function loadStats(){
   var exp7=s.expiring_7_days||0;
   evCanReviewLinks=!!s.can_review_links;
   document.getElementById('statsBar').innerHTML=
-    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" data-ev-dynamic="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
-      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Total</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--text);margin-top:4px">'+evCount(s.total)+'</div></button>'+
-    '<div class="card" style="padding:14px 18px">'+
-      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Links</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--info,#4f8ef7);margin-top:4px">'+evCount(s.total_links)+'</div></div>'+
-    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" data-ev-dynamic="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
-      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Expiring 30d</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--warn,#d97706);margin-top:4px">'+evCount(s.expiring_soon)+'</div>'+
-      (exp7?'<div style="font-size:10px;color:var(--bad,#dc2626);font-weight:600;margin-top:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+evCount(exp7)+' within 7 days</div>':'')+
+    '<button type="button" class="card" data-s="sc356914" data-sd="block" data-ev-dynamic="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
+      '<div data-s="s6c71a18">Total</div>'+
+      '<div data-s="se665b0f">'+evCount(s.total)+'</div></button>'+
+    '<div class="card" data-s="s186530a">'+
+      '<div data-s="s6c71a18">Links</div>'+
+      '<div data-s="scb7839d">'+evCount(s.total_links)+'</div></div>'+
+    '<button type="button" class="card" data-s="sc356914" data-sd="block" data-ev-dynamic="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
+      '<div data-s="s6c71a18">Expiring 30d</div>'+
+      '<div data-s="s56f123b">'+evCount(s.expiring_soon)+'</div>'+
+      (exp7?'<div data-s="s51f3121"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+evCount(exp7)+' within 7 days</div>':'')+
     '</button>'+
-    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" data-ev-dynamic="switchView(\'needs_filing\',document.getElementById(\'nav-unlinked\'))">'+
-      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Needs filing</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--bad,#dc2626);margin-top:4px">'+evCount(s.needs_filing)+'</div></button>'+
+    '<button type="button" class="card" data-s="sc356914" data-sd="block" data-ev-dynamic="switchView(\'needs_filing\',document.getElementById(\'nav-unlinked\'))">'+
+      '<div data-s="s6c71a18">Needs filing</div>'+
+      '<div data-s="sd2e2c66">'+evCount(s.needs_filing)+'</div></button>'+
     Object.keys(bm).filter(function(m){return /^(aria|grid|bcm|sentinel|erm|orm|governance|platform)$/.test(m);}).map(function(m){
       var c=evKnown(modColors,m,'#6b7280');
-      return '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" data-ev-dynamic="filterModule(\''+m+'\',null)">'+
-        '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">'+m.toUpperCase()+'</div>'+
-        '<div style="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+evCount(bm[m])+'</div></button>';
+      return '<button type="button" class="card" data-s="sc356914" data-sd="block" data-ev-dynamic="filterModule(\''+m+'\',null)">'+
+        '<div data-s="s6c71a18">'+m.toUpperCase()+'</div>'+
+        '<div data-sv="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+evCount(bm[m])+'</div></button>';
     }).join('');
   // Work views: every count is the length of the list it opens
   function put(id,n){var node=document.getElementById(id);if(node)node.textContent=(n===null||n===undefined)?'':String(n);}
@@ -256,10 +256,10 @@ async function loadStats(){
     ri.innerHTML=recent.map(function(r){
       var icon=evKnown(iconMap,r.category,null)||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
       var ago=timeAgo(r.created_at);
-      return '<button type="button" class="ev-recent-card" style="text-align:left;font:inherit" data-ev-dynamic="openDetail('+Number(r.id)+')">'+
-        '<div style="font-size:18px;margin-bottom:4px">'+icon+'</div>'+
-        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(r.title)+'</div>'+
-        '<div style="font-size:10px;color:var(--muted);margin-top:3px">'+escHtml(r.category)+' · '+ago+'</div>'+
+      return '<button type="button" class="ev-recent-card" data-s="sf35f2dc" data-ev-dynamic="openDetail('+Number(r.id)+')">'+
+        '<div data-s="s4e4fe8b">'+icon+'</div>'+
+        '<div data-s="s593a04d">'+escHtml(r.title)+'</div>'+
+        '<div data-s="s58410bd">'+escHtml(r.category)+' · '+ago+'</div>'+
       '</button>';
     }).join('');
   } else {
@@ -283,23 +283,23 @@ async function loadCoverage(){
     var r=await fetch('/evidence/api/coverage');var cov=await r.json();
     var dr=await fetch('/evidence/api/coverage/definitions');var defs=await dr.json();
     var m=defs.measures||{};
-    var html='<div class="card" style="padding:16px 20px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">Evidence coverage by module</div>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Three different facts, counted separately. '+escHtml(defs.denominator||'')+'</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">';
+    var html='<div class="card" data-s="s01b9273"><div data-s="s1a24f37">Evidence coverage by module</div>'+
+      '<div data-s="s7ba1841">Three different facts, counted separately. '+escHtml(defs.denominator||'')+'</div>'+
+      '<div data-s="s0388286" data-sd="grid">';
     ['aria','grid','bcm','sentinel','erm'].forEach(function(mod){
       var d=cov[mod];if(!d)return;
       var c=evKnown(modColors,mod,null)||'#6b7280';
-      html+='<div><div style="font-weight:600;font-size:12px;margin-bottom:4px"><span class="ev-mod-dot" style="background:'+c+';margin-right:6px" aria-hidden="true"></span>'+mod.toUpperCase()+' · '+d.total+' records</div>';
+      html+='<div><div data-s="s74bdeff"><span class="ev-mod-dot" data-sv="background:'+c+';margin-right:6px" aria-hidden="true"></span>'+mod.toUpperCase()+' · '+d.total+' records</div>';
       [['linked','Has a live link'],['current','Has current proof'],['accepted','Accepted by a reviewer']].forEach(function(row){
         var n=d[row[0]]||0,pct=d['pct_'+row[0]],measured=pct!==null&&pct!==undefined;
-        html+='<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:5px"><span>'+escHtml(row[1])+'</span><span style="color:var(--muted)">'+(measured?n+'/'+d.total+' ('+pct+'%)':'Not measured')+'</span></div>'+
-          (measured?'<div class="coverage-bar"><div class="coverage-fill" style="width:'+pct+'%;background:'+c+'"></div></div>':'');
+        html+='<div data-s="s77e2b72" data-sd="flex"><span>'+escHtml(row[1])+'</span><span data-s="s57f9e31">'+(measured?n+'/'+d.total+' ('+pct+'%)':'Not measured')+'</span></div>'+
+          (measured?'<div class="coverage-bar"><div class="coverage-fill" data-sv="width:'+pct+'%;background:'+c+'"></div></div>':'');
       });
       html+='</div>';
     });
-    html+='</div><details class="ev-defs" style="margin-top:12px"><summary>What these mean</summary><dl style="font-size:12px;margin:8px 0 0">'+
-      Object.keys(m).map(function(k){return '<dt style="font-weight:700;margin-top:6px">'+escHtml(m[k].label)+'</dt><dd style="margin:2px 0 0;color:var(--muted)">'+escHtml(m[k].means)+'</dd>';}).join('')+
-      '</dl><p style="font-size:12px;color:var(--muted)">'+escHtml(defs.exclusions||'')+' '+escHtml(defs.empty_denominator||'')+' As of '+escHtml(defs.as_of||'')+'.</p></details></div>';
+    html+='</div><details class="ev-defs" data-s="s56f4356"><summary>What these mean</summary><dl data-s="s11365be">'+
+      Object.keys(m).map(function(k){return '<dt data-s="s0244cca">'+escHtml(m[k].label)+'</dt><dd data-s="se1b96ba">'+escHtml(m[k].means)+'</dd>';}).join('')+
+      '</dl><p data-s="s7fc448e">'+escHtml(defs.exclusions||'')+' '+escHtml(defs.empty_denominator||'')+' As of '+escHtml(defs.as_of||'')+'.</p></details></div>';
     document.getElementById('coverageBar').innerHTML=html;
   }catch(e){document.getElementById('coverageBar').innerHTML='';}
 }
@@ -307,9 +307,9 @@ async function loadCoverage(){
 function expiryBadgeHtml(expiry_date){
   if(!expiry_date)return '';
   var days=Math.ceil((new Date(expiry_date)-new Date())/86400000);
-  if(days<=0)return '<span style="padding:2px 7px;border-radius:4px;font-size:11px;background:#fee2e2;color:#b91c1c;font-weight:600">expired</span>';
-  if(days<=7)return '<span style="padding:2px 7px;border-radius:4px;font-size:11px;background:#fef2f2;color:#b91c1c;font-weight:600">'+days+'d left</span>';
-  if(days<=30)return '<span style="padding:2px 7px;border-radius:4px;font-size:11px;background:#fef3c7;color:#92400e;font-weight:600">'+days+'d left</span>';
+  if(days<=0)return '<span data-s="sfa460a6">expired</span>';
+  if(days<=7)return '<span data-s="s07421b5">'+days+'d left</span>';
+  if(days<=30)return '<span data-s="s082d2bd">'+days+'d left</span>';
   return '';
 }
 
@@ -318,7 +318,7 @@ function confBadgeHtml(score){
   score=Math.max(0,Math.min(100,Number(score)));
   var color=score>=80?'#16a34a':score>=50?'#d97706':'#dc2626';
   var bg=score>=80?'rgba(22,163,74,.1)':score>=50?'rgba(217,119,6,.1)':'rgba(220,38,38,.1)';
-  return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:'+bg+';color:'+color+'" title="Metadata health: how complete the file\'s own details are. It does not say the file proves anything.">'+score+'%</span>';
+  return '<span data-sv="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:'+bg+';color:'+color+'" title="Metadata health: how complete the file\'s own details are. It does not say the file proves anything.">'+score+'%</span>';
 }
 
 var _VERIFY_LABELS={
@@ -394,7 +394,7 @@ function evClaimsHtml(item){
   });
   var rest=(item.claims_more||0);
   var hidden=(item.claims_hidden||0);
-  if(!parts.length&&!hidden)return '<span style="color:var(--muted)">None yet</span>';
+  if(!parts.length&&!hidden)return '<span data-s="s57f9e31">None yet</span>';
   var out=parts.join(', ');
   if(rest)out+=(out?' and ':'')+rest+' more';
   if(hidden)out+=(out?', ':'')+hidden+' you cannot open';
@@ -451,7 +451,7 @@ function evEntityLabel(id){
 }
 function evTextMatchHtml(item){
   if(!item.text_match)return '';
-  return '<div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:normal;line-height:1.4">'+
+  return '<div data-s="sb90743c">'+
     '<strong>'+escHtml(item.text_match.label)+'</strong> · '+escHtml(item.text_match.text)+'</div>';
 }
 async function loadEvidence(){
@@ -506,23 +506,23 @@ async function loadEvidence(){
     grid.style.display='none';tbl.style.display='block';
     body.innerHTML=items.map(function(item){
       var icon=evKnown(iconMap,item.category,null)||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
-      var source=item.file_name?escHtml(item.file_name):'<span style="color:var(--muted)">System record, no file</span>';
-      var owner=item.owner_name?escHtml(item.owner_name):'<span style="color:var(--muted)">No owner</span>';
-      var due=item.review_due_date?fmtDate(item.review_due_date)+(item.review_due?' <span class="ev-chip ev-chip-warn">due</span>':''):'<span style="color:var(--muted)">Not set</span>';
+      var source=item.file_name?escHtml(item.file_name):'<span data-s="s57f9e31">System record, no file</span>';
+      var owner=item.owner_name?escHtml(item.owner_name):'<span data-s="s57f9e31">No owner</span>';
+      var due=item.review_due_date?fmtDate(item.review_due_date)+(item.review_due?' <span class="ev-chip ev-chip-warn">due</span>':''):'<span data-s="s57f9e31">Not set</span>';
       var expiry=expiryBadgeHtml(item.expiry_date);
-      return '<tr data-ev-dynamic="openDetail('+Number(item.id)+')" style="cursor:pointer">'+
+      return '<tr data-ev-dynamic="openDetail('+Number(item.id)+')" data-s="s3b6a3a6">'+
         (evSelectionMode&&evCanBulkArchive?'<td data-ev-dynamic="event.stopPropagation()">'+
           (item.status==='archived'?'': '<input type="checkbox" class="ev-row-select" value="'+Number(item.id)+'" aria-label="Select '+escHtml(item.title)+'">')+'</td>':'')+
-        '<td><div style="display:flex;align-items:center;gap:8px"><span aria-hidden="true">'+icon+'</span>'+
-          '<div style="min-width:0"><div style="font-weight:600;font-size:13px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(item.title)+'">'+escHtml(item.title)+'</div>'+
-          '<div style="font-size:10px;color:var(--muted)">'+source+' · v'+escHtml(String(item.version||1))+'</div>'+evTextMatchHtml(item)+'</div></div></td>'+
+        '<td><div data-s="s250fc4e" data-sd="flex"><span aria-hidden="true">'+icon+'</span>'+
+          '<div data-s="s3922d32"><div data-s="s53be917" title="'+escHtml(item.title)+'">'+escHtml(item.title)+'</div>'+
+          '<div data-s="sb569cab">'+source+' · v'+escHtml(String(item.version||1))+'</div>'+evTextMatchHtml(item)+'</div></div></td>'+
         '<td data-ev-dynamic="event.stopPropagation()">'+evClaimsHtml(item)+'</td>'+
         '<td>'+owner+'</td>'+
         '<td>'+due+'</td>'+
         '<td>'+evStateChip(item.state)+(expiry?' '+expiry:'')+'</td>'+
-        '<td style="white-space:nowrap">'+fmtDate(item.updated_at)+'</td>'+
+        '<td data-s="s86abdab">'+fmtDate(item.updated_at)+'</td>'+
         '<td data-ev-dynamic="event.stopPropagation()">'+
-          (item.file_path&&item.file_size?'<button data-ev-dynamic="evDownload('+Number(item.id)+',false)" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer" title="Download" aria-label="Download '+escHtml(item.title)+'">&#11015;</button>':'')+
+          (item.file_path&&item.file_size?'<button data-ev-dynamic="evDownload('+Number(item.id)+',false)" data-s="sf0b24a9" title="Download" aria-label="Download '+escHtml(item.title)+'">&#11015;</button>':'')+
         '</td>'+
       '</tr>';
     }).join('');
@@ -530,14 +530,14 @@ async function loadEvidence(){
     tbl.style.display='none';grid.style.display='grid';
     grid.innerHTML=items.map(function(item){
       var icon=evKnown(iconMap,item.category,null)||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg>';
-      return '<button type="button" class="card" style="padding:16px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" data-ev-dynamic="openDetail('+Number(item.id)+')">'+
-        '<div style="display:flex;align-items:flex-start;gap:12px">'+
-          '<span style="font-size:28px">'+icon+'</span>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-weight:600;font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+evTextMatchHtml(item)+
-            '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
-              '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span>'+
+      return '<button type="button" class="card" data-s="sc2babfc" data-sd="block" data-ev-dynamic="openDetail('+Number(item.id)+')">'+
+        '<div data-s="s4fb60c8" data-sd="flex">'+
+          '<span data-s="sa2600b0">'+icon+'</span>'+
+          '<div data-s="s59eddc6">'+
+            '<div data-s="s7f569b2">'+escHtml(item.title)+'</div>'+
+            '<div data-s="s8a05498">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+evTextMatchHtml(item)+
+            '<div data-s="s04c34c1" data-sd="flex">'+
+              '<span data-s="sfefb16a">'+escHtml(item.category)+'</span>'+
               evStateChip(item.state)+expiryBadgeHtml(item.expiry_date)+
             '</div>'+
           '</div>'+
@@ -752,7 +752,7 @@ async function evDownload(eid,asPdf){
 }
 
 function _resolvedLinksHtml(links,resolved,eid,item){
-  if(!links.length) return '<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
+  if(!links.length) return '<div data-s="s9b0e5b9">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
   var canReview=!!(item&&item.can_review_links&&item.status==='current');
   var dark=document.documentElement.getAttribute('data-theme')==='dark';
   var tone=dark?{pending:'#fbbf24',accepted:'#4ade80',returned:'#f87171',rejected:'#f87171',out_of_scope:'var(--muted)'}
@@ -767,19 +767,19 @@ function _resolvedLinksHtml(links,resolved,eid,item){
     var seen=!!(safeUrl||res.name);
     var mine=Number(l.linked_by)===Number(evUserId)||(item&&Number(item.uploaded_by)===Number(evUserId));
     var name=res.name||('#'+l.entity_id);
-    return '<div class="ev-link-row" style="flex-wrap:wrap">'+
-      '<span class="ev-mod-dot" style="background:'+mc+'"></span>'+
-      '<span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;width:56px">'+escHtml(l.module)+'</span>'+
-      '<span style="font-size:10px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
-      (safeUrl?'<a href="'+escHtml(safeUrl)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(name)+'</a>':
-               '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(name)+'</span>')+
-      '<span class="ev-review-chip" style="color:'+(tone[status]||'var(--muted)')+';border-color:'+(tone[status]||'var(--border)')+'" title="'+escHtml(hint)+'">'+escHtml(l.review_label||'Waiting for a reviewer')+'</span>'+
-      (l.carried_from_link_id?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="Proposed from the version this one replaced. It needs its own review.">Carried forward</span>':'')+
-      (canReview&&seen&&!mine?'<button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px" data-ev-action="review-link" data-link-id="'+Number(l.id)+'" data-evidence-id="'+Number(eid)+'" data-status="'+escHtml(status)+'" data-name="'+escHtml(name)+'" aria-label="Review the link to '+escHtml(name)+'">Review</button>':'')+
-      (canReview&&seen&&mine?'<span class="ev-review-chip" style="color:var(--muted);border-color:var(--border)" title="The person who attached the file or made the link cannot review it.">Needs another reviewer</span>':'')+
-      '<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+fmtDate(l.created_at)+'</span>'+
-      '<button data-ev-dynamic="unlinkEvidence('+Number(l.id)+','+Number(eid)+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink" aria-label="Unlink '+escHtml(name)+'">✕</button>'+
-      (hint?'<div style="flex-basis:100%;font-size:11px;color:var(--muted);padding-left:64px">'+escHtml(hint)+'</div>':'')+
+    return '<div class="ev-link-row" data-s="s62da067">'+
+      '<span class="ev-mod-dot" data-sv="background:'+mc+'"></span>'+
+      '<span data-s="sbac6e51">'+escHtml(l.module)+'</span>'+
+      '<span data-s="sb569cab">'+escHtml(l.entity_type)+'</span>'+
+      (safeUrl?'<a href="'+escHtml(safeUrl)+'" data-s="s09ab059">'+escHtml(name)+'</a>':
+               '<span data-s="se228898">'+escHtml(name)+'</span>')+
+      '<span class="ev-review-chip" data-sv="color:'+(tone[status]||'var(--muted)')+';border-color:'+(tone[status]||'var(--border)')+'" title="'+escHtml(hint)+'">'+escHtml(l.review_label||'Waiting for a reviewer')+'</span>'+
+      (l.carried_from_link_id?'<span class="ev-review-chip" data-s="s3daaefb" title="Proposed from the version this one replaced. It needs its own review.">Carried forward</span>':'')+
+      (canReview&&seen&&!mine?'<button type="button" class="btn btn-secondary" data-s="se2b3d6e" data-ev-action="review-link" data-link-id="'+Number(l.id)+'" data-evidence-id="'+Number(eid)+'" data-status="'+escHtml(status)+'" data-name="'+escHtml(name)+'" aria-label="Review the link to '+escHtml(name)+'">Review</button>':'')+
+      (canReview&&seen&&mine?'<span class="ev-review-chip" data-s="s3daaefb" title="The person who attached the file or made the link cannot review it.">Needs another reviewer</span>':'')+
+      '<span data-s="sbff04ca">'+fmtDate(l.created_at)+'</span>'+
+      '<button data-ev-dynamic="unlinkEvidence('+Number(l.id)+','+Number(eid)+')" data-s="scc32ab4" title="Unlink" aria-label="Unlink '+escHtml(name)+'">✕</button>'+
+      (hint?'<div data-s="s28314ea">'+escHtml(hint)+'</div>':'')+
     '</div>';
   }).join('');
 }
@@ -802,39 +802,39 @@ async function openDetail(eid){
     not_applicable:'No attached file to index',
     failed:'Text indexing could not finish; metadata search still works'};
 
-  var html='<div class="ev-section" style="display:flex;justify-content:space-between;align-items:flex-start">'+
-    '<div><div style="font-size:18px;font-weight:700;color:var(--text)">'+icon+' '+escHtml(item.title)+'</div>'+
-    '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+escHtml(item.file_name||'')+' · '+fmtSize(item.file_size)+' · v'+escHtml(String(item.version||1))+'</div>'+
-    '<div style="margin-top:8px">'+evStateChip(item.state)+'</div>'+
-    '<div style="font-size:11px;color:var(--muted);margin-top:6px">'+escHtml(textStateLabel[textState]||'Text search unavailable')+'</div></div>'+
-    '<button data-ev-dynamic="closeDetail()" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:16px">✕</button></div>';
+  var html='<div class="ev-section" data-s="s13c1049" data-sd="flex">'+
+    '<div><div data-s="sf764568">'+icon+' '+escHtml(item.title)+'</div>'+
+    '<div data-s="sd14d7bf">'+escHtml(item.file_name||'')+' · '+fmtSize(item.file_size)+' · v'+escHtml(String(item.version||1))+'</div>'+
+    '<div data-s="s8a77e5a">'+evStateChip(item.state)+'</div>'+
+    '<div data-s="s5c3809d">'+escHtml(textStateLabel[textState]||'Text search unavailable')+'</div></div>'+
+    '<button data-ev-dynamic="closeDetail()" data-s="s34a8942">✕</button></div>';
 
   /* Actions */
   var hasFile=!!(item.file_path&&item.file_size&&item.file_size>0);
   var isAriaLinked=links.some(function(l){return l.module==='aria'&&l.entity_type==='document';});
   var canDownload=hasFile||isAriaLinked;
-  html+='<div class="ev-section" style="display:flex;gap:8px;flex-wrap:wrap">';
+  html+='<div class="ev-section" data-s="s4725bb7" data-sd="flex">';
   if(canDownload){
-    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" data-ev-dynamic="evDownload('+eid+',false)">Download original</button>';
-    if(canPdf||isAriaLinked)html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" data-ev-dynamic="evDownload('+eid+',true)">Download PDF</button>';
+    html+='<button class="btn btn-primary" data-s="s2cbaf86" data-ev-dynamic="evDownload('+eid+',false)">Download original</button>';
+    if(canPdf||isAriaLinked)html+='<button class="btn btn-secondary" data-s="s2cbaf86" data-ev-dynamic="evDownload('+eid+',true)">Download PDF</button>';
     if(hasFile){
-      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" data-ev-dynamic="verifyIntegrity('+eid+')">Verify Integrity</button>';
+      html+='<button class="btn btn-secondary" data-s="s2cbaf86" data-ev-dynamic="verifyIntegrity('+eid+')">Verify Integrity</button>';
     }
   } else {
-    html+='<span style="font-size:11px;color:var(--muted);padding:6px 0">Auto-generated record, no file attached</span>';
+    html+='<span data-s="s2442599">Auto-generated record, no file attached</span>';
   }
   if(item.status!=='archived'){
-    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" data-ev-dynamic="openLinkToModal('+eid+')">Link to...</button>';
+    html+='<button class="btn btn-secondary" data-s="s459ca32" data-ev-dynamic="openLinkToModal('+eid+')">Link to...</button>';
   }
   if(item.status==='current'&&hasFile){
-    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" data-ev-dynamic="evAddVersion('+eid+')">Add a new version</button>';
+    html+='<button class="btn btn-secondary" data-s="s2cbaf86" data-ev-dynamic="evAddVersion('+eid+')">Add a new version</button>';
   }
   if(item.can_delete){
     if(item.status==='archived'){
-      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--good,#16a34a);color:var(--good,#16a34a);margin-left:auto" data-ev-dynamic="restoreEvidence('+eid+')">Restore</button>';
-      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--bad,#dc2626);color:var(--bad,#dc2626)" data-ev-dynamic="permanentDeleteEvidence('+eid+')">Delete Permanently</button>';
+      html+='<button class="btn btn-secondary" data-s="s9c673eb" data-ev-dynamic="restoreEvidence('+eid+')">Restore</button>';
+      html+='<button class="btn btn-secondary" data-s="s598a82b" data-ev-dynamic="permanentDeleteEvidence('+eid+')">Delete Permanently</button>';
     } else {
-      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--bad,#dc2626);color:var(--bad,#dc2626);margin-left:auto" data-ev-dynamic="archiveEvidence('+eid+')">Archive</button>';
+      html+='<button class="btn btn-secondary" data-s="sc68578f" data-ev-dynamic="archiveEvidence('+eid+')">Archive</button>';
     }
   }
   html+='</div>';
@@ -842,8 +842,8 @@ async function openDetail(eid){
 
   /* Preview for images */
   if(isImageMime(mime)){
-    html+='<div class="ev-section" style="text-align:center;padding:10px 20px">'+
-      '<img src="/evidence/api/items/'+eid+'/download" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid var(--border)" alt="Preview">'+
+    html+='<div class="ev-section" data-s="sbc32449">'+
+      '<img src="/evidence/api/items/'+eid+'/download" data-s="s53637c0" alt="Preview">'+
     '</div>';
   }
 
@@ -868,44 +868,44 @@ async function openDetail(eid){
   }).join('');
 
   html+='<div class="ev-section"><div class="ev-section-title">Details</div>'+
-    '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:12px;align-items:center">'+
-      '<span style="color:var(--muted)">Title</span>'+
+    '<div data-s="sbdd971f" data-sd="grid">'+
+      '<span data-s="s57f9e31">Title</span>'+
       '<div class="ev-editable" id="ev-field-title">'+
-        '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.title)+'</span>'+
+        '<span class="ev-field-val" data-s="sf045bbe">'+escHtml(item.title)+'</span>'+
         '<button class="ev-edit-btn" aria-label="Edit title" data-ev-dynamic="evInlineEdit(\'title\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
-      '<span style="color:var(--muted)">Category</span>'+
+      '<span data-s="s57f9e31">Category</span>'+
       '<div class="ev-editable" id="ev-field-category">'+
-        '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.category)+'</span>'+
+        '<span class="ev-field-val" data-s="sf045bbe">'+escHtml(item.category)+'</span>'+
         '<button class="ev-edit-btn" aria-label="Edit category" data-ev-action="inline-select" data-field="category" data-evidence-id="'+Number(eid)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
-      '<span style="color:var(--muted)">Status</span>'+
+      '<span data-s="s57f9e31">Status</span>'+
       '<div class="ev-editable" id="ev-field-status">'+
-        '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.status)+'</span>'+
+        '<span class="ev-field-val" data-s="sf045bbe">'+escHtml(item.status)+'</span>'+
         '<button class="ev-edit-btn" aria-label="Edit status" data-ev-action="inline-select" data-field="status" data-evidence-id="'+Number(eid)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
-      '<span style="color:var(--muted)">Owner</span>'+
-      '<div class="ev-editable" id="ev-field-owner_user_id"><span class="ev-field-val" style="color:var(--text)">'+escHtml(item.owner_name||'No owner')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the owner" data-ev-dynamic="evInlineOwner('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
-      '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'Unknown')+'</span>'+
-      '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
-      '<span style="color:var(--muted)">Expiry</span>'+
+      '<span data-s="s57f9e31">Owner</span>'+
+      '<div class="ev-editable" id="ev-field-owner_user_id"><span class="ev-field-val" data-s="sf045bbe">'+escHtml(item.owner_name||'No owner')+'</span>'+
+        '<button class="ev-edit-btn" data-s="sc6e7979" aria-label="Change the owner" data-ev-dynamic="evInlineOwner('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
+      '<span data-s="s57f9e31">Uploaded by</span><span data-s="sf045bbe">'+escHtml(item.uploaded_by_name||'Unknown')+'</span>'+
+      '<span data-s="s57f9e31">Created</span><span data-s="sf045bbe">'+fmtDate(item.created_at)+'</span>'+
+      '<span data-s="s57f9e31">Expiry</span>'+
       '<div class="ev-editable" id="ev-field-expiry_date">'+
-        '<span class="ev-field-val" style="color:'+(item.expiry_date?'var(--warn,#d97706)':'var(--muted)')+'">'+
+        '<span class="ev-field-val" data-sv="color:'+(item.expiry_date?'var(--warn,#d97706)':'var(--muted)')+'">'+
           (item.expiry_date?fmtDate(item.expiry_date)+' '+expiryBadgeHtml(item.expiry_date):'Not set')+
         '</span>'+
-        '<button class="ev-edit-btn" aria-label="Edit expiry date" data-ev-dynamic="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="ev-edit-btn" aria-label="Edit expiry date" data-ev-dynamic="evInlineEdit(\'expiry_date\','+eid+',this)" data-s="sc6e7979"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
       '</div>'+
-      '<span style="color:var(--muted)">Review due</span>'+
-      '<div class="ev-editable" id="ev-field-review_due_date"><span class="ev-field-val" style="color:var(--text)">'+(item.review_due_date?fmtDate(item.review_due_date):'Not set')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the review date" data-ev-dynamic="evInlineEdit(\'review_due_date\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
-      '<span style="color:var(--muted)">Period from</span>'+
-      '<div class="ev-editable" id="ev-field-period_start"><span class="ev-field-val" style="color:var(--text)">'+(item.period_start?fmtDate(item.period_start):'Not set')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the start of the period" data-ev-dynamic="evInlineEdit(\'period_start\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
-      '<span style="color:var(--muted)">Period to</span>'+
-      '<div class="ev-editable" id="ev-field-period_end"><span class="ev-field-val" style="color:var(--text)">'+(item.period_end?fmtDate(item.period_end):'Not set')+'</span>'+
-        '<button class="ev-edit-btn" style="opacity:1" aria-label="Change the end of the period" data-ev-dynamic="evInlineEdit(\'period_end\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
-      (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:9px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
+      '<span data-s="s57f9e31">Review due</span>'+
+      '<div class="ev-editable" id="ev-field-review_due_date"><span class="ev-field-val" data-s="sf045bbe">'+(item.review_due_date?fmtDate(item.review_due_date):'Not set')+'</span>'+
+        '<button class="ev-edit-btn" data-s="sc6e7979" aria-label="Change the review date" data-ev-dynamic="evInlineEdit(\'review_due_date\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
+      '<span data-s="s57f9e31">Period from</span>'+
+      '<div class="ev-editable" id="ev-field-period_start"><span class="ev-field-val" data-s="sf045bbe">'+(item.period_start?fmtDate(item.period_start):'Not set')+'</span>'+
+        '<button class="ev-edit-btn" data-s="sc6e7979" aria-label="Change the start of the period" data-ev-dynamic="evInlineEdit(\'period_start\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
+      '<span data-s="s57f9e31">Period to</span>'+
+      '<div class="ev-editable" id="ev-field-period_end"><span class="ev-field-val" data-s="sf045bbe">'+(item.period_end?fmtDate(item.period_end):'Not set')+'</span>'+
+        '<button class="ev-edit-btn" data-s="sc6e7979" aria-label="Change the end of the period" data-ev-dynamic="evInlineEdit(\'period_end\','+eid+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button></div>'+
+      (item.file_hash?'<span data-s="s57f9e31">SHA-256</span><span data-s="s0194446">'+escHtml(item.file_hash)+'</span>':'')+
     '</div></div>';
 
   /* Confidence Score + Verification */
@@ -913,70 +913,70 @@ async function openDetail(eid){
     Math.max(0,Math.min(100,Number(item.confidence_score))):null;
   var confColor=confScore!=null?(confScore>=80?'#16a34a':confScore>=50?'#d97706':'#dc2626'):'#94a3b8';
   var verifyLabel=item.verification_method?(_VERIFY_LABELS[item.verification_method]||item.verification_method):'Not verified';
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;align-items:center;justify-content:space-between">Metadata health'+
-    (confScore!=null?'<span style="font-size:20px;font-weight:800;color:'+confColor+'">'+confScore+'%</span>':'<span style="font-size:12px;color:var(--muted)">Not scored</span>')+
+  html+='<div class="ev-section"><div class="ev-section-title" data-s="sc5879fc" data-sd="flex">Metadata health'+
+    (confScore!=null?'<span data-sv="font-size:20px;font-weight:800;color:'+confColor+'">'+confScore+'%</span>':'<span data-s="s7fc448e">Not scored</span>')+
   '</div>'+
-  '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:12px;align-items:center">'+
-    '<span style="color:var(--muted)">Verification</span>'+
-    '<span style="color:var(--text)">'+escHtml(verifyLabel)+(item.verified_at?' · <span style="color:var(--muted)">'+fmtDate(item.verified_at)+'</span>':'')+'</span>'+
+  '<div data-s="sbdd971f" data-sd="grid">'+
+    '<span data-s="s57f9e31">Verification</span>'+
+    '<span data-s="sf045bbe">'+escHtml(verifyLabel)+(item.verified_at?' · <span data-s="s57f9e31">'+fmtDate(item.verified_at)+'</span>':'')+'</span>'+
   '</div>'+
-  '<p style="font-size:11px;color:var(--muted);margin:8px 0 0">How complete the file\'s own details are: a method, an expiry, links and a hash. It does not say the file proves anything; only a reviewer\'s verdict on a link does.</p>'+
-  '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'+
+  '<p data-s="sf965e87">How complete the file\'s own details are: a method, an expiry, links and a hash. It does not say the file proves anything; only a reviewer\'s verdict on a link does.</p>'+
+  '<div data-s="s902fc60" data-sd="flex">'+
     Object.keys(_VERIFY_LABELS).map(function(m){
       var active=item.verification_method===m;
-      return '<button data-ev-dynamic="doSetVerification('+eid+',\''+m+'\')" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(active?'var(--accent)':'var(--border)')+';background:'+(active?'var(--accent)':'var(--surface)')+';color:'+(active?'#fff':'var(--text)')+'">'+escHtml(_VERIFY_LABELS[m])+'</button>';
+      return '<button data-ev-dynamic="doSetVerification('+eid+',\''+m+'\')" data-sv="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(active?'var(--accent)':'var(--border)')+';background:'+(active?'var(--accent)':'var(--surface)')+';color:'+(active?'#fff':'var(--text)')+'">'+escHtml(_VERIFY_LABELS[m])+'</button>';
     }).join('')+
-    (item.verification_method?'<button data-ev-dynamic="doRemoveVerification('+eid+')" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted)">Remove</button>':'')+
+    (item.verification_method?'<button data-ev-dynamic="doRemoveVerification('+eid+')" data-s="sa77fe97">Remove</button>':'')+
   '</div></div>';
 
   /* Tags -- editable */
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Tags '+
-    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" data-ev-dynamic="evEditTags('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> edit</button></div>'+
-    '<div id="ev-tags-display">'+(tags.length?tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join(''):'<span style="font-size:12px;color:var(--muted)">No tags</span>')+'</div>'+
-    '<div id="ev-tags-editor" style="display:none">'+
+  html+='<div class="ev-section"><div class="ev-section-title" data-s="sa562f4f" data-sd="flex">Tags '+
+    '<button class="ev-edit-btn" data-s="s54a5520" data-ev-dynamic="evEditTags('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> edit</button></div>'+
+    '<div id="ev-tags-display">'+(tags.length?tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join(''):'<span data-s="s7fc448e">No tags</span>')+'</div>'+
+    '<div id="ev-tags-editor" data-sd="none">'+
       '<input class="ev-inline-input" type="text" id="ev-input-tags" value="'+escHtml(item.tags||'')+'" placeholder="tag1, tag2, tag3">'+
-      '<div style="display:flex;gap:4px;margin-top:6px">'+
-        '<button data-ev-dynamic="evSaveField(\'tags\','+eid+',document.getElementById(\'ev-input-tags\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px">Save</button>'+
-        '<button data-ev-dynamic="document.getElementById(\'ev-tags-editor\').style.display=\'none\';document.getElementById(\'ev-tags-display\').style.display=\'block\'" style="background:var(--surface2);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>'+
+      '<div data-s="s507a1e3" data-sd="flex">'+
+        '<button data-ev-dynamic="evSaveField(\'tags\','+eid+',document.getElementById(\'ev-input-tags\').value)" data-s="s7aded7e">Save</button>'+
+        '<button data-ev-dynamic="document.getElementById(\'ev-tags-editor\').style.display=\'none\';document.getElementById(\'ev-tags-display\').style.display=\'block\'" data-s="s8b822a8">✕</button>'+
       '</div>'+
     '</div>'+
   '</div>';
 
   /* Description -- editable */
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Description '+
-    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" data-ev-dynamic="evEditDesc('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> edit</button></div>'+
-    '<div id="ev-desc-display">'+(item.description?'<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div>':'<span style="font-size:12px;color:var(--muted)">No description</span>')+'</div>'+
-    '<div id="ev-desc-editor" style="display:none">'+
-      '<textarea class="ev-inline-input" id="ev-input-description" rows="4" style="resize:vertical">'+escHtml(item.description||'')+'</textarea>'+
-      '<div style="display:flex;gap:4px;margin-top:6px">'+
-        '<button data-ev-dynamic="evSaveField(\'description\','+eid+',document.getElementById(\'ev-input-description\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px">Save</button>'+
-        '<button data-ev-dynamic="document.getElementById(\'ev-desc-editor\').style.display=\'none\';document.getElementById(\'ev-desc-display\').style.display=\'block\'" style="background:var(--surface2);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>'+
+  html+='<div class="ev-section"><div class="ev-section-title" data-s="sa562f4f" data-sd="flex">Description '+
+    '<button class="ev-edit-btn" data-s="s54a5520" data-ev-dynamic="evEditDesc('+eid+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> edit</button></div>'+
+    '<div id="ev-desc-display">'+(item.description?'<div data-s="se2aab8d">'+escHtml(item.description)+'</div>':'<span data-s="s7fc448e">No description</span>')+'</div>'+
+    '<div id="ev-desc-editor" data-sd="none">'+
+      '<textarea class="ev-inline-input" id="ev-input-description" rows="4" data-s="s9d0af0f">'+escHtml(item.description||'')+'</textarea>'+
+      '<div data-s="s507a1e3" data-sd="flex">'+
+        '<button data-ev-dynamic="evSaveField(\'description\','+eid+',document.getElementById(\'ev-input-description\').value)" data-s="s7aded7e">Save</button>'+
+        '<button data-ev-dynamic="document.getElementById(\'ev-desc-editor\').style.display=\'none\';document.getElementById(\'ev-desc-display\').style.display=\'block\'" data-s="s8b822a8">✕</button>'+
       '</div>'+
     '</div>'+
   '</div>';
 
   /* Linked Entities */
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between;align-items:center">Linked Entities ('+links.length+') <button data-ev-dynamic="aiSuggestLinks('+eid+')" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:13px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Suggest</button></div>';
-  html+='<div id="aiSuggestBox" style="display:none;margin-bottom:8px"></div>';
+  html+='<div class="ev-section"><div class="ev-section-title" data-s="s2d7d272" data-sd="flex">Linked Entities ('+links.length+') <button data-ev-dynamic="aiSuggestLinks('+eid+')" class="btn btn-secondary" data-s="s27dd323" data-sd="inline-flex"><span data-s="s5e0faad"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Suggest</button></div>';
+  html+='<div id="aiSuggestBox" data-s="sfdf33f2" data-sd="none"></div>';
   if(links.length){
     var specs2=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
     var resolved2=[];
     try{var rr2=await fetch('/evidence/api/resolve-links?evidence_id='+encodeURIComponent(eid)+'&links='+encodeURIComponent(JSON.stringify(specs2)));resolved2=await rr2.json();}catch(e){}
     html+=_resolvedLinksHtml(links,resolved2,eid,item);
   }else{
-    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
+    html+='<div data-s="s9b0e5b9">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
   }
   html+='</div></div>';/* end tabpane-details */
 
   /* History tab */
-  html+='<div id="tabpane-history" role="tabpanel" aria-labelledby="tab-history" style="display:none">'+
-    '<div class="ev-section"><div id="evVersions"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
-    '<div class="ev-section"><div class="ev-section-title">What this version did to the earlier one\'s claims</div><div id="evImpact" style="font-size:12px;color:var(--muted)">Loading...</div></div>'+
+  html+='<div id="tabpane-history" role="tabpanel" aria-labelledby="tab-history" data-sd="none">'+
+    '<div class="ev-section"><div id="evVersions"><div data-s="s6629491"><div class="spinner" data-s="s5051308"></div></div></div></div>'+
+    '<div class="ev-section"><div class="ev-section-title">What this version did to the earlier one\'s claims</div><div id="evImpact" data-s="s7fc448e">Loading...</div></div>'+
   '</div>';
 
   /* Activity tab */
-  html+='<div id="tabpane-activity" role="tabpanel" aria-labelledby="tab-activity" style="display:none">'+
-    '<div class="ev-section"><div id="evActivity"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
+  html+='<div id="tabpane-activity" role="tabpanel" aria-labelledby="tab-activity" data-sd="none">'+
+    '<div class="ev-section"><div id="evActivity"><div data-s="s6629491"><div class="spinner" data-s="s5051308"></div></div></div></div>'+
   '</div>';
 
   document.getElementById('evDetailContent').innerHTML=html;
@@ -993,13 +993,13 @@ async function openDetail(eid){
       var versionId=Number(v.id);
       if(!Number.isSafeInteger(versionId)||versionId<=0)return '';
       var state=v.status==='current'?'Current version':v.status==='superseded'?'Replaced version':v.status;
-      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px">'+
-        '<span style="font-weight:700;color:var(--accent);font-family:monospace;min-width:28px">v'+escHtml(String(v.version||''))+'</span>'+
-        '<button type="button" style="color:var(--text);flex:1;text-align:left;background:none;border:none;cursor:pointer;font:inherit;text-decoration:underline" data-ev-dynamic="openDetail('+versionId+')">'+escHtml(v.title)+'</button>'+
-        '<span style="color:var(--muted)">'+fmtDate(v.created_at)+'</span>'+
+      return '<div data-s="saac4fc2" data-sd="flex">'+
+        '<span data-s="s514fa59">v'+escHtml(String(v.version||''))+'</span>'+
+        '<button type="button" data-s="s47b64d9" data-ev-dynamic="openDetail('+versionId+')">'+escHtml(v.title)+'</button>'+
+        '<span data-s="s57f9e31">'+fmtDate(v.created_at)+'</span>'+
         '<span class="ev-tag">'+escHtml(state)+'</span></div>';
-    }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">Single version, no history</div>';
-  }catch(e){document.getElementById('evVersions').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load versions</div>';}
+    }).join(''):'<div data-s="s9b0e5b9">Single version, no history</div>';
+  }catch(e){document.getElementById('evVersions').innerHTML='<div data-s="s7fc448e">Could not load versions</div>';}
 
   loadItemChecks(eid);
 
@@ -1016,13 +1016,13 @@ async function openDetail(eid){
         sm.awaiting_review+' wait'+(sm.awaiting_review===1?'s':'')+' for a reviewer'+
         (sm.accepted_again?' and '+sm.accepted_again+' already accepted':'')+
         (sm.not_carried?'. '+sm.not_carried+' stayed with the earlier version (the record could not be opened or was removed)':'')+'.';
-      box.innerHTML='<p style="margin:0 0 8px;color:var(--text)">'+escHtml(line)+'</p>'+
-        (imp.claims.length?'<ul style="margin:0;padding-left:18px">'+imp.claims.map(function(c){
+      box.innerHTML='<p data-s="sf1a216b">'+escHtml(line)+'</p>'+
+        (imp.claims.length?'<ul data-s="s592d196">'+imp.claims.map(function(c){
           var url=evSafeInternalUrl(c.url);
           return '<li>'+(url?'<a href="'+escHtml(url)+'">'+escHtml(c.title)+'</a>':escHtml(c.title))+
             ': '+escHtml(c.was_label)+' then, '+escHtml(c.now_label||'not proposed again')+' now</li>';
         }).join('')+'</ul>':'')+
-        (imp.hidden?'<p style="margin:8px 0 0">'+imp.hidden+' more claim'+(imp.hidden===1?'':'s')+' you cannot open.</p>':'');
+        (imp.hidden?'<p data-s="sc94d43e">'+imp.hidden+' more claim'+(imp.hidden===1?'':'s')+' you cannot open.</p>':'');
     }
   }catch(e){var b2=document.getElementById('evImpact');if(b2)b2.textContent='Could not load.';}
 
@@ -1033,17 +1033,17 @@ async function openDetail(eid){
       var isDeleted=!!a.deleted_at;
       var mc=evKnown(modColors,a.module,null)||'#6b7280';
       return '<div class="ev-activity-row">'+
-        '<span class="ev-act-dot" style="background:'+(isDeleted?'#dc2626':mc)+'"></span>'+
-        '<div style="flex:1">'+
-          '<span style="font-weight:600">'+(isDeleted?'Unlinked':'Linked')+'</span>'+
-          ' <span style="color:var(--muted)">'+escHtml(a.module)+'/'+escHtml(a.entity_type)+' #'+escHtml(String(a.entity_id))+'</span>'+
-          '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+
+        '<span class="ev-act-dot" data-sv="background:'+(isDeleted?'#dc2626':mc)+'"></span>'+
+        '<div data-s="s97445a8">'+
+          '<span data-s="seed0f8f">'+(isDeleted?'Unlinked':'Linked')+'</span>'+
+          ' <span data-s="s57f9e31">'+escHtml(a.module)+'/'+escHtml(a.entity_type)+' #'+escHtml(String(a.entity_id))+'</span>'+
+          '<div data-s="s54c41d6">'+
             'by '+escHtml(isDeleted?a.deleted_by_name:a.linked_by_name||'system')+' · '+fmtDate(isDeleted?a.deleted_at:a.created_at)+
           '</div>'+
         '</div>'+
       '</div>';
-    }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">No link activity recorded</div>';
-  }catch(e){document.getElementById('evActivity').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load activity</div>';}
+    }).join(''):'<div data-s="s9b0e5b9">No link activity recorded</div>';
+  }catch(e){document.getElementById('evActivity').innerHTML='<div data-s="s7fc448e">Could not load activity</div>';}
 }
 
 function evShowTab(tab){
@@ -1066,9 +1066,9 @@ function evInlineEdit(field,eid,btn){
   var inputVal=isDate?'':curText;
   if(isDate&&evDetailItem&&evDetailItem[field])inputVal=String(evDetailItem[field]).slice(0,10);
   container.innerHTML=
-    '<input class="ev-inline-input" type="'+inputType+'" id="ev-input-'+field+'" value="'+escHtml(inputVal)+'" style="flex:1">'+
-    '<button data-ev-dynamic="evSaveField(\''+field+'\','+eid+',document.getElementById(\'ev-input-'+field+'\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">Save</button>'+
-    '<button data-ev-dynamic="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>';
+    '<input class="ev-inline-input" type="'+inputType+'" id="ev-input-'+field+'" value="'+escHtml(inputVal)+'" data-s="s97445a8">'+
+    '<button data-ev-dynamic="evSaveField(\''+field+'\','+eid+',document.getElementById(\'ev-input-'+field+'\').value)" data-s="s4c0a3b3">Save</button>'+
+    '<button data-ev-dynamic="openDetail('+eid+')" data-s="s264268d">✕</button>';
   document.getElementById('ev-input-'+field).focus();
 }
 
@@ -1076,8 +1076,8 @@ function evInlineSelect(field,eid,optsHtml){
   var container=document.getElementById('ev-field-'+field);
   if(!container)return;
   container.innerHTML=
-    '<select class="ev-inline-input" id="ev-input-'+field+'" style="flex:1" data-ev-dynamic-change="evSaveField(\''+field+'\','+eid+',this.value)">'+optsHtml+'</select>'+
-    '<button data-ev-dynamic="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>';
+    '<select class="ev-inline-input" id="ev-input-'+field+'" data-s="s97445a8" data-ev-dynamic-change="evSaveField(\''+field+'\','+eid+',this.value)">'+optsHtml+'</select>'+
+    '<button data-ev-dynamic="openDetail('+eid+')" data-s="s264268d">✕</button>';
 }
 
 async function evInlineOwner(eid){
@@ -1085,11 +1085,11 @@ async function evInlineOwner(eid){
   if(!container)return;
   var current=evDetailItem?evDetailItem.owner_user_id:null;
   container.innerHTML=
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">'+
-      '<input type="search" id="ev-owner-find" class="ev-inline-input" aria-label="Find a person by name" placeholder="Find a person" autocomplete="off" style="flex:1 1 120px">'+
-      '<select class="ev-inline-input" id="ev-input-owner_user_id" aria-label="Owner" style="flex:1 1 140px" data-ev-dynamic-change="evSaveField(\'owner_user_id\','+eid+',this.value)"></select>'+
+    '<div data-s="s2f2d292" data-sd="flex">'+
+      '<input type="search" id="ev-owner-find" class="ev-inline-input" aria-label="Find a person by name" placeholder="Find a person" autocomplete="off" data-s="sbde8de7">'+
+      '<select class="ev-inline-input" id="ev-input-owner_user_id" aria-label="Owner" data-s="s0613838" data-ev-dynamic-change="evSaveField(\'owner_user_id\','+eid+',this.value)"></select>'+
     '</div>'+
-    '<button data-ev-dynamic="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)" aria-label="Cancel">&#10005;</button>';
+    '<button data-ev-dynamic="openDetail('+eid+')" data-s="s264268d" aria-label="Cancel">&#10005;</button>';
   var select=document.getElementById('ev-input-owner_user_id'), find=document.getElementById('ev-owner-find'), timer=null;
   // The list is the first thirty names, or the thirty that match what was typed: an organization is larger than a list.
   async function load(q){
@@ -1140,11 +1140,11 @@ document.addEventListener('keydown',function(e){
 
 async function verifyIntegrity(eid){
   var el=document.getElementById('integrityResult');
-  el.innerHTML='<div class="ev-section" style="padding:8px 20px"><span style="color:var(--accent);font-size:12px">Verifying...</span></div>';
+  el.innerHTML='<div class="ev-section" data-s="s34116c7"><span data-s="s1917f57">Verifying...</span></div>';
   var r=await fetch('/evidence/api/items/'+eid+'/verify');var d=await r.json();
   var col=d.verified?'var(--good,#16a34a)':'var(--bad,#dc2626)';
   var icon=d.verified?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-x></use></svg>';
-  el.innerHTML='<div class="ev-section" style="padding:8px 20px;background:'+(d.verified?'#dcfce722':'#fee2e222')+'"><span style="color:'+col+';font-size:12px;font-weight:600">'+icon+' '+escHtml(d.message)+'</span></div>';
+  el.innerHTML='<div class="ev-section" data-sv="padding:8px 20px;background:'+(d.verified?'#dcfce722':'#fee2e222')+'"><span data-sv="color:'+col+';font-size:12px;font-weight:600">'+icon+' '+escHtml(d.message)+'</span></div>';
 }
 
 async function unlinkEvidence(linkId,eid){
@@ -1200,17 +1200,17 @@ async function loadChecks(){
     var r=await fetch('/evidence/api/inspector?limit=25');var d=await r.json();
     if(!d||d.error){box.innerHTML='';return;}
     var rules=d.rules||{};
-    var html='<div class="card" style="padding:16px 20px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">Quality checks</div>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">'+escHtml(d.note||'')+' Looked at '+d.scanned+' file'+(d.scanned===1?'':'s')+(d.limit_hit?' (the most recent)':'')+'.</div>';
-    if(!d.total){html+='<div style="font-size:12px">No known defect among the files you can open.</div>';}
+    var html='<div class="card" data-s="s01b9273"><div data-s="s617c71f">Quality checks</div>'+
+      '<div data-s="s7ba1841">'+escHtml(d.note||'')+' Looked at '+d.scanned+' file'+(d.scanned===1?'':'s')+(d.limit_hit?' (the most recent)':'')+'.</div>';
+    if(!d.total){html+='<div data-s="s6cb285c">No known defect among the files you can open.</div>';}
     else{
-      html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+Object.keys(d.counts).map(function(k){
-        return '<button type="button" class="ev-chip ev-chip-'+(evKnown(evCheckKind,(rules[k]||{}).severity,null)||'muted')+'" style="cursor:pointer;background:var(--surface)" data-ev-action="check-filter" data-rule="'+escHtml(k)+'">'+escHtml((rules[k]||{}).label||k)+': '+Number(d.counts[k])+'</button>';
-      }).join('')+'</div><ul style="list-style:none;margin:0;padding:0">'+d.findings.map(function(f){
-        return '<li style="padding:8px 0;border-top:1px solid var(--border);font-size:12px">'+
+      html+='<div data-s="s8bb0cda" data-sd="flex">'+Object.keys(d.counts).map(function(k){
+        return '<button type="button" class="ev-chip ev-chip-'+(evKnown(evCheckKind,(rules[k]||{}).severity,null)||'muted')+'" data-s="sb518c2b" data-ev-action="check-filter" data-rule="'+escHtml(k)+'">'+escHtml((rules[k]||{}).label||k)+': '+Number(d.counts[k])+'</button>';
+      }).join('')+'</div><ul data-s="s99409a7">'+d.findings.map(function(f){
+        return '<li data-s="sd1baa8d">'+
           '<span class="ev-chip ev-chip-'+(evKnown(evCheckKind,f.severity,null)||'muted')+'">'+escHtml(f.title)+'</span> '+
-          '<button type="button" data-ev-dynamic="openDetail('+Number(f.evidence_id)+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-weight:600">'+escHtml(f.evidence_title)+'</button>'+
-          '<div style="color:var(--muted);margin-top:2px">'+escHtml(f.why)+(f.claims&&f.claims.length?' Claims: '+escHtml(f.claims.join(', '))+'.':'')+'</div></li>';
+          '<button type="button" data-ev-dynamic="openDetail('+Number(f.evidence_id)+')" data-s="sa984f15">'+escHtml(f.evidence_title)+'</button>'+
+          '<div data-s="s56c0093">'+escHtml(f.why)+(f.claims&&f.claims.length?' Claims: '+escHtml(f.claims.join(', '))+'.':'')+'</div></li>';
       }).join('')+'</ul>';
     }
     box.innerHTML=html+'</div>';
@@ -1230,14 +1230,14 @@ async function loadItemChecks(eid){
   try{
     var r=await fetch('/evidence/api/items/'+eid+'/checks');var d=await r.json();
     if(!d||d.error||!d.findings){box.innerHTML='';return;}
-    if(!d.findings.length){box.innerHTML='<div class="ev-section"><div class="ev-section-title">Checks</div><div style="font-size:12px;color:var(--muted)">No known defect. That is not a statement that this file is sufficient.</div></div>';return;}
-    box.innerHTML='<div class="ev-section"><div class="ev-section-title">Checks</div><ul style="list-style:none;margin:0;padding:0">'+d.findings.map(function(f){
+    if(!d.findings.length){box.innerHTML='<div class="ev-section"><div class="ev-section-title">Checks</div><div data-s="s7fc448e">No known defect. That is not a statement that this file is sufficient.</div></div>';return;}
+    box.innerHTML='<div class="ev-section"><div class="ev-section-title">Checks</div><ul data-s="s99409a7">'+d.findings.map(function(f){
       var fix=f.fix||{};
       var actions={owner:'evInlineOwner('+eid+')',version:'evAddVersion('+eid+')',review_due_date:'evInlineEdit(\'review_due_date\','+eid+',null)',versions:'evShowTab(\'history\')',open:''};
       var act=evKnown(actions,fix.action,'');
-      return '<li style="padding:6px 0;font-size:12px"><span class="ev-chip ev-chip-'+(evKnown(evCheckKind,f.severity,null)||'muted')+'">'+escHtml(f.title)+'</span> '+escHtml(f.why)+
+      return '<li data-s="scc70c58"><span class="ev-chip ev-chip-'+(evKnown(evCheckKind,f.severity,null)||'muted')+'">'+escHtml(f.title)+'</span> '+escHtml(f.why)+
         (f.claims&&f.claims.length?' Claims: '+escHtml(f.claims.join(', '))+'.':'')+
-        (act?' <button type="button" class="btn btn-secondary" style="font-size:11px;padding:2px 8px" data-ev-dynamic="'+act+'">'+escHtml(fix.label||'Fix')+'</button>':'')+'</li>';
+        (act?' <button type="button" class="btn btn-secondary" data-s="se2b3d6e" data-ev-dynamic="'+act+'">'+escHtml(fix.label||'Fix')+'</button>':'')+'</li>';
     }).join('')+'</ul></div>';
   }catch(e){box.innerHTML='';}
 }
@@ -1289,14 +1289,14 @@ async function evFindRun(e,edited){
   document.getElementById('findResults').innerHTML=d.results.map(function(r){
     var st=r.state?'<span class="ev-chip ev-chip-'+(evKnown(evStateKind,r.state.key,null)||'muted')+'">'+escHtml(r.state.label)+'</span>':'';
     var claims=(r.claims||[]).map(function(c){return escHtml(c.title);}).join(', ');
-    return '<li style="padding:10px 0;border-top:1px solid var(--border);font-size:13px">'+
-      '<button type="button" data-ev-dynamic="ModalManager.close(\'findModal\');openDetail('+Number(r.id)+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-weight:700;padding:0">'+escHtml(r.title)+'</button> '+st+
-      ' <span style="color:var(--muted);font-size:11px">version '+escHtml(String(r.version||1))+'</span>'+
-      '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml((r.why||[]).join(' · '))+
+    return '<li data-s="s47bc0d4">'+
+      '<button type="button" data-ev-dynamic="ModalManager.close(\'findModal\');openDetail('+Number(r.id)+')" data-s="se44357b">'+escHtml(r.title)+'</button> '+st+
+      ' <span data-s="s6d034cc">version '+escHtml(String(r.version||1))+'</span>'+
+      '<div data-s="s8a05498">'+escHtml((r.why||[]).join(' · '))+
         (r.expiry_date?' · expires '+escHtml(fmtDate(r.expiry_date)):'')+(r.review_due_date?' · review by '+escHtml(fmtDate(r.review_due_date)):'')+
         (r.owner_name?' · owner '+escHtml(r.owner_name):'')+'</div>'+
       evTextMatchHtml(r)+
-      (claims||r.claims_hidden?'<div style="font-size:11px;margin-top:2px">Supports: '+(claims||'')+(r.claims_hidden?(claims?', ':'')+r.claims_hidden+' you cannot open':'')+'</div>':'')+
+      (claims||r.claims_hidden?'<div data-s="s21f4b17">Supports: '+(claims||'')+(r.claims_hidden?(claims?', ':'')+r.claims_hidden+' you cannot open':'')+'</div>':'')+
     '</li>';
   }).join('');
 }
@@ -1384,29 +1384,29 @@ async function aiSuggestLinks(eid){
   var box=document.getElementById('aiSuggestBox');
   if(!box)return;
   box.style.display='block';
-  box.innerHTML='<div style="padding:10px;text-align:center;color:var(--accent);font-size:12px"><div class="spinner" style="margin:0 auto 6px;width:18px;height:18px"></div>Analyzing evidence for link suggestions...</div>';
+  box.innerHTML='<div data-s="s38e4562"><div class="spinner" data-s="s57b27e0"></div>Analyzing evidence for link suggestions...</div>';
   try{
     var r=await fetch('/evidence/api/items/'+eid+'/suggest-links',{method:'POST'});
-    if(!r.ok){box.innerHTML='<div style="padding:8px;color:var(--bad,#dc2626);font-size:12px">AI not available</div>';return;}
+    if(!r.ok){box.innerHTML='<div data-s="sb1c8c3c">AI not available</div>';return;}
     var data=await r.json();
     var suggestions=data.suggestions||[];
     if(!suggestions.length){
-      box.innerHTML='<div style="padding:8px;color:var(--muted);font-size:12px">No additional link suggestions found.</div>';
+      box.innerHTML='<div data-s="s1e2616c">No additional link suggestions found.</div>';
       return;
     }
-    box.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">AI Suggestions</div>'+
+    box.innerHTML='<div data-s="sf157ded">AI Suggestions</div>'+
       suggestions.map(function(s){
         var mc=evKnown(modColors,s.module,null)||'#6b7280';
-        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:rgba(79,142,247,.04);border:1px solid var(--border-soft);margin-bottom:4px;font-size:12px">'+
-          '<span style="width:8px;height:8px;border-radius:50%;background:'+mc+';flex-shrink:0"></span>'+
-          '<span style="font-weight:600;color:var(--text)">'+escHtml(s.entity_name||'')+'</span>'+
-          '<span style="color:var(--muted);font-size:11px">'+escHtml(s.module)+' / '+escHtml(s.entity_type)+'</span>'+
-          '<span style="flex:1;color:var(--muted);font-size:10px;text-align:right" title="'+escHtml(s.reason||'')+'">'+escHtml((s.reason||'').substring(0,60))+'</span>'+
-          '<button type="button" data-ev-action="ai-link" data-evidence-id="'+Number(eid)+'" data-module="'+escHtml(s.module)+'" data-entity-type="'+escHtml(s.entity_type)+'" data-entity-id="'+Number(s.entity_id)+'" class="btn btn-primary" style="font-size:10px;padding:2px 8px;border-radius:10px">Link</button>'+
+        return '<div data-s="s96dad42" data-sd="flex">'+
+          '<span data-sv="width:8px;height:8px;border-radius:50%;background:'+mc+';flex-shrink:0"></span>'+
+          '<span data-s="s8fbdd52">'+escHtml(s.entity_name||'')+'</span>'+
+          '<span data-s="s6d034cc">'+escHtml(s.module)+' / '+escHtml(s.entity_type)+'</span>'+
+          '<span data-s="s7971bf0" title="'+escHtml(s.reason||'')+'">'+escHtml((s.reason||'').substring(0,60))+'</span>'+
+          '<button type="button" data-ev-action="ai-link" data-evidence-id="'+Number(eid)+'" data-module="'+escHtml(s.module)+'" data-entity-type="'+escHtml(s.entity_type)+'" data-entity-id="'+Number(s.entity_id)+'" class="btn btn-primary" data-s="saa47ff0">Link</button>'+
         '</div>';
       }).join('');
   }catch(e){
-    box.innerHTML='<div style="padding:8px;color:var(--bad,#dc2626);font-size:12px">Failed to get suggestions</div>';
+    box.innerHTML='<div data-s="sb1c8c3c">Failed to get suggestions</div>';
   }
 }
 
@@ -1432,7 +1432,7 @@ function openLinkToModal(eid){
   document.getElementById('linkModule').value='';
   document.getElementById('linkEntityType').innerHTML='<option value="">Select type</option>';
   document.getElementById('linkSearch').value='';
-  document.getElementById('linkEntityList').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';
+  document.getElementById('linkEntityList').innerHTML='<div data-s="sbbd9f32">Select a module and entity type</div>';
   ModalManager.open('linkToModal');
 }
 function loadEntityTypes(){
@@ -1453,7 +1453,7 @@ async function searchEntities(){
   var etype=document.getElementById('linkEntityType').value;
   var q=document.getElementById('linkSearch').value;
   var el=document.getElementById('linkEntityList');
-  if(!mod||!etype){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';return;}
+  if(!mod||!etype){el.innerHTML='<div data-s="sbbd9f32">Select a module and entity type</div>';return;}
   var params='module='+mod+'&entity_type='+etype;if(q)params+='&q='+encodeURIComponent(q);
   var items;
   try {
@@ -1461,16 +1461,16 @@ async function searchEntities(){
     if(!r.ok)throw new Error('Search unavailable');
     items=await r.json();
   } catch(e) {
-    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Entity search is unavailable. Try again shortly.</div>';
+    el.innerHTML='<div data-s="sbbd9f32">Entity search is unavailable. Try again shortly.</div>';
     return;
   }
-  if(!items.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No entities found</div>';return;}
+  if(!items.length){el.innerHTML='<div data-s="sbbd9f32">No entities found</div>';return;}
   var eid=document.getElementById('linkEvidenceId').value;
   el.innerHTML=items.map(function(e){
     var safeId=parseInt(e.id,10)||0;
-    return '<button type="button" class="ev-link-result" style="display:block;width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;text-align:left;font-family:inherit" data-ev-action="create-link" data-evidence-id="'+parseInt(eid,10)+'" data-module="'+escHtml(mod)+'" data-entity-type="'+escHtml(etype)+'" data-entity-id="'+safeId+'">'+
-      '<span style="font-weight:600;color:var(--text)">'+escHtml(e.name)+'</span>'+
-      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></button>';
+    return '<button type="button" class="ev-link-result" data-s="s4b75f16" data-sd="block" data-ev-action="create-link" data-evidence-id="'+parseInt(eid,10)+'" data-module="'+escHtml(mod)+'" data-entity-type="'+escHtml(etype)+'" data-entity-id="'+safeId+'">'+
+      '<span data-s="s8fbdd52">'+escHtml(e.name)+'</span>'+
+      '<span data-s="sec0c92b">#'+safeId+'</span></button>';
   }).join('');
 }
 async function createLink(eid,mod,etype,entityId){
@@ -1883,9 +1883,9 @@ async function handleUpload(e){
         return;
       }
       warn.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
-        '<div style="display:flex;gap:8px;margin-top:8px">'+
-          '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" data-ev-dynamic="ModalManager.close(\'uploadModal\');openDetail('+Number(d.existing_id)+')">View Existing</button>'+
-          '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" data-ev-dynamic="ModalManager.close(\'uploadModal\');openLinkToModal('+Number(d.existing_id)+')">Link Existing</button>'+
+        '<div data-s="s62ee93e" data-sd="flex">'+
+          '<button class="btn btn-secondary" data-s="s301a157" data-ev-dynamic="ModalManager.close(\'uploadModal\');openDetail('+Number(d.existing_id)+')">View Existing</button>'+
+          '<button class="btn btn-primary" data-s="s301a157" data-ev-dynamic="ModalManager.close(\'uploadModal\');openLinkToModal('+Number(d.existing_id)+')">Link Existing</button>'+
         '</div>';
       warn.style.display='block';
     } else if (typeof showToast==='function') {

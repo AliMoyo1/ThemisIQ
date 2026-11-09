@@ -2,7 +2,7 @@
 {% block title %}ARIA: Policy Workbench{% endblock %}
 
 {% block breadcrumb %}
-<a href="/aria/documents" style="color:var(--accent);font-weight:700;text-decoration:none">ARIA</a>
+<a href="/aria/documents" data-s="s59fe22c">ARIA</a>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Policy Workbench</span>
 {% endblock %}
@@ -27,29 +27,29 @@
     Policy Workbench
     <span id="wbDocLabel">Loading {{ doc_id }}…</span>
   </div>
-  <a href="/aria/documents?open={{ doc_id }}" class="btn btn-ghost" style="font-size:12px;padding:6px 14px">Open in Document Register</a>
+  <a href="/aria/documents?open={{ doc_id }}" class="btn btn-ghost" data-s="s2cbaf86">Open in Document Register</a>
 </div>
 
 <div id="wbPublicationStatus"></div>
-<div id="wbAuthoringState" role="status" class="aria-workflow-hint" style="display:none"></div>
-<div id="wbSubmitSection" class="wb-submit-section" style="display:none">
-  <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Submit for Approval</div>
-  <div id="wbSubmitEmpty" class="aria-workflow-hint" style="display:none">No eligible approver is currently available.</div>
-  <div id="wbSubmitForm" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-    <div class="form-group" style="flex:1;min-width:160px;margin:0">
+<div id="wbAuthoringState" role="status" class="aria-workflow-hint" data-sd="none"></div>
+<div id="wbSubmitSection" class="wb-submit-section" data-sd="none">
+  <div data-s="sa7ab6b7">Submit for Approval</div>
+  <div id="wbSubmitEmpty" class="aria-workflow-hint" data-sd="none">No eligible approver is currently available.</div>
+  <div id="wbSubmitForm" data-s="se7fc4b4" data-sd="flex">
+    <div class="form-group" data-s="sb54ff50">
       <label class="form-label">Approver</label>
       <select id="wbApproverSelect"></select>
     </div>
-    <div class="form-group" style="flex:1;min-width:160px;margin:0">
+    <div class="form-group" data-s="sb54ff50">
       <label class="form-label">Note (optional)</label>
       <input type="text" id="wbSubmitNote" maxlength="500">
     </div>
-    <button class="btn btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap" id="wbSubmitBtn">Submit for Approval</button>
+    <button class="btn btn-primary" data-s="s399d296" id="wbSubmitBtn">Submit for Approval</button>
   </div>
 </div>
-<div id="wbApprovalSection" class="wb-submit-section" style="display:none">
-  <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Approval</div>
-  <div id="wbApprovalMeta" class="aria-version-meta" style="margin-bottom:8px"></div>
+<div id="wbApprovalSection" class="wb-submit-section" data-sd="none">
+  <div data-s="sa7ab6b7">Approval</div>
+  <div id="wbApprovalMeta" class="aria-version-meta" data-s="sfdf33f2"></div>
   <div id="wbApprovalBody"></div>
 </div>
 

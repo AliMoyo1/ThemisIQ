@@ -71,7 +71,7 @@ async function loadLogs(page) {
 function renderLogs(logs) {
   const tbody = document.getElementById('logBody');
   if (!logs || logs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">No audit log entries found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" data-s="sc0add8c">No audit log entries found</td></tr>';
     return;
   }
 
@@ -92,15 +92,15 @@ function renderLogs(logs) {
     const details = escHtml((log.details || '').substring(0, 120));
     const ip = log.ip_address || '';
 
-    return `<tr style="border-bottom:1px solid var(--border-soft);">
-      <td style="padding:10px 14px; font-size:12px; color:var(--muted); white-space:nowrap;">${escHtml(ts)}</td>
-      <td style="padding:10px 14px; font-size:13px; font-weight:500; color:var(--text);">${escHtml(user)}</td>
-      <td style="padding:10px 14px;">
-        <span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; background:${modColor}22; color:${modColor}; text-transform:uppercase;">${escHtml(mod)}</span>
+    return `<tr data-s="sc91b18f">
+      <td data-s="s8b22255">${escHtml(ts)}</td>
+      <td data-s="sc4b9f37">${escHtml(user)}</td>
+      <td data-s="s9944357">
+        <span data-sv="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; background:${modColor}22; color:${modColor}; text-transform:uppercase;">${escHtml(mod)}</span>
       </td>
-      <td style="padding:10px 14px; font-size:12.5px; color:var(--text);">${action}</td>
-      <td style="padding:10px 14px; font-size:12px; color:var(--muted); max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${details}">${details}</td>
-      <td style="padding:10px 14px; font-size:11px; color:var(--muted); font-family:monospace;">${escHtml(ip)}</td>
+      <td data-s="sf907d85">${action}</td>
+      <td data-s="sae40d8f" title="${details}">${details}</td>
+      <td data-s="s4962c31">${escHtml(ip)}</td>
     </tr>`;
   }).join('');
 }

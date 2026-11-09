@@ -4,7 +4,7 @@
   var GROUPS = [['cc', 'Command Centre'], ['bcm', 'Business continuity'], ['sentinel', 'Privacy'], ['vault', 'Evidence Vault']];
   function el(tag, props, kids){
     var n = document.createElement(tag);
-    Object.keys(props || {}).forEach(function(k){ if(k === 'text') n.textContent = props[k]; else n.setAttribute(k, props[k]); });
+    Object.keys(props || {}).forEach(function(k){ if(k === 'text') n.textContent = props[k]; else if(k === 'style') n.style.cssText = props[k]; else n.setAttribute(k, props[k]); });
     (kids || []).forEach(function(c){ if(c) n.appendChild(c); });
     return n;
   }

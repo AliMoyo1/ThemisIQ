@@ -30,7 +30,7 @@
 
   /* Stat grids collapse from 4 to 2 columns */
   .stat-grid,
-  [style*="grid-template-columns:repeat(4"],
+  [style*="grid-template-columns:repeat(4"],[data-s="s1036f8a"],[data-s="s355b188"],[data-s="s50f0250"],[data-s="s56c5f8b"],[data-s="s7bd035a"],[data-s="s876da43"],[data-s="sa159512"],[data-s="sbc04c77"],[data-s="sd493af7"],[data-s="sdbb1a91"],
   [style*="grid-template-columns: repeat(4"] {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
@@ -103,8 +103,8 @@
   .stat-grid,
   [style*="grid-template-columns:repeat(2"],
   [style*="grid-template-columns: repeat(2"],
-  [style*="grid-template-columns:repeat(auto-fit,minmax(180"],
-  [style*="grid-template-columns:repeat(auto-fit,minmax(220"] {
+  [style*="grid-template-columns:repeat(auto-fit,minmax(180"],[data-s="s48b4a09"],[style*="grid-template-columns: repeat(auto-fit,minmax(180"],
+  [style*="grid-template-columns:repeat(auto-fit,minmax(220"],[style*="grid-template-columns: repeat(auto-fit,minmax(220"] {
     grid-template-columns: 1fr !important;
   }
 

@@ -79,7 +79,7 @@ def test_a_dpia_title_with_a_quote_cannot_add_attributes_to_its_button(login_as,
     page.goto(f"{live_app}/sentinel/dpia")
     button = page.locator("tr", has_text="autofocus").get_by_title("Download this assessment as a PDF")
     button.wait_for()
-    assert _attributes(button) == ["aria-label", "class", "href", "style", "title"], "no attribute came from the title"
+    assert _attributes(button) == ["aria-label", "class", "data-s", "href", "title"], "no attribute came from the title"
     assert button.get_attribute("aria-label").startswith("Download PDF of Quote \" autofocus onfocus=")
     assert page.evaluate("window.__injected") is None
 
@@ -90,7 +90,7 @@ def test_a_plan_title_with_a_quote_cannot_add_attributes_to_its_button(login_as,
     page.goto(f"{live_app}/bcm/plans")
     button = page.locator("tr", has_text="autofocus").get_by_title("Download this plan as a PDF")
     button.wait_for()
-    assert _attributes(button) == ["aria-label", "class", "href", "style", "title"], "no attribute came from the title"
+    assert _attributes(button) == ["aria-label", "class", "data-s", "href", "title"], "no attribute came from the title"
     assert button.get_attribute("aria-label").startswith("Download PDF of Quote \" autofocus onfocus=")
     assert page.evaluate("window.__injected") is None
 

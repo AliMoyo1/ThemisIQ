@@ -79,10 +79,10 @@ async function loadMappingProposals() {
       const own = Number(item.created_by) === Number(list.dataset.currentUserId);
       const mappingId = Number(item.id);
       if (!Number.isSafeInteger(mappingId) || mappingId < 1) return '';
-      return `<div style="border-top:1px solid var(--border);padding:12px 0;">
+      return `<div data-s="se310079">
         <div><strong>${esc(item.source_ref)} ${esc(item.source_name)}</strong> to <strong>${esc(item.target_ref)} ${esc(item.target_name)}</strong></div>
-        <div style="color:var(--muted);margin:5px 0;">Suggested ${esc(proposal.suggested_type || '')}; ${esc(proposal.method || 'text')} match; confidence ${Number(item.confidence || 0).toFixed(2)}</div>
-        ${own ? '<span>Awaiting a different reviewer</span>' : `<label>Review reason <input id="mapping-reason-${mappingId}" maxlength="500" style="width:min(100%,420px);padding:6px;border:1px solid var(--border);border-radius:5px;"></label>
+        <div data-s="sec807d1">Suggested ${esc(proposal.suggested_type || '')}; ${esc(proposal.method || 'text')} match; confidence ${Number(item.confidence || 0).toFixed(2)}</div>
+        ${own ? '<span>Awaiting a different reviewer</span>' : `<label>Review reason <input id="mapping-reason-${mappingId}" maxlength="500" data-s="sb562ab3"></label>
           <button type="button" class="btn btn-secondary js-review-mapping" data-mapping-id="${mappingId}" data-decision="accept">Accept</button>
           <button type="button" class="btn btn-secondary js-review-mapping" data-mapping-id="${mappingId}" data-decision="reject">Reject</button>`}
       </div>`;
@@ -146,25 +146,25 @@ document.addEventListener('click', function(event) {
 });
 
 function renderCtrlList(items, status) {
-  if (!items.length) return '<div style="padding:16px;color:var(--muted);font-size:13px;font-style:italic;">None</div>';
+  if (!items.length) return '<div data-s="s20edb69">None</div>';
   return items.map(c => {
     var docBadge = c.has_doc
       ? '<span class="ctrl-doc-badge" title="Document exists"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Doc</span>'
       : '';
     return `
     <div class="ctrl-map-card" data-control-id="${Number(c.id)}" data-framework-name="${esc(c.fw_name||'')}" data-control-ref="${esc(c.ref||'')}" data-control-name="${esc(c.name||'')}" data-framework-id="${Number(c.framework_id)||0}" data-has-doc="${c.has_doc?'true':'false'}">
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;">
+      <div data-s="s59eddc6">
+        <div data-s="scf57587" data-sd="flex">
           <span class="fw-chip" title="${esc(c.fw_name||'')}">${esc((c.fw_name||'').slice(0,14))||'?'}</span>
-          <span class="fw-chip" style="color:var(--accent)">[${esc(c.ref||'')}]</span>
-          <span class="ims-${status}" style="font-size:9px;">${status.toUpperCase()}</span>
+          <span class="fw-chip" data-s="sa805525">[${esc(c.ref||'')}]</span>
+          <span class="ims-${status}" data-s="sfb2957a">${status.toUpperCase()}</span>
           ${docBadge}
         </div>
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${esc(c.name||'')}</div>
+        <div data-s="s0460772">${esc(c.name||'')}</div>
         ${c.mapped_fw_names && c.mapped_fw_names.length
-          ? '<div style="font-size:11px;color:var(--muted);">&#8596; '+c.mapped_fw_names.map(n=>'<span class="fw-chip" style="font-size:10px;">'+esc(n)+'</span>').join(' ')+'</div>'
+          ? '<div data-s="s1fd8c81">&#8596; '+c.mapped_fw_names.map(n=>'<span class="fw-chip" data-s="s0d5be05">'+esc(n)+'</span>').join(' ')+'</div>'
           : ''}
-        <div class="ctrl-actions" id="actions-${Number(c.id)||0}" style="display:none;"></div>
+        <div class="ctrl-actions" id="actions-${Number(c.id)||0}" data-sd="none"></div>
       </div>
     </div>`;
   }).join('');

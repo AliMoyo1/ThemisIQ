@@ -199,7 +199,7 @@
       acknowledged:['Acknowledged','#166534','#f0fdf4','#86efac']
     }[inc.ack_state];
     if(!look) return '';
-    return '<span class="badge" data-ack="'+esc(inc.ack_state)+'" style="color:'+look[1]+';background:'+look[2]+';border:1px solid '+look[3]+'">'+esc(look[0])+'</span>';
+    return '<span class="badge" data-ack="'+esc(inc.ack_state)+'" data-sv="color:'+look[1]+';background:'+look[2]+';border:1px solid '+look[3]+'">'+esc(look[0])+'</span>';
   }
   function ackLine(inc){
     if(!incLive(inc)||!inc.ack_state||inc.ack_state==='none') return '';
@@ -210,7 +210,7 @@
     else text='Acknowledged'+(inc.acknowledged_by_name?' by '+inc.acknowledged_by_name:'')+' at '+ackTime(inc.acknowledged_at)+'.';
     var mine=inc.commander_user_id===bcmUserId||bcmCanManageIncidents;
     var btn=(st!=='acknowledged'&&mine)?'<button class="btn btn-sm btn-primary" id="bcmAckBtn" data-bcm-click="bcmAcknowledge('+inc.id+')">Acknowledge</button>':'';
-    return '<div id="bcmAckLine" role="status" style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text)">'+
+    return '<div id="bcmAckLine" role="status" data-s="s0feb84f" data-sd="flex">'+
       ackBadge(inc)+'<span>'+esc(text)+'</span>'+btn+'</div>';
   }
   function riskBadge(level){
@@ -219,15 +219,15 @@
     return '<span class="badge '+cls+'">'+esc((level||'N/A').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span>';
   }
   function actionBtns(editFn,deleteFn){
-    return '<div style="display:flex;gap:4px">'+
-      (editFn?'<button class="btn btn-sm btn-secondary" data-bcm-click="'+escAttr(editFn)+'" title="Edit" style="padding:4px 8px">'+
+    return '<div data-s="sd767683" data-sd="flex">'+
+      (editFn?'<button class="btn btn-sm btn-secondary" data-bcm-click="'+escAttr(editFn)+'" title="Edit" data-s="sf261655">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>':'')+
-      (deleteFn?'<button class="btn btn-sm btn-secondary" data-bcm-click="'+escAttr(deleteFn)+'" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+      (deleteFn?'<button class="btn btn-sm btn-secondary" data-bcm-click="'+escAttr(deleteFn)+'" title="Delete" data-s="sc304996">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>':'')+
     '</div>';
   }
-  function spinner(cols){return '<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
-  function emptyRow(cols,msg){return '<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
+  function spinner(cols){return '<tr><td colspan="'+cols+'" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';}
+  function emptyRow(cols,msg){return '<tr><td colspan="'+cols+'" data-s="s2e587c2">'+esc(msg||'No records found')+'</td></tr>';}
 
   /* Convert numeric risk score (likelihood×impact, 1–25) to level string */
   function bcmScoreToLevel(score){
@@ -388,12 +388,12 @@
     if(ob&&!localStorage.getItem('hide_bcm_onboard')){ob.style.display=(mHas(plans)&&plans.value===0&&mHas(inc)&&incCount===0)?'':'none';}
     // Quick-add link
     var qa=document.getElementById('bcmPlanCount');
-    if(qa&&mHas(plans)&&plans.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-bcm-click="event.preventDefault();bcmRouter.navigate(\'/bcm/plans\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Create first plan</a>');}
+    if(qa&&mHas(plans)&&plans.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-bcm-click="event.preventDefault();bcmRouter.navigate(\'/bcm/plans\')" data-s="s61d2d1c" data-sd="block">+ Create first plan</a>');}
   }
   function populatePlanStatus(plans){
     var el=document.getElementById('bcmPlanStatus');
-    if(plans===null||plans===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(bcmFailed?'Not read just now':'Not available to you')+'</div>';return;}
-    if(!plans.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No plans recorded</div>';return;}
+    if(plans===null||plans===undefined){el.innerHTML='<div data-s="s35ad83f">'+(bcmFailed?'Not read just now':'Not available to you')+'</div>';return;}
+    if(!plans.length){el.innerHTML='<div data-s="s35ad83f">No plans recorded</div>';return;}
     el.innerHTML=plans.slice(0,6).map(function(p){
       var badge=p.is_active_plan?'<span class="live-badge">LIVE</span>':statusBadge(p.status);
       return '<div class="plan-item"><div><div class="plan-name">'+esc(p.title)+'</div><div class="plan-dept">'+esc(p.owner||'')+'</div></div>'+badge+'</div>';
@@ -427,19 +427,19 @@
   }
   function populateActivity(items){
     var el=document.getElementById('bcmRecentActivity');
-    if(items===null||items===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(bcmFailed?'Not read just now':'Not available to you')+'</div>';return;}
-    if(!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
+    if(items===null||items===undefined){el.innerHTML='<div data-s="s35ad83f">'+(bcmFailed?'Not read just now':'Not available to you')+'</div>';return;}
+    if(!items.length){el.innerHTML='<div data-s="s35ad83f">No recent activity</div>';return;}
     el.innerHTML=items.map(function(a,i){
       var isLast=i===items.length-1;
-      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
+      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" data-s="sc7d23eb"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
     }).join('');
   }
   function populateIncidents(items){
     var body=document.getElementById('bcmIncidentBody');
-    if(items===null||items===undefined){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">'+(bcmFailed?'The incidents could not be read just now. This is not an all clear.':'Not available to you')+'</td></tr>';return;}
-    if(!items.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No active incidents</td></tr>';return;}
+    if(items===null||items===undefined){body.innerHTML='<tr><td colspan="6" data-s="s2e587c2">'+(bcmFailed?'The incidents could not be read just now. This is not an all clear.':'Not available to you')+'</td></tr>';return;}
+    if(!items.length){body.innerHTML='<tr><td colspan="6" data-s="s2e587c2">No active incidents</td></tr>';return;}
     body.innerHTML=items.map(function(row){
-      return '<tr style="cursor:pointer" data-bcm-click="bcmRouter.navigate(\'/bcm/incidents\')"><td style="font-weight:600">'+esc(row.title)+'</td><td>'+sevBadge(row.severity)+'</td><td>'+statusBadge(row.status)+'</td><td style="font-family:var(--mono);font-size:12px">'+fmtDate(row.declared_at)+'</td><td>'+esc(row.assigned||'—')+'</td><td style="font-size:12px;color:var(--muted);max-width:200px">'+esc(row.impact||'—')+'</td></tr>';
+      return '<tr data-s="s3b6a3a6" data-bcm-click="bcmRouter.navigate(\'/bcm/incidents\')"><td data-s="seed0f8f">'+esc(row.title)+'</td><td>'+sevBadge(row.severity)+'</td><td>'+statusBadge(row.status)+'</td><td data-s="se1e124f">'+fmtDate(row.declared_at)+'</td><td>'+esc(row.assigned||'—')+'</td><td data-s="s878fa46">'+esc(row.impact||'—')+'</td></tr>';
     }).join('');
   }
 
@@ -506,8 +506,8 @@
         var rpo=b.rpo_hours!=null?b.rpo_hours+'h':'—';
         var crit=b.calc_criticality||b.criticality||b.impact_level;
         var calcBtn='<button class="btn-bcm-ai" data-bcm-click="bcmCalcBia('+b.id+',this)" title="AI calculate criticality & MTPD"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calculator></use></svg></button>';
-        var qBtn='<button class="btn btn-sm btn-secondary" data-bcm-click="bcmOpenBiaDrawer('+b.id+')" title="Open BIA Questionnaire" style="padding:4px 8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></button>';
-        return '<tr><td style="cursor:pointer;color:var(--accent);font-weight:600" data-bcm-click="bcmOpenBiaDrawer('+b.id+')">'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div style="display:flex;gap:4px;align-items:center">'+qBtn+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\'bia\','+b.id+')')+'</div></td></tr>';
+        var qBtn='<button class="btn btn-sm btn-secondary" data-bcm-click="bcmOpenBiaDrawer('+b.id+')" title="Open BIA Questionnaire" data-s="sf261655"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></button>';
+        return '<tr><td data-s="s49b2015" data-bcm-click="bcmOpenBiaDrawer('+b.id+')">'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div data-s="s577c5fb" data-sd="flex">'+qBtn+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\'bia\','+b.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load BIA records');}
   };
@@ -530,7 +530,7 @@
 
   window.bcmOpenBiaDrawer=async function(biaId){
     var root=document.getElementById('bcmBiaDrawerRoot');
-    root.innerHTML='<div class="bcm-console-overlay"><div class="bcm-console-panel" style="align-items:center;justify-content:center;display:flex"><div class="spinner"></div></div></div>';
+    root.innerHTML='<div class="bcm-console-overlay"><div class="bcm-console-panel" data-s="sa3fa223" data-sd="flex"><div class="spinner"></div></div></div>';
     try{
       var bia=await apiFetch('/bcm/api/bia/'+biaId);
       _bcmBiaCurrent=bia;
@@ -551,10 +551,10 @@
     root.innerHTML='<div class="bcm-console-overlay" data-bcm-click="if(event.target===this)bcmCloseBiaDrawer()">'+
       '<div class="bcm-console-panel">'+
         '<div class="bcm-console-head">'+
-          '<div style="display:flex;justify-content:space-between;align-items:start">'+
+          '<div data-s="sf0bc6e2" data-sd="flex">'+
             '<div>'+
-              '<div style="font-size:17px;font-weight:800;color:var(--text)">'+esc(bia.process_name||'')+'</div>'+
-              '<div style="font-size:12px;color:var(--muted);margin-top:4px">BIA Questionnaire &bull; '+esc(bia.department||'No department')+'</div>'+
+              '<div data-s="s64006e5">'+esc(bia.process_name||'')+'</div>'+
+              '<div data-s="sd14d7bf">BIA Questionnaire &bull; '+esc(bia.department||'No department')+'</div>'+
             '</div>'+
             '<button class="btn btn-sm btn-secondary" data-bcm-click="bcmCloseBiaDrawer()">&#10005; Close</button>'+
           '</div>'+
@@ -588,21 +588,21 @@
     var bia=_bcmBiaCurrent;
     var procs=_bcmBizProcessCache||[];
     var rtoChip=bia.suggested_rto_hours!=null?
-      ' <button class="btn btn-sm btn-secondary" data-bcm-click="bcmApplySuggestedRto()" style="font-size:11px;padding:2px 8px" title="Copy the suggested value into RTO">Suggested: '+bia.suggested_rto_hours+'h &#8594; Apply</button>':'';
+      ' <button class="btn btn-sm btn-secondary" data-bcm-click="bcmApplySuggestedRto()" data-s="se2b3d6e" title="Copy the suggested value into RTO">Suggested: '+bia.suggested_rto_hours+'h &#8594; Apply</button>':'';
     var taCss='width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box';
     body.innerHTML=
-      '<div class="form-group"><label>Key Tasks</label><textarea id="bia_key_tasks" rows="2" style="'+taCss+'">'+esc(bia.key_tasks||'')+'</textarea></div>'+
-      '<div class="form-group"><label>Legal / Contractual Obligations</label><textarea id="bia_obligations" rows="2" style="'+taCss+'">'+esc(bia.obligations||'')+'</textarea></div>'+
+      '<div class="form-group"><label>Key Tasks</label><textarea id="bia_key_tasks" rows="2" data-sv="'+taCss+'">'+esc(bia.key_tasks||'')+'</textarea></div>'+
+      '<div class="form-group"><label>Legal / Contractual Obligations</label><textarea id="bia_obligations" rows="2" data-sv="'+taCss+'">'+esc(bia.obligations||'')+'</textarea></div>'+
       '<div class="form-group"><label>Deadlines</label><input id="bia_deadlines" value="'+esc(bia.deadlines||'')+'"></div>'+
       '<div class="form-group"><label>Linked Business Process</label><select id="bia_bp_id"><option value="">— None —</option>'+
         procs.map(function(p){return '<option value="'+p.id+'"'+(bia.business_process_id===p.id?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+
-      '</select>'+(bia.business_process_id&&!procs.some(function(p){return p.id===bia.business_process_id;})?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Previously linked: '+esc(bia.business_process_name||'—')+' (no longer in the active list)</div>':'')+
+      '</select>'+(bia.business_process_id&&!procs.some(function(p){return p.id===bia.business_process_id;})?'<div data-s="sbc021dc">Previously linked: '+esc(bia.business_process_name||'—')+' (no longer in the active list)</div>':'')+
       '</div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>RTO (hours)'+rtoChip+'</label><input type="number" id="bia_rto" value="'+(bia.rto_hours!=null?bia.rto_hours:'')+'"></div>'+
         '<div class="form-group"><label>RPO (hours)</label><input type="number" id="bia_rpo" value="'+(bia.rpo_hours!=null?bia.rpo_hours:'')+'"></div>'+
       '</div>'+
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px">Workload (Part 2)</div>'+
+      '<div data-s="sf4bd386">Workload (Part 2)</div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Peak Periods</label><input id="bia_peak_periods" value="'+esc(bia.peak_periods||'')+'"></div>'+
         '<div class="form-group"><label>Peak Workload</label><input id="bia_peak_workload" value="'+esc(bia.peak_workload||'')+'"></div>'+
@@ -611,7 +611,7 @@
         '<div class="form-group"><label>Minimum Acceptable Level Post-Disaster</label><input id="bia_min_level" value="'+esc(bia.min_acceptable_level||'')+'"></div>'+
         '<div class="form-group"><label>Resume-By Period</label><input id="bia_resume_period" value="'+esc(bia.resume_period||'')+'"></div>'+
       '</div>'+
-      '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="s7e88441" data-sd="flex">'+
         '<button class="btn btn-primary" data-bcm-click="bcmSaveBiaDetails()">Save Details</button>'+
       '</div>';
   }
@@ -664,28 +664,28 @@
       var cells=['b1','b2','b3','b4','b5'].map(function(col){
         if(isGeneral){
           var cur=r[col];
-          return '<td><select data-bcm-change="_bcmBiaSetCell('+i+',\''+col+'\',this.value,true)" style="width:64px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:12px">'+
+          return '<td><select data-bcm-change="_bcmBiaSetCell('+i+',\''+col+'\',this.value,true)" data-s="s793e01f">'+
             ['','1','2','3'].map(function(v){return '<option value="'+v+'"'+((cur==null?'':String(cur))===v?' selected':'')+'>'+(v||'—')+'</option>';}).join('')+
           '</select></td>';
         }
-        return '<td><input type="number" value="'+(r[col]!=null?r[col]:'')+'" data-bcm-input="_bcmBiaSetCell('+i+',\''+col+'\',this.value,false)" style="width:90px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:12px"></td>';
+        return '<td><input type="number" value="'+(r[col]!=null?r[col]:'')+'" data-bcm-input="_bcmBiaSetCell('+i+',\''+col+'\',this.value,false)" data-s="s7b2936b"></td>';
       }).join('');
       return '<tr>'+
-        '<td><input value="'+esc(r.label||'')+'" data-bcm-input="_bcmBiaSetLabel('+i+',this.value)" style="width:100%;min-width:180px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:12px"></td>'+
+        '<td><input value="'+esc(r.label||'')+'" data-bcm-input="_bcmBiaSetLabel('+i+',this.value)" data-s="sacc340a"></td>'+
         cells+
-        '<td><button class="btn btn-sm btn-secondary" data-bcm-click="_bcmBiaRemoveImpactRow('+i+')" style="color:var(--red)" title="Remove row">&#10005;</button></td>'+
+        '<td><button class="btn btn-sm btn-secondary" data-bcm-click="_bcmBiaRemoveImpactRow('+i+')" data-s="s45e7ae4" title="Remove row">&#10005;</button></td>'+
       '</tr>';
     }).join('');
-    return '<div style="margin-bottom:22px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-        '<div style="font-size:12px;font-weight:700;color:var(--text)">'+title+'</div>'+
+    return '<div data-s="s13f24e7">'+
+      '<div data-s="s61c61b9" data-sd="flex">'+
+        '<div data-s="sf63b2b6">'+title+'</div>'+
         '<button class="btn btn-sm btn-secondary" data-bcm-click="_bcmBiaAddImpactRow(\''+section+'\')">+ Add Row</button>'+
       '</div>'+
-      (legend?'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">'+legend+'</div>':'')+
-      '<div style="overflow-x:auto"><table class="data-table" style="font-size:12px"><thead><tr><th>Impact</th>'+
+      (legend?'<div data-s="s73465d7">'+legend+'</div>':'')+
+      '<div data-s="s0ddf068"><table class="data-table" data-s="s6cb285c"><thead><tr><th>Impact</th>'+
         labels.map(function(l){return '<th>'+esc(l)+'</th>';}).join('')+
       '<th></th></tr></thead><tbody>'+
-      (bodyRows||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px">No rows</td></tr>')+
+      (bodyRows||'<tr><td colspan="7" data-s="se592bd3">No rows</td></tr>')+
       '</tbody></table></div>'+
     '</div>';
   }
@@ -693,8 +693,8 @@
   function _bcmRenderBiaImpactTab(body){
     if(!_bcmBiaImpactRows) _bcmBiaImpactRows=(_bcmBiaCurrent.impact_rows||[]).map(function(r){return Object.assign({},r);});
     if(!_bcmBiaImpactRows.length){
-      body.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted)">'+
-        '<div style="margin-bottom:12px">This BIA has no impact rows yet (it predates the questionnaire).</div>'+
+      body.innerHTML='<div data-s="s2e587c2">'+
+        '<div data-s="sda12f28">This BIA has no impact rows yet (it predates the questionnaire).</div>'+
         '<button class="btn btn-primary" data-bcm-click="_bcmBiaAddStandardRows()">Add Standard Rows</button>'+
       '</div>';
       return;
@@ -702,7 +702,7 @@
     body.innerHTML=
       _bcmBiaImpactGridHtml('general','General Impact (scored 1-3)','1 marginal &middot; 2 acceptable &middot; 3 high')+
       _bcmBiaImpactGridHtml('financial','Financial Impact ($ amounts)',null)+
-      '<div style="display:flex;justify-content:flex-end">'+
+      '<div data-s="s455f8cc" data-sd="flex">'+
         '<button class="btn btn-primary" data-bcm-click="_bcmSaveBiaImpactRows()">Save Impact Rows</button>'+
       '</div>';
   }
@@ -740,22 +740,22 @@
     var html='';
     Object.keys(byCategory).forEach(function(cat){
       var rows=byCategory[cat];
-      html+='<div style="margin-bottom:18px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-          '<span style="font-size:12px;font-weight:700;color:var(--text)">'+esc(cat)+'</span>'+
+      html+='<div data-s="s905d8b3">'+
+        '<div data-s="s61c61b9" data-sd="flex">'+
+          '<span data-s="sf63b2b6">'+esc(cat)+'</span>'+
           '<button class="btn btn-sm btn-secondary bcm-add-bia-resource" data-category="'+esc(cat)+'">+ Add</button>'+
         '</div>'+
         (rows.length?rows.map(function(r){
-          return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">'+
-            '<div style="flex:1;font-size:12px;min-width:0">'+esc(r.name)+(r.specifics?' <span style="color:var(--muted)">('+esc(r.specifics)+')</span>':'')+'</div>'+
-            '<div style="width:90px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.amount||'')+'</div>'+
-            '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap"><input type="checkbox" '+(r.single_point_of_failure?'checked':'')+' data-bcm-change="_bcmBiaToggleSpof('+r.id+',this.checked)"> SPOF</label>'+
-            '<select data-bcm-change="_bcmBiaUpdateResourceField('+r.id+',\'needed_after\',this.value)" style="font-size:11px;padding:3px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">'+
+          return '<div data-s="sa96cd8c" data-sd="flex">'+
+            '<div data-s="sb49cfc6">'+esc(r.name)+(r.specifics?' <span data-s="s57f9e31">('+esc(r.specifics)+')</span>':'')+'</div>'+
+            '<div data-s="s881891d">'+esc(r.amount||'')+'</div>'+
+            '<label data-s="s96145f0" data-sd="flex"><input type="checkbox" '+(r.single_point_of_failure?'checked':'')+' data-bcm-change="_bcmBiaToggleSpof('+r.id+',this.checked)"> SPOF</label>'+
+            '<select data-bcm-change="_bcmBiaUpdateResourceField('+r.id+',\'needed_after\',this.value)" data-s="s51be579">'+
               _BCM_BIA_NEEDED_AFTER.map(function(o){return '<option value="'+o+'"'+(r.needed_after===o?' selected':'')+'>'+o+'</option>';}).join('')+
             '</select>'+
-            '<button class="btn btn-sm btn-secondary" data-bcm-click="_bcmBiaDeleteResource('+r.id+')" style="color:var(--red)" title="Remove">&#10005;</button>'+
+            '<button class="btn btn-sm btn-secondary" data-bcm-click="_bcmBiaDeleteResource('+r.id+')" data-s="s45e7ae4" title="Remove">&#10005;</button>'+
           '</div>';
-        }).join(''):'<div style="font-size:11px;color:var(--muted);padding:6px 0">No resources yet</div>')+
+        }).join(''):'<div data-s="s2442599">No resources yet</div>')+
       '</div>';
     });
     body.innerHTML=html;
@@ -763,7 +763,7 @@
 
   window._bcmBiaAddResourceModal=function(category){
     var html='<div class="modal-overlay" id="bcmResModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-box" data-s="sd2a2635">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'bcmResModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Add Resource &mdash; '+esc(category)+'</div>'+
         '<div class="form-group"><label>Name *</label><input id="bres_name" placeholder="e.g. Primary database server"></div>'+
@@ -774,8 +774,8 @@
             _BCM_BIA_NEEDED_AFTER.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('')+
           '</select></div>'+
         '</div>'+
-        '<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:14px"><input type="checkbox" id="bres_spof"> Single point of failure</label>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+        '<label data-s="s3c2ec8e" data-sd="flex"><input type="checkbox" id="bres_spof"> Single point of failure</label>'+
+        '<div data-s="s3894e59" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'bcmResModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary bcm-save-bia-resource" data-category="'+esc(category)+'">Add</button>'+
         '</div>'+
@@ -835,16 +835,16 @@
     try{labels=(await apiFetch('/bcm/api/bia/bucket-labels')).labels;}
     catch(e){labels=['2 hours','4 hours','24 hours','48 hours','1 week'];}
     var html='<div class="modal-overlay" id="bcmBucketModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:460px">'+
+      '<div class="modal-box" data-s="sd84af8f">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'bcmBucketModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Time Bucket Labels</div>'+
-        '<div style="font-size:12px;color:var(--amber,#d97706);background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);border-radius:var(--radius);padding:8px 10px;margin-bottom:14px">'+
+        '<div data-s="sd833d7a">'+
           '<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> These 5 column headers apply to every BIA questionnaire in the system, not just this one.'+
         '</div>'+
         [0,1,2,3,4].map(function(i){
           return '<div class="form-group"><label>Bucket '+(i+1)+'</label><input id="bucket_'+i+'" value="'+esc(labels[i]||'')+'"></div>';
         }).join('')+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px">'+
+        '<div data-s="s589d085" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'bcmBucketModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-bcm-click="bcmSaveBucketLabels()">Save</button>'+
         '</div>'+
@@ -873,13 +873,13 @@
       planCache=items;
       if(!items.length){body.innerHTML=emptyRow(7,'No continuity plans found');return;}
       body.innerHTML=items.map(function(p){
-        var titleCell='<td><div style="display:flex;align-items:center;gap:8px">'+esc(p.title||p.name||'')+(p.is_active_plan?'<span class="live-badge">LIVE</span>':'')+'</div></td>';
+        var titleCell='<td><div data-s="s250fc4e" data-sd="flex">'+esc(p.title||p.name||'')+(p.is_active_plan?'<span class="live-badge">LIVE</span>':'')+'</div></td>';
         var activateBtn=p.is_active_plan
           ?'<button class="deactivate-btn" data-bcm-click="bcmDeactivatePlan('+p.id+')" title="Stand down this plan">Stand Down</button>'
           :'<button class="activate-btn" data-bcm-click="bcmActivatePlan('+p.id+')" title="Activate this plan">Activate</button>';
         var reviewBtn='<button class="btn-bcm-ai" data-bcm-click="bcmAiReviewPlan('+p.id+',this)" title="AI review this plan"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
-        var pdfBtn='<a class="btn btn-sm btn-secondary" href="/bcm/api/plans/'+p.id+'/document" title="Download this plan as a PDF" aria-label="Download PDF of '+escAttr(p.title||'this plan')+'" style="padding:4px 8px;font-size:11px">PDF</a>';
-        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+pdfBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
+        var pdfBtn='<a class="btn btn-sm btn-secondary" href="/bcm/api/plans/'+p.id+'/document" title="Download this plan as a PDF" aria-label="Download PDF of '+escAttr(p.title||'this plan')+'" data-s="s16dc5a8">PDF</a>';
+        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div data-s="s1a3e68f" data-sd="flex">'+activateBtn+reviewBtn+pdfBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load plans');}
   };
@@ -894,34 +894,34 @@
     catch(e){if(typeof showToast==='function')showToast('Could not load the activation checklist','error');return;}
     var controls=detail.control_dependencies||[];
     var reviewHtml=controls.length?controls.map(function(c){return (
-      '<div class="bcm-control-review" data-control-id="'+c.id+'" style="padding:10px 0;border-bottom:1px solid var(--border)">'+
+      '<div class="bcm-control-review" data-control-id="'+c.id+'" data-s="s9d697c8">'+
         '<strong>'+esc(c.ref||'')+' '+esc(c.title||'')+'</strong> <small>Recorded: '+esc(c.status||'unknown')+'</small><br>'+
         '<label>Check now <select class="bcm-control-result" aria-label="Activation check for '+escAttr(c.ref||c.title||'control')+'">'+
           '<option value="not_checked">Not checked</option><option value="still_working">Still working</option><option value="not_working">Not working</option></select></label></div>');
     }).join(''):'<p>No linked controls were found. The wider control review task will still be created.</p>';
     // Build activation modal
     var html='<div class="modal-overlay" id="activateModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:500px">'+
+      '<div class="modal-box" data-s="s4294bfa">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'activateModal\').remove()">&#10005;</button>'+
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">'+
-          '<div style="width:36px;height:36px;background:rgba(220,38,38,.1);border-radius:50%;display:flex;align-items:center;justify-content:center">'+
+        '<div data-s="sae6c2a7" data-sd="flex">'+
+          '<div data-s="s1ee8d55" data-sd="flex">'+
             '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'+
           '</div>'+
-          '<div class="modal-title" style="margin:0">Activate Plan</div>'+
+          '<div class="modal-title" data-s="s1169661">Activate Plan</div>'+
         '</div>'+
-        '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">You are about to activate <strong>'+esc(plan.title)+'</strong>. This will mark the plan as live and notify stakeholders.</p>'+
-        '<div class="form-group"><strong>Controls this plan depends on</strong><p>Review the recorded controls during activation. A recorded status is not a live test.</p><div id="bcmActivationControls" style="max-height:260px;overflow:auto">'+reviewHtml+'</div></div>'+
+        '<p data-s="s943e0fa">You are about to activate <strong>'+esc(plan.title)+'</strong>. This will mark the plan as live and notify stakeholders.</p>'+
+        '<div class="form-group"><strong>Controls this plan depends on</strong><p>Review the recorded controls during activation. A recorded status is not a live test.</p><div id="bcmActivationControls" data-s="s80c1414">'+reviewHtml+'</div></div>'+
         '<div class="form-group">'+
           '<label>Activation Reason</label>'+
-          '<textarea id="activateReason" rows="3" placeholder="e.g. Data centre power failure — invoking IT DR plan" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></textarea>'+
+          '<textarea id="activateReason" rows="3" placeholder="e.g. Data centre power failure — invoking IT DR plan" data-s="sbd090b5"></textarea>'+
         '</div>'+
         '<div class="form-group">'+
           '<label>Link to Incident (optional)</label>'+
-          '<select id="activateIncident" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px"><option value="">— No incident —</option></select>'+
+          '<select id="activateIncident" data-s="s54a0e4b"><option value="">— No incident —</option></select>'+
         '</div>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+        '<div data-s="s635f7ad" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'activateModal\').remove()">Cancel</button>'+
-          '<button class="activate-btn" style="padding:9px 20px;font-size:13px" data-bcm-click="bcmConfirmActivate('+id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Activate Plan</button>'+
+          '<button class="activate-btn" data-s="sb4ff3a7" data-bcm-click="bcmConfirmActivate('+id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Activate Plan</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -958,17 +958,17 @@
     var plan=planCache.find(function(p){return p.id===id;});
     if(!plan) return;
     var html='<div class="modal-overlay" id="deactivateModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:460px">'+
+      '<div class="modal-box" data-s="sd84af8f">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'deactivateModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Stand Down Plan</div>'+
-        '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">You are standing down <strong>'+esc(plan.title)+'</strong>. The plan will be marked as no longer active.</p>'+
+        '<p data-s="s943e0fa">You are standing down <strong>'+esc(plan.title)+'</strong>. The plan will be marked as no longer active.</p>'+
         '<div class="form-group">'+
           '<label>Reason / Stand-Down Notes</label>'+
-          '<textarea id="deactivateReason" rows="3" placeholder="e.g. Normal operations restored" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></textarea>'+
+          '<textarea id="deactivateReason" rows="3" placeholder="e.g. Normal operations restored" data-s="sbd090b5"></textarea>'+
         '</div>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+        '<div data-s="s635f7ad" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'deactivateModal\').remove()">Cancel</button>'+
-          '<button class="deactivate-btn" style="padding:9px 20px;font-size:13px" data-bcm-click="bcmConfirmDeactivate('+id+')">Stand Down Plan</button>'+
+          '<button class="deactivate-btn" data-s="sb4ff3a7" data-bcm-click="bcmConfirmDeactivate('+id+')">Stand Down Plan</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -1008,8 +1008,8 @@
     if(!filtered.length){body.innerHTML=emptyRow(6,'No incidents found');return;}
     body.innerHTML=filtered.map(function(i){
       var suggestBtn='<button class="btn-bcm-ai" data-bcm-click="bcmAiSuggestActions('+i.id+',this)" title="AI suggest next actions"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
-      var consoleBtn='<button class="btn btn-sm btn-secondary" data-bcm-click="bcmOpenIncidentConsole('+i.id+')" title="Open command console" style="padding:4px 8px;font-size:11px">Console</button>';
-      return '<tr><td><span style="color:var(--accent);font-weight:600;cursor:pointer" data-bcm-click="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+' '+ackBadge(i)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\'incident\','+i.id+')')+'</div></td></tr>';
+      var consoleBtn='<button class="btn btn-sm btn-secondary" data-bcm-click="bcmOpenIncidentConsole('+i.id+')" title="Open command console" data-s="s16dc5a8">Console</button>';
+      return '<tr><td><span data-s="sb60282c" data-bcm-click="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+' '+ackBadge(i)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div data-s="s1e79384" data-sd="flex">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\'incident\','+i.id+')')+'</div></td></tr>';
     }).join('');
   }
   window.bcmFilterInc=function(status,chip){
@@ -1050,7 +1050,7 @@
       if(!items.length){body.innerHTML=emptyRow(7,'No risks found');return;}
       body.innerHTML=items.map(function(r){
         var level=bcmScoreToLevel(r.score);
-        var scoreChip=r.score?'<span style="font-size:10px;color:var(--muted);margin-left:4px">'+r.score+'</span>':'';
+        var scoreChip=r.score?'<span data-s="s630f96b">'+r.score+'</span>':'';
         return '<tr><td>'+esc(r.title||r.name||'')+'</td><td>'+esc(r.category||'')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td>'+riskBadge(level)+scoreChip+'</td><td>'+esc(r.owner||'—')+'</td><td>'+actionBtns('bcmEditRisk('+r.id+')','bcmDeleteRecord(\'risk\','+r.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load risks');}
@@ -1066,7 +1066,7 @@
   window.bcmLoadDeps=async function(){
     var grid=document.getElementById('bcmDepGrid');
     var connections=document.getElementById('bcmDepConnections');
-    grid.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>';
+    grid.innerHTML='<div data-s="s51a4943"><div class="spinner" data-s="s266e9b0"></div></div>';
     try{
       var graph=await apiFetch('/bcm/api/dependencies/graph');
       depCache=graph.nodes||[];
@@ -1076,15 +1076,15 @@
       grid.innerHTML=depCache.length?depCache.map(function(n){
         var out=depEdges.filter(function(e){return e.source_id===n.id;}).length;
         var incoming=depEdges.filter(function(e){return e.target_id===n.id;}).length;
-        return '<div class="dep-node"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(n.name||'')+'</div>'+riskBadge(n.criticality||'medium')+'</div><div style="font-size:12px;color:var(--muted);margin-bottom:8px">'+esc(n.node_type||'System')+'</div><div style="font-size:12px;color:var(--text-mid)">'+esc(n.description||'')+'</div><div style="font-size:11px;color:var(--muted);margin-top:10px">'+out+' downstream / '+incoming+' upstream</div><div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-sm btn-secondary" data-bcm-click="bcmShowDepImpact('+n.id+')">Impact chain</button>'+(bcmCanManageDependencies?actionBtns('bcmEditDep('+n.id+')','bcmDeleteRecord(\'dep_node\','+n.id+')'):'')+'</div></div>';
-      }).join(''):'<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">No nodes yet. Add a process, system, vendor or team to start the map.</div>';
+        return '<div class="dep-node"><div data-s="s729afab" data-sd="flex"><div data-s="s8a79397">'+esc(n.name||'')+'</div>'+riskBadge(n.criticality||'medium')+'</div><div data-s="s681aa83">'+esc(n.node_type||'System')+'</div><div data-s="s999cbb7">'+esc(n.description||'')+'</div><div data-s="s78c2d6f">'+out+' downstream / '+incoming+' upstream</div><div data-s="seb17844" data-sd="flex"><button class="btn btn-sm btn-secondary" data-bcm-click="bcmShowDepImpact('+n.id+')">Impact chain</button>'+(bcmCanManageDependencies?actionBtns('bcmEditDep('+n.id+')','bcmDeleteRecord(\'dep_node\','+n.id+')'):'')+'</div></div>';
+      }).join(''):'<div data-s="sf649963">No nodes yet. Add a process, system, vendor or team to start the map.</div>';
       connections.innerHTML=depEdges.length?depEdges.map(function(e){
         var source=depCache.find(function(n){return n.id===e.source_id;});
         var target=depCache.find(function(n){return n.id===e.target_id;});
-        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span style="flex:1">'+esc(source?source.name:'#'+e.source_id)+' &rarr; '+esc(target?target.name:'#'+e.target_id)+(e.label?' <span style="color:var(--muted)">('+esc(e.label)+')</span>':'')+'</span> '+(bcmCanManageDependencies?'<button class="btn btn-sm btn-secondary" data-bcm-click="bcmDeleteDepConnection('+e.id+')" aria-label="Remove connection">Remove</button>':'')+'</div>';
-      }).join(''):'<div style="color:var(--muted);font-size:13px">No connections yet. Connect two nodes to expose downstream impact.</div>';
+        return '<div data-s="s737b289" data-sd="flex"><span data-s="s97445a8">'+esc(source?source.name:'#'+e.source_id)+' &rarr; '+esc(target?target.name:'#'+e.target_id)+(e.label?' <span data-s="s57f9e31">('+esc(e.label)+')</span>':'')+'</span> '+(bcmCanManageDependencies?'<button class="btn btn-sm btn-secondary" data-bcm-click="bcmDeleteDepConnection('+e.id+')" aria-label="Remove connection">Remove</button>':'')+'</div>';
+      }).join(''):'<div data-s="s9390c33">No connections yet. Connect two nodes to expose downstream impact.</div>';
     }catch(e){
-      grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">Failed to load dependency map</div>';
+      grid.innerHTML='<div data-s="sf649963">Failed to load dependency map</div>';
       connections.textContent='Connections could not be loaded.';
     }
   };
@@ -1092,13 +1092,13 @@
   window.bcmOpenDepConnection=function(){
     if(depCache.length<2)return;
     var options=depCache.map(function(n){return '<option value="'+n.id+'">'+esc(n.name)+'</option>';}).join('');
-    var html='<div class="modal-overlay" id="depConnectionModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:540px">'+
+    var html='<div class="modal-overlay" id="depConnectionModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="sc1130cd">'+
       '<button class="modal-close" data-bcm-click="document.getElementById(\'depConnectionModal\').remove()" aria-label="Close">?</button>'+
-      '<div class="modal-title">Connect nodes</div><p style="font-size:13px;color:var(--muted)">Choose a dependency and what is affected when it fails.</p>'+
+      '<div class="modal-title">Connect nodes</div><p data-s="s17d902b">Choose a dependency and what is affected when it fails.</p>'+
       '<div class="form-group"><label for="depSource">Dependency</label><select id="depSource">'+options+'</select></div>'+
       '<div class="form-group"><label for="depTarget">Affected process or service</label><select id="depTarget">'+options+'</select></div>'+
       '<div class="form-group"><label for="depLabel">Relationship</label><input id="depLabel" placeholder="e.g. hosts, supplies, enables"></div>'+
-      '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" data-bcm-click="document.getElementById(\'depConnectionModal\').remove()">Cancel</button><button class="btn btn-primary" data-bcm-click="bcmSaveDepConnection()">Connect</button></div></div></div>';
+      '<div data-s="sdafae57" data-sd="flex"><button class="btn btn-secondary" data-bcm-click="document.getElementById(\'depConnectionModal\').remove()">Cancel</button><button class="btn btn-primary" data-bcm-click="bcmSaveDepConnection()">Connect</button></div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
     document.getElementById('depTarget').selectedIndex=1;
   };
@@ -1124,10 +1124,10 @@
     try{
       var result=await apiFetch('/bcm/api/dependencies/impact/'+id);
       var impacted=result.impacted||[];
-      var html='<div class="modal-overlay" id="depImpactModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:540px">'+
+      var html='<div class="modal-overlay" id="depImpactModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="sc1130cd">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'depImpactModal\').remove()" aria-label="Close">?</button>'+
         '<div class="modal-title">If '+esc(node.name)+' is disrupted</div>'+
-        (impacted.length?'<p style="font-size:13px;color:var(--muted)">These downstream nodes may be affected:</p><ul>'+impacted.map(function(n){return '<li>'+esc(n.name)+' / '+esc(n.node_type||'')+'</li>';}).join('')+'</ul>':'<p style="font-size:13px;color:var(--muted)">No downstream impact is mapped yet. Add a connection to see affected services.</p>')+
+        (impacted.length?'<p data-s="s17d902b">These downstream nodes may be affected:</p><ul>'+impacted.map(function(n){return '<li>'+esc(n.name)+' / '+esc(n.node_type||'')+'</li>';}).join('')+'</ul>':'<p data-s="s17d902b">No downstream impact is mapped yet. Add a connection to see affected services.</p>')+
         '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'depImpactModal\').remove()">Close</button></div></div>';
       document.body.insertAdjacentHTML('beforeend',html);
     }catch(e){if(typeof showToast==='function')showToast(e.message||'Could not compute impact','error');}
@@ -1161,16 +1161,16 @@
       var mt=(d&&d.metrics)||{};
       var cell=function(label,m,suffix,color){
         var has=mHas(m);
-        return '<div title="'+escAttr(has?(m.definition||''):mWords(m))+'"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">'+label+
-          '</div><div style="font-size:24px;font-weight:800;color:'+(has?(color||'var(--text)'):'var(--muted)')+'">'+(has?m.value+(suffix||''):'n/a')+'</div>'+
-          (has?'':'<div style="font-size:11px;color:var(--muted)">'+esc(mWords(m))+'</div>')+'</div>';
+        return '<div title="'+escAttr(has?(m.definition||''):mWords(m))+'"><div data-s="s0dab909">'+label+
+          '</div><div data-sv="font-size:24px;font-weight:800;color:'+(has?(color||'var(--text)'):'var(--muted)')+'">'+(has?m.value+(suffix||''):'n/a')+'</div>'+
+          (has?'':'<div data-s="s1fd8c81">'+esc(mWords(m))+'</div>')+'</div>';
       };
       var inc=mt['bcm.active_incidents'];
-      el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px">'+
+      el.innerHTML='<div data-s="seac5c17" data-sd="grid">'+
         cell('BIA Coverage',mt['bcm.bia_with_plan'],'%')+cell('Total Plans',mt['bcm.plans'])+
         cell('Open Incidents',inc,'',mHas(inc)&&inc.value>0?'var(--red)':'var(--green-status)')+
         cell('Exercise Completion',mt['bcm.exercises_completed'],'%')+'</div>';
-    }catch(e){el.innerHTML='<div style="color:var(--muted)">The programme summary could not be read just now. This is not an empty summary.</div>';}
+    }catch(e){el.innerHTML='<div data-s="s57f9e31">The programme summary could not be read just now. This is not an empty summary.</div>';}
   };
   // A report button reports success only when a saved run exists. One call makes the run; the Reports page then opens it.
   async function bcmQuickReport(reportType, working, ready, failed){
@@ -1206,10 +1206,10 @@
     {title:'All clear and recovery',category:'all-staff',subject:'Recovery update: {{incident_name}}',incident_types:'outage,cyber,facility',body:'The immediate disruption from {{incident_name}} has been resolved as of {{resolution_time}}. The services restored are {{restored_services}}. Please report any remaining issues to {{contact_point}}. A follow-up review will be shared by {{review_date}}.'}
   ];
   window.bcmOpenCommsStarters=function(){
-    var html='<div class="modal-overlay" id="commsStarterModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:620px">'+
+    var html='<div class="modal-overlay" id="commsStarterModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s7fc16fa">'+
       '<button class="modal-close" data-bcm-click="document.getElementById(\'commsStarterModal\').remove()" aria-label="Close">X</button>'+
-      '<div class="modal-title">Starter crisis messages</div><p style="font-size:13px;color:var(--muted)">Choose a draft, tailor it to your organization, then save it. These are starting points, not pre-approved statements.</p>'+
-      commsStarters.map(function(t,i){return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1"><strong>'+esc(t.title)+'</strong><div style="font-size:12px;color:var(--muted)">'+esc(t.category)+'</div></div><button class="btn btn-sm btn-primary" data-bcm-click="bcmUseCommsStarter('+i+')">Use draft</button></div>';}).join('')+
+      '<div class="modal-title">Starter crisis messages</div><p data-s="s17d902b">Choose a draft, tailor it to your organization, then save it. These are starting points, not pre-approved statements.</p>'+
+      commsStarters.map(function(t,i){return '<div data-s="s092e0b4" data-sd="flex"><div data-s="s97445a8"><strong>'+esc(t.title)+'</strong><div data-s="s7fc448e">'+esc(t.category)+'</div></div><button class="btn btn-sm btn-primary" data-bcm-click="bcmUseCommsStarter('+i+')">Use draft</button></div>';}).join('')+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
   };
@@ -1220,26 +1220,26 @@
   };
   window.bcmLoadComms=async function(category){
     var grid=document.getElementById('commsGrid');
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+    grid.innerHTML='<div data-s="se3e8e97"><div class="spinner" data-s="s266e9b0"></div></div>';
     try{
       category=category||document.getElementById('commsFilter').value;
       var url='/bcm/api/comms'+(category&&category!=='all'?'?category='+encodeURIComponent(category):'');
       var data=await apiFetch(url);
       var items=Array.isArray(data)?data:data.items||[];
       commsCache=items;
-      if(!items.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">No templates found. Start with a draft message or add your own.</div>';return;}
+      if(!items.length){grid.innerHTML='<div data-s="s5da5b59">No templates found. Start with a draft message or add your own.</div>';return;}
       var catColors={internal:'var(--blue)','all-staff':'var(--accent)',external:'var(--green-status)',authority:'var(--amber)',media:'var(--red)',general:'var(--muted)'};
       grid.innerHTML=items.map(function(t){
         var cc=catColors[t.category]||'var(--muted)';
-        var vars=(t.variables||'').split(',').filter(Boolean).map(function(v){return '<code style="font-size:10px;background:var(--surface3);padding:1px 4px;border-radius:3px">{{'+esc(v.trim())+'}}</code>';}).join(' ');
-        return '<div class="card" style="padding:20px;display:flex;flex-direction:column;gap:10px">'+
-          '<div style="display:flex;justify-content:space-between;align-items:start">'+
-            '<div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(t.title)+'</div>'+
-            '<span class="badge" style="background:'+cc+';opacity:.15;color:'+cc+';border:1px solid '+cc+';opacity:1;font-size:10px">'+esc(t.category.replace(/-/g,' ').toUpperCase())+'</span>'+
+        var vars=(t.variables||'').split(',').filter(Boolean).map(function(v){return '<code data-s="s2fd9b46">{{'+esc(v.trim())+'}}</code>';}).join(' ');
+        return '<div class="card" data-s="s8eb37c0" data-sd="flex">'+
+          '<div data-s="sf0bc6e2" data-sd="flex">'+
+            '<div data-s="s8a79397">'+esc(t.title)+'</div>'+
+            '<span class="badge" data-sv="background:'+cc+';opacity:.15;color:'+cc+';border:1px solid '+cc+';opacity:1;font-size:10px">'+esc(t.category.replace(/-/g,' ').toUpperCase())+'</span>'+
           '</div>'+
-          (t.subject?'<div style="font-size:12px;color:var(--muted)"><strong>Subject:</strong> '+esc(t.subject)+'</div>':'')+
-          (vars?'<div style="font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px">'+vars+'</div>':'')+
-          '<div style="display:flex;gap:8px;margin-top:4px">'+
+          (t.subject?'<div data-s="s7fc448e"><strong>Subject:</strong> '+esc(t.subject)+'</div>':'')+
+          (vars?'<div data-s="s223f3e4" data-sd="flex">'+vars+'</div>':'')+
+          '<div data-s="s6f25b08" data-sd="flex">'+
             '<button class="btn btn-sm btn-secondary" data-bcm-click="bcmPreviewComms('+t.id+')">Preview</button>'+
             '<button class="btn btn-sm btn-primary" data-bcm-click="bcmActivateComms('+t.id+')">Activate</button>'+
 
@@ -1247,15 +1247,15 @@
           '</div>'+
         '</div>';
       }).join('');
-    }catch(e){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">Failed to load templates</div>';}
+    }catch(e){grid.innerHTML='<div data-s="s5da5b59">Failed to load templates</div>';}
   };
   window.bcmPreviewComms=function(id){
     var t=commsCache.find(function(x){return x.id===id;});if(!t)return;
     var html='<div class="modal-overlay" id="commsPreviewModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:700px"><div class="modal-title">'+esc(t.title)+'</div>'+
-      (t.subject?'<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px">Subject: '+esc(t.subject)+'</div>':'')+
-      '<div style="background:var(--surface2);border-radius:var(--radius);padding:16px;font-size:13px;white-space:pre-wrap;max-height:400px;overflow-y:auto;line-height:1.7">'+esc(t.body)+'</div>'+
-      '<div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" data-bcm-click="document.getElementById(\'commsPreviewModal\').remove()">Close</button>'+
+      '<div class="modal-box" data-s="sbcaa180"><div class="modal-title">'+esc(t.title)+'</div>'+
+      (t.subject?'<div data-s="s4356588">Subject: '+esc(t.subject)+'</div>':'')+
+      '<div data-s="s2d6d27d">'+esc(t.body)+'</div>'+
+      '<div data-s="sa885e64" data-sd="flex"><button class="btn btn-secondary" data-bcm-click="document.getElementById(\'commsPreviewModal\').remove()">Close</button>'+
       '<button class="btn btn-primary" data-bcm-click="bcmActivateComms('+id+')">Activate</button></div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
   };
@@ -1277,13 +1277,13 @@
     var t=commsCache.find(function(x){return x.id===id;});if(!t)return;
     var preview=document.getElementById('commsPreviewModal');if(preview)preview.remove();
     var names=commsVariableNames(t);
-    var html='<div class="modal-overlay" id="commsActivateModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:720px">'+
+    var html='<div class="modal-overlay" id="commsActivateModal" data-bcm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="sb12974c">'+
       '<button class="modal-close" data-bcm-click="document.getElementById(\'commsActivateModal\').remove()" aria-label="Close">X</button>'+
       '<div class="modal-title">Activate: '+esc(t.title)+'</div>'+
-      '<p style="font-size:13px;color:var(--muted)">Fill every field, review the final text, then copy it into your approved sending channel. This does not send a message.</p>'+
+      '<p data-s="s17d902b">Fill every field, review the final text, then copy it into your approved sending channel. This does not send a message.</p>'+
       names.map(function(name){return '<div class="form-group"><label for="commsVar_'+name+'">'+esc(name.replace(/_/g,' '))+'</label><input id="commsVar_'+name+'" data-comms-var="'+name+'" data-bcm-input="bcmRenderActivatedComms('+id+')" required></div>';}).join('')+
-      '<div class="form-group"><label>Ready-to-send message</label><div id="commsActivatedText" style="background:var(--surface2);padding:16px;border-radius:var(--radius);white-space:pre-wrap;max-height:260px;overflow:auto"></div></div>'+
-      '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" data-bcm-click="document.getElementById(\'commsActivateModal\').remove()">Close</button>'+
+      '<div class="form-group"><label>Ready-to-send message</label><div id="commsActivatedText" data-s="sc0932e1"></div></div>'+
+      '<div data-s="sdafae57" data-sd="flex"><button class="btn btn-secondary" data-bcm-click="document.getElementById(\'commsActivateModal\').remove()">Close</button>'+
       '<button class="btn btn-primary" id="commsCopyActivated" data-bcm-click="bcmCopyActivatedComms('+id+')">Copy message</button></div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
     bcmRenderActivatedComms(id);
@@ -1321,7 +1321,7 @@
     var isEdit=!!(existing&&existing.id);
     var draft=existing||{};
     var html='<div class="modal-overlay" id="commsModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:680px">'+
+      '<div class="modal-box" data-s="s48a0d2f">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'commsModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">'+(isEdit?'Edit Template':'New Communication Template')+'</div>'+
         '<div class="form-row"><div class="form-group"><label>Title</label><input id="ct_title" value="'+escAttr(draft.title||'')+'"></div>'+
@@ -1331,8 +1331,8 @@
         '<div class="form-group"><label>Subject Line (optional)</label><input id="ct_subject" value="'+escAttr(draft.subject||'')+'"></div>'+
         '<div class="form-group"><label>Incident Types (comma-separated, e.g. ransomware,outage)</label><input id="ct_types" value="'+escAttr(draft.incident_types||'')+'"></div>'+
         '<div class="form-group"><label>Template Body (use {{variable_name}} for placeholders)</label>'+
-          '<textarea id="ct_body" rows="10" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;font-family:monospace;box-sizing:border-box">'+esc(draft.body||'')+'</textarea></div>'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+
+          '<textarea id="ct_body" rows="10" data-s="s23aaa9a">'+esc(draft.body||'')+'</textarea></div>'+
+        '<div data-s="sfa58bc4" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'commsModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-bcm-click="bcmSaveComms('+(isEdit?existing.id:'null')+')">Save Template</button>'+
         '</div>'+
@@ -1367,34 +1367,34 @@
   var contactCache=[];
   window.bcmLoadContacts=async function(){
     var el=document.getElementById('contactTree');
-    el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+    el.innerHTML='<div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div>';
     try{
       var data=await apiFetch('/bcm/api/contacts/tree');
       contactCache=data.all||[];
       var roots=data.roots||[];
       if(!roots.length && !contactCache.length){
-        el.innerHTML='<div class="card" style="padding:40px;text-align:center;color:var(--muted)">No emergency contacts defined. Add your incident response team above.</div>';
+        el.innerHTML='<div class="card" data-s="sc0add8c">No emergency contacts defined. Add your incident response team above.</div>';
         return;
       }
       function renderNode(n,depth){
         var indent=depth*20;
         var childrenHtml=(n.children||[]).map(function(c){return renderNode(c,depth+1);}).join('');
-        return '<div style="margin-left:'+indent+'px;margin-bottom:8px">'+
-          '<div class="card" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px">'+
-            '<div style="display:flex;align-items:center;gap:12px">'+
-              '<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:700;flex-shrink:0">'+
+        return '<div data-sv="margin-left:'+indent+'px;margin-bottom:8px">'+
+          '<div class="card" data-s="s9c7235b" data-sd="flex">'+
+            '<div data-s="s12bf1ab" data-sd="flex">'+
+              '<div data-s="sa61b9bf" data-sd="flex">'+
                 esc((n.name||'?').charAt(0).toUpperCase())+
               '</div>'+
               '<div>'+
-                '<div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(n.name)+'</div>'+
-                '<div style="font-size:12px;color:var(--muted)">'+esc(n.role||'')+(n.team?' &bull; '+esc(n.team):'')+'</div>'+
-                '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+
-                  (n.email?'<a href="mailto:'+esc(n.email)+'" style="color:var(--accent)">'+esc(n.email)+'</a>':'')+
+                '<div data-s="s8a79397">'+esc(n.name)+'</div>'+
+                '<div data-s="s7fc448e">'+esc(n.role||'')+(n.team?' &bull; '+esc(n.team):'')+'</div>'+
+                '<div data-s="sfc85ba5">'+
+                  (n.email?'<a href="mailto:'+esc(n.email)+'" data-s="sa805525">'+esc(n.email)+'</a>':'')+
                   (n.phone?' &bull; '+esc(n.phone):'')+(n.mobile?' &bull; <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-smartphone></use></svg>'+esc(n.mobile):'')+
                 '</div>'+
               '</div>'+
             '</div>'+
-            '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+            '<div data-s="s6f085fb" data-sd="flex">'+
               '<span class="badge badge-draft">L'+esc(n.escalation_level||1)+'</span>'+
               actionBtns('bcmEditContact('+n.id+')','bcmDeleteContact('+n.id+')')+
             '</div>'+
@@ -1403,7 +1403,7 @@
         '</div>';
       }
       el.innerHTML=roots.map(function(r){return renderNode(r,0);}).join('');
-    }catch(e){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load contacts</div>';}
+    }catch(e){el.innerHTML='<div data-s="s810afb2">Failed to load contacts</div>';}
   };
   window.bcmOpenContactModal=function(existing){
     var isEdit=!!(existing&&existing.id);
@@ -1411,7 +1411,7 @@
       return '<option value="'+c.id+'"'+(isEdit&&existing.parent_id===c.id?' selected':'')+'>'+esc(c.name)+' ('+esc(c.role||'')+') L'+c.escalation_level+'</option>';
     }).join('');
     var html='<div class="modal-overlay" id="contactModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:540px">'+
+      '<div class="modal-box" data-s="sc1130cd">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'contactModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">'+(isEdit?'Edit Contact':'Add Emergency Contact')+'</div>'+
         '<div class="form-row">'+
@@ -1432,8 +1432,8 @@
           '<div class="form-group"><label>Mobile</label><input id="cn_mobile" value="'+esc(isEdit?(existing.mobile||''):'')+'"></div>'+
           '<div class="form-group"><label>Reports To / Parent</label><select id="cn_parent">'+parentOptions+'</select></div>'+
         '</div>'+
-        '<div class="form-group"><label>Notes</label><textarea id="cn_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+
+        '<div class="form-group"><label>Notes</label><textarea id="cn_notes" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
+        '<div data-s="sfa58bc4" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'contactModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-bcm-click="bcmSaveContact('+(isEdit?existing.id:'null')+')">Save</button>'+
         '</div>'+
@@ -1473,57 +1473,57 @@
   var scenarioCache=[];
   window.bcmLoadScenarios=async function(category){
     var grid=document.getElementById('scenariosGrid');
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+    grid.innerHTML='<div data-s="se3e8e97"><div class="spinner" data-s="s266e9b0"></div></div>';
     try{
       var url='/bcm/api/scenarios'+(category&&category!=='all'?'?category='+encodeURIComponent(category):'');
       var data=await apiFetch(url);
       var items=Array.isArray(data)?data:data.items||[];
       scenarioCache=items;
-      if(!items.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">No scenarios found.</div>';return;}
+      if(!items.length){grid.innerHTML='<div data-s="s5da5b59">No scenarios found.</div>';return;}
       var catIcons={cyber:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg>',physical:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-house></use></svg>',people:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg>',supply_chain:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-truck></use></svg>',pandemic:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-syringe></use></svg>',general:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg>'};
       var diffColors={easy:'var(--green-status)',medium:'var(--amber)',hard:'var(--red)'};
       grid.innerHTML=items.map(function(s){
         var icon=catIcons[s.category]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg>';
         var dc=diffColors[s.difficulty]||'var(--muted)';
-        return '<div class="card" style="padding:20px;display:flex;flex-direction:column;gap:12px">'+
-          '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px">'+
-            '<div style="display:flex;gap:10px;align-items:start">'+
-              '<div style="font-size:28px;line-height:1">'+icon+'</div>'+
+        return '<div class="card" data-s="sf981dbb" data-sd="flex">'+
+          '<div data-s="sc215320" data-sd="flex">'+
+            '<div data-s="s5e447b6" data-sd="flex">'+
+              '<div data-s="s4c87a29">'+icon+'</div>'+
               '<div>'+
-                '<div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(s.title)+'</div>'+
-                '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(s.category.replace(/_/g,' '))+' &bull; ~'+s.estimated_duration_minutes+'min</div>'+
+                '<div data-s="s8a79397">'+esc(s.title)+'</div>'+
+                '<div data-s="s3823a5b">'+esc(s.category.replace(/_/g,' '))+' &bull; ~'+s.estimated_duration_minutes+'min</div>'+
               '</div>'+
             '</div>'+
-            '<span style="font-size:10px;font-weight:700;color:'+dc+';background:rgba(0,0,0,.04);padding:2px 8px;border-radius:100px;white-space:nowrap">'+esc((s.difficulty||'medium').toUpperCase())+'</span>'+
+            '<span data-sv="font-size:10px;font-weight:700;color:'+dc+';background:rgba(0,0,0,.04);padding:2px 8px;border-radius:100px;white-space:nowrap">'+esc((s.difficulty||'medium').toUpperCase())+'</span>'+
           '</div>'+
-          '<div style="font-size:13px;color:var(--text-mid);line-height:1.5">'+esc(s.description||'')+'</div>'+
-          '<div style="display:flex;gap:8px;margin-top:4px">'+
+          '<div data-s="s777b9f6">'+esc(s.description||'')+'</div>'+
+          '<div data-s="s6f25b08" data-sd="flex">'+
             '<button class="btn btn-sm btn-primary" data-bcm-click="bcmUseScenario('+s.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Use Scenario</button>'+
             '<button class="btn btn-sm btn-secondary" data-bcm-click="bcmViewScenario('+s.id+')">View Injects</button>'+
             (!s.is_builtin?actionBtns('','bcmDeleteScenarioItem('+s.id+')'):'')+'</div>'+
         '</div>';
       }).join('');
       var sc=document.getElementById('navScenarioCount');if(sc)sc.textContent=items.length;
-    }catch(e){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">Failed to load scenarios</div>';}
+    }catch(e){grid.innerHTML='<div data-s="s5da5b59">Failed to load scenarios</div>';}
   };
   window.bcmViewScenario=function(id){
     var s=scenarioCache.find(function(x){return x.id===id;});if(!s) return;
     var injects=[];try{injects=JSON.parse(s.injects||'[]');}catch(e){}
     var injectHtml=injects.length?injects.map(function(inj,i){
-      return '<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">'+
-        '<div style="min-width:70px;font-size:11px;font-weight:700;color:var(--accent);padding-top:2px">'+esc(inj.time||('Inject '+(i+1)))+'</div>'+
-        '<div style="font-size:13px;color:var(--text);line-height:1.5">'+esc(inj.inject||inj.description||'')+'</div>'+
+      return '<div data-s="s1f9d80d" data-sd="flex">'+
+        '<div data-s="s37ef458">'+esc(inj.time||('Inject '+(i+1)))+'</div>'+
+        '<div data-s="se2aab8d">'+esc(inj.inject||inj.description||'')+'</div>'+
       '</div>';
-    }).join(''):'<div style="color:var(--muted);padding:12px 0">No injects defined.</div>';
+    }).join(''):'<div data-s="s9619658">No injects defined.</div>';
     var html='<div class="modal-overlay" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:680px">'+
+      '<div class="modal-box" data-s="s48a0d2f">'+
         '<div class="modal-title">'+esc(s.title)+' — Injects</div>'+
-        '<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+esc(s.description||'')+'</div>'+
-        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Objectives</div>'+
-        '<div style="font-size:13px;white-space:pre-line;margin-bottom:16px;color:var(--text)">'+esc(s.objectives||'Not specified')+'</div>'+
-        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Scenario Injects</div>'+
+        '<div data-s="s5452467">'+esc(s.description||'')+'</div>'+
+        '<div data-s="s502a744">Objectives</div>'+
+        '<div data-s="s8f9280c">'+esc(s.objectives||'Not specified')+'</div>'+
+        '<div data-s="sea37aa4">Scenario Injects</div>'+
         injectHtml+
-        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px">'+
+        '<div data-s="sbe2281f" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="this.closest(\'.modal-overlay\').remove()">Close</button>'+
           '<button class="btn btn-primary" data-bcm-click="this.closest(\'.modal-overlay\').remove();bcmUseScenario('+s.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> Use This Scenario</button>'+
         '</div>'+
@@ -1533,16 +1533,16 @@
   window.bcmUseScenario=function(id){
     var s=scenarioCache.find(function(x){return x.id===id;});if(!s) return;
     var html='<div class="modal-overlay" id="useScenarioModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-box" data-s="sd2a2635">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'useScenarioModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Schedule Exercise from Scenario</div>'+
-        '<p style="font-size:13px;color:var(--muted);margin-bottom:16px"><strong>'+esc(s.title)+'</strong> &bull; ~'+s.estimated_duration_minutes+' min &bull; '+esc(s.difficulty)+'</p>'+
-        '<div class="form-group"><label>Exercise Title</label><input id="us_title" value="'+esc(s.title)+' Exercise" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
+        '<p data-s="s943e0fa"><strong>'+esc(s.title)+'</strong> &bull; ~'+s.estimated_duration_minutes+' min &bull; '+esc(s.difficulty)+'</p>'+
+        '<div class="form-group"><label>Exercise Title</label><input id="us_title" value="'+esc(s.title)+' Exercise" data-s="sbd090b5"></div>'+
         '<div class="form-row">'+
-          '<div class="form-group"><label>Scheduled Date</label><input id="us_date" type="date" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
-          '<div class="form-group"><label>Facilitator</label><input id="us_facilitator" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
+          '<div class="form-group"><label>Scheduled Date</label><input id="us_date" type="date" data-s="sbd090b5"></div>'+
+          '<div class="form-group"><label>Facilitator</label><input id="us_facilitator" data-s="sbd090b5"></div>'+
         '</div>'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+
+        '<div data-s="sfa58bc4" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'useScenarioModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-bcm-click="bcmConfirmUseScenario('+id+')">Create Exercise</button>'+
         '</div>'+
@@ -1663,7 +1663,7 @@
         var target=item.vault_evidence_id
           ?'<a href="/evidence/api/items/'+Number(item.vault_evidence_id)+'/download">Open artifact</a>'
           :'<span>Legacy reference: review needed</span> <button type="button" class="btn btn-sm btn-secondary" data-bcm-click="bcmPickLegacyProof('+Number(controlId)+','+Number(item.id)+')">Match Vault artifact</button>';
-        return '<li style="margin:8px 0">'+esc(item.title)+' ('+esc(item.vault_status||item.source)+') '+
+        return '<li data-s="sf5554e4">'+esc(item.title)+' ('+esc(item.vault_status||item.source)+') '+
           target+' <button class="btn btn-sm btn-secondary" data-bcm-click="bcmRemoveControlProof('+
           Number(controlId)+','+Number(item.id)+')">Unlink</button></li>';
       }).join('');
@@ -1695,7 +1695,7 @@
     try{
       var items=await apiFetch('/bcm/api/vault-evidence/search?q='+encodeURIComponent(term));
       target.innerHTML=items.length?items.map(function(item){
-        return '<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px">'+
+        return '<div data-s="s12762e8" data-sd="flex">'+
           '<span>'+esc(item.title)+'</span><button class="btn btn-sm btn-secondary" '+
           'data-bcm-click="'+(bcmLegacyProofRowId?'bcmReconcileControlProof('+Number(controlId)+','+
           Number(bcmLegacyProofRowId)+','+Number(item.id)+')':'bcmAttachControlProof('+Number(controlId)+','+
@@ -1736,9 +1736,9 @@
 
   function _bcmXmBadges(v){
     var cid=v.canonical_id;
-    if(!cid) return '<span style="font-size:10px;color:var(--muted)">—</span>';
+    if(!cid) return '<span data-s="sb569cab">—</span>';
     var xm=_bcmVendorXm[cid];
-    if(!xm) return '<span style="font-size:10px;color:var(--muted)">…</span>';
+    if(!xm) return '<span data-s="sb569cab">…</span>';
     var mods=xm.modules||{};
     var flags=xm.flags||[];
     var parts=[];
@@ -1746,23 +1746,23 @@
     if(mods.sentinel){
       var dpa=(mods.sentinel.dpa_status||'pending');
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#f97316';
-      parts.push('<span title="Privacy DPA: '+dpa+'" style="padding:1px 6px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> '+dpa+'</span>');
+      parts.push('<span title="Privacy DPA: '+dpa+'" data-sv="padding:1px 6px;border-radius:4px;background:rgba(99,102,241,.1);color:'+dpaCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> '+dpa+'</span>');
     } else {
-      parts.push('<span title="Not assessed in Privacy" style="padding:1px 6px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;border:1px dashed var(--border)">No DPA</span>');
+      parts.push('<span title="Not assessed in Privacy" data-s="s9b819bf">No DPA</span>');
     }
     // Audit score
     if(mods.grid){
       var ass=mods.grid.latest_assessment;
       if(ass&&ass.score!=null){
         var scoreCol=ass.score>=70?'#16a34a':ass.score>=50?'#d97706':'#dc2626';
-        parts.push('<span title="Audit score: '+ass.score+'%" style="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:'+scoreCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+ass.score+'%</span>');
+        parts.push('<span title="Audit score: '+ass.score+'%" data-sv="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:'+scoreCol+';font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+ass.score+'%</span>');
       } else {
-        parts.push('<span title="In Audit — no score yet" style="padding:1px 6px;border-radius:4px;background:rgba(14,165,233,.1);color:#0ea5e9;font-size:10px;font-weight:700"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> ✓</span>');
+        parts.push('<span title="In Audit — no score yet" data-s="s5768248"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> ✓</span>');
       }
     } else {
-      parts.push('<span title="Not in Audit register" style="padding:1px 6px;border-radius:4px;background:var(--surface);color:var(--muted);font-size:10px;border:1px dashed var(--border)">No Audit</span>');
+      parts.push('<span title="Not in Audit register" data-s="s9b819bf">No Audit</span>');
     }
-    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="cursor:help;font-size:11px;margin-left:2px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" data-s="s45fa736"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
     return parts.join(' ');
   }
 
@@ -1790,19 +1790,19 @@
       var banner=document.getElementById('bcmVendorAlertBanner');
       if(banner){
         if(noDpaCritical.length){
-          banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.22);border-radius:8px;font-size:12px;font-weight:600;color:#dc2626">'+
-            '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+noDpaCritical.length+' critical vendor'+(noDpaCritical.length>1?'s have':' has')+' no DPA record in Privacy — <a href="/sentinel/vendors" style="color:#dc2626;text-decoration:underline">register now</a></span></div>';
+          banner.innerHTML='<div data-s="sc5c3a20" data-sd="flex">'+
+            '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+noDpaCritical.length+' critical vendor'+(noDpaCritical.length>1?'s have':' has')+' no DPA record in Privacy — <a href="/sentinel/vendors" data-s="sabeb0d1">register now</a></span></div>';
         } else { banner.innerHTML=''; }
       }
 
       body.innerHTML=items.map(function(v){
         var tierCol=v.tier===1?'#dc2626':v.tier===2?'#f97316':'#16a34a';
-        var tierBadge='<span style="padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;background:rgba(0,0,0,.06);color:'+tierCol+'">Tier '+(v.tier||3)+'</span>';
+        var tierBadge='<span data-sv="padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;background:rgba(0,0,0,.06);color:'+tierCol+'">Tier '+(v.tier||3)+'</span>';
         return '<tr>'+
-          '<td><strong>'+esc(v.name)+'</strong><div style="font-size:11px;color:var(--muted)">'+esc(v.service_provided||'')+'</div></td>'+
+          '<td><strong>'+esc(v.name)+'</strong><div data-s="s1fd8c81">'+esc(v.service_provided||'')+'</div></td>'+
           '<td>'+esc(v.category||'—')+'</td>'+
           '<td>'+riskBadge(v.criticality||'medium')+'</td>'+
-          '<td>'+tierBadge+(v.sla?'<div style="font-size:10px;color:var(--muted)">SLA: '+esc(v.sla)+'</div>':'')+'</td>'+
+          '<td>'+tierBadge+(v.sla?'<div data-s="sb569cab">SLA: '+esc(v.sla)+'</div>':'')+'</td>'+
           '<td>'+_bcmXmBadges(v)+'</td>'+
           '<td>'+fmtDate(v.contract_renewal)+'</td>'+
           '<td>'+statusBadge(v.status||'active')+'</td>'+
@@ -1828,42 +1828,42 @@
         var xm=item._xm;
         var mods=xm.modules||{};
         var flags=xm.flags||[];
-        var panelHtml='<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">'+
-          '<div style="padding:7px 12px;background:var(--surface2);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)">Cross-Module Coverage</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
+        var panelHtml='<div data-s="s60eba9e">'+
+          '<div data-s="s35171ef">Cross-Module Coverage</div>'+
+          '<div data-s="s79a8073" data-sd="grid">';
         // Privacy
-        panelHtml+='<div style="padding:8px 12px;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> PRIVACY</div>';
+        panelHtml+='<div data-s="sfb28afb"><div data-s="s3236e46"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lock></use></svg> PRIVACY</div>';
         if(mods.sentinel){
           var dpa=mods.sentinel.dpa_status||'pending';
           var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#d97706';
-          panelHtml+='<div style="font-size:11px;font-weight:700;color:'+dpaCol+'">DPA: '+esc(dpa)+'</div>'+
-            (mods.sentinel.regulation?'<div style="font-size:10px;color:var(--muted)">'+esc(mods.sentinel.regulation)+'</div>':'')+
-            '<a href="/sentinel/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Privacy</a>';
+          panelHtml+='<div data-sv="font-size:11px;font-weight:700;color:'+dpaCol+'">DPA: '+esc(dpa)+'</div>'+
+            (mods.sentinel.regulation?'<div data-s="sb569cab">'+esc(mods.sentinel.regulation)+'</div>':'')+
+            '<a href="/sentinel/vendors" data-s="s39b7432">→ View in Privacy</a>';
         } else {
-          panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Privacy</div>'+
-            '<a href="/sentinel/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+          panelHtml+='<div data-s="s1fd8c81">Not in Privacy</div>'+
+            '<a href="/sentinel/vendors" data-s="s73c0e01">+ Register →</a>';
         }
         panelHtml+='</div>';
         // Audit
-        panelHtml+='<div style="padding:8px 12px"><div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
+        panelHtml+='<div data-s="s83084c1"><div data-s="s3236e46"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
         if(mods.grid){
           var ass=mods.grid.latest_assessment;
-          panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
-          if(ass) panelHtml+='<div style="font-size:10px;color:var(--muted)">Score: '+(ass.score||'—')+'% &middot; '+esc(ass.assessment_date||'')+'</div>';
-          panelHtml+='<a href="/grid/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Audit</a>';
+          panelHtml+='<div data-s="sc65df3d">Registered</div>';
+          if(ass) panelHtml+='<div data-s="sb569cab">Score: '+(ass.score||'—')+'% &middot; '+esc(ass.assessment_date||'')+'</div>';
+          panelHtml+='<a href="/grid/vendors" data-s="s39b7432">→ View in Audit</a>';
         } else {
-          panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Audit</div>'+
-            '<a href="/grid/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+          panelHtml+='<div data-s="s1fd8c81">Not in Audit</div>'+
+            '<a href="/grid/vendors" data-s="s73c0e01">+ Register →</a>';
         }
         panelHtml+='</div></div>';
         if(flags.length){
-          panelHtml+='<div style="padding:7px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
-            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+'</div>';
+          panelHtml+='<div data-s="s8595a85">'+
+            flags.slice(0,2).map(function(f){return '<div data-s="scaf68b8"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+'</div>';
         }
         panelHtml+='</div>';
         var form=document.getElementById('bcmModalForm');
         if(form){
-          var submitRow=form.querySelector('div[style*="justify-content:flex-end"]');
+          var submitRow=[].slice.call(form.querySelectorAll('div')).filter(function(d){return getComputedStyle(d).justifyContent==='flex-end';})[0];
           if(submitRow){
             var wrap=document.createElement('div');
             wrap.innerHTML=panelHtml;
@@ -2098,7 +2098,7 @@
       }
       html+='</div>';
     });
-    html+='<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+    html+='<div data-s="s635f7ad" data-sd="flex">'+
       '<button type="button" class="btn btn-secondary" data-bcm-click="bcmCloseModal()">Cancel</button>'+
       '<button type="submit" class="btn btn-primary">'+(isEdit?'Update':'Create')+'</button>'+
     '</div></form></div></div>';
@@ -2149,7 +2149,7 @@
       '<div class="confirm-text">Are you sure you want to delete this record? This action cannot be undone.</div>'+
       '<div class="confirm-actions">'+
         '<button class="btn btn-secondary" data-bcm-click="bcmCloseConfirm()">Cancel</button>'+
-        '<button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" data-bcm-click="bcmConfirmDel(\''+type+'\','+id+')">Delete</button>'+
+        '<button class="btn btn-primary" data-s="sd982cc4" data-bcm-click="bcmConfirmDel(\''+type+'\','+id+')">Delete</button>'+
       '</div></div></div>';
   };
   window.bcmCloseConfirm=function(){document.getElementById('bcmConfirmRoot').innerHTML='';};
@@ -2164,10 +2164,10 @@
   function bcmPopulateStats(elId,cards){
     var el=document.getElementById(elId);if(!el) return;
     el.innerHTML=cards.map(function(c){
-      return '<div class="stat-card" style="padding:14px 16px;cursor:default">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">'+esc(c.label)+'</div>'+
-        '<div style="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+
-        (c.sub?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(c.sub)+'</div>':'')+
+      return '<div class="stat-card" data-s="sab42f28">'+
+        '<div data-s="s5ba562e">'+esc(c.label)+'</div>'+
+        '<div data-sv="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+
+        (c.sub?'<div data-s="s8a05498">'+esc(c.sub)+'</div>':'')+
       '</div>';
     }).join('');
     // Apply 3D tilt to dynamically inserted stat cards
@@ -2281,7 +2281,7 @@
 
   window.bcmOpenIncidentConsole=async function(id){
     var root=document.getElementById('bcmConsoleRoot');
-    root.innerHTML='<div class="bcm-console-overlay"><div class="bcm-console-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+    root.innerHTML='<div class="bcm-console-overlay"><div class="bcm-console-panel" data-s="sa3fa223"><div class="spinner"></div></div></div>';
     try{
       var inc=await apiFetch('/bcm/api/incidents/'+id);
       _bcmConsoleInc=inc;
@@ -2302,15 +2302,15 @@
     var html='<div class="bcm-console-overlay" data-bcm-click="if(event.target===this)bcmCloseConsole()">'+
     '<div class="bcm-console-panel">'+
       '<div class="bcm-console-head">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">'+
-          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+        '<div data-s="sa70be31" data-sd="flex">'+
+          '<div data-s="s326c78d" data-sd="flex">'+
             sevBadge(inc.severity)+statusBadge(inc.status)+
             (isLive?'<span class="live-badge">LIVE</span>':'')+
           '</div>'+
-          '<button class="btn btn-sm btn-secondary" data-bcm-click="bcmCloseConsole()" style="flex-shrink:0">&#10005; Close</button>'+
+          '<button class="btn btn-sm btn-secondary" data-bcm-click="bcmCloseConsole()" data-s="s6ee0661">&#10005; Close</button>'+
         '</div>'+
-        '<div style="font-size:17px;font-weight:800;color:var(--text);margin-top:8px;line-height:1.3">'+esc(inc.title||'')+'</div>'+
-        '<div style="font-size:12px;color:var(--muted);margin-top:5px;display:flex;gap:16px;flex-wrap:wrap">'+
+        '<div data-s="s05df32d">'+esc(inc.title||'')+'</div>'+
+        '<div data-s="s3aa5e72" data-sd="flex">'+
           (inc.commander?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> '+esc(inc.commander)+'</span>':'')+
           '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+fmtDate(inc.declared_at||inc.created_at)+'</span>'+
           (inc.affected_systems?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-monitor></use></svg> '+esc(inc.affected_systems)+'</span>':'')+
@@ -2348,7 +2348,7 @@
       case 'related':
         footer.replaceChildren();
         body.innerHTML='<div id="bcmIncidentRelated"></div>'+
-          (bcmCanModelScenario?'<div style="margin-top:14px;font-size:12px"><a href="/erm/scenario-studio?model=bcm:incident:'+Number(inc.id)+'" style="color:var(--accent);font-weight:600;text-decoration:none">Model a worse case in Scenario Studio</a></div>':'');
+          (bcmCanModelScenario?'<div data-s="s6517bd7"><a href="/erm/scenario-studio?model=bcm:incident:'+Number(inc.id)+'" data-s="s6591915">Model a worse case in Scenario Studio</a></div>':'');
         if(typeof RelatedItems!=='undefined')RelatedItems.mount(
           document.getElementById('bcmIncidentRelated'),'bcm','incident',inc.id,{canEdit:true});
         break;
@@ -2364,7 +2364,7 @@
     var open=actions.filter(function(a){return a.status!=='done';});
     var done=actions.filter(function(a){return a.status==='done';});
     body.innerHTML=
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">'+
+      '<div data-s="s1393e3e">'+
         open.length+' open &bull; '+done.length+' done'+
       '</div>'+
       (actions.length?actions.map(function(a){
@@ -2374,29 +2374,29 @@
           '<div class="bcm-check'+(isDone?' done':'')+'" data-bcm-click="bcmToggleAction('+inc.id+','+a.id+','+(!isDone)+')" title="'+(isDone?'Reopen':'Mark done')+'">'+
             (isDone?'&#10003;':'')+
           '</div>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:13px;font-weight:600;color:var(--text);'+(isDone?'text-decoration:line-through;opacity:.5':'')+' line-height:1.3">'+esc(a.title||'')+'</div>'+
-            '<div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">'+
-              (a.owner?'<span style="font-size:11px;color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> '+esc(a.owner)+'</span>':'')+
-              (a.due_at?'<span style="font-size:11px;color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+fmtDate(a.due_at)+'</span>':'')+
-              '<span style="font-size:10px;font-weight:700;color:'+priColor+';text-transform:uppercase">'+esc(a.priority||'normal')+'</span>'+
+          '<div data-s="s59eddc6">'+
+            '<div data-sv="font-size:13px;font-weight:600;color:var(--text);'+(isDone?'text-decoration:line-through;opacity:.5':'')+' line-height:1.3">'+esc(a.title||'')+'</div>'+
+            '<div data-s="s9767d3e" data-sd="flex">'+
+              (a.owner?'<span data-s="s1fd8c81"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg> '+esc(a.owner)+'</span>':'')+
+              (a.due_at?'<span data-s="s1fd8c81"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+fmtDate(a.due_at)+'</span>':'')+
+              '<span data-sv="font-size:10px;font-weight:700;color:'+priColor+';text-transform:uppercase">'+esc(a.priority||'normal')+'</span>'+
             '</div>'+
           '</div>'+
-          '<button class="btn btn-sm btn-secondary" style="padding:3px 8px;font-size:11px;flex-shrink:0" data-bcm-click="bcmDeleteConsoleAction('+inc.id+','+a.id+')">&#10005;</button>'+
+          '<button class="btn btn-sm btn-secondary" data-s="sa7f6652" data-bcm-click="bcmDeleteConsoleAction('+inc.id+','+a.id+')">&#10005;</button>'+
         '</div>';
-      }).join(''):'<div style="color:var(--muted);text-align:center;padding:32px">No actions logged yet</div>')+
+      }).join(''):'<div data-s="s4f60c78">No actions logged yet</div>')+
       // AI Suggestions cross-link
-      '<div style="margin-top:16px">'+
+      '<div data-s="s1b0f499">'+
         '<button class="btn-bcm-ai" data-bcm-click="bcmAiSuggestFromConsole('+inc.id+')"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Suggest Actions</button>'+
       '</div>';
 
     footer.innerHTML=
-      '<div style="display:flex;gap:8px">'+
-        '<input id="newActionTitle" placeholder="New action..." style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-bcm-keydown="if(event.key===\'Enter\')bcmAddConsoleAction('+inc.id+')">'+
-        '<select id="newActionPriority" style="padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
+      '<div data-s="s33fcd4c" data-sd="flex">'+
+        '<input id="newActionTitle" placeholder="New action..." data-s="s16cb26c" data-bcm-keydown="if(event.key===\'Enter\')bcmAddConsoleAction('+inc.id+')">'+
+        '<select id="newActionPriority" data-s="sb06b56e">'+
           '<option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option>'+
         '</select>'+
-        '<button class="btn btn-primary" style="flex-shrink:0" data-bcm-click="bcmAddConsoleAction('+inc.id+')">+ Add</button>'+
+        '<button class="btn btn-primary" data-s="s6ee0661" data-bcm-click="bcmAddConsoleAction('+inc.id+')">+ Add</button>'+
       '</div>';
   }
 
@@ -2416,29 +2416,29 @@
     }
     var sevColors={critical:'var(--red,#dc2626)',high:'var(--amber,#d97706)',medium:'var(--blue,#3b82f6)',low:'var(--good,#16a34a)'};
     var sevColor=sevColors[(inc.severity||'').toLowerCase()]||'var(--muted)';
-    var sitrep='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">'+
-      (inc.severity?'<span style="font-weight:700;color:'+sevColor+'">'+esc((inc.severity||'').toUpperCase())+'</span>':'')+
-      (elapsed?'<span style="color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-timer></use></svg> '+esc(elapsed)+'</span>':'')+
-      '<span style="color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+openCount+' open action'+(openCount!==1?'s':'')+'</span>'+
-      '<span style="color:var(--good,#16a34a)">&#10003; '+doneCount+' done</span>'+
-      '<span style="color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-megaphone></use></svg> '+updates.length+' update'+(updates.length!==1?'s':'')+'</span>'+
+    var sitrep='<div data-s="sa220002" data-sd="flex">'+
+      (inc.severity?'<span data-sv="font-weight:700;color:'+sevColor+'">'+esc((inc.severity||'').toUpperCase())+'</span>':'')+
+      (elapsed?'<span data-s="s57f9e31"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-timer></use></svg> '+esc(elapsed)+'</span>':'')+
+      '<span data-s="s57f9e31"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+openCount+' open action'+(openCount!==1?'s':'')+'</span>'+
+      '<span data-s="s986c237">&#10003; '+doneCount+' done</span>'+
+      '<span data-s="s57f9e31"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-megaphone></use></svg> '+updates.length+' update'+(updates.length!==1?'s':'')+'</span>'+
     '</div>';
     body.innerHTML=sitrep+(updates.length?
-      '<div style="padding:4px 0">'+updates.map(function(u){
+      '<div data-s="sb7c21f2">'+updates.map(function(u){
         return '<div class="bcm-tl-item">'+
-          '<div class="bcm-tl-dot" style="margin-top:3px"></div>'+
-          '<div style="flex:1">'+
-            '<div style="font-size:13px;color:var(--text);line-height:1.5">'+esc(u.note||u.update||'')+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(u.author||'System')+' &bull; '+timeAgoShort(u.created_at)+'</div>'+
+          '<div class="bcm-tl-dot" data-s="sc00d391"></div>'+
+          '<div data-s="s97445a8">'+
+            '<div data-s="se2aab8d">'+esc(u.note||u.update||'')+'</div>'+
+            '<div data-s="s8a05498">'+esc(u.author||'System')+' &bull; '+timeAgoShort(u.created_at)+'</div>'+
           '</div>'+
         '</div>';
       }).join('')+'</div>' :
-      '<div style="color:var(--muted);padding:16px 0;font-size:13px">No updates yet. Post an initial situation report: what happened, scope of impact, and initial assessment.</div>');
+      '<div data-s="s208dec3">No updates yet. Post an initial situation report: what happened, scope of impact, and initial assessment.</div>');
 
     footer.innerHTML=
-      '<div style="display:flex;gap:8px">'+
-        '<textarea id="newUpdateNote" rows="2" placeholder="Post a status update..." style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;resize:none;box-sizing:border-box"></textarea>'+
-        '<button class="btn btn-primary" style="flex-shrink:0;align-self:flex-end" data-bcm-click="bcmAddConsoleUpdate('+inc.id+')">Post</button>'+
+      '<div data-s="s33fcd4c" data-sd="flex">'+
+        '<textarea id="newUpdateNote" rows="2" placeholder="Post a status update..." data-s="s19a48e6"></textarea>'+
+        '<button class="btn btn-primary" data-s="s6675ef2" data-bcm-click="bcmAddConsoleUpdate('+inc.id+')">Post</button>'+
       '</div>';
   }
 
@@ -2453,27 +2453,27 @@
       low:['Log incident and assign to operational team','Identify root cause and document timeline','Implement corrective action and schedule follow-up review']
     };
     var suggList=_suggDecisions[sev]||_suggDecisions['medium'];
-    var emptyHtml='<div style="color:var(--muted);padding:8px 0;font-size:13px">No decisions logged yet.</div>'+
-      '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested decisions for a '+esc(sev)+' incident</div>'+
-        suggList.map(function(s){return'<div style="font-size:12px;color:var(--text);padding:4px 0;display:flex;gap:8px;align-items:start"><span style="color:var(--accent);flex-shrink:0">&#8227;</span>'+esc(s)+'</div>';}).join('')+
+    var emptyHtml='<div data-s="s11d4789">No decisions logged yet.</div>'+
+      '<div data-s="s3071065">'+
+        '<div data-s="s0fb9ead">Suggested decisions for a '+esc(sev)+' incident</div>'+
+        suggList.map(function(s){return'<div data-s="s31e63a4" data-sd="flex"><span data-s="s173290b">&#8227;</span>'+esc(s)+'</div>';}).join('')+
       '</div>';
     body.innerHTML=decisions.length?
       decisions.map(function(d){
         return '<div class="bcm-decision-item">'+
-          '<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(d.decision||'')+'</div>'+
-          (d.rationale?'<div style="font-size:12px;color:var(--muted);margin-top:3px">'+esc(d.rationale)+'</div>':'')+
-          '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(d.decided_by||'')+(d.decided_at?' &bull; '+timeAgoShort(d.decided_at):'')+'</div>'+
+          '<div data-s="s36970da">'+esc(d.decision||'')+'</div>'+
+          (d.rationale?'<div data-s="sd83872c">'+esc(d.rationale)+'</div>':'')+
+          '<div data-s="sbc021dc">'+esc(d.decided_by||'')+(d.decided_at?' &bull; '+timeAgoShort(d.decided_at):'')+'</div>'+
         '</div>';
       }).join('') :
       emptyHtml;
 
     footer.innerHTML=
-      '<div style="display:flex;flex-direction:column;gap:8px">'+
-        '<input id="newDecision" placeholder="Decision made..." style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
-        '<div style="display:flex;gap:8px">'+
-          '<input id="newDecisionRationale" placeholder="Rationale (optional)..." style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
-          '<button class="btn btn-primary" style="flex-shrink:0" data-bcm-click="bcmAddConsoleDecision('+inc.id+')">Log Decision</button>'+
+      '<div data-s="scfa7b80" data-sd="flex">'+
+        '<input id="newDecision" placeholder="Decision made..." data-s="s757c7dd">'+
+        '<div data-s="s33fcd4c" data-sd="flex">'+
+          '<input id="newDecisionRationale" placeholder="Rationale (optional)..." data-s="s16cb26c">'+
+          '<button class="btn btn-primary" data-s="s6ee0661" data-bcm-click="bcmAddConsoleDecision('+inc.id+')">Log Decision</button>'+
         '</div>'+
       '</div>';
   }
@@ -2494,33 +2494,33 @@
     var matchKey=Object.keys(_typeRoles).find(function(k){return incType.indexOf(k)>-1;})||'operational';
     var suggRoles=_typeRoles[matchKey];
     var notifSummary=stakeholders.length?
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;display:flex;gap:12px">'+
-        '<span style="color:var(--good,#16a34a)">&#10003; '+notified+' notified</span>'+
-        (pending?'<span style="color:var(--amber,#d97706)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+pending+' pending</span>':'')+'</div>':'';
-    var emptyHtml='<div style="color:var(--muted);padding:8px 0;font-size:13px">No stakeholders added yet.</div>'+
-      '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested roles to notify</div>'+
-        suggRoles.map(function(r){return'<div style="font-size:12px;color:var(--text);padding:3px 0;display:flex;gap:8px"><span style="color:var(--accent)">&#8227;</span>'+esc(r)+'</div>';}).join('')+
+      '<div data-s="s46f30d6" data-sd="flex">'+
+        '<span data-s="s986c237">&#10003; '+notified+' notified</span>'+
+        (pending?'<span data-s="sd0ca9f2"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+pending+' pending</span>':'')+'</div>':'';
+    var emptyHtml='<div data-s="s11d4789">No stakeholders added yet.</div>'+
+      '<div data-s="s3071065">'+
+        '<div data-s="s0fb9ead">Suggested roles to notify</div>'+
+        suggRoles.map(function(r){return'<div data-s="s4f8b6da" data-sd="flex"><span data-s="sa805525">&#8227;</span>'+esc(r)+'</div>';}).join('')+
       '</div>';
     body.innerHTML=stakeholders.length?
       notifSummary+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">'+
+      '<div data-s="s8227935" data-sd="grid">'+
       stakeholders.map(function(s){
-        return '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;border:1px solid var(--border)">'+
-          '<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(s.person||'')+'</div>'+
-          '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(s.role||'')+'</div>'+
-          (s.channel?'<div style="font-size:11px;color:var(--accent);margin-top:4px">'+esc(s.channel)+'</div>':'')+
-          (s.notified_at?'<div style="font-size:10px;color:var(--good,#16a34a);margin-top:4px">&#10003; Notified '+timeAgoShort(s.notified_at)+'</div>':
-            '<button class="btn btn-sm btn-secondary" style="font-size:10px;margin-top:6px" data-bcm-click="bcmMarkNotified('+inc.id+','+s.id+')">Mark Notified</button>')+
+        return '<div data-s="sb12e81d">'+
+          '<div data-s="s36970da">'+esc(s.person||'')+'</div>'+
+          '<div data-s="s3823a5b">'+esc(s.role||'')+'</div>'+
+          (s.channel?'<div data-s="s61d2d1c">'+esc(s.channel)+'</div>':'')+
+          (s.notified_at?'<div data-s="s9685831">&#10003; Notified '+timeAgoShort(s.notified_at)+'</div>':
+            '<button class="btn btn-sm btn-secondary" data-s="sd47a970" data-bcm-click="bcmMarkNotified('+inc.id+','+s.id+')">Mark Notified</button>')+
         '</div>';
       }).join('')+'</div>' :
       emptyHtml;
 
     footer.innerHTML=
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-        '<input id="newShPerson" placeholder="Name" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
-        '<input id="newShRole" placeholder="Role (e.g. Incident Commander)" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
-        '<input id="newShChannel" placeholder="Contact (email / phone / Teams)" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
+      '<div data-s="scf29108" data-sd="grid">'+
+        '<input id="newShPerson" placeholder="Name" data-s="s757c7dd">'+
+        '<input id="newShRole" placeholder="Role (e.g. Incident Commander)" data-s="s757c7dd">'+
+        '<input id="newShChannel" placeholder="Contact (email / phone / Teams)" data-s="s757c7dd">'+
         '<button class="btn btn-primary" data-bcm-click="bcmAddConsoleStakeholder('+inc.id+')">+ Add Stakeholder</button>'+
       '</div>';
   }
@@ -2537,37 +2537,37 @@
     }).slice(0,3);
     var linkedIds=links.map(function(l){return l.plan_id;});
     var suggestHtml=suggestedPlans.length?
-      '<div style="margin-top:14px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested plans for this incident</div>'+
+      '<div data-s="se5e5fe3">'+
+        '<div data-s="s0fb9ead">Suggested plans for this incident</div>'+
         suggestedPlans.map(function(p){
-          return'<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">'+
-            '<span style="font-size:12px;color:var(--text)">'+esc(p.title||'')+'</span>'+
-            '<button class="btn btn-sm btn-secondary" style="font-size:10px" data-bcm-click="document.getElementById(\'linkPlanSel\').value=\''+p.id+'\';bcmLinkConsolePlan('+inc.id+')">Link</button>'+
+          return'<div data-s="s41de5a7" data-sd="flex">'+
+            '<span data-s="s707c922">'+esc(p.title||'')+'</span>'+
+            '<button class="btn btn-sm btn-secondary" data-s="s0d5be05" data-bcm-click="document.getElementById(\'linkPlanSel\').value=\''+p.id+'\';bcmLinkConsolePlan('+inc.id+')">Link</button>'+
           '</div>';
         }).join('')+
       '</div>':'';
     body.innerHTML=links.length?
       links.map(function(l){
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'+
+        return '<div data-s="s08d86bf" data-sd="flex">'+
           '<div>'+
-            '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(l.plan_title||'Plan #'+l.plan_id)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted)">Linked by '+esc(l.linked_by||'System')+' &bull; '+timeAgoShort(l.created_at)+'</div>'+
+            '<div data-s="s3da0680">'+esc(l.plan_title||'Plan #'+l.plan_id)+'</div>'+
+            '<div data-s="s1fd8c81">Linked by '+esc(l.linked_by||'System')+' &bull; '+timeAgoShort(l.created_at)+'</div>'+
           '</div>'+
-          '<div style="display:flex;gap:6px">'+
-            '<button class="btn btn-sm btn-secondary" style="font-size:11px" data-bcm-click="bcmRouter.navigate(\'/bcm/plans\')">View Plans</button>'+
-            '<button class="btn btn-sm btn-secondary" style="font-size:11px;color:var(--red)" data-bcm-click="bcmUnlinkConsolePlan('+inc.id+','+l.id+')">Unlink</button>'+
+          '<div data-s="sf0abc1d" data-sd="flex">'+
+            '<button class="btn btn-sm btn-secondary" data-s="s11a5081" data-bcm-click="bcmRouter.navigate(\'/bcm/plans\')">View Plans</button>'+
+            '<button class="btn btn-sm btn-secondary" data-s="sc086e5f" data-bcm-click="bcmUnlinkConsolePlan('+inc.id+','+l.id+')">Unlink</button>'+
           '</div>'+
         '</div>';
       }).join('')+suggestHtml :
-      '<div style="color:var(--muted);font-size:13px;padding:8px 0">No plans linked yet.</div>'+suggestHtml;
+      '<div data-s="s7624a7a">No plans linked yet.</div>'+suggestHtml;
 
     var planOptions=planCache.map(function(p){return '<option value="'+p.id+'">'+esc(p.title)+'</option>';}).join('');
     footer.innerHTML=
-      '<div style="display:flex;gap:8px">'+
-        '<select id="linkPlanSel" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
+      '<div data-s="s33fcd4c" data-sd="flex">'+
+        '<select id="linkPlanSel" data-s="s16cb26c">'+
           '<option value="">Select a plan to link...</option>'+planOptions+
         '</select>'+
-        '<button class="btn btn-primary" style="flex-shrink:0" data-bcm-click="bcmLinkConsolePlan('+inc.id+')">Link Plan</button>'+
+        '<button class="btn btn-primary" data-s="s6ee0661" data-bcm-click="bcmLinkConsolePlan('+inc.id+')">Link Plan</button>'+
       '</div>';
   }
 
@@ -2583,58 +2583,58 @@
     var matchKey=Object.keys(_typeEvidence).find(function(k){return incType.indexOf(k)>-1;})||'operational';
     var checklistItems=_typeEvidence[matchKey];
     var checklistHtml=
-      '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Evidence to capture for this incident</div>'+
+      '<div data-s="s3071065">'+
+        '<div data-s="s0fb9ead">Evidence to capture for this incident</div>'+
         checklistItems.map(function(item){
-          return'<div style="font-size:12px;color:var(--text);padding:3px 0;display:flex;gap:8px"><span style="color:var(--muted)">&#9744;</span>'+esc(item)+'</div>';
+          return'<div data-s="s4f8b6da" data-sd="flex"><span data-s="s57f9e31">&#9744;</span>'+esc(item)+'</div>';
         }).join('')+
       '</div>';
-    body.innerHTML='<div style="color:var(--muted);font-size:13px">Loading linked evidence...</div>';
+    body.innerHTML='<div data-s="s9390c33">Loading linked evidence...</div>';
     footer.innerHTML='';
     var links=[];
     try{links=await apiFetch('/bcm/api/incidents/'+inc.id+'/vault-evidence');}catch(e){}
     var linkedHtml=links.length?
       links.map(function(e){
         var statusBadgeHtml=statusBadge(e.status||'current');
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'+
+        return '<div data-s="s08d86bf" data-sd="flex">'+
           '<div>'+
-            '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(e.title||'')+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(e.category||'')+'</div>'+
+            '<div data-s="s3da0680">'+esc(e.title||'')+'</div>'+
+            '<div data-s="s3823a5b">'+esc(e.category||'')+'</div>'+
           '</div>'+
-          '<div style="display:flex;align-items:center;gap:8px">'+statusBadgeHtml+
-            '<a href="/grid/evidence" class="btn btn-sm btn-secondary" style="font-size:11px" target="_blank">View</a>'+
-            '<button class="btn btn-sm" style="font-size:11px;background:var(--red,#dc2626);color:#fff;border:none;border-radius:var(--radius);padding:4px 10px;cursor:pointer" data-bcm-click="bcmUnlinkVaultEvidence('+inc.id+','+e.link_id+')">Unlink</button>'+
+          '<div data-s="s250fc4e" data-sd="flex">'+statusBadgeHtml+
+            '<a href="/grid/evidence" class="btn btn-sm btn-secondary" data-s="s11a5081" target="_blank">View</a>'+
+            '<button class="btn btn-sm" data-s="s4878e15" data-bcm-click="bcmUnlinkVaultEvidence('+inc.id+','+e.link_id+')">Unlink</button>'+
           '</div>'+
         '</div>';
       }).join('') :
-      '<div style="color:var(--muted);font-size:13px;padding:8px 0">No evidence linked yet.</div>';
+      '<div data-s="s7624a7a">No evidence linked yet.</div>';
     body.innerHTML=linkedHtml+checklistHtml;
     footer.innerHTML=
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Link evidence from the vault to this incident:</div>'+
-      '<div style="display:flex;gap:8px">'+
-        '<input id="vaultSearchInp" type="text" placeholder="Search vault by title or tag..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px"/>'+
-        '<button class="btn btn-primary" style="flex-shrink:0" data-bcm-click="bcmSearchVault('+inc.id+')">Search</button>'+
+      '<div data-s="s681aa83">Link evidence from the vault to this incident:</div>'+
+      '<div data-s="s33fcd4c" data-sd="flex">'+
+        '<input id="vaultSearchInp" type="text" placeholder="Search vault by title or tag..." data-s="s3f31b80"/>'+
+        '<button class="btn btn-primary" data-s="s6ee0661" data-bcm-click="bcmSearchVault('+inc.id+')">Search</button>'+
       '</div>'+
-      '<div id="vaultSearchResults" style="margin-top:8px"></div>';
+      '<div id="vaultSearchResults" data-s="s8a77e5a"></div>';
   }
 
   window.bcmSearchVault=async function(incId){
     var inp=document.getElementById('vaultSearchInp');
     var results=document.getElementById('vaultSearchResults');
     if(!inp||!results) return;
-    results.innerHTML='<div style="color:var(--muted);font-size:12px">Searching...</div>';
+    results.innerHTML='<div data-s="sbf8965d">Searching...</div>';
     try{
       var items=await apiFetch('/bcm/api/vault-evidence/search?q='+encodeURIComponent(inp.value||''));
       results.innerHTML=items.length?
         items.map(function(e){
-          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">'+
-            '<div><div style="font-size:13px;color:var(--text)">'+esc(e.title||'')+'</div>'+
-            '<div style="font-size:11px;color:var(--muted)">'+esc(e.category||'')+'</div></div>'+
-            '<button class="btn btn-sm btn-primary" style="font-size:11px" data-bcm-click="bcmLinkVaultItem('+incId+','+e.id+')">+ Link</button>'+
+          return '<div data-s="s0f5007e" data-sd="flex">'+
+            '<div><div data-s="s0cd86b0">'+esc(e.title||'')+'</div>'+
+            '<div data-s="s1fd8c81">'+esc(e.category||'')+'</div></div>'+
+            '<button class="btn btn-sm btn-primary" data-s="s11a5081" data-bcm-click="bcmLinkVaultItem('+incId+','+e.id+')">+ Link</button>'+
           '</div>';
         }).join('') :
-        '<div style="color:var(--muted);font-size:12px;padding:8px 0">No items found.</div>';
-    }catch(e){results.innerHTML='<div style="color:var(--muted);font-size:12px">Search failed.</div>';}
+        '<div data-s="s27c1fca">No items found.</div>';
+    }catch(e){results.innerHTML='<div data-s="sbf8965d">Search failed.</div>';}
   };
 
   window.bcmLinkVaultItem=async function(incId,evidenceId){
@@ -2795,7 +2795,7 @@
       if(!relevant.length){el.innerHTML='';return;}
       el.innerHTML='<div class="bcm-cross-panel">'+
         '<div class="bcm-cross-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-scroll-text></use></svg> ARIA Controls — Relevant to BCM ('+relevant.length+')</div>'+
-        '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Controls from your active ARIA frameworks that relate to business continuity:</div>'+
+        '<div data-s="s681aa83">Controls from your active ARIA frameworks that relate to business continuity:</div>'+
         relevant.map(function(c){
           return '<span class="bcm-ctrl-chip" title="'+esc(c._fw)+'">'+esc(c.control_id||c.clause||'')+(c.title?' — '+esc(c.title.slice(0,40)):'')+' </span>';
         }).join('')+
@@ -2841,16 +2841,16 @@
       });
       if(!unmatched.length){banner.innerHTML='';return;}
       banner.innerHTML='<div class="bcm-sentinel-banner">'+
-        '<span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-plug></use></svg></span>'+
-        '<div style="flex:1">'+
+        '<span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-plug></use></svg></span>'+
+        '<div data-s="s97445a8">'+
           '<strong>'+unmatched.length+' high-risk Sentinel RoPA records</strong> are not mapped as BCM dependencies: '+
           unmatched.slice(0,3).map(function(r){return '<strong>'+esc(r.process_name||r.title||'')+'</strong>';}).join(', ')+
           (unmatched.length>3?' and '+(unmatched.length-3)+' more.':'.') +
-          ' <span style="color:var(--muted);font-size:12px">Personal data processes carrying high risk should be modelled as BCM dependencies.</span>'+
+          ' <span data-s="sbf8965d">Personal data processes carrying high risk should be modelled as BCM dependencies.</span>'+
         '</div>'+
         unmatched.slice(0,3).map(function(r){
           var name=r.process_name||r.title||'';
-          return '<button class="btn btn-sm btn-secondary bcm-add-sentinel-dep" data-name="'+esc(name)+'" data-department="'+esc(r.department||'')+'" style="font-size:11px;flex-shrink:0">+ Add "'+esc(name.slice(0,20))+'"</button>';
+          return '<button class="btn btn-sm btn-secondary bcm-add-sentinel-dep" data-name="'+esc(name)+'" data-department="'+esc(r.department||'')+'" data-s="sb4bba82">+ Add "'+esc(name.slice(0,20))+'"</button>';
         }).join('')+
       '</div>';
     }catch(e){banner.innerHTML='';}// fail silently if Sentinel not active
@@ -2880,25 +2880,25 @@
   window.bcmOpenGeneratePlanModal=function(){
     document.body.insertAdjacentHTML('beforeend',
       '<div class="modal-overlay" id="genPlanModal" data-bcm-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:560px">'+
+      '<div class="modal-box" data-s="s765d57b">'+
         '<button class="modal-close" data-bcm-click="document.getElementById(\'genPlanModal\').remove()">&#10005;</button>'+
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">'+
-          '<div style="font-size:22px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>'+
-          '<div class="modal-title" style="margin:0">AI Generate Continuity Plan</div>'+
+        '<div data-s="sae6c2a7" data-sd="flex">'+
+          '<div data-s="s881f70f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>'+
+          '<div class="modal-title" data-s="s1169661">AI Generate Continuity Plan</div>'+
         '</div>'+
         '<div class="form-group"><label>Plan Scenario / Type</label>'+
-          '<select id="gp_scenario" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px">'+
+          '<select id="gp_scenario" data-s="s54a0e4b">'+
             '<option>Business Continuity</option><option>IT Disaster Recovery</option>'+
             '<option>Cyber Incident Response</option><option>Pandemic / Health Emergency</option>'+
             '<option>Natural Disaster</option><option>Supply Chain Disruption</option>'+
             '<option>Crisis Communications</option>'+
           '</select></div>'+
-        '<div class="form-group"><label>Scope <span style="color:var(--red)">*</span></label>'+
-          '<input id="gp_scope" placeholder="e.g. Finance Department — AP/AR and payroll operations" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
+        '<div class="form-group"><label>Scope <span data-s="s45e7ae4">*</span></label>'+
+          '<input id="gp_scope" placeholder="e.g. Finance Department — AP/AR and payroll operations" data-s="sbd090b5"></div>'+
         '<div class="form-group"><label>Industry (optional)</label>'+
-          '<input id="gp_industry" placeholder="e.g. Financial Services, Healthcare, Retail" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
-        '<div id="gpTraceMount" style="display:none;margin-top:8px"></div>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+          '<input id="gp_industry" placeholder="e.g. Financial Services, Healthcare, Retail" data-s="sbd090b5"></div>'+
+        '<div id="gpTraceMount" data-s="s8a77e5a" data-sd="none"></div>'+
+        '<div data-s="s635f7ad" data-sd="flex">'+
           '<button class="btn btn-secondary" data-bcm-click="document.getElementById(\'genPlanModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" id="gpSubmitBtn" data-bcm-click="bcmSubmitGeneratePlan()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Plan</button>'+
         '</div>'+
@@ -2976,25 +2976,25 @@
         return (arr||[]).map(function(s){return '<li>'+esc(String(s))+'</li>';}).join('');
       };
       var html='<div class="modal-overlay" data-bcm-click="if(event.target===this)this.remove()">'+
-        '<div class="modal-box" style="max-width:620px">'+
+        '<div class="modal-box" data-s="s7fc16fa">'+
           '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Plan Review &mdash; '+esc(plan.title)+'</div>'+
-          '<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;padding:16px;background:var(--surface2);border-radius:var(--radius)">'+
-            '<div style="text-align:center;flex-shrink:0">'+
-              '<div style="font-size:40px;font-weight:900;color:'+scoreColor+';line-height:1">'+score+'</div>'+
-              '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">/ 100</div>'+
+          '<div data-s="sd307d7f" data-sd="flex">'+
+            '<div data-s="sb591b92">'+
+              '<div data-sv="font-size:40px;font-weight:900;color:'+scoreColor+';line-height:1">'+score+'</div>'+
+              '<div data-s="s1aab417">/ 100</div>'+
             '</div>'+
-            '<div style="font-size:13px;color:var(--muted);line-height:1.6">'+esc(res.summary||'See strengths and recommendations below.')+'</div>'+
+            '<div data-s="se84a335">'+esc(res.summary||'See strengths and recommendations below.')+'</div>'+
           '</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
-            '<div><div style="font-size:11px;font-weight:700;color:var(--good,#16a34a);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">&#10003; Strengths</div>'+
-              '<ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7;color:var(--text)">'+list(res.strengths)+'</ul></div>'+
-            '<div><div style="font-size:11px;font-weight:700;color:var(--red,#dc2626);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">&#10007; Gaps</div>'+
-              '<ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7;color:var(--text)">'+list(res.gaps||res.weaknesses)+'</ul></div>'+
+          '<div data-s="sec84138" data-sd="grid">'+
+            '<div><div data-s="s19e71b2">&#10003; Strengths</div>'+
+              '<ul data-s="sa29e373">'+list(res.strengths)+'</ul></div>'+
+            '<div><div data-s="s8c946a5">&#10007; Gaps</div>'+
+              '<ul data-s="sa29e373">'+list(res.gaps||res.weaknesses)+'</ul></div>'+
           '</div>'+
           ((res.recommendations&&res.recommendations.length)?
-            '<div><div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">&#8594; Recommendations</div>'+
-            '<ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7;color:var(--text)">'+list(res.recommendations)+'</ul></div>':'')+
-          '<div style="display:flex;justify-content:flex-end;margin-top:20px">'+
+            '<div><div data-s="sf033d47">&#8594; Recommendations</div>'+
+            '<ul data-s="sa29e373">'+list(res.recommendations)+'</ul></div>':'')+
+          '<div data-s="s2bfa0e5" data-sd="flex">'+
             '<button class="btn btn-secondary" data-bcm-click="this.closest(\'.modal-overlay\').remove()">Close</button>'+
           '</div>'+
         '</div></div>';
@@ -3021,22 +3021,22 @@
       var priColor=function(p){return p==='high'?'var(--red,#dc2626)':p==='medium'?'var(--amber,#d97706)':'var(--muted)';};
       var itemsHtml=suggestions.map(function(s,idx){
         var actionText=esc(s.action||s.title||'');
-        return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
-            '<span style="font-size:10px;font-weight:700;color:'+priColor(s.priority)+';background:rgba(0,0,0,.04);padding:2px 8px;border-radius:100px;text-transform:uppercase">'+esc(s.priority||'normal')+'</span>'+
-            '<span style="font-size:13px;font-weight:600;color:var(--text)">'+actionText+'</span>'+
+        return '<div data-s="se60425b">'+
+          '<div data-s="scf7c4a8" data-sd="flex">'+
+            '<span data-sv="font-size:10px;font-weight:700;color:'+priColor(s.priority)+';background:rgba(0,0,0,.04);padding:2px 8px;border-radius:100px;text-transform:uppercase">'+esc(s.priority||'normal')+'</span>'+
+            '<span data-s="s3da0680">'+actionText+'</span>'+
           '</div>'+
-          '<div style="font-size:12px;color:var(--muted);padding-left:4px;margin-bottom:6px">'+esc(s.rationale||s.description||'')+'</div>'+
-          '<button class="btn btn-sm btn-secondary" style="font-size:11px" data-bcm-click="bcmAddActionFromCache('+id+','+idx+')">+ Add as Action</button>'+
+          '<div data-s="scf1cbf8">'+esc(s.rationale||s.description||'')+'</div>'+
+          '<button class="btn btn-sm btn-secondary" data-s="s11a5081" data-bcm-click="bcmAddActionFromCache('+id+','+idx+')">+ Add as Action</button>'+
         '</div>';
       }).join('');
       document.body.insertAdjacentHTML('beforeend',
-        '<div class="modal-overlay" style="z-index:1600" data-bcm-click="if(event.target===this)this.remove()">'+
-        '<div class="modal-box" style="max-width:580px">'+
+        '<div class="modal-overlay" data-s="sa64c950" data-bcm-click="if(event.target===this)this.remove()">'+
+        '<div class="modal-box" data-s="sf98945b">'+
           '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Suggested Actions: '+esc(inc.title)+'</div>'+
-          '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">AI-recommended next steps. Click <strong>+ Add as Action</strong> to log directly to the incident.</p>'+
-          (itemsHtml||'<div style="color:var(--muted);padding:16px 0">No suggestions returned.</div>')+
-          '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+
+          '<p data-s="s943e0fa">AI-recommended next steps. Click <strong>+ Add as Action</strong> to log directly to the incident.</p>'+
+          (itemsHtml||'<div data-s="s6ef0dc5">No suggestions returned.</div>')+
+          '<div data-s="s7e88441" data-sd="flex">'+
             '<button class="btn btn-secondary" data-bcm-click="this.closest(\'.modal-overlay\').remove()">Close</button>'+
           '</div>'+
         '</div></div>'
@@ -3069,28 +3069,28 @@
       btn.disabled=false;btn.textContent=origText;
       var crit=res.criticality||'—';
       var critColor=crit==='critical'?'var(--red,#dc2626)':crit==='high'?'var(--amber,#d97706)':crit==='medium'?'var(--blue,#3b82f6)':'var(--good,#16a34a)';
-      var valHtml=(res.validation_errors||[]).map(function(e){return '<li style="color:var(--red,#dc2626)">'+esc(e)+'</li>';}).join('');
+      var valHtml=(res.validation_errors||[]).map(function(e){return '<li data-s="sf9408e8">'+esc(e)+'</li>';}).join('');
       var notesHtml=(res.notes||[]).map(function(n){return '<li>'+esc(n)+'</li>';}).join('');
       document.body.insertAdjacentHTML('beforeend',
         '<div class="modal-overlay" data-bcm-click="if(event.target===this)this.remove()">'+
-        '<div class="modal-box" style="max-width:520px">'+
+        '<div class="modal-box" data-s="s04391f0">'+
           '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calculator></use></svg> BIA Calculation Results</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">'+
-            '<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;text-align:center">'+
-              '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Criticality</div>'+
-              '<div style="font-size:26px;font-weight:900;color:'+critColor+'">'+crit.toUpperCase()+'</div>'+
+          '<div data-s="s309c36e" data-sd="grid">'+
+            '<div data-s="sc7f1abc">'+
+              '<div data-s="s965996f">Criticality</div>'+
+              '<div data-sv="font-size:26px;font-weight:900;color:'+critColor+'">'+crit.toUpperCase()+'</div>'+
             '</div>'+
-            '<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;text-align:center">'+
-              '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Score</div>'+
-              '<div style="font-size:26px;font-weight:900;color:var(--text)">'+(res.composite_score||'—')+' / 5</div>'+
+            '<div data-s="sc7f1abc">'+
+              '<div data-s="s965996f">Score</div>'+
+              '<div data-s="sd28541a">'+(res.composite_score||'—')+' / 5</div>'+
             '</div>'+
           '</div>'+
-          '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--text)">'+
+          '<div data-s="s500f674">'+
             '<strong>MTPD Guidance:</strong> '+esc(res.mtpd_guidance||'—')+
           '</div>'+
-          (valHtml?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--red,#dc2626);text-transform:uppercase;margin-bottom:6px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Validation Issues</div><ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7">'+valHtml+'</ul></div>':'')+
-          (notesHtml?'<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> Guidance</div><ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.7;color:var(--text)">'+notesHtml+'</ul></div>':'')+
-          '<div style="display:flex;justify-content:flex-end;margin-top:20px">'+
+          (valHtml?'<div data-s="sda12f28"><div data-s="se33bc93"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Validation Issues</div><ul data-s="sffa8843">'+valHtml+'</ul></div>':'')+
+          (notesHtml?'<div><div data-s="s3af3a62"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> Guidance</div><ul data-s="sa29e373">'+notesHtml+'</ul></div>':'')+
+          '<div data-s="s2bfa0e5" data-sd="flex">'+
             '<button class="btn btn-secondary" data-bcm-click="this.closest(\'.modal-overlay\').remove()">Close</button>'+
           '</div>'+
         '</div></div>'

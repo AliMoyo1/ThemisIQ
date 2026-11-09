@@ -65,23 +65,23 @@ var RCSA_TEMPLATES=[
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'Choose an RCSA template');
-    overlay.innerHTML = '<div class="modal-box" style="max-width:800px;max-height:85vh;overflow-y:auto">' +
+    overlay.innerHTML = '<div class="modal-box" data-s="sb905a9a">' +
       '<button type="button" class="modal-close" data-orm-close-template-picker aria-label="Close template picker">&#10005;</button>' +
       '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Start from a Template</div>' +
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:20px">Select a template to pre-populate your assessment with common risks and suggested controls</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">' +
+      '<div data-s="s57c2de6">Select a template to pre-populate your assessment with common risks and suggested controls</div>' +
+      '<div data-s="s9122332" data-sd="grid">' +
       RCSA_TEMPLATES.map(function (template, index) {
-        return '<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border)">' +
-          '<div style="font-size:20px;margin-bottom:6px">' + template.icon + '</div>' +
-          '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + esc(template.title) + '</div>' +
-          '<div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:8px">' + esc(template.scope) + '</div>' +
-          '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.4">' + esc(template.description) + '</div>' +
-          '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">' + template.risks.length + ' risks included</div>' +
-          '<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--accent);cursor:pointer">Preview risks &#9660;</summary>' +
-          '<ul style="margin:6px 0 0 0;padding-left:16px">' + template.risks.map(function (risk) {
-            return '<li style="font-size:11px;color:var(--muted);margin-bottom:2px">' + esc(risk.title) + '</li>';
+        return '<div data-s="s9959801">' +
+          '<div data-s="s52493b9">' + template.icon + '</div>' +
+          '<div data-s="s072c365">' + esc(template.title) + '</div>' +
+          '<div data-s="sce45b7e">' + esc(template.scope) + '</div>' +
+          '<div data-s="sf92b59c">' + esc(template.description) + '</div>' +
+          '<div data-s="s4c5789d">' + template.risks.length + ' risks included</div>' +
+          '<details data-s="s761d3ad"><summary data-s="s739ed86">Preview risks &#9660;</summary>' +
+          '<ul data-s="s1b94305">' + template.risks.map(function (risk) {
+            return '<li data-s="s5407bbe">' + esc(risk.title) + '</li>';
           }).join('') + '</ul></details>' +
-          '<button type="button" class="btn btn-primary" style="width:100%" data-orm-template-index="' + index + '">Use this template &#8594;</button>' +
+          '<button type="button" class="btn btn-primary" data-s="s0466783" data-orm-template-index="' + index + '">Use this template &#8594;</button>' +
           '</div>';
       }).join('') +
       '</div></div>';

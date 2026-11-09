@@ -25,14 +25,14 @@
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start" class="animate-fade-up anim-1">
+<div data-s="sde6b219" data-sd="grid" class="animate-fade-up anim-1">
 
   <div>
 
     <!-- Slack -->
-    <div class="panel-card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div class="panel-title" style="margin-bottom:0">Slack</div>
+    <div class="panel-card" data-s="s87c136d">
+      <div data-s="s46d76eb" data-sd="flex">
+        <div class="panel-title" data-s="sef0b7a1">Slack</div>
         <span class="conn-status off" id="slackStatus">Not configured</span>
       </div>
       <div class="info-box">
@@ -46,17 +46,17 @@
         <input id="slackUrl" type="password" class="conn-input" placeholder="https://hooks.slack.com/services/..." autocomplete="off"/>
         <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
+      <div data-s="s15fa783" data-sd="flex">
         <button class="btn btn-primary" id="slackTestBtn">Send test message</button>
-        <button class="btn btn-danger" id="slackRemoveBtn" style="display:none">Remove</button>
+        <button class="btn btn-danger" id="slackRemoveBtn" data-sd="none">Remove</button>
       </div>
       <div class="test-msg" id="slackTestMsg"></div>
     </div>
 
     <!-- Teams -->
-    <div class="panel-card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div class="panel-title" style="margin-bottom:0">Microsoft Teams</div>
+    <div class="panel-card" data-s="s87c136d">
+      <div data-s="s46d76eb" data-sd="flex">
+        <div class="panel-title" data-s="sef0b7a1">Microsoft Teams</div>
         <span class="conn-status off" id="teamsStatus">Not configured</span>
       </div>
       <div class="info-box">
@@ -70,17 +70,17 @@
         <input id="teamsUrl" type="password" class="conn-input" placeholder="https://...webhook.office.com/webhookb2/..." autocomplete="off"/>
         <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
+      <div data-s="s15fa783" data-sd="flex">
         <button class="btn btn-primary" id="teamsTestBtn">Send test message</button>
-        <button class="btn btn-danger" id="teamsRemoveBtn" style="display:none">Remove</button>
+        <button class="btn btn-danger" id="teamsRemoveBtn" data-sd="none">Remove</button>
       </div>
       <div class="test-msg" id="teamsTestMsg"></div>
     </div>
 
     <!-- WhatsApp -->
-    <div class="panel-card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div class="panel-title" style="margin-bottom:0">WhatsApp</div>
+    <div class="panel-card" data-s="s87c136d">
+      <div data-s="s46d76eb" data-sd="flex">
+        <div class="panel-title" data-s="sef0b7a1">WhatsApp</div>
         <span class="conn-status off" id="whatsappStatus">Not configured</span>
       </div>
       <div class="info-box">
@@ -94,15 +94,15 @@
         <input id="whatsappUrl" type="password" class="conn-input" placeholder="https://..." autocomplete="off"/>
         <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
+      <div data-s="s15fa783" data-sd="flex">
         <button class="btn btn-primary" id="whatsappTestBtn">Send test message</button>
-        <button class="btn btn-danger" id="whatsappRemoveBtn" style="display:none">Remove</button>
+        <button class="btn btn-danger" id="whatsappRemoveBtn" data-sd="none">Remove</button>
       </div>
       <div class="test-msg" id="whatsappTestMsg"></div>
     </div>
 
-    <button class="btn btn-primary" id="saveConnectorsBtn" style="width:100%;padding:11px">Save Changes</button>
-    <div class="test-msg" id="saveMsg" style="margin-top:10px"></div>
+    <button class="btn btn-primary" id="saveConnectorsBtn" data-s="sa0ba62a">Save Changes</button>
+    <div class="test-msg" id="saveMsg" data-s="sd2c171b"></div>
 
   </div>
 
@@ -110,14 +110,14 @@
   <div>
     <div class="panel-card">
       <div class="panel-title">Alert triggers</div>
-      <div style="font-size:12px;color:var(--text);line-height:1.8">
+      <div data-s="s08f446d">
         Configured connectors send a message on:
-        <ul style="margin:10px 0 0 16px;padding:0;color:var(--muted)">
+        <ul data-s="s0fe111b">
           <li>Data breach confirmed (Sentinel)</li>
           <li>ERM risk with data-breach category created</li>
           <li>Risk appetite threshold exceeded (ERM)</li>
         </ul>
-        <div style="margin-top:12px;font-size:11px;color:var(--muted)">
+        <div data-s="sb8e6543">
           Messages include a direct link to the relevant module.
           Test before saving to confirm delivery.
         </div>

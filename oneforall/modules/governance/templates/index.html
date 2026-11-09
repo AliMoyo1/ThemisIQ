@@ -119,20 +119,20 @@
     {% if can_assign_bu %}
     <button class="gov-tab" data-tab="people" >People</button>
     {% endif %}
-    <a class="gov-tab" href="/governance/changes" style="text-decoration:none">Changes to look at</a>
+    <a class="gov-tab" href="/governance/changes" data-s="s80d654f">Changes to look at</a>
   </div>
 
   <!-- Business Units -->
   <div class="tab-view active" id="tab-bu">
     <ul class="tree" id="buTree"></ul>
-    <div class="gov-empty" id="buEmpty" style="display:none">No business units yet.</div>
+    <div class="gov-empty" id="buEmpty" data-sd="none">No business units yet.</div>
   </div>
 
   <!-- Departments -->
   <div class="tab-view" id="tab-dept">
     <div class="gov-toolbar">
       <div class="filters">
-        <label style="font-size:12px;color:var(--muted)">Business Unit:</label>
+        <label data-s="s7fc448e">Business Unit:</label>
         <select id="deptBuFilter" ><option value="">All</option></select>
       </div>
     </div>
@@ -233,12 +233,12 @@
   {% if can_assign_bu %}
   <!-- People / BU assignment -->
   <div class="tab-view" id="tab-people">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-size:13px;color:var(--muted)">Assign each user to a business unit. Users see only their unit and its sub-units; leave blank for org-wide access.</div>
+    <div data-s="sce63d6d" data-sd="flex">
+      <div data-s="s17d902b">Assign each user to a business unit. Users see only their unit and its sub-units; leave blank for org-wide access.</div>
     </div>
     <table class="gov-table" id="peopleTable">
       <thead><tr><th>User</th><th>Email</th><th>Business Unit</th></tr></thead>
-      <tbody id="peopleBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">Loading…</td></tr></tbody>
+      <tbody id="peopleBody"><tr><td colspan="3" data-s="sa1e3045">Loading…</td></tr></tbody>
     </table>
   </div>
   {% endif %}
