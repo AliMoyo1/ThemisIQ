@@ -417,7 +417,17 @@ async def request_id_middleware(request: Request, call_next):
 
 # ── Security Headers ─────────────────────────────────────────────────────────
 
+# Pages whose markup, the shared shell included, carries no style="..." attribute: the browser refuses any such
+# attribute there, injected or not. A module joins once its templates and the scripts they load are converted
+# (plans/2026-11-zoom-and-style-policy.md, part 3); tests/ui/test_style_policy_browser.py opens each one.
+STRICT_STYLE_PREFIXES = ("/ai-governance",)
+
+
 async def security_headers_middleware(request: Request, call_next):
+    # A fresh nonce per response: every <style> element a page renders carries it (templates read
+    # request.state.csp_nonce), so a <style> injected into a page is refused (plans/2026-11-zoom-and-style-policy.md).
+    nonce = secrets.token_urlsafe(18)
+    request.state.csp_nonce = nonce
     response = await call_next(request)
 
     # Long-lived cache for immutable static assets (JS, CSS, fonts, images).
@@ -445,11 +455,18 @@ async def security_headers_middleware(request: Request, call_next):
     strict_scripts = not (settings.DEBUG and request.url.path == "/docs")
     if not strict_scripts:
         script_sources = "'unsafe-inline' https://cdn.jsdelivr.net " + script_sources
+    # Styles: <style> elements need this response's nonce; style="..." attributes are still allowed until the pages
+    # stop building them. The plain style-src line is the fallback for browsers without the -elem/-attr directives,
+    # so it must not name the nonce (a nonce would make its 'unsafe-inline' ignored and drop every style attribute).
+    style_policy = "style-src 'self' 'unsafe-inline'; "
+    if strict_scripts:
+        attrs = "'none'" if request.url.path.startswith(STRICT_STYLE_PREFIXES) else "'unsafe-inline'"
+        style_policy += f"style-src-elem 'self' 'nonce-{nonce}'; style-src-attr {attrs}; "
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         f"script-src {script_sources}; " +
         ("script-src-attr 'none'; " if strict_scripts else "") +
-        "style-src 'self' 'unsafe-inline'; "
+        style_policy +
         "font-src 'self'; "
         "img-src 'self' data:; "
         "connect-src 'self' https://us.i.posthog.com https://eu.i.posthog.com "

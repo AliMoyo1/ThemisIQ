@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Two-Step Verification — ThemisIQ</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css?v=2">
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:linear-gradient(160deg,#e8f0fe 0%,#f0f4fb 45%,#e6f7fb 100%);color:#1e293b}
 .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}

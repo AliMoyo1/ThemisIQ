@@ -1,7 +1,7 @@
 {% extends "base_shell.html" %}
 {% block title %}Two-Factor Setup — ThemisIQ{% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .mfa-wrap{max-width:680px;margin:24px auto;padding:0 16px}
 .mfa-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:18px}
 .mfa-card h2{font-size:15px;font-weight:700;color:var(--text);margin:0 0 14px;display:flex;align-items:center;gap:8px}

@@ -11,7 +11,7 @@
 </div>
 {% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .gc-page{max-width:1300px;padding:24px;margin:auto;color:var(--text)}
 .gc-hero{padding:30px 34px;border-radius:24px;background:linear-gradient(125deg,rgba(255,255,255,.89),rgba(215,226,228,.64));box-shadow:0 16px 32px rgba(28,44,50,.11),inset 0 1px rgba(255,255,255,.94)}
 .gc-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.gc-hero p{max-width:760px;color:var(--muted);line-height:1.55;margin:0}

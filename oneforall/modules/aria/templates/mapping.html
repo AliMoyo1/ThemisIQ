@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .ims-int     { background:var(--green-status);color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }
 .ims-partial { background:var(--amber);color:#1a1a0a;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }
 .ims-unique  { background:var(--red);color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }

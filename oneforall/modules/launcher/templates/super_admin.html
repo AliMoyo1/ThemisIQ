@@ -1,7 +1,7 @@
 {% extends "base_shell.html" %}
 {% block title %}Super Admin — ThemisIQ{% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .sa-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:20px}
 .sa-table{width:100%;border-collapse:collapse;font-size:13px}
 .sa-table th{text-align:left;padding:8px 12px;background:var(--surface3);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}

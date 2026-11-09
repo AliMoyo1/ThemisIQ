@@ -9,7 +9,7 @@
 </div>
 {% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .co-page{max-width:1120px;margin:auto;padding:24px;color:var(--text)}
 .co-hero,.co-panel{background:var(--surface);border-radius:22px;padding:26px;box-shadow:0 12px 28px rgba(25,44,51,.08),inset 0 1px rgba(255,255,255,.8)}
 .co-hero{background:linear-gradient(125deg,rgba(255,255,255,.9),rgba(219,228,230,.7))}

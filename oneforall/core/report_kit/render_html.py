@@ -181,8 +181,8 @@ def _blocks(report: Report) -> str:
     return "".join(out)
 
 
-def render_html(report: Report, *, logo_url: str = theme.LOGO_URL, print_button: bool = True) -> str:
-    """The print view as a full HTML document."""
+def render_html(report: Report, *, logo_url: str = theme.LOGO_URL, print_button: bool = True, nonce: str = "") -> str:
+    """The print view as a full HTML document. `nonce` is the response's style nonce when it is served to a browser."""
     meta = report.meta
     facts = "".join(f"<dt>{esc(label)}</dt><dd>{esc(value)}</dd>" for label, value in meta.cover_rows())
     subtitle = f'<p class="subtitle">{esc(meta.subtitle)}</p>' if meta.subtitle else ""
@@ -192,11 +192,12 @@ def render_html(report: Report, *, logo_url: str = theme.LOGO_URL, print_button:
                'download the PDF.</span></div>' if print_button else "")
     footer_a = css_string(f"{meta.footer_module()}   |   {meta.footer_who()}")
     footer_b = css_string(f"{meta.footer_when()}   |   {meta.confidentiality}   |   {meta.tier_label}")
+    nonce_attr = f' nonce="{esc(nonce)}"' if nonce else ""
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         '<meta name="robots" content="noindex, nofollow">'
-        f"<title>{esc(meta.title)}</title><style>{_css(footer_a, footer_b)}</style>"
+        f"<title>{esc(meta.title)}</title><style{nonce_attr}>{_css(footer_a, footer_b)}</style>"
         # The browser check and the print button live in a static script, so the view keeps a strict script policy.
         '<script src="/static/js/report_print.js?v=1" defer></script></head>'
         f'<body class="report tier-{esc(meta.tier)}">{toolbar}<div class="sheet">'

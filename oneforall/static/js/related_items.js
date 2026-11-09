@@ -17,9 +17,9 @@ window.RelatedItems = (function () {
     container.dataset.riId = String(eid);
     container.dataset.riCanEdit = opts.canEdit ? '1' : '0';
     container.innerHTML =
-      '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">' +
-        '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Related Items</div>' +
-        '<div id="ri-list-' + eid + '" style="font-size:13px;color:var(--muted)">Loading...</div>' +
+      '<div class="ri-panel">' +
+        '<div class="ri-heading">Related Items</div>' +
+        '<div id="ri-list-' + eid + '" class="ri-list">Loading...</div>' +
       '</div>';
     fetchLinks(container, mod, etype, eid, opts);
   }
@@ -42,7 +42,7 @@ window.RelatedItems = (function () {
 
   function renderEmpty(container, el, mod, etype, eid, opts) {
     if (!el) return;
-    el.innerHTML = '<div style="color:var(--muted);padding:4px 0;font-size:12px">No related items</div>';
+    el.innerHTML = '<div class="ri-empty">No related items</div>';
     addLinkButton(container, mod, etype, eid, opts);
   }
 
@@ -80,23 +80,23 @@ window.RelatedItems = (function () {
         ? l.url : '';
       var titleHtml = localUrl ? '<a href="' + safe(localUrl) + '">' + safeTitle + '</a>' : safeTitle;
       var relChip = l.relationship && l.relationship !== 'related'
-        ? ' <span style="font-size:10px;color:var(--accent);background:var(--surface2);padding:1px 6px;border-radius:100px">' + safe(l.relationship) + '</span>'
+        ? ' <span class="ri-rel-chip">' + safe(l.relationship) + '</span>'
         : '';
       var unlinkBtn = '';
       if (opts.canEdit && l.direction === 'outgoing' && Number.isSafeInteger(Number(l.link_id))) {
         unlinkBtn = ' <button type="button" data-ri-unlink="' + index + '" aria-label="Remove link to ' + safe(title) +
-          '" style="padding:2px 6px;font-size:10px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted)">x</button>';
+          '" class="ri-unlink">x</button>';
       }
-      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">' +
+      return '<div class="ri-row">' +
         '<div>' +
-          '<span style="font-size:12px;font-weight:600;color:var(--text)">' + titleHtml + '</span>' +
-          ' <span style="font-size:10px;color:var(--muted)">(' + safe(l.module) + ' ' + safe(l.entity_type) + ')</span>' +
+          '<span class="ri-title">' + titleHtml + '</span>' +
+          ' <span class="ri-kind">(' + safe(l.module) + ' ' + safe(l.entity_type) + ')</span>' +
           relChip +
         '</div>' +
         unlinkBtn +
       '</div>';
     }).join('');
-    el.innerHTML = html || '<div style="color:var(--muted);font-size:12px">No related items</div>';
+    el.innerHTML = html || '<div class="ri-empty-plain">No related items</div>';
     el.querySelectorAll('[data-ri-unlink]').forEach(function (button) {
       button.addEventListener('click', function () { unlink(links[Number(button.dataset.riUnlink)].link_id, container); });
     });
@@ -118,13 +118,13 @@ window.RelatedItems = (function () {
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'Link related item');
     overlay.innerHTML =
-      '<div style="background:var(--surface);border-radius:12px;padding:24px;width:420px;max-width:90vw;box-shadow:0 8px 40px rgba(0,0,0,.3)">' +
-        '<div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--text)">Link related item</div>' +
-        '<label for="riSearchInput" style="display:block;font-size:12px;margin-bottom:6px;color:var(--muted)">Search records you may open</label>' +
-        '<input id="riSearchInput" type="text" placeholder="Search by title..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius,7px);font-size:14px;box-sizing:border-box;background:var(--surface2);color:var(--text)">' +
-        '<div id="riSearchResults" aria-live="polite" style="margin-top:8px;max-height:240px;overflow-y:auto"></div>' +
-        '<div id="riPickerStatus" role="alert" style="font-size:12px;color:var(--danger);margin-top:8px"></div>' +
-        '<button type="button" class="ri-cancel" style="margin-top:12px;padding:6px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;font-size:12px">Cancel</button>' +
+      '<div class="ri-picker">' +
+        '<div class="ri-picker-title">Link related item</div>' +
+        '<label for="riSearchInput" class="ri-picker-label">Search records you may open</label>' +
+        '<input id="riSearchInput" type="text" placeholder="Search by title..." class="ri-picker-input">' +
+        '<div id="riSearchResults" aria-live="polite" class="ri-picker-results"></div>' +
+        '<div id="riPickerStatus" role="alert" class="ri-picker-status"></div>' +
+        '<button type="button" class="ri-cancel">Cancel</button>' +
       '</div>';
     document.body.appendChild(overlay);
 
@@ -175,16 +175,16 @@ window.RelatedItems = (function () {
             return !(r.module === mod && r.type === etype && String(r.id) === String(eid));
           });
           if (!results.length) {
-            res.innerHTML = '<div style="color:var(--muted);padding:8px;font-size:13px">No results</div>';
+            res.innerHTML = '<div class="ri-picker-none">No results</div>';
             return;
           }
           res.innerHTML = results.map(function (r, index) {
             var safeTitle = safe(r.title || r.subtitle || '');
-            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;cursor:pointer;border-bottom:1px solid var(--border)">' +
-              '<div><strong style="font-size:13px;color:var(--text)">' + safeTitle + '</strong><br>' +
-              '<span style="font-size:11px;color:var(--muted)">' + safe(r.module) + ' ' + safe(r.type || '') + '</span></div>' +
+            return '<div class="ri-hit">' +
+              '<div><strong class="ri-hit-title">' + safeTitle + '</strong><br>' +
+              '<span class="ri-hit-kind">' + safe(r.module) + ' ' + safe(r.type || '') + '</span></div>' +
               '<button type="button" data-ri-result="' + index + '" ' +
-                'style="padding:4px 10px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:12px;font-weight:600">Link</button>' +
+                'class="ri-hit-link">Link</button>' +
             '</div>';
           }).join('');
           res.querySelectorAll('[data-ri-result]').forEach(function (button) {

@@ -107,15 +107,16 @@ async function loadNotifications(){
     dot.style.display = data.unread_count > 0 ? 'block' : 'none';
     const list = document.getElementById('notifList');
     if(!data.notifications.length){
-      list.innerHTML = '<div class="empty-state" style="padding:24px"><p>No notifications</p></div>';
+      list.innerHTML = '<div class="empty-state sh-pad-24"><p>No notifications</p></div>';
       return;
     }
     list.innerHTML = data.notifications.slice(0,20).map(function(n) {
       var safeLink = safeHref(n.link, '');
-      return '<div style="padding:10px 14px;border-bottom:1px solid var(--border-soft);cursor:pointer;background:'+(n.is_read?'transparent':'var(--surface2)')+'" data-nid="'+parseInt(n.id,10)+'" data-link="'+esc(safeLink)+'">' +
-        '<div style="font-size:12.5px;font-weight:'+(n.is_read?'400':'600')+';color:var(--text);">'+esc(n.title)+'</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(n.message||'')+'</div>' +
-        '<div style="font-size:10px;color:var(--muted);margin-top:4px;">'+esc(n.module||'')+' &middot; '+esc(timeAgo(n.created_at))+'</div>' +
+      var unread = n.is_read ? '' : ' is-unread';
+      return '<div class="sh-notif-item'+unread+'" data-nid="'+parseInt(n.id,10)+'" data-link="'+esc(safeLink)+'">' +
+        '<div class="sh-notif-title'+unread+'">'+esc(n.title)+'</div>' +
+        '<div class="sh-notif-msg">'+esc(n.message||'')+'</div>' +
+        '<div class="sh-notif-meta">'+esc(n.module||'')+' &middot; '+esc(timeAgo(n.created_at))+'</div>' +
       '</div>';
     }).join('');
     list.querySelectorAll('[data-nid]').forEach(function(el){
@@ -240,20 +241,20 @@ async function doGlobalSearch(q){
   const data = await resp.json();
   const el = document.getElementById('searchResults');
   if(!data.results.length){
-    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No results</div>';
+    el.innerHTML = '<div class="sh-search-none">No results</div>';
   } else {
-    var modColors = {aria:'#6c63ff',sentinel:'#10b981',grid:'#f59e0b',bcm:'#ef4444',platform:'#94a3b8'};
+    var dotted = {aria:1,sentinel:1,grid:1,bcm:1,platform:1};  // module dot colours: .sh-search-dot-* in base_shell.html
     el.innerHTML = data.results.map(function(r) {
       var safeLink = safeHref(r.link, '#');
       var facts = [r.status, r.date, r.business_unit].filter(Boolean).join(' \u00b7 ');
       var mod = (r.module||'').replace(/[^a-z]/g,'');
-      return '<a href="'+esc(safeLink)+'" class="search-result" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);">' +
-        '<span style="width:8px;height:8px;border-radius:50%;background:'+(modColors[mod]||'var(--muted)')+';flex-shrink:0;"></span>' +
-        '<div style="flex:1;min-width:0;">' +
-          '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.title)+'</div>' +
-          '<div style="font-size:11px;color:var(--muted);">'+esc(r.module)+' &middot; '+esc(r.type)+(r.subtitle?' &middot; '+esc(r.subtitle):'')+'</div>' +
-          (facts?'<div style="font-size:11px;color:var(--muted);">'+esc(facts)+'</div>':'') +
-          (r.snippet?'<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.snippet)+'</div>':'') +
+      return '<a href="'+esc(safeLink)+'" class="search-result sh-search-hit">' +
+        '<span class="sh-search-dot sh-search-dot-'+(dotted[mod]?mod:'other')+'"></span>' +
+        '<div class="sh-search-body">' +
+          '<div class="sh-search-title">'+esc(r.title)+'</div>' +
+          '<div class="sh-search-sub">'+esc(r.module)+' &middot; '+esc(r.type)+(r.subtitle?' &middot; '+esc(r.subtitle):'')+'</div>' +
+          (facts?'<div class="sh-search-sub">'+esc(facts)+'</div>':'') +
+          (r.snippet?'<div class="sh-search-snippet">'+esc(r.snippet)+'</div>':'') +
         '</div>' +
       '</a>';
     }).join('');
@@ -336,20 +337,20 @@ setInterval(async()=>{
   var panel=document.createElement('div');
   panel.id='shortcutsPanel';
   panel.style.cssText='display:none;position:fixed;inset:0;z-index:10001;align-items:center;justify-content:center';
-  panel.innerHTML='<div data-shortcuts-close style="position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)"></div>'+
-    '<div style="position:relative;background:var(--surface);border-radius:16px;padding:28px;width:440px;max-width:92vw;box-shadow:var(--shadow-lg)">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'+
-        '<h3 style="font-size:16px;font-weight:800;color:var(--text);margin:0">Keyboard Shortcuts</h3>'+
-        '<button type="button" data-shortcuts-close style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer">&times;</button>'+
+  panel.innerHTML='<div data-shortcuts-close class="sh-sc-backdrop"></div>'+
+    '<div class="sh-sc-card">'+
+      '<div class="sh-sc-head">'+
+        '<h3 class="sh-sc-title">Keyboard Shortcuts</h3>'+
+        '<button type="button" data-shortcuts-close class="sh-sc-close">&times;</button>'+
       '</div>'+
-      '<div style="display:grid;gap:8px;font-size:13px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Show this panel</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">?</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Global search</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">Ctrl + K</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Command Centre</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then H</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Task Board</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then T</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Audit Log</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then L</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">New item (primary action)</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">N</kbd></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span style="color:var(--text)">Close modal / panel</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">Escape</kbd></div>'+
+      '<div class="sh-sc-list">'+
+        '<div class="sh-sc-row"><span class="sh-sc-label">Show this panel</span><kbd class="sh-sc-key">?</kbd></div>'+
+        '<div class="sh-sc-row"><span class="sh-sc-label">Global search</span><kbd class="sh-sc-key">Ctrl + K</kbd></div>'+
+        '<div class="sh-sc-row"><span class="sh-sc-label">Go to Command Centre</span><kbd class="sh-sc-key">G then H</kbd></div>'+
+        '<div class="sh-sc-row"><span class="sh-sc-label">Go to Task Board</span><kbd class="sh-sc-key">G then T</kbd></div>'+
+        '<div class="sh-sc-row"><span class="sh-sc-label">Go to Audit Log</span><kbd class="sh-sc-key">G then L</kbd></div>'+
+        '<div class="sh-sc-row"><span class="sh-sc-label">New item (primary action)</span><kbd class="sh-sc-key">N</kbd></div>'+
+        '<div class="sh-sc-row sh-sc-row-last"><span class="sh-sc-label">Close modal / panel</span><kbd class="sh-sc-key">Escape</kbd></div>'+
       '</div>'+
     '</div>';
   document.body.appendChild(panel);
