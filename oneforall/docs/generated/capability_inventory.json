@@ -17820,12 +17820,13 @@
       "module": "modules.grid.routes",
       "gate": "capability",
       "capabilities": [
-        "grid.control.update_own"
+        "grid.control.comment"
       ],
       "roles_by_capability": {
-        "grid.control.update_own": [
+        "grid.control.comment": [
           "audit_lead",
           "auditor",
+          "external_auditor",
           "super_admin"
         ]
       },
