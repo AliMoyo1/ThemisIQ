@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if read_only %} data-read-only{% endif %}>
 <head>
 <meta charset="UTF-8">
 <link rel="stylesheet" href="/static/css/style-tokens.css?v=1">
@@ -790,6 +790,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 .ri-hit-title{font-size:13px!important;color:var(--text)!important}
 .ri-hit-kind{font-size:11px!important;color:var(--muted)!important}
 .ri-hit-link{padding:4px 10px!important;border-radius:6px!important;border:none!important;background:var(--accent)!important;color:#fff!important;cursor:pointer!important;font-size:12px!important;font-weight:600!important}
+/* A read-only role (the external auditor) is not offered actions it cannot take. */
+html[data-read-only] .write-action{display:none!important}
 {% block extra_styles %}{% endblock %}
 </style>
 <link rel="stylesheet" href="/static/css/icons.css?v=1">

@@ -61,7 +61,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export Report
     </button>
-    <button type="button" class="btn btn-primary" id="ariaGenerateReport">
+    <button type="button" class="btn btn-primary write-action" id="ariaGenerateReport">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Generate Report
     </button>
@@ -85,7 +85,7 @@
     <div class="stat-value">{{ fw_stats|length }}</div>
     <div class="stat-sub">Regulatory & standard frameworks</div>
     {% if fw_stats|length == 0 %}
-    <a href="/aria/frameworks" data-s="s61d2d1c" data-sd="block">+ Add first framework</a>
+    <a href="/aria/frameworks" class="write-action" data-s="s61d2d1c" data-sd="block">+ Add first framework</a>
     {% endif %}
   </div>
 
@@ -114,7 +114,7 @@
   <div data-s="se495055">
     <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Add a compliance framework <a href="/aria/frameworks" data-s="sa805525">Browse frameworks</a></label>
     <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Map controls to your organisation <a href="/aria/mapping" data-s="sa805525">Control mapping</a></label>
-    <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Generate your first compliance report <button type="button" id="ariaOnboardReport" data-s="s7a8f814">Generate report</button></label>
+    <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" class="aria-onboard-check"> Generate your first compliance report <button type="button" id="ariaOnboardReport" class="write-action" data-s="s7a8f814">Generate report</button></label>
   </div>
 </div>
 {% endif %}

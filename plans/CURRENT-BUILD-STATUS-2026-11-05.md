@@ -318,3 +318,12 @@ PR 52 merged as b26c9536 (not deployed). The owner said an external auditor shou
 - External auditors may now comment on GRID controls in their scope (`grid.control.comment`).
 - The Vault hides Upload, Batch upload and the drawer's edit controls for them. Other modules still show buttons that now answer with the read-only message.
 - Still open: staff can mark their own file `auditor_signed`.
+
+## Remaining work after PR 53, 2026-11-10 (chat confirmation, not sign-off)
+
+PR 53 merged as 1185dfaa (not deployed). The owner said to finish all remaining work. Plan, decisions and evidence: [2026-11-remaining-after-53.md](2026-11-remaining-after-53.md).
+
+- Control effectiveness: proof filed on a GRID audit control now counts for the canonical control it is mapped to. Before, nothing in the product could earn the two evidence factors (35 of 100 points). Scores rise where such proof exists, and ERM residual risk can fall with them. The ERM risk-control view counts the same proof.
+- An external auditor is no longer offered ARIA's Add Document, Import, Add Risk and Generate Report or GRID's New Audit.
+- Recorded without change: `auditor_signed` describes the document; generated style token names stay.
+- Owner step: close the superseded PR 12 (the session's approval check refused it).
