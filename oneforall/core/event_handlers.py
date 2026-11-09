@@ -950,7 +950,7 @@ def grid_finding_created_handler(event_type, source_module, entity_type,
 
         if audit_id:
             create_cross_module_link(
-                "grid", "finding", entity_id,
+                "grid", entity_type, entity_id,
                 "grid", "audit", audit_id,
                 relationship="derived_from", user_id=user_id, db=db,
         )
@@ -2023,7 +2023,7 @@ def finding_triggers_sentinel_check(event_type, source_module, entity_type,
             priority="high", user_id=user_id,
         )
         create_cross_module_link(
-            "grid",     "finding",      entity_id,
+            "grid",     entity_type,    entity_id,
             "sentinel", "grid_finding", entity_id,
             relationship="triggers", user_id=user_id, db=db,
         )
@@ -2120,7 +2120,7 @@ def finding_elevates_to_erm(event_type, source_module, entity_type,
         )
         if erm_id:
             create_cross_module_link(
-                "grid", "finding", entity_id,
+                "grid", entity_type, entity_id,
                 "erm", "enterprise_risk", erm_id,
                 relationship="escalated_to", user_id=user_id, db=db,
             )

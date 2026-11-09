@@ -9,10 +9,6 @@ from database import get_db
 
 log = logging.getLogger("oneforall.links")
 
-_VALID_MODULES = frozenset({
-    "aria", "grid", "bcm", "sentinel", "platform", "evidence", "erm", "orm", "governance",
-})
-
 # Each edge is stored once, in one direction, with an active verb: verb -> (label read from the source
 # side, label read from the target side). The target side of an edge shows the inverse label, so
 # "AIIA assesses application" reads "assessed by AIIA" on the application. The first nine verbs predate the AI
@@ -59,11 +55,14 @@ def create_cross_module_link(
     If `db` is provided, use that connection (caller is responsible for commit/close).
     Otherwise, open a fresh connection, commit, and close it internally.
 
-    Returns the new link ID, or None if a duplicate already exists.
+    Returns the link ID (an existing one for a duplicate), or None when it was refused or failed.
+    Both ends must be kinds the shared registry (modules/governance/entity_scope.py) knows, under any of
+    their spellings; a link to anything else could never be shown, so it is not stored.
     """
-    if source_module not in _VALID_MODULES or target_module not in _VALID_MODULES:
+    from modules.governance.entity_scope import is_registered
+    if not (is_registered(source_module, source_type) and is_registered(target_module, target_type)):
         log.warning(
-            "Invalid module in link: %s -> %s", source_module, target_module
+            "Link refused, unregistered kind: %s/%s -> %s/%s", source_module, source_type, target_module, target_type,
         )
         return None
     if relationship not in _VALID_RELATIONSHIPS:
