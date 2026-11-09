@@ -15,11 +15,11 @@ function pct(v){ return v===null||v===undefined ? '—' : v+'%'; }
 function deltaHtml(current, previous, invertGood){
   if(previous===null||previous===undefined||current===null) return '';
   const diff = current - previous;
-  if(diff===0) return '<span style="color:var(--muted)">→ no change</span>';
+  if(diff===0) return '<span data-s="s57f9e31">→ no change</span>';
   const isGood = invertGood ? diff < 0 : diff > 0;
   const color  = isGood ? 'var(--green-status)' : 'var(--red)';
   const arrow  = diff > 0 ? '↑' : '↓';
-  return `<span style="color:${color};font-size:11px;font-weight:700">${arrow} ${Math.abs(diff).toFixed(1)} vs prior</span>`;
+  return `<span data-sv="color:${color};font-size:11px;font-weight:700">${arrow} ${Math.abs(diff).toFixed(1)} vs prior</span>`;
 }
 
 /* ── Fetch all data ───────────────────────────────────────────────────────── */
@@ -70,7 +70,7 @@ window.reloadTrends = function(){ loadTrends(); };
 /* ── Live Metrics Strip ───────────────────────────────────────────────────── */
 function renderLiveMetrics(){
   const el = document.getElementById('liveMetrics');
-  if(!liveData){ el.innerHTML='<div class="an-loading" style="grid-column:1/-1">No live data available</div>'; return; }
+  if(!liveData){ el.innerHTML='<div class="an-loading" data-s="s068a8dd">No live data available</div>'; return; }
 
   const d = liveData;
   const compPct  = (d.compliance_pct===null||d.compliance_pct===undefined) ? null : d.compliance_pct;
@@ -85,16 +85,16 @@ function renderLiveMetrics(){
     if(value===null){
       return `<div class="an-metric">
       <div class="an-metric-lbl">${esc(label)}</div>
-      <div class="an-metric-val" style="color:var(--muted)">&mdash;</div>
+      <div class="an-metric-val" data-s="s57f9e31">&mdash;</div>
       <div class="an-metric-delta neutral">Not measured: nothing is recorded to measure it against.</div>
-      <div class="an-metric-bar" style="width:0%"></div>
+      <div class="an-metric-bar" data-s="sd2fba0f"></div>
     </div>`;
     }
     return `<div class="an-metric">
       <div class="an-metric-lbl">${esc(label)}</div>
-      <div class="an-metric-val" style="color:${textColor||'var(--text)'}">${esc(String(value))}${suffix?'<span style="font-size:14px;font-weight:600;color:var(--muted)">'+esc(suffix)+'</span>':''}</div>
+      <div class="an-metric-val" data-sv="color:${textColor||'var(--text)'}">${esc(String(value))}${suffix?'<span data-s="s0413707">'+esc(suffix)+'</span>':''}</div>
       <div class="an-metric-delta neutral">${deltaHtmlStr||''}</div>
-      <div class="an-metric-bar" style="width:${Math.min(100,barPct||0)}%;background:${barColor}"></div>
+      <div class="an-metric-bar" data-sv="width:${Math.min(100,barPct||0)}%;background:${barColor}"></div>
     </div>`;
   }
 
@@ -140,7 +140,7 @@ function renderLiveMetrics(){
 function renderModuleHealth(){
   const el = document.getElementById('moduleHealthPanel');
   const items = (liveData?.module_health)||[];
-  if(!items.length){ el.innerHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">No module data</div>'; return; }
+  if(!items.length){ el.innerHTML='<div data-s="s203ca55">No module data</div>'; return; }
 
   const moduleKeys = ['aria','grid','bcm','sentinel','erm','orm','governance'];
   el.innerHTML = items.map(m=>{
@@ -158,7 +158,7 @@ function renderModuleHealth(){
         <span class="mh-definition">${esc(definition)}${quantity ? ' · '+esc(quantity) : ''}</span>
       </div>
       <div class="mh-track" ${measured ? `role="meter" aria-label="${esc(m.name+': '+definition).replace(/"/g,'&quot;')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"` : 'aria-hidden="true"'}>
-        <div class="mh-fill" style="width:${pct}%;background:${color}"></div>
+        <div class="mh-fill" data-sv="width:${pct}%;background:${color}"></div>
       </div>
       <div class="mh-pct">${measured?pct+'%':'Not measured'}</div>
     </div>`;
@@ -180,16 +180,16 @@ function renderRiskDist(){
   el.innerHTML = levels.map(l=>{
     const w = Math.round((l.val/total)*100);
     return `<div class="risk-row">
-      <div class="risk-lbl" style="color:${l.color}">${esc(l.label)}</div>
+      <div class="risk-lbl" data-sv="color:${l.color}">${esc(l.label)}</div>
       <div class="risk-track" role="img" aria-label="${esc(l.label)}: ${l.val} risks, ${w}% of total" title="${esc(l.label)}: ${l.val} risks (${w}%)">
-        <div class="risk-fill" style="width:${w}%;background:${l.color}">
+        <div class="risk-fill" data-sv="width:${w}%;background:${l.color}">
           ${l.val>0?`<span class="risk-fill-num">${l.val}</span>`:''}
         </div>
       </div>
-      <div class="risk-num" style="color:${l.color}">${l.val}</div>
+      <div class="risk-num" data-sv="color:${l.color}">${l.val}</div>
     </div>`;
   }).join('') +
-  (riskCount===0?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px">No risks in register</div>':'');
+  (riskCount===0?'<div data-s="sbd29a86">No risks in register</div>':'');
 }
 
 /* ── Charts ───────────────────────────────────────────────────────────────── */
@@ -238,12 +238,12 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
   const diff  = last - first;
   if(deltaEl){
     if(diff===0){
-      deltaEl.innerHTML = '<span style="color:var(--muted)">→ flat</span>';
+      deltaEl.innerHTML = '<span data-s="s57f9e31">→ flat</span>';
     } else {
       const good = invertGood ? diff<0 : diff>0;
       const color = good?'var(--green-status)':'var(--red)';
       const arrow = diff>0?'↑':'↓';
-      deltaEl.innerHTML = `<span style="color:${color}">${arrow} ${Math.abs(diff).toFixed(1)}${suffix} over period</span>`;
+      deltaEl.innerHTML = `<span data-sv="color:${color}">${arrow} ${Math.abs(diff).toFixed(1)}${suffix} over period</span>`;
     }
   }
 
@@ -290,19 +290,19 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
   chartEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} over selected period">
     <defs>
       <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" style="stop-color:${baseColor};stop-opacity:.24"/>
-        <stop offset="100%" style="stop-color:${baseColor};stop-opacity:.015"/>
+        <stop offset="0%" data-sv="stop-color:${baseColor};stop-opacity:.24"/>
+        <stop offset="100%" data-sv="stop-color:${baseColor};stop-opacity:.015"/>
       </linearGradient>
     </defs>
     ${yLabels.map(l=>`<line class="an-chart-grid" x1="${PAD.left}" y1="${l.y.toFixed(1)}" x2="${PAD.left+innerW}" y2="${l.y.toFixed(1)}"/>`).join('')}
     ${yLabels.map(l=>`<text class="an-chart-axis" x="${PAD.left-5}" y="${l.y+4}" text-anchor="end">${esc(l.val+suffix)}</text>`).join('')}
     <g class="an-chart-series">
       <path d="${areaPath}" fill="url(#${gradId})"/>
-      <path class="an-chart-line" d="${linePath}" fill="none" style="stroke:${baseColor}"/>
+      <path class="an-chart-line" d="${linePath}" fill="none" data-sv="stroke:${baseColor}"/>
       ${pts.map((p,i)=>`<g class="an-chart-point" tabindex="${i===0?0:-1}" role="img"
         aria-label="${esc(String(p.d.date))}: ${esc(String(p.d.value))}${suffix}" data-point-index="${i}">
         <circle class="an-chart-point-hit" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="11"/>
-        <circle class="an-chart-point-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" style="fill:${baseColor}"/>
+        <circle class="an-chart-point-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" data-sv="fill:${baseColor}"/>
       </g>`).join('')}
     </g>
     ${xLabels.map((l,i)=>`<text class="an-chart-axis" x="${l.x}" y="${H}" text-anchor="${i===0?'start':'end'}">${esc(l.label)}</text>`).join('')}
@@ -346,7 +346,7 @@ function runInsightEngine(){
   const ts = document.getElementById('insightTimestamp');
 
   const d = liveData;
-  if(!d){ el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px">No live data available — check platform connectivity.</div>'; return; }
+  if(!d){ el.innerHTML='<div data-s="sbf3b8e3">No live data available — check platform connectivity.</div>'; return; }
 
   const insights = [];
   const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
@@ -539,8 +539,8 @@ window.askAnalytics = function(){
       const diff = +(ct[ct.length-1].value - ct[0].value).toFixed(1);
       const days = Math.max(1, parseInt(document.getElementById('trendDays').value, 10) || 30);
       response = `Over the last <strong>${days} days</strong>, compliance has `+
-        (diff>0?`<span style="color:var(--green-status)">improved by ${diff}%</span>`:
-         diff<0?`<span style="color:var(--red)">declined by ${Math.abs(diff)}%</span>`:'remained flat')+'.';
+        (diff>0?`<span data-s="sf941d6e">improved by ${diff}%</span>`:
+         diff<0?`<span data-s="s45e7ae4">declined by ${Math.abs(diff)}%</span>`:'remained flat')+'.';
     } else {
       response = 'Insufficient snapshot data to calculate trends. Capture daily snapshots for at least 2 days to see trends.';
     }

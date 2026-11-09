@@ -97,8 +97,8 @@
 
 <!-- Topbar -->
 <div class="cal-topbar">
-  <span style="font-size:16px;font-weight:800;color:var(--text);flex-shrink:0">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17" style="vertical-align:-3px;margin-right:6px"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  <span data-s="s29d941d">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17" data-s="s707a436"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Compliance Calendar
   </span>
 
@@ -143,7 +143,7 @@
     </button>
   </div>
 
-  <button class="btn btn-primary" id="calAddEvent" style="margin-left:auto">
+  <button class="btn btn-primary" id="calAddEvent" data-s="s6d00061">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Event
   </button>
@@ -151,10 +151,10 @@
 
 <!-- Stats strip -->
 <div class="cal-stats">
-  <div class="cal-stat"><div class="cal-stat-num" id="stTotal" style="color:var(--text)">—</div><div class="cal-stat-lbl">This Month</div></div>
-  <div class="cal-stat"><div class="cal-stat-num" id="stDeadlines" style="color:var(--red)">—</div><div class="cal-stat-lbl">Deadlines</div></div>
-  <div class="cal-stat"><div class="cal-stat-num" id="stWeek" style="color:var(--accent)">—</div><div class="cal-stat-lbl">This Week</div></div>
-  <div class="cal-stat"><div class="cal-stat-num" id="stOverdue" style="color:var(--amber)">—</div><div class="cal-stat-lbl">Overdue</div></div>
+  <div class="cal-stat"><div class="cal-stat-num" id="stTotal" data-s="sf045bbe">—</div><div class="cal-stat-lbl">This Month</div></div>
+  <div class="cal-stat"><div class="cal-stat-num" id="stDeadlines" data-s="s45e7ae4">—</div><div class="cal-stat-lbl">Deadlines</div></div>
+  <div class="cal-stat"><div class="cal-stat-num" id="stWeek" data-s="sa805525">—</div><div class="cal-stat-lbl">This Week</div></div>
+  <div class="cal-stat"><div class="cal-stat-num" id="stOverdue" data-s="s08935a7">—</div><div class="cal-stat-lbl">Overdue</div></div>
 </div>
 
 <!-- Main: Calendar + Sidebar -->
@@ -181,10 +181,10 @@
     </div>
 
     <!-- List view -->
-    <div id="panelList" style="display:none">
+    <div id="panelList" data-sd="none">
       <div class="cal-wrap">
         <div class="ev-list" id="evList">
-          <div style="padding:32px;text-align:center;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+          <div data-s="s29e8938"><div class="spinner" data-s="s266e9b0"></div></div>
         </div>
       </div>
     </div>
@@ -204,24 +204,24 @@
 <div class="ev-overlay" id="evOverlay"></div>
 <div class="ev-drawer" id="evDrawer">
   <div class="ev-drawer-hdr">
-    <span style="font-size:13px;font-weight:700;color:var(--text)" id="drawerHdrTitle">Event</span>
+    <span data-s="s36970da" id="drawerHdrTitle">Event</span>
     <button class="ev-drawer-close" id="calCloseDrawer" aria-label="Close event details">×</button>
   </div>
   <div class="ev-drawer-body" id="drawerBody"></div>
   <div class="ev-drawer-footer">
-    <button class="btn btn-primary" style="flex:1" id="calEditEvent">Edit Event</button>
+    <button class="btn btn-primary" data-s="s97445a8" id="calEditEvent">Edit Event</button>
     <button class="ev-del-btn" id="calDeleteEvent">Delete</button>
   </div>
 </div>
 
 <!-- ── New / Edit Event Modal ────────────────────────────────────────────── -->
 <div class="modal-overlay" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-  <div class="modal" style="max-width:520px">
+  <div class="modal" data-s="s04391f0">
     <div class="modal-header">
-      <h3 style="margin:0;font-size:16px;font-weight:700" id="modalTitle">New Event</h3>
+      <h3 data-s="sbd3aa9d" id="modalTitle">New Event</h3>
       <button class="modal-close" id="calCloseEventModal" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <form id="eventForm">
         <input type="hidden" id="efId">
         <div class="ef-field">
@@ -283,7 +283,7 @@
           <label class="ef-label">Description</label>
           <textarea class="ef-textarea" id="efDesc" rows="3" placeholder="Optional notes…"></textarea>
         </div>
-        <button type="submit" class="btn btn-primary" style="width:100%;padding:10px" id="efSubmitBtn">Create Event</button>
+        <button type="submit" class="btn btn-primary" data-s="s0ccf4e6" id="efSubmitBtn">Create Event</button>
       </form>
     </div>
   </div>

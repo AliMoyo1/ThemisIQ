@@ -132,9 +132,77 @@ The shell's new rules sit above the page CSS slot (`{% block extra_styles %}`), 
 | `tests/ui/test_style_policy_browser.py`: all 14 AI Governance pages as a super administrator and as a DPO, with no refusal and no CSS shown as text; notifications, search (none and hits), shortcuts, reminder, Themis and the Related Items panel open styled; an injected `style=` attribute does nothing | passed (with part 2's checks, 37 passed) |
 | Screenshots of 14 AI Governance pages and 9 shell pop-ups, and of 37 pages at two sizes, before and after | unchanged apart from timestamps, except AI Registers (S2, now the intended grid) |
 
+## Part 4: every other module (branch `claude/style-attrs-all-modules`)
+
+The owner said in chat on 2026-11-09, after PR 50 merged: "do all modules".
+
+### What is left (survey on master 577e1578)
+
+| Kind | Places | How it is converted |
+| --- | --- | --- |
+| Fixed value in a template | 2,181 | generated rule, element gets `data-s` |
+| Fixed value written by a script | 3,001 | generated rule, element gets `data-s` |
+| Value filled in by Jinja (`{{ }}` or `{% if %}`) | 37 | `data-sv`, applied as below |
+| Value filled in by a script at run time | 262 | `data-sv`, applied as below |
+| `setAttribute('style', ...)` in two small DOM helpers | 2 | `style.cssText` |
+| `static/architecture-showcase.html` | 126 | same as templates |
+
+Hand slicing at the pace of slice 1 would take weeks for about 5,400 places. Part 4 converts them with a script, then checks the result three ways instead of by eye.
+
+### Decisions (chat confirmation, not sign-off)
+
+| # | Decision | Why | Cost | How to change it |
+| --- | --- | --- | --- | --- |
+| D4.1 | A fixed style becomes an attribute token, `data-s="s1a2b3c4"`, named by a hash of its declarations. The generated rules live in one stylesheet, `static/css/style-tokens.css`. | Scripts build markup where the `class` attribute is often half filled in by code; a second attribute needs no merging, so the conversion can be mechanical. One token per distinct declaration list keeps the file small (about 2,500 rules). | Token names say nothing about intent. New code must not add tokens by hand: it writes ordinary classes (the guard test refuses new `style=`). | Rename tokens to classes module by module later; the browser test below still holds. |
+| D4.2 | Each rule's selector is `:is([data-s~="..."],#_#_#_)`. | An inline style beat every normal rule. The `:is()` list counts as three IDs, so the token beats the page's own rules the same way; `!important` rules (responsive.css) still win, as they did; and a script's `element.style` still wins, as it did. Slice 1 used `!important` instead, which would stop scripts from changing a value later (progress bars, colours). | Needs a browser from 2021 or later (`:is()`). | Use `!important` (slice 1 style) where a script never sets the same property. |
+| D4.3 | `display` never goes into a token. It becomes `data-sd`, and a small script in the head, `static/js/style_tokens.js`, sets it with `element.style.display` as each element is added, then drops the attribute. The stylesheet also hides `[data-sd=none]` until then, so nothing flashes. | 49 places show an element by clearing `element.style.display = ''`, and four read it back. A token would keep those elements hidden. Setting it through CSSOM (which the policy allows) leaves every one of those scripts working unchanged. | One small script on every page, watching for added elements. | Replace with `hidden` and explicit classes per module, script by script. |
+| D4.4 | A value filled in at run time (Jinja or script) becomes `data-sv="..."`, applied by the same script through `element.style.setProperty`, after checks: a fixed list of properties, no `url(`, `image-set(`, `expression`, `attr(`, backslash, `@`, `<`, `>`, braces, and no `position:fixed` or `sticky`. | These are mostly colours and bar widths, some taken from stored records. Today a stored colour such as `red;position:fixed;...` would apply as written; through the checks it cannot place an overlay or load a URL. | The checks are a list to maintain; a property not on it is dropped (and the test suite shows the gap). Limit: markup injected through some other bug could still reuse existing classes and tokens (a dialog's full-page backdrop, for one), as on any page styled by classes; the policy stops free-form styles and loaded URLs, not that. | Move a value to a token, or to `element.style` in its script, and remove it from the list. |
+| D4.5 | When every page is clean, `style-src-attr 'none'` applies to every page under the strict script policy; `STRICT_STYLE_PREFIXES` goes away. | That was the owner's goal: no CSP exception for styles. | A page that still writes `style=` loses that style in the browser. The guard test and the full browser suite (which fails on any console error) catch it before release. | Put a prefix list back in `core/middleware.py`. |
+| D4.6 | Emails (`core/email_templates.py`, the test email in `routes_admin.py`) and the Word and Excel writers keep their inline styles. | Emails need inline styles and are not served under the page policy. | none | none |
+
+### Checks
+
+1. Corpus check: a browser page holds, for every generated token, one element with the original `style` and one with the token; their computed styles must match.
+2. Fingerprint: the computed styles of every element on 141 pages (org administrator at 1440 and 640 pixels wide, super administrator at 1440), recorded on master and again after the change, compared element by element.
+3. The full browser suite with `style-src-attr 'none'` everywhere: it fails on any console error, and a refused style is one.
+
+### What was built
+
+| File | What changed |
+| --- | --- |
+| 61 templates, `static/architecture-showcase.html`, 46 scripts | 2,310 template and 3,001 script attributes into `data-s` tokens (2,113 distinct) and `data-sd`; 37 Jinja and 262 script run-time values into `data-sv` |
+| `static/css/style-tokens.css` (new, generated once) | the token rules, and the `data-sd` holding rules |
+| `static/js/style_tokens.js` (new) | applies `data-sd` and the checked `data-sv` values through `element.style` as elements are parsed or inserted |
+| 10 page heads (`base_shell.html`, `error.html`, login, MFA, launcher, the three module dashboards, the shared audit page, the showcase) | load the two files first |
+| `static/css/responsive.css`, `static/css/premium_theme.css` | their `[style*=...]` selectors (mobile grid columns, reduced motion) also name the matching tokens, and the `prop: value` spelling that `element.style` writes |
+| `admin_ai_policy.js`, `command_centre.js` (two helpers), `metrics_definitions.js` | element helpers send `style` to `style.cssText` instead of `setAttribute` |
+| `bcm_index.js`, `erm_index.js` | two lookups that found an element by its inline style (`[style*=...]`) now test the computed style |
+| `core/report_kit/render_html.py`, `charts.py` | the print view's page break and chart margin are classes; a chart's natural width is its SVG `width`, capped by the stylesheet |
+| `core/middleware.py` | `style-src-attr 'none'` on every page; `STRICT_STYLE_PREFIXES` removed |
+| `tests/test_csp_report_only.py` | no page, script or browser-facing Python writes a style attribute; helpers given `style:` use `cssText`; every page head loads the tokens before its own styles; every token used has its rule |
+| `tests/ui/test_style_policy_browser.py` | 83 pages as super administrator, organisation administrator and DPO with no refusal and nothing left unapplied; `data-sd` and `data-sv` behave as described, a fixed position and a URL are refused |
+
+| # | Found on the way | Status |
+| --- | --- | --- |
+| S3 | The ERM risk import result and the Sentinel training import result each had two `style` attributes on one tag. Browsers use only the first, so the card's `padding:16px` and bottom margin never applied. | now both apply, so the result card shows the padding its markup asked for (the only visible change the fingerprint found) |
+| S4 | Two small element helpers (the Command Centre's "Why this number" panel and the metrics definitions page) copied every key with `setAttribute`, including `style`, so the guard test could not see those styles. The metrics page lost its link spacing under the strict rule; the fingerprint found it. | fixed in both; a guard test now requires `style.cssText` in any script that passes `style:` to a helper |
+| S5 | A stored colour reaches some `style` attributes (framework colours, project colours). With the old attribute a value such as `red;position:fixed;...` would have applied as written. | `data-sv` checks each value (D4.4) |
+| S6 | Not a style issue, found by the new page test: the ARIA AI Generator page failed with a server error (500) once the organisation held a policy document saved without a framework or control reference (an imported policy, for one). The page joined the two values as text, and a missing value broke the join. | fixed in `modules/aria/routes.py`: such documents are left out of the "controls that have documents" list, as the count above it already did |
+
+### Evidence
+
+| Check | Result |
+| --- | --- |
+| Corpus check: 2,284 original styles against their tokens, every computed property | 0 differences; the browser kept all 2,121 generated rules (so the `:is()` selector is understood) |
+| Fingerprint: 139 pages x 3 (org administrator at 1440 and 640 pixels, super administrator at 1440), every element, 69 computed properties, master against this branch | 206 of 417 identical; the rest differ only in timestamps (text widths) and animations caught mid-frame, apart from S3 and S4 (S4 since fixed), and one ORM element whose `display:-webkit-box` now comes from its token (same computed style) |
+| Full browser suite with `style-src-attr 'none'` on every page | 822 passed, 5 skipped, 4 failed: two tests that listed a button's attributes (`style` is now `data-s`), my own test's choice of persona, and S6; all four fixed and passed on rerun (37 passed) |
+| `tests/test_csp_report_only.py`, `tests/test_report_kit.py` | passed |
+| Backend suite | 3,496 passed, 102 skipped |
+
 ## Change log
 
 - 2026-11-09: branch created; zoom probe over 33 pages; Z1 to Z3 fixed in `templates/base_shell.html` and `modules/evidence/templates/evidence_index.html` (the Vault-only rule removed, now shared); zoom test extended.
 - 2026-11-09: style survey and research; decisions above.
 - 2026-11-09: nonce policy for `<style>` built and checked in a real browser; S1 found by the new browser test and fixed.
 - 2026-11-09: owner chose to start removing style attributes with the smallest module; slice 1 (AI Governance and the shell) built, S2 found and fixed, AI Governance switched to `style-src-attr 'none'`.
+- 2026-11-09: PR 50 merged (577e1578). Owner said "do all modules": part 4 planned (D4.1 to D4.6), master fingerprinted, every remaining attribute converted by script, `style-src-attr 'none'` made global; S3 to S6 found, S4 and S6 fixed; corpus check, fingerprint and full browser suite run.

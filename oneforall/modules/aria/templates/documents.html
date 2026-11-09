@@ -2,7 +2,7 @@
 {% block title %}ARIA: Document Register{% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">ARIA</span>
+<span data-s="s456fefd">ARIA</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Document Register</span>
 {% endblock %}
@@ -17,7 +17,7 @@
     {% if user.role != 'viewer' %}
     {% if policy_intake_enabled %}<a class="btn btn-primary" href="/aria/policy-imports">Import existing policies</a>{% endif %}
     <button class="btn btn-primary" data-doc-action="open-add">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Document
     </button>
     {% endif %}
@@ -29,61 +29,61 @@
    ai_generator.html); populated live since it's per-user and changes
    without a page reload. Hidden entirely for a user with nothing pending,
    confirmed empty-vs-populated only after the fetch resolves. #}
-<div class="card" id="pendingApprovalsCard" style="display:none;margin-bottom:16px">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer" role="button" tabindex="0" data-doc-action="toggle-approvals">
-    <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px">
+<div class="card" id="pendingApprovalsCard" data-s="s87c136d" data-sd="none">
+  <div data-s="sf6c8d5e" data-sd="flex" role="button" tabindex="0" data-doc-action="toggle-approvals">
+    <div data-s="s1381959" data-sd="flex">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
       Pending My Approval
       <span class="badge badge-progress" id="pendingApprovalsCount">0</span>
     </div>
-    <svg id="pendingApprovalsChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform .15s"><polyline points="18 15 12 9 6 15"/></svg>
+    <svg id="pendingApprovalsChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s22b597c"><polyline points="18 15 12 9 6 15"/></svg>
   </div>
-  <div id="pendingApprovalsList" style="display:none;padding:0 18px 14px"></div>
+  <div id="pendingApprovalsList" data-s="se144e7a" data-sd="none"></div>
 </div>
 
 <!-- Approval Decision Modal -->
 <div class="modal-overlay" id="approvalDecisionModal">
-  <div class="modal" style="max-width:560px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <div class="modal" data-s="s765d57b">
+    <div data-s="scfaf980" data-sd="flex">
       <div class="modal-title">Review Submission</div>
-      <button data-doc-close="approvalDecisionModal" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button data-doc-close="approvalDecisionModal" data-s="s0f661b2" data-sd="flex">&#10005;</button>
     </div>
     <div id="approvalDecisionBody"></div>
   </div>
 </div>
 
 <!-- Stats -->
-<div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
+<div class="stats-row" data-s="saafcd3e">
   <div class="stat-card">
     <div class="stat-label">Total Documents</div>
     <div class="stat-value">{{ stats.total }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Approved</div>
-    <div class="stat-value" style="color:var(--green-status,#16a34a)">{{ stats.approved }}</div>
+    <div class="stat-value" data-s="s15540fe">{{ stats.approved }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Drafts</div>
-    <div class="stat-value" style="color:var(--amber,#d97706)">{{ stats.draft }}</div>
+    <div class="stat-value" data-s="sd0ca9f2">{{ stats.draft }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">AI Generated</div>
-    <div class="stat-value" style="color:var(--accent)">{{ stats.ai_gen }}</div>
+    <div class="stat-value" data-s="sa805525">{{ stats.ai_gen }}</div>
   </div>
-  <div class="stat-card" style="--status-color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--green-status){% endif %}">
+  <div class="stat-card" data-sv="--status-color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--green-status){% endif %}">
     <div class="stat-label">Due for Review</div>
-    <div class="stat-value" style="color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--muted){% endif %}">{{ stats.review_due }}</div>
+    <div class="stat-value" data-sv="color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--muted){% endif %}">{{ stats.review_due }}</div>
   </div>
 </div>
 
 <!-- Filters -->
 <form method="get" action="/aria/documents">
 <div class="filter-bar">
-  <div style="flex:1;min-width:160px">
+  <div data-s="seb62184">
     <label for="doc-filter-search">Search</label>
     <input type="text" id="doc-filter-search" name="search" value="{{ filters.search }}" placeholder="Title, ref, owner...">
   </div>
-  <div style="min-width:150px">
+  <div data-s="sc6cca58">
     <label for="doc-filter-framework">Framework</label>
     <select id="doc-filter-framework" name="framework">
       <option value="">All Frameworks</option>
@@ -92,7 +92,7 @@
       {% endfor %}
     </select>
   </div>
-  <div style="min-width:130px">
+  <div data-s="sb62dc2d">
     <label for="doc-filter-status">Status</label>
     <select id="doc-filter-status" name="status">
       <option value="">All Statuses</option>
@@ -101,7 +101,7 @@
       {% endfor %}
     </select>
   </div>
-  <div style="min-width:130px">
+  <div data-s="sb62dc2d">
     <label for="doc-filter-type">Type</label>
     <select id="doc-filter-type" name="doc_type">
       <option value="">All Types</option>
@@ -110,70 +110,70 @@
       {% endfor %}
     </select>
   </div>
-  <div style="align-self:flex-end;display:flex;gap:8px">
-    <button type="submit" class="btn btn-primary" style="padding:8px 16px">Filter</button>
-    <a href="/aria/documents" class="btn btn-ghost" style="padding:8px 16px">Clear</a>
+  <div data-s="s198b186" data-sd="flex">
+    <button type="submit" class="btn btn-primary" data-s="s9bfd0fc">Filter</button>
+    <a href="/aria/documents" class="btn btn-ghost" data-s="s9bfd0fc">Clear</a>
   </div>
 </div>
 </form>
 
 <!-- Table -->
-<div class="card" style="padding:0">
+<div class="card" data-s="s41d7d7e">
   <div class="table-wrap">
 {% if docs %}
     <table class="data-table">
       <thead>
         <tr>
-          <th style="width:80px">Doc ID</th>
-          <th style="min-width:180px">Title</th>
+          <th data-s="s8573bae">Doc ID</th>
+          <th data-s="s66dbd5d">Title</th>
           <th>Framework</th>
-          <th style="width:90px">Control Ref</th>
-          <th style="width:90px">Type</th>
-          <th style="width:70px">Version</th>
-          <th style="width:100px">Status</th>
-          <th style="width:100px">Owner</th>
-          <th style="width:110px">Review Date</th>
-          <th style="width:90px;text-align:center">Actions</th>
+          <th data-s="s581be41">Control Ref</th>
+          <th data-s="s581be41">Type</th>
+          <th data-s="sec6626e">Version</th>
+          <th data-s="sdb4cf10">Status</th>
+          <th data-s="sdb4cf10">Owner</th>
+          <th data-s="s6074682">Review Date</th>
+          <th data-s="s8a37dea">Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for doc in docs %}
         <tr id="row-{{ doc.doc_id }}">
-          <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:600">{{ doc.doc_id }}</span></td>
+          <td><span data-s="s62efe37">{{ doc.doc_id }}</span></td>
           <td>
-            <div style="font-weight:600;color:var(--text)">{{ doc.title }}</div>
+            <div data-s="s8fbdd52">{{ doc.title }}</div>
             {% if doc.comments and 'AI Generated' in doc.comments %}
-            <span class="badge" style="background:var(--accent-bg,var(--surface2));color:var(--accent);border:1px solid var(--border);font-size:10px;margin-top:3px;display:inline-block">AI</span>
+            <span class="badge" data-s="sa6e21dd" data-sd="inline-block">AI</span>
             {% elif doc.comments and 'Uploaded' in doc.comments %}
-            <span class="badge" style="background:var(--surface2);color:var(--text-mid);border:1px solid var(--border);font-size:10px;margin-top:3px;display:inline-block">Uploaded</span>
+            <span class="badge" data-s="se118ad9" data-sd="inline-block">Uploaded</span>
             {% endif %}
           </td>
           <td><span class="row-chip">{{ doc.framework }}</span></td>
-          <td><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-mid)">{{ doc.control_ref or '' }}</span></td>
+          <td><span data-s="s1737b41">{{ doc.control_ref or '' }}</span></td>
           <td><span class="row-chip">{{ doc.doc_type }}</span></td>
-          <td><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-mid)">v{{ doc.version }}</span></td>
+          <td><span data-s="s1737b41">v{{ doc.version }}</span></td>
           <td>
             {% if doc.status == 'Approved' %}<span class="badge badge-complete">{{ doc.status }}</span>
             {% elif doc.status == 'Draft' %}<span class="badge badge-draft">{{ doc.status }}</span>
             {% elif doc.status == 'Under Review' %}<span class="badge badge-progress">{{ doc.status }}</span>
-            {% elif doc.status == 'Retired' %}<span class="badge" style="background:var(--surface3);color:var(--muted);border:1px solid var(--border)">{{ doc.status }}</span>
+            {% elif doc.status == 'Retired' %}<span class="badge" data-s="s8785d30">{{ doc.status }}</span>
             {% else %}<span class="badge badge-draft">{{ doc.status }}</span>{% endif %}
-            {% if doc.policy_workflow_managed %}<span class="badge badge-accent" title="Managed by the policy workflow: status changes only through draft, submission and approval" style="margin-left:4px">Managed</span>{% endif %}
+            {% if doc.policy_workflow_managed %}<span class="badge badge-accent" title="Managed by the policy workflow: status changes only through draft, submission and approval" data-s="s46cec89">Managed</span>{% endif %}
           </td>
-          <td style="font-size:12px;color:var(--muted)">{{ doc.owner or '' }}</td>
-          <td style="font-size:12px" data-review="{{ doc.review_date or '' }}">
+          <td data-s="s7fc448e">{{ doc.owner or '' }}</td>
+          <td data-s="s6cb285c" data-review="{{ doc.review_date or '' }}">
             {% if doc.review_date %}
             <span class="review-date-cell">{{ doc.review_date }}</span>
             {% else %}
-            <span style="color:var(--muted)">—</span>
+            <span data-s="s57f9e31">—</span>
             {% endif %}
           </td>
-          <td style="text-align:center;white-space:nowrap">
+          <td data-s="s6381559">
             <a class="edit-btn" href="/governance/connected/aria/document/{{ doc.id }}" aria-label="View connected records for {{ doc.doc_id }}">Connected</a>
             {% if user.role != 'viewer' %}
             <button class="edit-btn" type="button" data-doc-edit="{{ doc.doc_id }}">Edit</button>
             {% if has_capability(user, 'aria.policy.delete') %}
-            <button class="edit-btn" type="button" data-doc-delete="{{ doc.doc_id }}" style="color:var(--red,#dc2626)">Del</button>
+            <button class="edit-btn" type="button" data-doc-delete="{{ doc.doc_id }}" data-s="sf9408e8">Del</button>
             {% endif %}
             {% endif %}
           </td>
@@ -182,16 +182,16 @@
       </tbody>
     </table>
 {% else %}
-    <div style="text-align:center;padding:60px 20px;color:var(--muted)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:0.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      <div style="font-size:16px;font-weight:600;margin-bottom:6px">No documents found</div>
-      <div style="font-size:13px">
+    <div data-s="scbbf91d">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" data-s="sae7746b"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <div data-s="sf7a7c7c">No documents found</div>
+      <div data-s="s5e0faad">
         {% if filters.search or filters.framework or filters.status %}
-        No documents match your filters. <a href="/aria/documents" style="color:var(--accent);font-weight:600">Clear filters</a>
+        No documents match your filters. <a href="/aria/documents" data-s="s64ac89c">Clear filters</a>
         {% else %}
         Upload existing documents or generate policies in the AI Generator, then they appear here.
         {% if user.role != 'viewer' %}
-        <br><button class="btn btn-primary" data-doc-action="open-add" style="margin-top:16px">Add Your First Document</button>
+        <br><button class="btn btn-primary" data-doc-action="open-add" data-s="s1b0f499">Add Your First Document</button>
         {% endif %}
         {% endif %}
       </div>
@@ -201,83 +201,83 @@
 </div>
 
 {% if docs %}
-<div style="margin-top:10px;color:var(--muted);font-size:12px">
+<div data-s="s0e311cc">
   Showing {{ docs|length }} document{% if docs|length != 1 %}s{% endif %}
 </div>
 {% endif %}
 
 <!-- Add / Upload Modal -->
 <div class="modal-overlay" id="addModal">
-  <div class="modal" style="max-width:680px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div class="modal" data-s="s48a0d2f">
+    <div data-s="s6f01855" data-sd="flex">
       <div class="modal-title">Add Document</div>
-      <button data-doc-close="addModal" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button data-doc-close="addModal" data-s="s0f661b2" data-sd="flex">&#10005;</button>
     </div>
-    {% if policy_intake_enabled %}<div style="padding:14px 16px;border-radius:12px;background:var(--surface2);margin-bottom:16px;line-height:1.5">
+    {% if policy_intake_enabled %}<div data-s="s5e49c4a">
       <strong>Already have an approved policy?</strong> <a href="/aria/policy-imports">Use guided import</a> to extract details, review control links, preserve the original and record external approval. Use this form for a manual register entry.
     </div>{% endif %}
 
     <!-- Upload zone -->
     <div id="dropZone"
          role="button" tabindex="0" aria-label="Choose document" data-doc-action="choose-file"
-         style="border:2px dashed var(--border);border-radius:10px;padding:24px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:14px;position:relative">
+         data-s="se67ff4a">
       <input type="file" id="addFileInput" accept=".docx,.doc,.pdf,.odt"
-             style="display:none" >
+             data-sd="none" >
 
-      <div id="dzEmpty" style="pointer-events:none">
+      <div id="dzEmpty" data-s="s8b13642">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5"
-             style="width:36px;height:36px;margin:0 auto 10px;display:block;opacity:.5">
+             data-s="s75deeca" data-sd="block">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <div style="font-weight:600;color:var(--text);font-size:14px;margin-bottom:4px">
+        <div data-s="sc3ff091">
           Drop your policy document here, or click to browse
         </div>
-        <div style="font-size:12px;color:var(--muted)">DOCX and PDF can be extracted. DOC and ODT need reviewed conversion or manual entry.</div>
+        <div data-s="s7fc448e">DOCX and PDF can be extracted. DOC and ODT need reviewed conversion or manual entry.</div>
       </div>
 
-      <div id="dzSelected" style="display:none;pointer-events:none;align-items:center;justify-content:center;gap:10px">
+      <div id="dzSelected" data-s="s3a2574f" data-sd="none">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"
-             style="width:22px;height:22px;flex-shrink:0">
+             data-s="sf05a5fd">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
-        <span id="dzFileName" style="font-size:13px;font-weight:600;color:var(--text)"></span>
+        <span id="dzFileName" data-s="s3da0680"></span>
         <span id="dzClear" role="button" tabindex="0" aria-label="Remove selected file" data-doc-action="clear-file"
-              style="font-size:16px;color:var(--muted);cursor:pointer;pointer-events:all;margin-left:6px">&#10005;</span>
+              data-s="s4df3ddd">&#10005;</span>
       </div>
     </div>
 
     <!-- Analyse button row -->
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <div data-s="s001838f" data-sd="flex">
       <button id="analyseBtn" data-doc-action="analyse" class="btn btn-secondary"
-              disabled style="opacity:.45;display:flex;align-items:center;gap:6px;font-size:13px">
+              disabled data-s="scfe4bfb" data-sd="flex">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             style="width:14px;height:14px">
+             data-s="s53d332d">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
         Extract Metadata
       </button>
-      <span id="analyseStatus" style="font-size:12px;color:var(--muted)">
+      <span id="analyseStatus" data-s="s7fc448e">
         Select a DOCX or PDF to suggest details from the document
       </span>
     </div>
 
     <!-- Form fields (shared by both upload and manual paths) -->
-    <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:4px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:12px;letter-spacing:.5px">Document Details</div>
+    <div data-s="s4496d3f">
+      <div data-s="sd8ba008">Document Details</div>
     </div>
     <div class="grid-2">
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" data-s="s068a8dd">
         <label class="form-label">Document Title *</label>
         <input type="text" id="add-title" placeholder="e.g. Information Security Policy">
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" data-s="s068a8dd">
         <label class="form-label">Frameworks (optional until reviewed)</label>
-        <div id="add-fw-checks" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">
+        <div id="add-fw-checks" data-s="sf5fce26" data-sd="flex">
           {% for fw in frameworks %}
-          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+          <label data-s="s520e941" data-sd="flex">
             <input type="checkbox" class="add-fw-cb" value="{{ fw.name }}" data-fw-id="{{ fw.id }}"
                    >
             {{ fw.name }}
@@ -326,43 +326,41 @@
           <option value="365" selected>Annually</option>
         </select>
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" data-s="s068a8dd">
         <label class="form-label">Next Review Date</label>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div data-s="sc58a824" data-sd="flex">
           <input type="date" id="add-review-date"
-                 style="flex:1;border-color:var(--accent)" title="A reminder will be emailed 30 and 7 days before this date">
-          <span id="add-review-hint" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
+                 data-s="sd7a07af" title="A reminder will be emailed 30 and 7 days before this date">
+          <span id="add-review-hint" data-s="s5e4afbb"></span>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px">
+        <div data-s="s8a05498">
           Reminders sent 30 and 7 days before this date
         </div>
       </div>
-      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:10">
+      <div class="form-group" data-s="se0ae9f4">
         <label class="form-label">Control Reference</label>
-        <div style="position:relative">
+        <div data-s="sd461c96">
           <input type="text" id="add-control-search" placeholder="Search controls..." autocomplete="off"
-                 style="width:100%"   >
+                 data-s="s0466783"   >
           <input type="hidden" id="add-control-ref">
-          <div id="add-ctrl-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
-          <div id="add-ctrl-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;z-index:9999;
-               max-height:220px;overflow-y:auto;background:var(--surface, #fff);border:1px solid var(--border);
-               border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);margin-top:2px"></div>
+          <div id="add-ctrl-tags" data-s="s09e1b99" data-sd="flex"></div>
+          <div id="add-ctrl-dropdown" data-s="s3378e0d" data-sd="none"></div>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px">
+        <div data-s="s8a05498">
           Controls load from selected frameworks
         </div>
       </div>
-      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
+      <div class="form-group" data-s="s31d63b8">
         <label class="form-label">Document Location / URL</label>
         <input type="text" id="add-location" placeholder="e.g. SharePoint link or file path">
       </div>
-      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
+      <div class="form-group" data-s="s31d63b8">
         <label class="form-label">Comments / Notes</label>
         <textarea id="add-comments" rows="2" placeholder="Any additional notes..."></textarea>
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+    <div data-s="sd28ceac" data-sd="flex">
       <button class="btn btn-ghost" data-doc-close="addModal">Cancel</button>
       <button class="btn btn-primary" id="addSaveBtn" data-doc-action="save-add">Save Document</button>
     </div>
@@ -371,10 +369,10 @@
 
 <!-- Edit Modal -->
 <div class="modal-overlay" id="editModal">
-  <div class="modal" style="max-width:640px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div class="modal" data-s="se2b01b0">
+    <div data-s="s6f01855" data-sd="flex">
       <div class="modal-title">Edit Document</div>
-      <button data-doc-close="editModal" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button data-doc-close="editModal" data-s="s0f661b2" data-sd="flex">&#10005;</button>
     </div>
     <input type="hidden" id="edit-doc-id">
     <input type="hidden" id="edit-is-managed" value="">
@@ -387,85 +385,85 @@
        legacy one. The current lifecycle values are shown here as
        read-only text (never as disabled inputs sitting in the save form)
        so it's never ambiguous whether Save will persist them. #}
-    <div id="edit-managed-panel" style="display:none;margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted)">Policy Workflow — Current Lifecycle State</div>
-        <a id="edit-workbench-link" href="#" class="btn btn-ghost" style="font-size:11px;padding:4px 10px">Open Policy Workbench</a>
+    <div id="edit-managed-panel" data-s="s87c136d" data-sd="none">
+      <div data-s="s7357596" data-sd="flex">
+        <div data-s="s830517a">Policy Workflow — Current Lifecycle State</div>
+        <a id="edit-workbench-link" href="#" class="btn btn-ghost" data-s="s562fe77">Open Policy Workbench</a>
       </div>
-      <div class="grid-2" style="margin-bottom:14px">
-        <div><span style="font-size:11px;color:var(--muted)">Status</span><div id="edit-lifecycle-status" style="font-size:13px;font-weight:600">—</div></div>
-        <div><span style="font-size:11px;color:var(--muted)">Version</span><div id="edit-lifecycle-version" style="font-size:13px;font-weight:600">—</div></div>
-        <div><span style="font-size:11px;color:var(--muted)">Owner</span><div id="edit-lifecycle-owner" style="font-size:13px;font-weight:600">—</div></div>
-        <div><span style="font-size:11px;color:var(--muted)">Approver</span><div id="edit-lifecycle-approver" style="font-size:13px;font-weight:600">—</div></div>
+      <div class="grid-2" data-s="s2b583d7">
+        <div><span data-s="s1fd8c81">Status</span><div id="edit-lifecycle-status" data-s="seb673ec">—</div></div>
+        <div><span data-s="s1fd8c81">Version</span><div id="edit-lifecycle-version" data-s="seb673ec">—</div></div>
+        <div><span data-s="s1fd8c81">Owner</span><div id="edit-lifecycle-owner" data-s="seb673ec">—</div></div>
+        <div><span data-s="s1fd8c81">Approver</span><div id="edit-lifecycle-approver" data-s="seb673ec">—</div></div>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin:-8px 0 14px">These change only through Start Revision below, then Submit and Decide -- never through Save.</div>
+      <div data-s="s364fd12">These change only through Start Revision below, then Submit and Decide -- never through Save.</div>
       <div id="edit-publication-status"></div>
-      <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin:10px 0;border:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Version History</div>
+      <div data-s="s3e36f71">
+        <div data-s="sa7ab6b7">Version History</div>
         <div id="edit-version-history"></div>
       </div>
-      <div id="edit-revision-action" style="margin-bottom:10px"></div>
-      <div id="edit-submit-approval-section" style="display:none;background:var(--surface2);border-radius:var(--radius);padding:14px;border:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Submit for Approval</div>
-        <div id="edit-submit-empty" class="aria-workflow-hint" style="display:none">No eligible approver is currently available.</div>
-        <div id="edit-submit-form" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-          <div class="form-group" style="flex:1;min-width:160px;margin:0">
+      <div id="edit-revision-action" data-s="s761d3ad"></div>
+      <div id="edit-submit-approval-section" data-s="s36d7875" data-sd="none">
+        <div data-s="sa7ab6b7">Submit for Approval</div>
+        <div id="edit-submit-empty" class="aria-workflow-hint" data-sd="none">No eligible approver is currently available.</div>
+        <div id="edit-submit-form" data-s="se7fc4b4" data-sd="flex">
+          <div class="form-group" data-s="sb54ff50">
             <label class="form-label">Approver</label>
             <select id="edit-approver-select"></select>
           </div>
-          <div class="form-group" style="flex:1;min-width:160px;margin:0">
+          <div class="form-group" data-s="sb54ff50">
             <label class="form-label">Note (optional)</label>
             <input type="text" id="edit-submit-note" maxlength="500">
           </div>
-          <button class="btn btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap" id="edit-submit-btn">Submit for Approval</button>
+          <button class="btn btn-primary" data-s="s399d296" id="edit-submit-btn">Submit for Approval</button>
         </div>
       </div>
     </div>
 
     <!-- Upload Revision Section (legacy documents only) -->
-    <div id="edit-legacy-upload-section" style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;border:1px dashed var(--border)">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Upload Revised Document</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="file" id="edit-revision-file" accept=".docx,.doc,.pdf,.odt" style="flex:1;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px">
-        <button class="btn btn-primary" style="font-size:12px;padding:6px 14px;white-space:nowrap" data-doc-action="revision">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-right:3px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <div id="edit-legacy-upload-section" data-s="s8af93de">
+      <div data-s="sa7ab6b7">Upload Revised Document</div>
+      <div data-s="sc58a824" data-sd="flex">
+        <input type="file" id="edit-revision-file" accept=".docx,.doc,.pdf,.odt" data-s="s5fd72b5">
+        <button class="btn btn-primary" data-s="scc53279" data-doc-action="revision">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s96e3c53"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload
         </button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Replace with a reviewed version. Status will change to "Under Review".</div>
-      <div id="edit-revision-status" style="font-size:12px;margin-top:6px"></div>
+      <div data-s="s5c3809d">Replace with a reviewed version. Status will change to "Under Review".</div>
+      <div id="edit-revision-status" data-s="s2b0979c"></div>
     </div>
 
     <!-- Apply Template Section (legacy documents only) -->
-    <div id="edit-legacy-template-section" style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin-bottom:16px;border:1px solid var(--border)">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Apply Branding Template</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="edit-template-id" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px">
+    <div id="edit-legacy-template-section" data-s="s1119655">
+      <div data-s="sa7ab6b7">Apply Branding Template</div>
+      <div data-s="sc58a824" data-sd="flex">
+        <select id="edit-template-id" data-s="s6ebdb8c">
           <option value="">Select a template</option>
         </select>
-        <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;white-space:nowrap;border-color:var(--accent);color:var(--accent)" data-doc-action="apply-template">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <button class="btn btn-secondary" data-s="sd326e63" data-doc-action="apply-template">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s96e3c53"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
           Apply Template
         </button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Applies company branding (logo, headers, footers, styles) to the uploaded document.</div>
-      <div id="edit-template-status" style="font-size:12px;margin-top:6px"></div>
+      <div data-s="s5c3809d">Applies company branding (logo, headers, footers, styles) to the uploaded document.</div>
+      <div id="edit-template-status" data-s="s2b0979c"></div>
     </div>
 
     <!-- Download current file -->
-    <div id="edit-download-row" style="display:none;margin-bottom:16px">
-      <a id="edit-download-link" href="#" class="btn btn-secondary" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px;text-decoration:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <div id="edit-download-row" data-s="s87c136d" data-sd="none">
+      <a id="edit-download-link" href="#" class="btn btn-secondary" data-s="sb501646" data-sd="inline-flex">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download Current File
       </a>
     </div>
 
     <div class="grid-2">
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" data-s="s068a8dd">
         <label class="form-label">Document Title</label>
         <input type="text" id="edit-title">
       </div>
-      <div id="edit-legacy-lifecycle-fields" style="display:contents">
+      <div id="edit-legacy-lifecycle-fields" data-sd="contents">
         <div class="form-group">
           <label class="form-label">Status</label>
           <select id="edit-status">
@@ -500,36 +498,34 @@
           <option value="365">Annually</option>
         </select>
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" data-s="s068a8dd">
         <label class="form-label">Next Review Date</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="date" id="edit-review-date" style="flex:1;border-color:var(--accent)">
-          <span id="edit-review-hint" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
+        <div data-s="sc58a824" data-sd="flex">
+          <input type="date" id="edit-review-date" data-s="sd7a07af">
+          <span id="edit-review-hint" data-s="s5e4afbb"></span>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px">Reminders sent 30 and 7 days before</div>
+        <div data-s="s8a05498">Reminders sent 30 and 7 days before</div>
       </div>
-      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:10">
+      <div class="form-group" data-s="se0ae9f4">
         <label class="form-label">Control Reference</label>
-        <div style="position:relative">
+        <div data-s="sd461c96">
           <input type="text" id="edit-control-search" placeholder="Search controls..." autocomplete="off"
-                 style="width:100%"   >
+                 data-s="s0466783"   >
           <input type="hidden" id="edit-control-ref">
-          <div id="edit-ctrl-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
-          <div id="edit-ctrl-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;z-index:9999;
-               max-height:220px;overflow-y:auto;background:var(--surface, #fff);border:1px solid var(--border);
-               border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);margin-top:2px"></div>
+          <div id="edit-ctrl-tags" data-s="s09e1b99" data-sd="flex"></div>
+          <div id="edit-ctrl-dropdown" data-s="s3378e0d" data-sd="none"></div>
         </div>
       </div>
-      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
+      <div class="form-group" data-s="s31d63b8">
         <label class="form-label">Document Location / URL</label>
         <input type="text" id="edit-location">
       </div>
-      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
+      <div class="form-group" data-s="s31d63b8">
         <label class="form-label">Comments / Notes</label>
         <textarea id="edit-comments" rows="2"></textarea>
       </div>
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+    <div data-s="sd28ceac" data-sd="flex">
       <button class="btn btn-ghost" data-doc-close="editModal">Cancel</button>
       <button class="btn btn-primary" id="edit-save-btn" data-doc-action="save-edit">Save Changes</button>
     </div>

@@ -229,22 +229,22 @@
   }
   function riskBadge(level){
     var map={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};
-    if(!level)return '<span class="badge" style="color:var(--muted)">Not rated</span>';
+    if(!level)return '<span class="badge" data-s="s57f9e31">Not rated</span>';
     var cls=map[(level||'').toLowerCase()]||'badge-low';
     return '<span class="badge '+cls+'">'+esc((level||'N/A').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span>';
   }
   function actionBtns(editFn, deleteFn){
-    return '<div style="display:flex;gap:4px">'+
-      '<button class="btn btn-sm btn-secondary" data-sn-click="'+esc(editFn)+'" title="Edit" style="padding:4px 8px">'+
+    return '<div data-s="sd767683" data-sd="flex">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="'+esc(editFn)+'" title="Edit" data-s="sf261655">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
       '</button>'+
-      '<button class="btn btn-sm btn-secondary" data-sn-click="'+esc(deleteFn)+'" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="'+esc(deleteFn)+'" title="Delete" data-s="sc304996">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
       '</button>'+
     '</div>';
   }
-  function spinner(colspan){return '<tr><td colspan="'+colspan+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
-  function emptyRow(colspan,msg){return '<tr><td colspan="'+colspan+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
+  function spinner(colspan){return '<tr><td colspan="'+colspan+'" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';}
+  function emptyRow(colspan,msg){return '<tr><td colspan="'+colspan+'" data-s="s2e587c2">'+esc(msg||'No records found')+'</td></tr>';}
 
   /* ── Regulatory countdown helpers (SENT-15, SENT-16) ── */
   function breachCountdown(notify_deadline, status, clock){
@@ -252,8 +252,8 @@
       return '<span class="cd-ok">Resolved</span>';
     // No trigger or no rule: say so, and never show a running countdown.
     if(clock&&(clock.state==='no_trigger'||clock.state==='no_rule'))
-      return '<span style="color:var(--muted);font-size:11px" title="'+esc(clock.label).replace(/"/g,'&quot;')+'">Clock not started</span>';
-    if(!notify_deadline) return '<span style="color:var(--muted);font-size:11px">—</span>';
+      return '<span data-s="s6d034cc" title="'+esc(clock.label).replace(/"/g,'&quot;')+'">Clock not started</span>';
+    if(!notify_deadline) return '<span data-s="s6d034cc">—</span>';
     var now=new Date();
     var due=new Date(notify_deadline);
     var diffH=(due-now)/3600000;
@@ -272,7 +272,7 @@
   function dsrCountdown(deadline, status){
     if(status&&(status==='completed'||status==='closed'))
       return '<span class="cd-ok">Closed</span>';
-    if(!deadline) return '<span style="color:var(--muted);font-size:11px">—</span>';
+    if(!deadline) return '<span data-s="s6d034cc">—</span>';
     var now=new Date(); now.setHours(0,0,0,0);
     var due=new Date(deadline.substring(0,10)+'T00:00:00');
     var days=Math.round((due-now)/86400000);
@@ -442,7 +442,7 @@
     }
     // Quick-add link on zero-count hero card
     var qa=document.getElementById('snRopaCount');
-    if(qa&&mHas(ropa)&&ropa.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-sn-click="event.preventDefault();sentinelRouter.navigate(\'/sentinel/ropa\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first record</a>');}
+    if(qa&&mHas(ropa)&&ropa.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-sn-click="event.preventDefault();sentinelRouter.navigate(\'/sentinel/ropa\')" data-s="s61d2d1c" data-sd="block">+ Add first record</a>');}
     // The processes behind the coverage figure
     var gap=document.getElementById('snRopaGapLink');
     if(gap) gap.style.display=(mHas(cov)&&cov.detail.total>cov.detail.covered)?'':'none';
@@ -454,7 +454,7 @@
       var r=await apiFetch('/sentinel/api/ropa/coverage-gaps');
       var items=(r&&r.items)||[];
       el.innerHTML=items.length
-        ? '<ul style="margin:0;padding-left:18px">'+items.map(function(i){var url=snSafeUrl(i.url,false);return '<li>'+(url?'<a style="color:inherit" href="'+esc(url)+'">'+esc(i.name)+'</a>':esc(i.name))+'</li>';}).join('')+'</ul>'
+        ? '<ul data-s="s592d196">'+items.map(function(i){var url=snSafeUrl(i.url,false);return '<li>'+(url?'<a data-s="s1c9c449" href="'+esc(url)+'">'+esc(i.name)+'</a>':esc(i.name))+'</li>';}).join('')+'</ul>'
         : 'Every business process you may open has a processing record.';
       el.style.display='';
     }catch(e){ el.textContent='The list could not be read just now.'; el.style.display=''; }
@@ -462,11 +462,11 @@
 
   function populateDsrStatus(m){
     var el=document.getElementById('snDsrStatus');
-    if(!mHas(m)){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+esc(mWords(m))+'</div>';return;}
+    if(!mHas(m)){el.innerHTML='<div data-s="s35ad83f">'+esc(mWords(m))+'</div>';return;}
     var dsr=m.detail;
     var rows=[{label:'Open',count:dsr.open||0,color:'var(--amber)'},{label:'In Progress',count:dsr.in_progress||0,color:'var(--blue)'},{label:'Completed',count:dsr.completed||0,color:'var(--green-status)'}];
-    el.innerHTML=rows.map(function(r){return '<div class="sn-status-row"><div class="sn-status-dot" style="background:'+r.color+'"></div><div class="sn-status-label">'+r.label+'</div><div class="sn-status-val">'+r.count+'</div></div>';}).join('')+
-    '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted);font-weight:600">Total Requests</span><span style="font-family:var(--mono);font-weight:700;color:var(--text)">'+dsr.total+'</span></div>';
+    el.innerHTML=rows.map(function(r){return '<div class="sn-status-row"><div class="sn-status-dot" data-sv="background:'+r.color+'"></div><div class="sn-status-label">'+r.label+'</div><div class="sn-status-val">'+r.count+'</div></div>';}).join('')+
+    '<div data-s="s300c216" data-sd="flex"><span data-s="s5f8230d">Total Requests</span><span data-s="s4a05e0e">'+dsr.total+'</span></div>';
   }
   function populateRiskDonut(m){
     var known=mHas(m);
@@ -497,11 +497,11 @@
   }
   function populateActivity(items){
     var el=document.getElementById('snRecentActivity');
-    if(items===null||items===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(snFailed?'Not read just now':'The activity could not be read just now')+'</div>';return;}
-    if(!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
+    if(items===null||items===undefined){el.innerHTML='<div data-s="s35ad83f">'+(snFailed?'Not read just now':'The activity could not be read just now')+'</div>';return;}
+    if(!items.length){el.innerHTML='<div data-s="s35ad83f">No recent activity</div>';return;}
     el.innerHTML=items.map(function(a,i){
       var isLast=i===items.length-1;
-      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
+      return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" data-s="sc7d23eb"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
     }).join('');
   }
   function renderDashDsrTable(items){
@@ -511,7 +511,7 @@
     body.innerHTML=items.slice(0,10).map(function(d){
       var statusCls={open:'badge-high',new:'badge-high',in_progress:'badge-progress',completed:'badge-complete',closed:'badge-complete'}[d.status]||'badge-medium';
       var sl=(d.status||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
-      return '<tr style="cursor:pointer" data-sn-click="sentinelRouter.navigate(\'/sentinel/dsr\')"><td><span class="item-id">'+esc(String(d.id||''))+'</span></td><td>'+esc(d.type||'')+'</td><td><span class="badge '+statusCls+'">'+esc(sl)+'</span></td><td>'+fmtDate(d.submitted)+'</td><td>'+fmtDate(d.due)+'</td></tr>';
+      return '<tr data-s="s3b6a3a6" data-sn-click="sentinelRouter.navigate(\'/sentinel/dsr\')"><td><span class="item-id">'+esc(String(d.id||''))+'</span></td><td>'+esc(d.type||'')+'</td><td><span class="badge '+statusCls+'">'+esc(sl)+'</span></td><td>'+fmtDate(d.submitted)+'</td><td>'+fmtDate(d.due)+'</td></tr>';
     }).join('');
   }
   window.snFilterDsr=function(status,chip){
@@ -631,7 +631,7 @@
       if(banner&&dpiaGap>0){
         banner.style.display='flex';
         banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+dpiaGap+' high-risk activit'+(dpiaGap>1?'ies have':'y has')+' no DPIA.</strong>'+
-          '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" data-sn-click="snSetRopaRisk(\'high\',document.querySelector(\'#snRopaRiskChips .filter-chip:nth-child(3)\'))">Show high-risk →</button>';
+          '<button class="btn btn-sm btn-secondary" data-s="se9d6d27" data-sn-click="snSetRopaRisk(\'high\',document.querySelector(\'#snRopaRiskChips .filter-chip:nth-child(3)\'))">Show high-risk →</button>';
       }else if(banner){banner.style.display='none';}
       var filtered=ropaRiskFilter?items.filter(function(r){return(r.risk_level||'low')===ropaRiskFilter;}):items;
       snRenderRopaRows(filtered);
@@ -641,17 +641,17 @@
   function snDpiaStatusCell(r){
     if(r.dpia_id) return '<span class="dpia-badge-linked" data-sn-click="sentinelRouter.navigate(\'/sentinel/dpia\')" title="DPIA linked — click to view">✓ DPIA →</span>';
     if(r.dpia_required||r.risk_level==='high'||r.risk_level==='critical') return '<span class="dpia-badge-required"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Required</span>';
-    return '<span style="color:var(--muted);font-size:11px">—</span>';
+    return '<span data-s="s6d034cc">—</span>';
   }
 
   function snRopaRowActions(r){
-    return '<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">'+
-      '<button class="btn btn-sm btn-secondary" data-sn-click="snOpenRopaDrawer('+r.id+')" title="Edit" style="padding:4px 8px">'+
+    return '<div data-s="s0eec479" data-sd="flex">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snOpenRopaDrawer('+r.id+')" title="Edit" data-s="sf261655">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
       '</button>'+
       '<button class="btn-ai" data-sn-click="snAiScoreRopa('+r.id+',this)" title="AI: score risk level"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>'+
       (!r.dpia_id?'<button class="btn-spawn" data-sn-click="snSpawnDpia('+r.id+')" title="Create DPIA from this record"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> DPIA</button>':'')+
-      '<button class="btn btn-sm btn-secondary" data-sn-click="snDeleteRecord(\'ropa\','+r.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snDeleteRecord(\'ropa\','+r.id+')" title="Delete" data-s="sc304996">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
       '</button>'+
     '</div>';
@@ -662,9 +662,9 @@
     if(!items.length){body.innerHTML=emptyRow(7,'No processing activities found');return;}
     body.innerHTML=items.map(function(r){
       return '<tr>'+
-        '<td><strong>'+esc(r.processing_name||r.name||'')+'</strong>'+(r.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(r.ref_number)+'</span>':'')+'</td>'+
+        '<td><strong>'+esc(r.processing_name||r.name||'')+'</strong>'+(r.ref_number?'<br><span class="item-id" data-s="s0d5be05">'+esc(r.ref_number)+'</span>':'')+'</td>'+
         '<td>'+esc(r.department||'—')+'</td>'+
-        '<td><span style="font-size:12px">'+esc(r.legal_basis||'—')+'</span></td>'+
+        '<td><span data-s="s6cb285c">'+esc(r.legal_basis||'—')+'</span></td>'+
         '<td>'+riskBadge(r.risk_level)+'</td>'+
         '<td>'+snDpiaStatusCell(r)+'</td>'+
         '<td>'+statusBadge(r.status)+'</td>'+
@@ -720,7 +720,7 @@
       if(banner&&overdue>0){
         banner.style.display='flex';
         banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+overdue+' DPIA'+(overdue>1?'s are':' is')+' past their due date.</strong>'+
-          '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" data-sn-click="snSetDpiaStatus(\'in_progress\',document.querySelector(\'#snDpiaStatusChips .filter-chip:nth-child(3)\'))">Show in-progress →</button>';
+          '<button class="btn btn-sm btn-secondary" data-s="se9d6d27" data-sn-click="snSetDpiaStatus(\'in_progress\',document.querySelector(\'#snDpiaStatusChips .filter-chip:nth-child(3)\'))">Show in-progress →</button>';
       }else if(banner){banner.style.display='none';}
       snRenderDpiaRows(dpiaStatusFilter?items.filter(function(d){return d.status===dpiaStatusFilter;}):items);
     }catch(e){body.innerHTML=emptyRow(8,'Failed to load DPIAs');}
@@ -728,15 +728,15 @@
 
   function snDpiaRowActions(d){
     var hasDoc=!!(d.ai_full_dpia||d.ai_research);
-    return '<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">'+
-      '<button class="btn btn-sm btn-secondary" data-sn-click="snEditDpia('+d.id+')" title="Edit" style="padding:4px 8px">'+
+    return '<div data-s="s0eec479" data-sd="flex">'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snEditDpia('+d.id+')" title="Edit" data-s="sf261655">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
       '</button>'+
       '<button class="btn-ai" data-sn-click="snAiResearchDpia('+d.id+',this)" title="AI: generate research report"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-microscope></use></svg></button>'+
       '<button class="btn-ai" data-sn-click="snAiGenerateDpia('+d.id+',this)" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></button>'+
       (hasDoc?'<button class="btn-ai" data-sn-click="snViewDpiaDoc('+d.id+')" title="View generated document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg></button>':'')+
-      '<a class="btn btn-sm btn-secondary" href="/sentinel/api/dpias/'+d.id+'/document" title="Download this assessment as a PDF" aria-label="Download PDF of '+esc(d.title||'this assessment')+'" style="padding:4px 8px;font-size:11px">PDF</a>'+
-      '<button class="btn btn-sm btn-secondary" data-sn-click="snDeleteRecord(\'dpia\','+d.id+')" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+      '<a class="btn btn-sm btn-secondary" href="/sentinel/api/dpias/'+d.id+'/document" title="Download this assessment as a PDF" aria-label="Download PDF of '+esc(d.title||'this assessment')+'" data-s="s16dc5a8">PDF</a>'+
+      '<button class="btn btn-sm btn-secondary" data-sn-click="snDeleteRecord(\'dpia\','+d.id+')" title="Delete" data-s="sc304996">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
       '</button>'+
     '</div>';
@@ -746,11 +746,11 @@
     var body=document.getElementById('snDpiaBody');
     if(!items.length){body.innerHTML=emptyRow(8,'No DPIAs found');return;}
     body.innerHTML=items.map(function(d){
-      var residual=d.residual_risk?riskBadge(d.residual_risk):'<span style="color:var(--muted);font-size:11px">—</span>';
-      var dpoCell=Number(d.dpo_consulted)?'<span style="color:var(--good);font-size:12px;font-weight:700">✓</span>':'<span style="color:var(--muted);font-size:11px">—</span>';
+      var residual=d.residual_risk?riskBadge(d.residual_risk):'<span data-s="s6d034cc">—</span>';
+      var dpoCell=Number(d.dpo_consulted)?'<span data-s="s280e210">✓</span>':'<span data-s="s6d034cc">—</span>';
       return '<tr>'+
-        '<td><strong>'+esc(d.title||d.name||'')+'</strong>'+(d.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(d.ref_number)+'</span>':'')+'</td>'+
-        '<td>'+(d.ropa_ref?'<span class="item-id" style="cursor:pointer" data-sn-click="sentinelRouter.navigate(\'/sentinel/ropa\')" title="'+esc(d.ropa_name||'')+'">'+esc(d.ropa_ref)+'</span>':'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'+
+        '<td><strong>'+esc(d.title||d.name||'')+'</strong>'+(d.ref_number?'<br><span class="item-id" data-s="s0d5be05">'+esc(d.ref_number)+'</span>':'')+'</td>'+
+        '<td>'+(d.ropa_ref?'<span class="item-id" data-s="s3b6a3a6" data-sn-click="sentinelRouter.navigate(\'/sentinel/ropa\')" title="'+esc(d.ropa_name||'')+'">'+esc(d.ropa_ref)+'</span>':'<span data-s="s6d034cc">—</span>')+'</td>'+
         '<td>'+riskBadge(d.overall_risk)+'</td>'+
         '<td>'+residual+'</td>'+
         '<td>'+dpoCell+'</td>'+
@@ -934,7 +934,7 @@
             '<div class="doc-viewer-title">'+esc(title)+' — '+esc(item.title||'')+'</div>'+
             '<button class="btn btn-sm btn-secondary" data-sn-click="snCopyDpiaDoc()">⧉ Copy</button>'+
             '<button class="btn btn-sm btn-secondary sn-download-dpia" data-title="'+esc(item.title||'dpia')+'">↓ Download</button>'+
-            '<button data-sn-click="document.getElementById(\'snDocViewerRoot\').innerHTML=\'\'" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 8px;line-height:1">×</button>'+
+            '<button data-sn-click="document.getElementById(\'snDocViewerRoot\').innerHTML=\'\'" data-s="scff7ad8">×</button>'+
           '</div>'+
           '<div class="doc-viewer-body" id="snDocViewerContent">'+esc(content)+'</div>'+
         '</div>'+
@@ -958,7 +958,7 @@
      ════════════════════════════════════════════════════════════════════════ */
   function snDrawerField(id,label,type,val,required,options,placeholder){
     val=val||'';placeholder=placeholder||'';
-    var h='<div class="form-group"><label for="'+id+'">'+esc(label)+(required?' <span style="color:var(--red)">*</span>':'')+'</label>';
+    var h='<div class="form-group"><label for="'+id+'">'+esc(label)+(required?' <span data-s="s45e7ae4">*</span>':'')+'</label>';
     if(type==='select'){
       h+='<select id="'+id+'"'+(required?' required':'')+'>';
       if(!required)h+='<option value="">Select...</option>';
@@ -968,13 +968,13 @@
       });
       h+='</select>';
     }else if(type==='textarea'){
-      h+='<textarea id="'+id+'" rows="3"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box;resize:vertical">'+esc(val)+'</textarea>';
+      h+='<textarea id="'+id+'" rows="3"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' data-s="sdf64c25">'+esc(val)+'</textarea>';
     }else if(type==='datalist'){
       var listId=id+'_list';
-      h+='<input type="text" id="'+id+'" list="'+listId+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">';
+      h+='<input type="text" id="'+id+'" list="'+listId+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' autocomplete="off" data-s="s0514064">';
       h+='<datalist id="'+listId+'">'+(options||[]).map(function(o){return '<option value="'+esc(o)+'">';}).join('')+'</datalist>';
     }else{
-      h+='<input type="'+type+'" id="'+id+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">';
+      h+='<input type="'+type+'" id="'+id+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' data-s="s0514064">';
     }
     return h+'</div>';
   }
@@ -1007,9 +1007,9 @@
         '<div class="ropa-drawer-title">'+(isEdit?'Edit Processing Activity':'New Processing Activity')+'</div>'+
         (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
         (isEdit?'<button class="btn-ai" data-sn-click="snAiScoreRopa('+id+',this)" title="AI score risk"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Score</button>':'')+
-        (isEdit&&!r.dpia_id?'<button class="btn-spawn" data-sn-click="snSpawnDpia('+id+')" style="margin-left:4px" title="Create linked DPIA"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> Spawn DPIA</button>':'')+
-        (isEdit&&r.dpia_id?'<span style="font-size:11px;color:var(--good);font-weight:700;margin-left:4px" data-sn-click="sentinelRouter.navigate(\'/sentinel/dpia\');document.getElementById(\'snRopaDrawerWrap\').remove()">✓ DPIA Linked →</span>':'')+
-        '<button data-sn-click="document.getElementById(\'snRopaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
+        (isEdit&&!r.dpia_id?'<button class="btn-spawn" data-sn-click="snSpawnDpia('+id+')" data-s="s46cec89" title="Create linked DPIA"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-rocket></use></svg> Spawn DPIA</button>':'')+
+        (isEdit&&r.dpia_id?'<span data-s="s430944c" data-sn-click="sentinelRouter.navigate(\'/sentinel/dpia\');document.getElementById(\'snRopaDrawerWrap\').remove()">✓ DPIA Linked →</span>':'')+
+        '<button data-sn-click="document.getElementById(\'snRopaDrawerWrap\').remove()" data-s="s2028975">×</button>'+
       '</div>'+
       '<div class="ropa-drawer-tabs">'+
         '<span class="ropa-drawer-tab active" data-tab="basic" data-sn-click="snRopaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Basic Info</span>'+
@@ -1024,14 +1024,14 @@
           snDrawerField('rd_name','Activity Name','datalist',f('processing_name'),true,_snRopaFieldOptions('processing_name',SN_ACTIVITY_TYPES),'e.g. Customer marketing analytics')+
           '<div class="form-row">'+snDrawerField('rd_dept','Department','datalist',f('department'),false,_snRopaFieldOptions('department',SN_DEPARTMENTS),'e.g. Marketing, HR, Finance')+snDrawerField('rd_owner','Owner / Responsible','text',f('owner'),false,null,'Name or team')+'</div>'+
           snDrawerField('rd_purpose','Purpose of Processing','textarea',f('purpose'),false,null,'Why is this data being processed?')+
-          '<div class="form-group"><label for="rd_legal_basis" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Legal Basis'+
-          ' <button type="button" class="btn-ai" style="font-size:10px;padding:2px 7px;margin-left:6px" data-sn-click="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggest</button></label>'+
-          '<select id="rd_legal_basis" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box"><option value="">Select...</option>'+
+          '<div class="form-group"><label for="rd_legal_basis" data-s="sea37aa4" data-sd="block">Legal Basis'+
+          ' <button type="button" class="btn-ai" data-s="sea86a52" data-sn-click="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggest</button></label>'+
+          '<select id="rd_legal_basis" data-s="s0514064"><option value="">Select...</option>'+
           (SN_LEGAL_BASES[initialReg]||[]).map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+
-          '</select><div id="snLegalBasisSuggestion" style="display:none;margin-top:8px"></div></div>'+
+          '</select><div id="snLegalBasisSuggestion" data-s="s8a77e5a" data-sd="none"></div></div>'+
           '<div class="form-row">'+snDrawerField('rd_status','Status','select',f('status','active'),false,['active','draft','archived'])+
-          '<div class="form-group"><label for="rd_regulation" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Jurisdiction</label>'+
-          '<select id="rd_regulation" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">'+
+          '<div class="form-group"><label for="rd_regulation" data-s="sea37aa4" data-sd="block">Jurisdiction</label>'+
+          '<select id="rd_regulation" data-s="s0514064">'+
           '<option value="">Select...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(initialReg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+
           '</select></div>'+
           '</div>'+
@@ -1040,13 +1040,13 @@
 
         // Tab: Data
         '<div class="ropa-drawer-section" id="snRopaTab_data">'+
-          '<div class="form-group"><label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Data Categories <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— select all that apply</span></label>'+
+          '<div class="form-group"><label data-s="sea37aa4" data-sd="block">Data Categories <span data-s="s4cfed72">— select all that apply</span></label>'+
           '<div id="snRopaDC"></div>'+
-          '<input type="text" id="rd_data_cats" value="'+esc(f('data_categories',''))+'" placeholder="Additional custom categories..." style="width:100%;margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">'+
+          '<input type="text" id="rd_data_cats" value="'+esc(f('data_categories',''))+'" placeholder="Additional custom categories..." data-s="sd2ddbca">'+
           '</div>'+
-          '<div class="form-group" style="margin-top:8px"><label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Special Categories <span style="color:var(--red);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— Art. 9 sensitive data</span></label>'+
+          '<div class="form-group" data-s="s8a77e5a"><label data-s="sea37aa4" data-sd="block">Special Categories <span data-s="se20cdf1">— Art. 9 sensitive data</span></label>'+
           '<div id="snRopaSC"></div>'+
-          '<input type="text" id="rd_special_cats" value="'+esc(f('special_categories',''))+'" placeholder="Additional custom special categories..." style="width:100%;margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;box-sizing:border-box">'+
+          '<input type="text" id="rd_special_cats" value="'+esc(f('special_categories',''))+'" placeholder="Additional custom special categories..." data-s="sd2ddbca">'+
           '</div>'+
           '<div class="form-row">'+snDrawerField('rd_subjects','Data Subjects','text',f('data_subjects'),false,null,'e.g. Customers, Employees, Website visitors')+snDrawerField('rd_subject_count','Approx. Subject Count','text',f('subject_count'),false,null,'e.g. ~5,000')+'</div>'+
           snDrawerField('rd_recipients','Recipients / Disclosures','text',f('recipients'),false,null,'Who receives this data outside your org?')+
@@ -1060,18 +1060,18 @@
           '<div class="form-row">'+snDrawerField('rd_intl','International Transfers','text',f('intl_transfers'),false,null,'Yes / No / Countries')+snDrawerField('rd_transfer_dest','Transfer Destination','text',f('transfer_dest'),false,null,'e.g. USA (AWS), India (Support team)')+'</div>'+
           snDrawerField('rd_transfer_safeguard','Transfer Safeguard','select',f('transfer_safeguard'),false,['','Adequacy Decision','SCCs','BCRs','Consent','Derogation'])+
           // ARIA cross-module suggestions
-          '<div id="snAriaCtrlPanel" class="aria-suggestions" style="display:none">'+
+          '<div id="snAriaCtrlPanel" class="aria-suggestions" data-sd="none">'+
             '<div class="aria-suggestions-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Relevant ARIA Controls — click to add to Security Measures</div>'+
-            '<div id="snAriaCtrlList" style="line-height:2"></div>'+
+            '<div id="snAriaCtrlList" data-s="s69dc3cc"></div>'+
           '</div>'+
         '</div>'+
 
         // Tab: Risk & Compliance
         '<div class="ropa-drawer-section" id="snRopaTab_risk">'+
           '<div class="form-row">'+snDrawerField('rd_risk','Risk Level','select',f('risk_level'),false,['low','medium','high','critical'])+snDrawerField('rd_review_date','Next Review Date','date',f('review_date'))+'</div>'+
-          '<label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:14px">'+
-            '<input type="checkbox" id="rd_dpia_req"'+(f('dpia_required')?' checked':'')+' style="width:16px;height:16px">'+
-            '<strong>DPIA Required</strong> <span style="color:var(--muted);font-size:12px">(mark if Article 35 applies)</span>'+
+          '<label data-s="sa67c210" data-sd="flex">'+
+            '<input type="checkbox" id="rd_dpia_req"'+(f('dpia_required')?' checked':'')+' data-s="sa1c8eab">'+
+            '<strong>DPIA Required</strong> <span data-s="sbf8965d">(mark if Article 35 applies)</span>'+
           '</label>'+
           snDrawerField('rd_security','Security Measures Applied','textarea',f('security_measures'),false,null,'Technical and organisational measures protecting this processing activity')+
           '<div id="snRopaProfileFields"></div>'+
@@ -1231,7 +1231,7 @@
         panel.style.display='block';
         list.innerHTML=relevant.map(function(c){
           return '<button type="button" class="aria-ctrl-chip sn-add-aria-control" title="'+esc((c.description||c.name||'').substring(0,120))+'" data-control="'+esc((c.ref||'')+': '+(c.name||''))+'">'+
-            (c.ref?'<span style="font-family:var(--mono);font-size:10px;color:var(--accent)">'+esc(c.ref)+'</span> ':'')+
+            (c.ref?'<span data-s="s45cb40a">'+esc(c.ref)+'</span> ':'')+
             esc((c.name||'').substring(0,40))+
           '</button>';
         }).join('');
@@ -1326,11 +1326,11 @@
       }});
       _snLegalBasisSuggestion=r.legal_basis;
       box.style.display='block';
-      box.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:12px">'+
-        '<div style="font-weight:700;margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI suggests: '+esc(r.legal_basis)+'</div>'+
-        '<div style="color:var(--muted);margin-bottom:8px">'+esc(r.rationale||'')+'</div>'+
-        '<button type="button" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 9px" data-sn-click="snApplyLegalBasis()">Apply</button> '+
-        '<button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:3px 9px" data-sn-click="document.getElementById(\'snLegalBasisSuggestion\').style.display=\'none\'">Dismiss</button>'+
+      box.innerHTML='<div data-s="se4b14c0">'+
+        '<div data-s="s11acaea"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI suggests: '+esc(r.legal_basis)+'</div>'+
+        '<div data-s="s26980f3">'+esc(r.rationale||'')+'</div>'+
+        '<button type="button" class="btn btn-sm btn-primary" data-s="sc14c314" data-sn-click="snApplyLegalBasis()">Apply</button> '+
+        '<button type="button" class="btn btn-sm btn-secondary" data-s="sc14c314" data-sn-click="document.getElementById(\'snLegalBasisSuggestion\').style.display=\'none\'">Dismiss</button>'+
         '</div>';
     }catch(e){
       if(typeof showToast==='function')showToast('Legal basis suggestion failed','error');
@@ -1352,7 +1352,7 @@
       info.classList.add('visible');
       return;
     }
-    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Indicative breach target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong> &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+
+    info.innerHTML='<strong data-s="sa805525">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Indicative breach target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong> &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+
       ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
     info.classList.add('visible');
   };
@@ -1374,7 +1374,7 @@
     if(isEdit&&reg==='Canada Bill C-11')regs.push(reg); // Preserve historical records for reclassification.
     var fs='width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box';
     var fsta=fs+';resize:vertical';
-    var lbl=function(t){return '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">'+t+'</label>';};
+    var lbl=function(t){return '<label data-s="sea37aa4" data-sd="block">'+t+'</label>';};
     var fg=function(l,inner){return '<div class="form-group">'+lbl(l)+inner+'</div>';};
     var lbOpts=SN_LEGAL_BASES[reg]||SN_LEGAL_BASES['GDPR'];
     var html=
@@ -1384,8 +1384,8 @@
         '<div class="ropa-drawer-title">'+(isEdit?'Edit DPIA':'New DPIA Assessment')+'</div>'+
         (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
         (isEdit?'<button class="btn-ai" data-sn-click="snAiResearchDpia('+id+',this)" title="AI: generate research report"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-microscope></use></svg> Research</button>':'')+
-        (isEdit?'<button class="btn-ai" data-sn-click="snAiGenerateDpia('+id+',this)" style="margin-left:4px" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate</button>':'')+
-        '<button data-sn-click="document.getElementById(\'snDpiaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
+        (isEdit?'<button class="btn-ai" data-sn-click="snAiGenerateDpia('+id+',this)" data-s="s46cec89" title="AI: generate full DPIA document"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate</button>':'')+
+        '<button data-sn-click="document.getElementById(\'snDpiaDrawerWrap\').remove()" data-s="s2028975">×</button>'+
       '</div>'+
       '<div class="ropa-drawer-tabs">'+
         '<span class="ropa-drawer-tab active" data-tab="basics" data-sn-click="snDpiaDrawerTab(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> Basics</span>'+
@@ -1396,91 +1396,91 @@
       '<div class="ropa-drawer-body">'+
 
         (isEdit&&r.ropa_ref&&r.ropa_updated_at&&r.ropa_updated_at>r.updated_at?
-          '<div id="snDpiaDriftBanner" style="margin:0 0 12px;padding:10px 14px;background:rgba(255,165,0,.12);border:1px solid rgba(255,165,0,.4);border-radius:var(--radius);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+          '<div id="snDpiaDriftBanner" data-s="s41cb23d" data-sd="flex">'+
             '<span>The linked RoPA changed after this DPIA was last edited. Review for drift.</span>'+
             '<button type="button" class="btn btn-sm btn-secondary" data-sn-click="snDpiaRefillFromRopa('+id+','+r.ropa_id+')">Refill empty fields</button>'+
           '</div>'
         :'')+
 
         '<div class="ropa-drawer-section active" id="snDpiaTab_basics">'+
-          fg('DPIA Title <span style="color:var(--red)">*</span>','<input type="text" id="dd_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer profiling: AI risk scoring" style="'+fs+'">')+
-          fg('Processing Activity Type','<select id="dd_activity_type" style="'+fs+'"><option value="">Select activity type...</option>'+SN_ACTIVITY_TYPES.map(function(a){return '<option value="'+esc(a)+'"'+(f('activity_type')===a?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select>')+
+          fg('DPIA Title <span data-s="s45e7ae4">*</span>','<input type="text" id="dd_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer profiling: AI risk scoring" data-sv="'+fs+'">')+
+          fg('Processing Activity Type','<select id="dd_activity_type" data-sv="'+fs+'"><option value="">Select activity type...</option>'+SN_ACTIVITY_TYPES.map(function(a){return '<option value="'+esc(a)+'"'+(f('activity_type')===a?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select>')+
           '<div class="form-row">'+
-            fg('Jurisdiction','<select id="dd_regulation" data-sn-change="snDpiaUpdateJurisHint(this.value)" style="'+fs+'"><option value="">Select jurisdiction...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(reg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+'</select>')+
-            fg('Status','<select id="dd_status" style="'+fs+'">'+['draft','in_progress','completed','approved'].map(function(s){return '<option value="'+s+'"'+(f('status','draft')===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select>')+
+            fg('Jurisdiction','<select id="dd_regulation" data-sn-change="snDpiaUpdateJurisHint(this.value)" data-sv="'+fs+'"><option value="">Select jurisdiction...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(reg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+'</select>')+
+            fg('Status','<select id="dd_status" data-sv="'+fs+'">'+['draft','in_progress','completed','approved'].map(function(s){return '<option value="'+s+'"'+(f('status','draft')===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select>')+
           '</div>'+
-          '<div class="juris-info-banner" id="ddJurisHint" style="margin-bottom:12px"></div>'+
-          fg('Legal Basis','<select id="dd_legal_basis" style="'+fs+'"><option value="">Select...</option>'+lbOpts.map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>')+
+          '<div class="juris-info-banner" id="ddJurisHint" data-s="sda12f28"></div>'+
+          fg('Legal Basis','<select id="dd_legal_basis" data-sv="'+fs+'"><option value="">Select...</option>'+lbOpts.map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>')+
           '<div class="form-row">'+
-            fg('Assessor / Owner','<input type="text" id="dd_owner" value="'+esc(f('owner'))+'" placeholder="Name or team" style="'+fs+'">')+
-            fg('Due Date','<input type="date" id="dd_due_date" value="'+esc(f('due_date'))+'" style="'+fs+'">')+
+            fg('Assessor / Owner','<input type="text" id="dd_owner" value="'+esc(f('owner'))+'" placeholder="Name or team" data-sv="'+fs+'">')+
+            fg('Due Date','<input type="date" id="dd_due_date" value="'+esc(f('due_date'))+'" data-sv="'+fs+'">')+
           '</div>'+
-          fg('Description','<textarea id="dd_description" rows="3" placeholder="Overview of this processing and why a DPIA is needed" style="'+fsta+'">'+esc(f('description'))+'</textarea>')+
-          fg('Processing operations','<textarea id="dd_activity_desc" rows="3" placeholder="Describe collection, analysis, disclosure and deletion" style="'+fsta+'">'+esc(f('activity_desc')||f('description'))+'</textarea>')+
-          fg('Linked RoPA'+(isEdit?'':' <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>'),
-            '<select id="dd_ropa_link" style="'+fs+'"'+(isEdit?' data-sn-change="snDpiaLinkRopa('+id+',this.value)"':'')+'>'+
+          fg('Description','<textarea id="dd_description" rows="3" placeholder="Overview of this processing and why a DPIA is needed" data-sv="'+fsta+'">'+esc(f('description'))+'</textarea>')+
+          fg('Processing operations','<textarea id="dd_activity_desc" rows="3" placeholder="Describe collection, analysis, disclosure and deletion" data-sv="'+fsta+'">'+esc(f('activity_desc')||f('description'))+'</textarea>')+
+          fg('Linked RoPA'+(isEdit?'':' <span data-s="s4cfed72">(optional)</span>'),
+            '<select id="dd_ropa_link" data-sv="'+fs+'"'+(isEdit?' data-sn-change="snDpiaLinkRopa('+id+',this.value)"':'')+'>'+
               '<option value="">— None —</option>'+
               (ropaCache||[]).filter(function(rpa){return !rpa.dpia_id||rpa.dpia_id===id;}).map(function(rpa){
                 return '<option value="'+rpa.id+'"'+(f('ropa_id')&&parseInt(f('ropa_id'))===rpa.id?' selected':'')+'>'+esc(rpa.ref_number||'')+' '+esc(rpa.processing_name||'')+'</option>';
               }).join('')+
             '</select>'+
-            (r&&r.ropa_ref?'<span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">Currently linked: <strong>'+esc(r.ropa_ref)+'</strong>, '+esc(r.ropa_name||'')+'</span>':'')
+            (r&&r.ropa_ref?'<span data-s="sbc021dc" data-sd="block">Currently linked: <strong>'+esc(r.ropa_ref)+'</strong>, '+esc(r.ropa_name||'')+'</span>':'')
           )+
         '</div>'+
 
         '<div class="ropa-drawer-section" id="snDpiaTab_data">'+
-          '<div class="form-group">'+lbl('Data Categories <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— select all that apply</span>')+
+          '<div class="form-group">'+lbl('Data Categories <span data-s="s4cfed72">— select all that apply</span>')+
             '<div id="snDpiaDC"></div>'+
           '</div>'+
-          '<div class="form-group" style="margin-top:8px">'+lbl('Special Categories <span style="color:var(--red);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— Art. 9 sensitive data</span>')+
+          '<div class="form-group" data-s="s8a77e5a">'+lbl('Special Categories <span data-s="se20cdf1">— Art. 9 sensitive data</span>')+
             '<div id="snDpiaSC"></div>'+
           '</div>'+
-          '<div class="form-group" style="margin-top:8px">'+lbl('Data Subjects <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">— click to add or type below</span>')+
-            '<div id="snDpiaDSub" class="chip-picker-wrap" style="margin-bottom:6px"></div>'+
-            '<input type="text" id="dd_data_subjects" value="'+esc(f('data_subjects'))+'" placeholder="Custom or edit above..." style="'+fs+'">'+
+          '<div class="form-group" data-s="s8a77e5a">'+lbl('Data Subjects <span data-s="s4cfed72">— click to add or type below</span>')+
+            '<div id="snDpiaDSub" class="chip-picker-wrap" data-s="s4e420af"></div>'+
+            '<input type="text" id="dd_data_subjects" value="'+esc(f('data_subjects'))+'" placeholder="Custom or edit above..." data-sv="'+fs+'">'+
           '</div>'+
           '<div class="form-row">'+
-            fg('Approx. Subject Count','<input type="text" id="dd_subject_count" value="'+esc(f('subject_count'))+'" placeholder="e.g. ~5,000" style="'+fs+'">')+
-            fg('Retention Period','<input type="text" id="dd_retention" value="'+esc(f('retention'))+'" placeholder="e.g. 7 years" style="'+fs+'">')+
+            fg('Approx. Subject Count','<input type="text" id="dd_subject_count" value="'+esc(f('subject_count'))+'" placeholder="e.g. ~5,000" data-sv="'+fs+'">')+
+            fg('Retention Period','<input type="text" id="dd_retention" value="'+esc(f('retention'))+'" placeholder="e.g. 7 years" data-sv="'+fs+'">')+
           '</div>'+
-          fg('IT Systems','<textarea id="dd_systems" rows="2" placeholder="Applications, databases, cloud services involved" style="'+fsta+'">'+esc(f('systems'))+'</textarea>')+
-          fg('Third-Party Processors','<textarea id="dd_processors" rows="2" placeholder="Name each processor and their role" style="'+fsta+'">'+esc(f('processors'))+'</textarea>')+
+          fg('IT Systems','<textarea id="dd_systems" rows="2" placeholder="Applications, databases, cloud services involved" data-sv="'+fsta+'">'+esc(f('systems'))+'</textarea>')+
+          fg('Third-Party Processors','<textarea id="dd_processors" rows="2" placeholder="Name each processor and their role" data-sv="'+fsta+'">'+esc(f('processors'))+'</textarea>')+
           '<div class="form-row">'+
-            fg('International Transfer','<select id="dd_intl_transfer" style="'+fs+'"><option value="">—</option>'+['Yes','No','Planned'].map(function(o){return '<option value="'+o+'"'+(f('intl_transfer')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
-            fg('Transfer Mechanism','<select id="dd_transfer_mech" style="'+fs+'"><option value="">—</option>'+['Adequacy Decision','SCCs','BCRs','Consent','Derogation','None'].map(function(o){return '<option value="'+o+'"'+(f('transfer_mech')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
+            fg('International Transfer','<select id="dd_intl_transfer" data-sv="'+fs+'"><option value="">—</option>'+['Yes','No','Planned'].map(function(o){return '<option value="'+o+'"'+(f('intl_transfer')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
+            fg('Transfer Mechanism','<select id="dd_transfer_mech" data-sv="'+fs+'"><option value="">—</option>'+['Adequacy Decision','SCCs','BCRs','Consent','Derogation','None'].map(function(o){return '<option value="'+o+'"'+(f('transfer_mech')===o?' selected':'')+'>'+o+'</option>';}).join('')+'</select>')+
           '</div>'+
-          fg('Transfer destination','<input type="text" id="dd_transfer_dest" value="'+esc(f('transfer_dest'))+'" placeholder="Country or international organisation" style="'+fs+'">')+
+          fg('Transfer destination','<input type="text" id="dd_transfer_dest" value="'+esc(f('transfer_dest'))+'" placeholder="Country or international organisation" data-sv="'+fs+'">')+
         '</div>'+
 
         '<div class="ropa-drawer-section" id="snDpiaTab_risks">'+
-          fg('Purpose of Processing','<textarea id="dd_purpose" rows="3" placeholder="Why is this data processed? Is it necessary and proportionate?" style="'+fsta+'">'+esc(f('purpose'))+'</textarea>')+
-          fg('Necessity','<textarea id="dd_necessity" rows="3" placeholder="Why is the processing needed for this purpose?" style="'+fsta+'">'+esc(f('necessity'))+'</textarea>')+
-          fg('Proportionality','<textarea id="dd_proportionality" rows="3" placeholder="Why is the extent of processing justified? Consider less intrusive options." style="'+fsta+'">'+esc(f('proportionality'))+'</textarea>')+
+          fg('Purpose of Processing','<textarea id="dd_purpose" rows="3" placeholder="Why is this data processed? Is it necessary and proportionate?" data-sv="'+fsta+'">'+esc(f('purpose'))+'</textarea>')+
+          fg('Necessity','<textarea id="dd_necessity" rows="3" placeholder="Why is the processing needed for this purpose?" data-sv="'+fsta+'">'+esc(f('necessity'))+'</textarea>')+
+          fg('Proportionality','<textarea id="dd_proportionality" rows="3" placeholder="Why is the extent of processing justified? Consider less intrusive options." data-sv="'+fsta+'">'+esc(f('proportionality'))+'</textarea>')+
           '<div class="form-group">'+
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
-              '<label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0">Identified Risks</label>'+
+            '<div data-s="sfbb16f3" data-sd="flex">'+
+              '<label data-s="s2ac351a">Identified Risks</label>'+
               '<button type="button" class="btn-ai" id="snDpiaSuggestRisksBtn" data-sn-click="snAiSuggestRisks()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg> Suggest Risks with AI</button>'+
             '</div>'+
-            '<div id="snDpiaRiskSuggestions" style="display:none;margin-bottom:10px"></div>'+
-            '<textarea id="dd_risks" rows="6" placeholder="Describe each risk, e.g. \'Unauthorised access (Likelihood: Medium, Impact: High)\'" style="'+fsta+'">'+esc(Array.isArray(f('risks'))?f('risks').join('\n'):f('risks'))+'</textarea>'+
+            '<div id="snDpiaRiskSuggestions" data-s="s761d3ad" data-sd="none"></div>'+
+            '<textarea id="dd_risks" rows="6" placeholder="Describe each risk, e.g. \'Unauthorised access (Likelihood: Medium, Impact: High)\'" data-sv="'+fsta+'">'+esc(Array.isArray(f('risks'))?f('risks').join('\n'):f('risks'))+'</textarea>'+
           '</div>'+
         '</div>'+
 
         '<div class="ropa-drawer-section" id="snDpiaTab_review">'+
-          fg('Mitigations & Controls','<textarea id="dd_mitigations" rows="4" placeholder="Technical and organisational measures to address identified risks" style="'+fsta+'">'+esc(f('mitigations'))+'</textarea>')+
-          (isEdit?'<div id="snDpiaControlSuggestions" data-dpia-id="'+id+'" aria-live="polite" style="margin-bottom:18px">Loading related controls...</div>':'')+
+          fg('Mitigations & Controls','<textarea id="dd_mitigations" rows="4" placeholder="Technical and organisational measures to address identified risks" data-sv="'+fsta+'">'+esc(f('mitigations'))+'</textarea>')+
+          (isEdit?'<div id="snDpiaControlSuggestions" data-dpia-id="'+id+'" aria-live="polite" data-s="s905d8b3">Loading related controls...</div>':'')+
           '<div class="form-row">'+
-            fg('Overall Risk Level','<select id="dd_overall_risk" style="'+fs+'"><option value="">Select...</option>'+['low','medium','high'].map(function(o){return '<option value="'+o+'"'+(f('overall_risk')===o?' selected':'')+'>'+o.charAt(0).toUpperCase()+o.slice(1)+'</option>';}).join('')+'</select>')+
-            fg('Residual Risk (post-mitigation)','<select id="dd_residual_risk" style="'+fs+'"><option value="">Select...</option>'+['low','medium','high'].map(function(o){return '<option value="'+o+'"'+(f('residual_risk')===o?' selected':'')+'>'+o.charAt(0).toUpperCase()+o.slice(1)+'</option>';}).join('')+'</select>')+
+            fg('Overall Risk Level','<select id="dd_overall_risk" data-sv="'+fs+'"><option value="">Select...</option>'+['low','medium','high'].map(function(o){return '<option value="'+o+'"'+(f('overall_risk')===o?' selected':'')+'>'+o.charAt(0).toUpperCase()+o.slice(1)+'</option>';}).join('')+'</select>')+
+            fg('Residual Risk (post-mitigation)','<select id="dd_residual_risk" data-sv="'+fs+'"><option value="">Select...</option>'+['low','medium','high'].map(function(o){return '<option value="'+o+'"'+(f('residual_risk')===o?' selected':'')+'>'+o.charAt(0).toUpperCase()+o.slice(1)+'</option>';}).join('')+'</select>')+
           '</div>'+
-          '<label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;cursor:pointer;font-size:14px">'+
-            '<input type="checkbox" id="dd_dpo_consulted"'+(f('dpo_consulted')?' checked':'')+' style="width:16px;height:16px">'+
+          '<label data-s="sa67c210" data-sd="flex">'+
+            '<input type="checkbox" id="dd_dpo_consulted"'+(f('dpo_consulted')?' checked':'')+' data-s="sa1c8eab">'+
             '<strong>DPO Consulted</strong>'+
           '</label>'+
-          fg('Consultation Notes','<textarea id="dd_consult_notes" rows="3" placeholder="Notes from DPO or supervisory authority consultation" style="'+fsta+'">'+esc(f('consult_notes'))+'</textarea>')+
+          fg('Consultation Notes','<textarea id="dd_consult_notes" rows="3" placeholder="Notes from DPO or supervisory authority consultation" data-sv="'+fsta+'">'+esc(f('consult_notes'))+'</textarea>')+
           '<div id="snDpiaProfileFields"></div>'+
-          (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Document available</div><button class="btn-ai" data-sn-click="snViewDpiaDoc('+id+')" style="margin-top:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> View Document</button></div>':'')+
-          (isEdit?fg('Documents in the Evidence Vault','<div id="snDpiaDocs" style="font-size:13px;color:var(--muted)">Loading...</div>'):'')+
+          (isEdit&&(r.ai_full_dpia||r.ai_research)?'<div class="ai-risk-panel"><div class="ai-risk-panel-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Document available</div><button class="btn-ai" data-sn-click="snViewDpiaDoc('+id+')" data-s="s96ad609"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> View Document</button></div>':'')+
+          (isEdit?fg('Documents in the Evidence Vault','<div id="snDpiaDocs" data-s="s17d902b">Loading...</div>'):'')+
         '</div>'+
       '</div>'+
       '<div class="ropa-drawer-footer">'+
@@ -1527,15 +1527,15 @@
     var box=document.getElementById('snDpiaDocs');
     if(!box)return;
     var local=function(u){return typeof u==='string'&&u.charAt(0)==='/'&&u.charAt(1)!=='/'?u:'#';};
-    var hint='<div style="margin-top:8px;font-size:12px">To add a document, link it to this DPIA in the <a href="/evidence/">Evidence Vault</a>.</div>'+
-      '<div style="margin-top:4px;font-size:12px"><a href="/governance/connected/sentinel/dpia/'+id+'">Open the connected view</a> to see every record and document connected to it.</div>';
+    var hint='<div data-s="sc5b0b89">To add a document, link it to this DPIA in the <a href="/evidence/">Evidence Vault</a>.</div>'+
+      '<div data-s="sc884939"><a href="/governance/connected/sentinel/dpia/'+id+'">Open the connected view</a> to see every record and document connected to it.</div>';
     try{
       var data=await apiFetch('/governance/api/connected/sentinel/dpia/'+id);
       var items=(data.proof&&data.proof.items)||[];
       box.innerHTML=(items.length?items.map(function(d){
-        return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--border)">'+
-          '<a href="'+esc(local(d.url))+'" style="font-weight:600">'+esc(d.title)+'</a>'+
-          '<span style="font-size:11px">'+esc(d.state)+(d.expiry_date?', expires '+esc(fmtDate(d.expiry_date)):'')+'</span></div>';
+        return '<div data-s="s4d359a7" data-sd="flex">'+
+          '<a href="'+esc(local(d.url))+'" data-s="seed0f8f">'+esc(d.title)+'</a>'+
+          '<span data-s="s11a5081">'+esc(d.state)+(d.expiry_date?', expires '+esc(fmtDate(d.expiry_date)):'')+'</span></div>';
       }).join(''):'<div>No document is linked to this DPIA yet.</div>')+hint;
     }catch(e){box.innerHTML='<div>The linked documents could not be read just now.</div>'+hint;}
   };
@@ -1621,30 +1621,30 @@
       var r=await apiFetch('/sentinel/api/ai/risks',{method:'POST',body:{activity:actType||'Data processing',regulation:reg,categories:cats}});
       var risks=Array.isArray(r)?r:(r.risks||[]);
       trace.destroy();
-      if(!risks.length){panel.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">No suggestions returned.</div>';btn.innerHTML=orig;btn.disabled=false;return;}
+      if(!risks.length){panel.innerHTML='<div data-s="s35dd0a1">No suggestions returned.</div>';btn.innerHTML=orig;btn.disabled=false;return;}
       var colMap={'High':'rgba(220,38,38,.06)','Medium':'rgba(245,158,11,.06)','Low':'rgba(16,185,129,.06)'};
       var borMap={'High':'rgba(220,38,38,.2)','Medium':'rgba(245,158,11,.2)','Low':'rgba(16,185,129,.2)'};
-      panel.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Click a risk card to add it to your assessment</div>'+
+      panel.innerHTML='<div data-s="s0fb9ead">Click a risk card to add it to your assessment</div>'+
         risks.map(function(rk,i){
           var bg=colMap[rk.likelihood]||colMap[rk.impact]||colMap['Low'];
           var bo=borMap[rk.likelihood]||borMap[rk.impact]||borMap['Low'];
-          return '<div class="dpia-risk-card" id="dpiaRisk'+i+'" data-sn-click="snAcceptRisk('+i+')" style="background:'+bg+';border:1px solid '+bo+';border-radius:var(--radius);padding:10px 12px;margin-bottom:6px">'+
-            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
-              '<strong style="font-size:13px">'+esc(rk.desc)+'</strong>'+
-              '<div style="display:flex;gap:4px;flex-shrink:0">'+
-                '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px;background:var(--surface2);color:var(--muted)">L: '+esc(rk.likelihood)+'</span>'+
-                '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px;background:var(--surface2);color:var(--muted)">I: '+esc(rk.impact)+'</span>'+
+          return '<div class="dpia-risk-card" id="dpiaRisk'+i+'" data-sn-click="snAcceptRisk('+i+')" data-sv="background:'+bg+';border:1px solid '+bo+';border-radius:var(--radius);padding:10px 12px;margin-bottom:6px">'+
+            '<div data-s="sbdfae87" data-sd="flex">'+
+              '<strong data-s="s5e0faad">'+esc(rk.desc)+'</strong>'+
+              '<div data-s="sa6813c7" data-sd="flex">'+
+                '<span data-s="scab49ff">L: '+esc(rk.likelihood)+'</span>'+
+                '<span data-s="scab49ff">I: '+esc(rk.impact)+'</span>'+
               '</div>'+
             '</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:4px">Mitigation: '+esc(rk.mitigation)+'</div>'+
-            '<div style="font-size:10px;color:var(--accent);margin-top:4px;font-weight:600">↵ Click to add to assessment</div>'+
+            '<div data-s="sbc021dc">Mitigation: '+esc(rk.mitigation)+'</div>'+
+            '<div data-s="se6c8c0f">↵ Click to add to assessment</div>'+
           '</div>';
         }).join('');
       window._dpiaSuggestedRisks=risks;
       btn.innerHTML=orig;btn.disabled=false;
     }catch(e){
       trace.destroy();
-      panel.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px">AI suggestion failed: '+esc(e.message||'')+'</div>';
+      panel.innerHTML='<div data-s="sc85f0e9">AI suggestion failed: '+esc(e.message||'')+'</div>';
       btn.innerHTML=orig;btn.disabled=false;
     }
   };
@@ -1724,20 +1724,20 @@
 
   function _snModulesBadge(v){
     var cid=v.canonical_id;
-    if(!cid) return '<span style="font-size:10px;color:var(--muted)">—</span>';
+    if(!cid) return '<span data-s="sb569cab">—</span>';
     var xm=_snVendorXm[cid];
-    if(!xm) return '<span style="font-size:10px;color:var(--muted)">…</span>';
+    if(!xm) return '<span data-s="sb569cab">…</span>';
     var mods=xm.modules||{};
     var flags=xm.flags||[];
     var parts=[];
-    if(mods.grid) parts.push('<span title="Registered in Audit" style="padding:1px 5px;border-radius:4px;background:rgba(14,165,233,.12);color:#0ea5e9;font-size:10px;font-weight:700">Audit</span>');
+    if(mods.grid) parts.push('<span title="Registered in Audit" data-s="s815b39f">Audit</span>');
     if(mods.bcm){
       var tier=mods.bcm.tier||3;
       var tierCol=tier===1?'#dc2626':tier===2?'#f97316':'#16a34a';
-      parts.push('<span title="Registered in Resilience — Tier '+tier+'" style="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.12);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
+      parts.push('<span title="Registered in Resilience — Tier '+tier+'" data-sv="padding:1px 5px;border-radius:4px;background:rgba(34,197,94,.12);color:'+tierCol+';font-size:10px;font-weight:700">T'+tier+'</span>');
     }
-    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" style="padding:1px 5px;border-radius:4px;background:rgba(220,38,38,.1);color:#dc2626;font-size:10px;font-weight:700;cursor:help"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
-    return parts.length?parts.join(' '):'<span style="font-size:10px;color:var(--muted)">Privacy only</span>';
+    if(flags.length) parts.push('<span title="'+esc(flags[0].msg)+'" data-s="sab14c78"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>');
+    return parts.length?parts.join(' '):'<span data-s="sb569cab">Privacy only</span>';
   }
 
   window.snLoadVendors=async function(){
@@ -1764,15 +1764,15 @@
       var banner=document.getElementById('snVendorAlertBanner');
       if(criticalGaps.length&&banner){
         banner.style.display='block';
-        banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);border-radius:8px;font-size:12px;font-weight:600;color:#dc2626">'+
-          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+criticalGaps.length+' vendor'+(criticalGaps.length>1?'s':'')+' with critical risk flags — check cross-module coverage in <a href="/vendors" style="color:#dc2626;text-decoration:underline">Vendor Directory</a></span></div>';
+        banner.innerHTML='<div data-s="s16b6298" data-sd="flex">'+
+          '<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span><span>'+criticalGaps.length+' vendor'+(criticalGaps.length>1?'s':'')+' with critical risk flags — check cross-module coverage in <a href="/vendors" data-s="sabeb0d1">Vendor Directory</a></span></div>';
       }
 
       body.innerHTML=items.map(function(v){
         return '<tr>'+
-          '<td><strong>'+esc(v.name||'')+'</strong>'+(v.type?'<div style="font-size:10px;color:var(--muted);text-transform:capitalize">'+esc(v.type)+'</div>':'')+'</td>'+
+          '<td><strong>'+esc(v.name||'')+'</strong>'+(v.type?'<div data-s="s129ebe2">'+esc(v.type)+'</div>':'')+'</td>'+
           '<td>'+esc(v.services||'—')+'</td>'+
-          '<td>'+statusBadge(v.dpa_status||'pending')+(v.dpa_expiry?'<div style="font-size:10px;color:var(--muted)">Exp: '+esc(v.dpa_expiry)+'</div>':'')+'</td>'+
+          '<td>'+statusBadge(v.dpa_status||'pending')+(v.dpa_expiry?'<div data-s="sb569cab">Exp: '+esc(v.dpa_expiry)+'</div>':'')+'</td>'+
           '<td>'+riskBadge(v.risk_level||'medium')+'</td>'+
           '<td>'+_snModulesBadge(v)+'</td>'+
           '<td>'+fmtDate(v.review_date||v.dpa_expiry)+'</td>'+
@@ -1792,38 +1792,38 @@
         var xm=await apiFetch('/sentinel/api/vendors/'+id+'/cross-module');
         var mods=xm.modules||{};
         var flags=xm.flags||[];
-        var panelHtml='<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px">'+
-          '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)">Cross-Module Coverage</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">';
+        var panelHtml='<div data-s="s95a9a9f">'+
+          '<div data-s="sab1cfbf">Cross-Module Coverage</div>'+
+          '<div data-s="s79a8073" data-sd="grid">';
         // Audit badge
-        panelHtml+='<div style="padding:8px 12px;border-right:1px solid var(--border)">'+
-          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
+        panelHtml+='<div data-s="sfb28afb">'+
+          '<div data-s="s3236e46"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> AUDIT</div>';
         if(mods.grid){
           var ass=mods.grid.latest_assessment;
-          panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
-          if(ass) panelHtml+='<div style="font-size:10px;color:var(--muted)">Score: '+(ass.score||'—')+'%</div>';
-          panelHtml+='<a href="/grid/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
+          panelHtml+='<div data-s="sc65df3d">Registered</div>';
+          if(ass) panelHtml+='<div data-s="sb569cab">Score: '+(ass.score||'—')+'%</div>';
+          panelHtml+='<a href="/grid/vendors" data-s="s39b7432">→ View</a>';
         } else {
-          panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Audit</div>'+
-            '<a href="/grid/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
+          panelHtml+='<div data-s="s1fd8c81">Not in Audit</div>'+
+            '<a href="/grid/vendors" data-s="s73c0e01">+ Add →</a>';
         }
         panelHtml+='</div>';
         // Resilience badge
-        panelHtml+='<div style="padding:8px 12px">'+
-          '<div style="font-size:10px;color:var(--muted);margin-bottom:3px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
+        panelHtml+='<div data-s="s83084c1">'+
+          '<div data-s="s3236e46"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> RESILIENCE</div>';
         if(mods.bcm){
           var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
-          panelHtml+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
-            '<div style="font-size:10px;color:var(--muted);text-transform:capitalize">'+esc(mods.bcm.criticality||'—')+'</div>'+
-            '<a href="/bcm/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
+          panelHtml+='<div data-sv="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
+            '<div data-s="s129ebe2">'+esc(mods.bcm.criticality||'—')+'</div>'+
+            '<a href="/bcm/vendors" data-s="s39b7432">→ View</a>';
         } else {
-          panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Resilience</div>'+
-            '<a href="/bcm/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
+          panelHtml+='<div data-s="s1fd8c81">Not in Resilience</div>'+
+            '<a href="/bcm/vendors" data-s="s73c0e01">+ Add →</a>';
         }
         panelHtml+='</div></div>';
         if(flags.length){
-          panelHtml+='<div style="padding:8px 12px;background:rgba(220,38,38,.05);border-top:1px solid rgba(220,38,38,.15)">'+
-            flags.slice(0,2).map(function(f){return '<div style="font-size:10px;color:#dc2626;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+
+          panelHtml+='<div data-s="s843fdfb">'+
+            flags.slice(0,2).map(function(f){return '<div data-s="scaf68b8"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+esc(f.msg)+'</div>';}).join('')+
           '</div>';
         }
         panelHtml+='</div>';
@@ -1873,7 +1873,7 @@
         body.innerHTML=emptyRow(5,'No audit records found');
       }else{
         body.innerHTML=items.map(function(a){
-          return '<tr><td style="font-family:var(--mono);font-size:12px">'+esc(timeAgoShort(a.created_at||a.timestamp))+'</td><td>'+esc(a.user||a.username||'')+'</td><td>'+esc(a.action||'')+'</td><td>'+esc(a.entity_type||a.entity||'')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.details||a.description||'')+'</td></tr>';
+          return '<tr><td data-s="se1e124f">'+esc(timeAgoShort(a.created_at||a.timestamp))+'</td><td>'+esc(a.user||a.username||'')+'</td><td>'+esc(a.action||'')+'</td><td>'+esc(a.entity_type||a.entity||'')+'</td><td data-s="sf55b647">'+esc(a.details||a.description||'')+'</td></tr>';
         }).join('');
       }
     }catch(e){body.innerHTML=emptyRow(5,'Failed to load audit log');}
@@ -2216,7 +2216,7 @@
       html+='</div>';
     });
 
-    html+='<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+    html+='<div data-s="s635f7ad" data-sd="flex">'+
       '<button type="button" class="btn btn-secondary" data-sn-click="snCloseModal()">Cancel</button>'+
       '<button type="submit" class="btn btn-primary">'+(isEdit?'Update':'Create')+'</button>'+
     '</div></form></div></div>';
@@ -2265,7 +2265,7 @@
       '<div class="confirm-text">Are you sure you want to delete this record? This action cannot be undone.</div>'+
       '<div class="confirm-actions">'+
         '<button class="btn btn-secondary" data-sn-click="snCloseConfirm()">Cancel</button>'+
-        '<button class="btn btn-primary" style="background:var(--red);border-color:var(--red)" data-sn-click="snConfirmDelete(\''+type+'\','+id+')">Delete</button>'+
+        '<button class="btn btn-primary" data-s="sd982cc4" data-sn-click="snConfirmDelete(\''+type+'\','+id+')">Delete</button>'+
       '</div></div></div>';
   };
   window.snCloseConfirm=function(){document.getElementById('snConfirmRoot').innerHTML='';};
@@ -2305,44 +2305,44 @@
   window.snOpenLiaModal=function(existing){
     var isEdit=!!(existing&&existing.id);
     var html='<div class="modal-overlay" id="liaModal" data-sn-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:700px">'+
+      '<div class="modal-box" data-s="sbcaa180">'+
         '<button class="modal-close" data-sn-click="document.getElementById(\'liaModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Legitimate Interest Assessment</div>'+
-        '<div class="form-row"><div class="form-group" style="grid-column:1/-1"><label>Title / Processing Activity</label>'+
+        '<div class="form-row"><div class="form-group" data-s="s068a8dd"><label>Title / Processing Activity</label>'+
           '<input id="lia_title" value="'+esc(isEdit?existing.title:'')+'"></div></div>'+
 
         '<div class="lia-part'+(isEdit&&existing.purpose_legit?' passed':isEdit?' failed':'')+'">'+
           '<div class="lia-part-title">Part 1: Purpose Test</div>'+
           '<div class="lia-part-desc">Is there a legitimate purpose? Is it clearly defined and real?</div>'+
           '<div class="form-group"><label>Describe the legitimate interest</label>'+
-            '<textarea id="lia_p1_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.purpose_desc||''):'')+'</textarea></div>'+
+            '<textarea id="lia_p1_desc" rows="3" data-s="sa57b154">'+esc(isEdit?(existing.purpose_desc||''):'')+'</textarea></div>'+
           '<label class="lia-toggle"><input type="checkbox" id="lia_p1_pass"'+(isEdit&&existing.purpose_legit?' checked':'')+'>'+
-            '<span style="font-size:13px;font-weight:600">Purpose is legitimate and clearly defined</span></label>'+
+            '<span data-s="seb673ec">Purpose is legitimate and clearly defined</span></label>'+
         '</div>'+
 
         '<div class="lia-part'+(isEdit&&existing.necessity_pass?' passed':isEdit?' failed':'')+'">'+
           '<div class="lia-part-title">Part 2: Necessity Test</div>'+
           '<div class="lia-part-desc">Is the processing necessary? Could a less intrusive means achieve the same goal?</div>'+
           '<div class="form-group"><label>Describe why processing is necessary</label>'+
-            '<textarea id="lia_p2_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.necessity_desc||''):'')+'</textarea></div>'+
+            '<textarea id="lia_p2_desc" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.necessity_desc||''):'')+'</textarea></div>'+
           '<div class="form-group"><label>Less intrusive alternatives considered (and why rejected)</label>'+
-            '<textarea id="lia_p2_alt" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.alternatives||''):'')+'</textarea></div>'+
+            '<textarea id="lia_p2_alt" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.alternatives||''):'')+'</textarea></div>'+
           '<label class="lia-toggle"><input type="checkbox" id="lia_p2_pass"'+(isEdit&&existing.necessity_pass?' checked':'')+'>'+
-            '<span style="font-size:13px;font-weight:600">Processing is necessary and proportionate</span></label>'+
+            '<span data-s="seb673ec">Processing is necessary and proportionate</span></label>'+
         '</div>'+
 
         '<div class="lia-part'+(isEdit&&existing.override_ok?' passed':isEdit?' failed':'')+'">'+
           '<div class="lia-part-title">Part 3: Balancing Test</div>'+
           '<div class="lia-part-desc">Do the data subject\'s interests override the legitimate interest?</div>'+
           '<div class="form-group"><label>Impact on data subjects</label>'+
-            '<textarea id="lia_p3_impact" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.subject_impact||''):'')+'</textarea></div>'+
+            '<textarea id="lia_p3_impact" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.subject_impact||''):'')+'</textarea></div>'+
           '<div class="form-group"><label>Safeguards applied to protect data subject interests</label>'+
-            '<textarea id="lia_p3_safe" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.safeguards||''):'')+'</textarea></div>'+
+            '<textarea id="lia_p3_safe" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.safeguards||''):'')+'</textarea></div>'+
           '<label class="lia-toggle"><input type="checkbox" id="lia_p3_pass"'+(isEdit&&existing.override_ok?' checked':'')+'>'+
-            '<span style="font-size:13px;font-weight:600">Controller interests prevail: data subjects would not be surprised or object</span></label>'+
+            '<span data-s="seb673ec">Controller interests prevail: data subjects would not be surprised or object</span></label>'+
         '</div>'+
 
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'+
+        '<div data-s="s5f98e2a" data-sd="flex">'+
           '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'liaModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-sn-click="snSaveLia('+(isEdit?existing.id:'null')+')">Save LIA</button>'+
         '</div>'+
@@ -2378,7 +2378,7 @@
   function snPopulateTabStats(elId,cards){
     var el=document.getElementById(elId);if(!el)return;
     el.innerHTML=cards.map(function(c){
-      var valStyle=c.color?' style="color:'+c.color+'"':'';
+      var valStyle=c.color?' data-sv="color:'+c.color+'"':'';
       return '<div class="sn-tab-stat stat-card">'+
         '<div class="sn-tab-stat-label">'+esc(c.label)+'</div>'+
         '<div class="sn-tab-stat-val"'+valStyle+'>'+esc(String(c.value))+'</div>'+
@@ -2418,7 +2418,7 @@
     return !snIsAdequate(dest)&&!snIsEEA(dest)&&(dest||'').trim()!=='';
   }
   function snAdequacyBadge(dest,safeguards){
-    if(!dest||dest.trim()==='') return '<span style="color:var(--muted)">—</span>';
+    if(!dest||dest.trim()==='') return '<span data-s="s57f9e31">—</span>';
     if(snIsEEA(dest)) return '<span class="adeq-ok">✓ EEA</span>';
     if(snIsAdequate(dest)) return '<span class="adeq-ok">✓ Adequate</span>';
     if(safeguards&&safeguards.trim()) return '<span class="adeq-warn"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> SCCs</span>';
@@ -2487,21 +2487,21 @@
         var banner=document.getElementById('snRetentionBanner');
         if(banner&&missing.length>0){
           banner.style.display='flex';
-          banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> <strong style="margin-right:4px">Suggested from your RoPA:</strong>'+
+          banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-lightbulb></use></svg> <strong data-s="sc6b76b8">Suggested from your RoPA:</strong>'+
             missing.slice(0,4).map(function(c){
-              return '<button class="btn btn-sm btn-secondary sn-retention-from-ropa" data-category="'+esc(c)+'" style="font-size:11px;padding:2px 8px">'+esc(c)+'</button>';
+              return '<button class="btn btn-sm btn-secondary sn-retention-from-ropa" data-category="'+esc(c)+'" data-s="se2b3d6e">'+esc(c)+'</button>';
             }).join('')+
-            (missing.length>4?'<span style="font-size:12px;opacity:.7">+'+(missing.length-4)+' more</span>':'')+'<span style="opacity:.7;font-size:12px"> have no retention schedule yet.</span>'+
-            '<button data-sn-click="this.closest(\'.sn-suggestion-banner\').style.display=\'none\'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;color:currentColor;opacity:.6">×</button>';
+            (missing.length>4?'<span data-s="s3b668b4">+'+(missing.length-4)+' more</span>':'')+'<span data-s="sc5658ca"> have no retention schedule yet.</span>'+
+            '<button data-sn-click="this.closest(\'.sn-suggestion-banner\').style.display=\'none\'" data-s="sa0d9342">×</button>';
         }else if(banner){banner.style.display='none';}
       }catch(e){}
       if(!items.length){body.innerHTML=emptyRow(8,'No retention schedules defined');return;}
       body.innerHTML=items.map(function(r){
         var reviewDate=r.review_date;var reviewCell=fmtDate(reviewDate);
-        if(reviewDate&&new Date(reviewDate)<new Date())reviewCell='<span style="color:var(--red);font-weight:700">'+reviewCell+' OVERDUE</span>';
+        if(reviewDate&&new Date(reviewDate)<new Date())reviewCell='<span data-s="s0353c96">'+reviewCell+' OVERDUE</span>';
         return '<tr><td>'+esc(r.category||'—')+'</td><td>'+esc(r.data_type||'—')+'</td>'+
           '<td>'+esc(r.retention_period||'—')+'</td>'+
-          '<td><span style="font-size:11px;color:var(--muted)">'+esc(r.trigger_event||'—')+'</span></td>'+
+          '<td><span data-s="s1fd8c81">'+esc(r.trigger_event||'—')+'</span></td>'+
           '<td>'+esc(r.legal_basis||'—')+'</td>'+
           '<td>'+esc(r.responsible||r.owner||'—')+'</td>'+
           '<td>'+reviewCell+'</td>'+
@@ -2533,8 +2533,8 @@
       if(!items.length){body.innerHTML=emptyRow(7,'No security measures recorded');return;}
       body.innerHTML=items.map(function(s){
         var evidenceCell=s.evidence
-          ?'<span style="font-family:var(--mono);font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px" title="'+esc(s.evidence)+'">'+esc(s.evidence.substring(0,18))+'</span>'
-          :'<span style="color:var(--muted)">—</span>';
+          ?'<span data-s="s8e46af7" title="'+esc(s.evidence)+'">'+esc(s.evidence.substring(0,18))+'</span>'
+          :'<span data-s="s57f9e31">—</span>';
         return '<tr><td><strong>'+esc(s.measure_name)+'</strong></td>'+
           '<td>'+esc(s.category||'—')+'</td>'+
           '<td>'+statusBadge(s.status||'implemented')+'</td>'+
@@ -2572,13 +2572,13 @@
       if(!items.length){body.innerHTML=emptyRow(8,'No policies found');return;}
       body.innerHTML=items.map(function(p){
         var tags='';
-        if(p.tags){tags=p.tags.split(',').map(function(t){return t.trim();}).filter(Boolean).map(function(t){return '<span class="filter-chip" style="font-size:10px;padding:1px 6px;margin:1px">'+esc(t)+'</span>';}).join('');}
+        if(p.tags){tags=p.tags.split(',').map(function(t){return t.trim();}).filter(Boolean).map(function(t){return '<span class="filter-chip" data-s="s47be2eb">'+esc(t)+'</span>';}).join('');}
         return '<tr><td><strong>'+esc(p.title)+'</strong></td>'+
           '<td>'+esc(p.type||p.policy_type||'—')+'</td>'+
           '<td>'+esc(p.version||'1.0')+'</td>'+
           '<td>'+statusBadge(p.status||'draft')+'</td>'+
           '<td>'+esc(p.owner||'—')+'</td>'+
-          '<td>'+(tags||'<span style="color:var(--muted)">—</span>')+'</td>'+
+          '<td>'+(tags||'<span data-s="s57f9e31">—</span>')+'</td>'+
           '<td>'+fmtDate(p.next_review||p.review_date)+'</td>'+
           '<td>'+actionBtns('snEditPolicy('+p.id+')','snDeletePolicy('+p.id+')')+'</td></tr>';
       }).join('');
@@ -2608,8 +2608,8 @@
       if(!items.length){body.innerHTML=emptyRow(7,'No privacy notices found');return;}
       body.innerHTML=items.map(function(n){
         var noticeUrl=snSafeUrl(n.url,true);
-        var titleCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">'+esc(n.title)+'</a>':'<strong>'+esc(n.title)+'</strong>';
-        var urlCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent)">View →</a>':'<span style="color:var(--muted)">—</span>';
+        var titleCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" data-s="sa805525">'+esc(n.title)+'</a>':'<strong>'+esc(n.title)+'</strong>';
+        var urlCell=noticeUrl?'<a href="'+esc(noticeUrl)+'" target="_blank" rel="noopener noreferrer" data-s="s53d0ffa">View →</a>':'<span data-s="s57f9e31">—</span>';
         return '<tr><td>'+titleCell+'</td>'+
           '<td>'+esc(n.audience||n.regulation||'—')+'</td>'+
           '<td>'+esc(n.version||'1.0')+'</td>'+
@@ -2660,13 +2660,13 @@
           thirdCountryFlows.slice(0,2).map(function(f){
             var dest=f.destination||'';
             var src=f.source_system||f.source||'';
-            return '<button class="btn btn-sm btn-secondary sn-transfer-from-flow" data-destination="'+esc(dest)+'" data-recipient-name="'+esc(src)+'" style="font-size:11px;padding:2px 8px">+ Transfer for '+esc(dest.substring(0,20))+'</button>';
+            return '<button class="btn btn-sm btn-secondary sn-transfer-from-flow" data-destination="'+esc(dest)+'" data-recipient-name="'+esc(src)+'" data-s="se2b3d6e">+ Transfer for '+esc(dest.substring(0,20))+'</button>';
           }).join(' ');
       }else if(banner){banner.style.display='none';}
       // Table view
       if(!items.length){
         tableBody.innerHTML=emptyRow(6,'No data flows mapped yet');
-        document.getElementById('snFlowDiagram').innerHTML='<div style="padding:48px;text-align:center;color:var(--muted)">No data flows to visualize yet. Add flows to see the diagram.</div>';
+        document.getElementById('snFlowDiagram').innerHTML='<div data-s="s00fc6f9">No data flows to visualize yet. Add flows to see the diagram.</div>';
         return;
       }
       tableBody.innerHTML=items.map(function(f){
@@ -2686,7 +2686,7 @@
 
   function snRenderFlowDiagram(flows){
     var wrap=document.getElementById('snFlowDiagram');
-    if(!flows.length){wrap.innerHTML='<div style="padding:48px;text-align:center;color:var(--muted)">No flows to visualize</div>';return;}
+    if(!flows.length){wrap.innerHTML='<div data-s="s00fc6f9">No flows to visualize</div>';return;}
     var sources={},dests={};
     flows.forEach(function(f){
       var src=f.source_system||f.source||'Unknown';var dst=f.destination||'Unknown';
@@ -2759,8 +2759,8 @@
       ]);
       if(!items.length){body.innerHTML=emptyRow(7,'No controllers registered');return;}
       body.innerHTML=items.map(function(c){
-        var dpoCell=(c.dpo_name||'—')+(c.dpo_email?'<br><small><a href="mailto:'+esc(c.dpo_email)+'" style="color:var(--accent)">'+esc(c.dpo_email)+'</a></small>':'');
-        var orgCell='<strong>'+esc(c.org_name)+'</strong>'+(c.controller_email?'<br><small><a href="mailto:'+esc(c.controller_email)+'" style="color:var(--muted)">'+esc(c.controller_email)+'</a></small>':'');
+        var dpoCell=(c.dpo_name||'—')+(c.dpo_email?'<br><small><a href="mailto:'+esc(c.dpo_email)+'" data-s="sa805525">'+esc(c.dpo_email)+'</a></small>':'');
+        var orgCell='<strong>'+esc(c.org_name)+'</strong>'+(c.controller_email?'<br><small><a href="mailto:'+esc(c.controller_email)+'" data-s="s57f9e31">'+esc(c.controller_email)+'</a></small>':'');
         return '<tr><td>'+orgCell+'</td>'+
           '<td>'+esc(c.country||'—')+'</td><td>'+esc(c.sector||'—')+'</td>'+
           '<td>'+dpoCell+'</td>'+
@@ -2798,7 +2798,7 @@
       if(banner&&expiring>0){
         banner.style.display='flex';
         banner.innerHTML='<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+expiring+' certification'+(expiring>1?'s expire':' expires')+' within 30 days.</strong>'+
-          '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:8px" data-sn-click="snFilterTraining(\'expiring\')">Show expiring →</button>';
+          '<button class="btn btn-sm btn-secondary" data-s="se9d6d27" data-sn-click="snFilterTraining(\'expiring\')">Show expiring →</button>';
       }else if(banner){banner.style.display='none';}
       // Dept filter chips
       var deptEl=document.getElementById('snTrainingDeptFilters');
@@ -2831,8 +2831,8 @@
     body.innerHTML=items.map(function(t){
       var expired=t.expiry_date&&new Date(t.expiry_date)<now;
       var soon=!expired&&t.expiry_date&&(new Date(t.expiry_date)-now)/86400000<=30;
-      var expCell=expired?'<span style="color:var(--red);font-weight:700">'+fmtDate(t.expiry_date)+' <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>':
-        soon?'<span style="color:var(--amber);font-weight:700">'+fmtDate(t.expiry_date)+' !</span>':fmtDate(t.expiry_date);
+      var expCell=expired?'<span data-s="s0353c96">'+fmtDate(t.expiry_date)+' <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>':
+        soon?'<span data-s="se690a23">'+fmtDate(t.expiry_date)+' !</span>':fmtDate(t.expiry_date);
       return '<tr><td>'+esc(t.staff_name||'—')+'</td><td>'+esc(t.training_name||'—')+'</td>'+
         '<td>'+esc(t.training_type||t.type||'—')+'</td><td>'+esc(t.department||'—')+'</td>'+
         '<td>'+fmtDate(t.completion_date)+'</td><td>'+expCell+'</td>'+
@@ -2845,22 +2845,22 @@
   window.snImportTraining=async function(input){
     var file=input.files[0];if(!file)return;
     var res=document.getElementById('snTrainingImportResult');
-    res.style.display='block';res.innerHTML='<div class="spinner" style="margin:0 auto;width:24px;height:24px"></div><div style="text-align:center;margin-top:8px;font-size:13px;color:var(--muted)">Analysing Excel file...</div>';
+    res.style.display='block';res.innerHTML='<div class="spinner" data-s="s3b4a383"></div><div data-s="s209a334">Analysing Excel file...</div>';
     var fd=new FormData();fd.append('file',file);
     try{
       var r=await fetch('/sentinel/api/training/analyse-excel',{method:'POST',body:fd});
       if(!r.ok) throw new Error('Upload failed: '+r.status);
       var d=await r.json();
       var s=d.summary||{};
-      res.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:var(--green-status)">&#10003; Import Complete</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:13px">'+
-        '<div><div style="color:var(--muted);font-size:11px">Staff</div><div style="font-weight:700">'+s.total_staff+'</div></div>'+
-        '<div><div style="color:var(--muted);font-size:11px">Sessions</div><div style="font-weight:700">'+s.total_sessions+'</div></div>'+
-        '<div><div style="color:var(--muted);font-size:11px">Attendance</div><div style="font-weight:700">'+s.overall_attendance_pct+'%</div></div>'+
-        '<div><div style="color:var(--muted);font-size:11px">Pass Rate</div><div style="font-weight:700">'+s.overall_pass_rate+'%</div></div>'+
+      res.innerHTML='<div data-s="s8734243">&#10003; Import Complete</div>'+
+        '<div data-s="s50f0250" data-sd="grid">'+
+        '<div><div data-s="s6d034cc">Staff</div><div data-s="se3ec02a">'+s.total_staff+'</div></div>'+
+        '<div><div data-s="s6d034cc">Sessions</div><div data-s="se3ec02a">'+s.total_sessions+'</div></div>'+
+        '<div><div data-s="s6d034cc">Attendance</div><div data-s="se3ec02a">'+s.overall_attendance_pct+'%</div></div>'+
+        '<div><div data-s="s6d034cc">Pass Rate</div><div data-s="se3ec02a">'+s.overall_pass_rate+'%</div></div>'+
         '</div>';
       snLoadTraining();
-    }catch(e){res.innerHTML='<div style="color:var(--red)">Import failed: '+esc(e.message)+'</div>';}
+    }catch(e){res.innerHTML='<div data-s="s45e7ae4">Import failed: '+esc(e.message)+'</div>';}
     input.value='';
   };
 
@@ -2873,7 +2873,7 @@
 
   window.snOpenGenerateNoticeModal=function(){
     var html='<div class="modal-overlay" id="snGenNoticeModal" data-sn-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-box" data-s="sd2a2635">'+
         '<button class="modal-close" data-sn-click="document.getElementById(\'snGenNoticeModal\').remove()">×</button>'+
         '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Generate Privacy Notice with AI</div>'+
         '<div class="form-group"><label>Jurisdiction / Regulation</label>'+
@@ -2884,8 +2884,8 @@
           '<input id="snGenNoticeAudience" placeholder="e.g. Website visitors, Employees"></div>'+
         '<div class="form-group"><label>Organisation Name (optional)</label>'+
           '<input id="snGenNoticeOrg" placeholder="Leave blank to use platform default"></div>'+
-        '<div id="snGenNoticeStatus" style="display:none;padding:10px;border-radius:var(--radius);margin-bottom:12px;font-size:13px"></div>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+        '<div id="snGenNoticeStatus" data-s="scafd13f" data-sd="none"></div>'+
+        '<div data-s="s635f7ad" data-sd="flex">'+
           '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'snGenNoticeModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-sn-click="snSubmitGenerateNotice()">Generate Notice</button>'+
         '</div>'+
@@ -2934,7 +2934,7 @@
 
   window.snOpenDraftPolicyModal=function(){
     var html='<div class="modal-overlay" id="snDraftPolicyModal" data-sn-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-box" data-s="sd2a2635">'+
         '<button class="modal-close" data-sn-click="document.getElementById(\'snDraftPolicyModal\').remove()">×</button>'+
         '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> Draft Policy with AI</div>'+
         '<div class="form-group"><label>Policy Type</label>'+
@@ -2949,8 +2949,8 @@
           '<select id="snDraftPolicyReg"><option value="">Select...</option>'+
           REGULATION_LIST.map(function(r){return '<option>'+r+'</option>';}).join('')+
           '</select></div>'+
-        '<div id="snDraftPolicyStatus" style="display:none;padding:10px;border-radius:var(--radius);margin-bottom:12px;font-size:13px"></div>'+
-        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+        '<div id="snDraftPolicyStatus" data-s="scafd13f" data-sd="none"></div>'+
+        '<div data-s="s635f7ad" data-sd="flex">'+
           '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'snDraftPolicyModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-sn-click="snSubmitDraftPolicy()">Draft Policy</button>'+
         '</div>'+
@@ -3026,7 +3026,7 @@
     if(window.snLivingLawRefresh) window.snLivingLawRefresh();
     var container=document.getElementById('snActiveJurisdictions');
     var statsBody=document.getElementById('snJurisStatsBody');
-    container.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+    container.innerHTML='<div data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></div>';
 
     await _loadJurisRules();
 
@@ -3053,31 +3053,31 @@
           var sourcePill='<span class="juris-pill warn">'+(historical?'Historical proposal, not enacted':j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
           return '<div class="juris-card sn-edit-jurisdiction'+(isPrimary?' primary':'')+'" data-jurisdiction-key="'+esc(j.jurisdiction_key||j.key)+'">'+
             '<div class="juris-flag">'+snFlag(j.flag)+'</div>'+
-            '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span style="font-size:10px;background:var(--accent);color:white;padding:1px 6px;border-radius:100px;margin-left:4px">Primary</span>':'')+'</div>'+
+            '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span data-s="s814c248">Primary</span>':'')+'</div>'+
             '<div class="juris-region">'+esc(j.region||'')+'</div>'+
             '<div class="juris-pills">'+breachPill+dsrPill+sourcePill+'</div>'+
             '<div class="juris-authority">Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong></div>'+
-            (j.registration_number?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Reg: '+esc(j.registration_number)+'</div>':'')+
+            (j.registration_number?'<div data-s="sbc021dc">Reg: '+esc(j.registration_number)+'</div>':'')+
           '</div>';
         }).join('')+'</div>';
       }
-    }catch(e){container.innerHTML='<div style="color:var(--red);padding:16px">Failed to load jurisdictions</div>';}
+    }catch(e){container.innerHTML='<div data-s="s91b7ec5">Failed to load jurisdictions</div>';}
 
     // Load stats table
     try{
       var sd=await apiFetch('/sentinel/api/jurisdiction-stats');
       var items=sd.items||[];
       if(!items.length){
-        statsBody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">No records found</td></tr>';
+        statsBody.innerHTML='<tr><td colspan="6" data-s="s1ed15db">No records found</td></tr>';
       } else {
         statsBody.innerHTML=items.map(function(s){
           var j=window._jurisRules[s.regulation]||{};
-          return '<tr><td><span style="font-size:16px">'+snFlag(j.flag)+'</span> '+esc(s.regulation)+'</td>'+
+          return '<tr><td><span data-s="s1444c6e">'+snFlag(j.flag)+'</span> '+esc(s.regulation)+'</td>'+
             '<td data-label="RoPA">'+s.ropa+'</td><td data-label="DPIAs">'+s.dpias+'</td><td data-label="Breaches">'+s.breaches+'</td><td data-label="DSRs">'+s.dsrs+'</td>'+
             '<td data-label="Total"><strong>'+s.total+'</strong></td></tr>';
         }).join('');
       }
-    }catch(e){statsBody.innerHTML='<tr><td colspan="6" style="color:var(--red);padding:12px">Failed to load stats</td></tr>';}
+    }catch(e){statsBody.innerHTML='<tr><td colspan="6" data-s="s01def5f">Failed to load stats</td></tr>';}
   };
 
   window.snOpenAddJurisdictionModal=async function(){
@@ -3095,31 +3095,31 @@
 
     var gridHtml='';
     Object.keys(regions).sort().forEach(function(region){
-      gridHtml+='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;grid-column:1/-1">'+esc(region)+'</div>';
+      gridHtml+='<div data-s="s28d3a89">'+esc(region)+'</div>';
       regions[region].forEach(function(j){
         var isActive=activeKeys.has(j.key);
         gridHtml+='<div class="juris-add-card sn-toggle-jurisdiction'+(isActive?' active-j':'')+'" data-jurisdiction-key="'+esc(j.key)+'" data-key="'+esc(j.key)+'" data-active="'+(isActive?'1':'0')+'">'+
           '<div class="juris-add-flag">'+snFlag(j.flag)+'</div>'+
-          '<div><div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(j.key)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted)">'+esc(j.authority_short||'')+'</div></div>'+
-          (isActive?'<span style="margin-left:auto;font-size:18px;color:var(--accent)">&#10003;</span>':'')+
+          '<div><div data-s="s36970da">'+esc(j.key)+'</div>'+
+          '<div data-s="s1fd8c81">'+esc(j.authority_short||'')+'</div></div>'+
+          (isActive?'<span data-s="s9da3e99">&#10003;</span>':'')+
         '</div>';
       });
     });
 
     var html='<div class="modal-overlay" id="jurisAddModal" data-sn-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:680px">'+
+      '<div class="modal-box" data-s="s48a0d2f">'+
         '<button class="modal-close" data-sn-click="document.getElementById(\'jurisAddModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">Configure Active Jurisdictions</div>'+
-        '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">Select all jurisdictions your organisation must comply with. Tick a jurisdiction to activate it.</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:60vh;overflow-y:auto" id="jurisAddGrid">'+gridHtml+'</div>'+
-        '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">'+
-          '<label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Primary Jurisdiction (for default deadlines)</label>'+
-          '<select id="jurisPrimarySelect" style="width:100%;margin-top:6px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px">'+
+        '<div data-s="s943e0fa">Select all jurisdictions your organisation must comply with. Tick a jurisdiction to activate it.</div>'+
+        '<div data-s="sa197f98" data-sd="grid" id="jurisAddGrid">'+gridHtml+'</div>'+
+        '<div data-s="s8344109">'+
+          '<label data-s="se9885a1">Primary Jurisdiction (for default deadlines)</label>'+
+          '<select id="jurisPrimarySelect" data-s="s8763ae3">'+
             _activeJurisdictions.map(function(j){var k=j.jurisdiction_key||j.key;return '<option value="'+esc(k)+'"'+(j.is_primary?' selected':'')+'>'+esc(k)+'</option>';}).join('')+
           '</select>'+
         '</div>'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'+
+        '<div data-s="s5f98e2a" data-sd="flex">'+
           '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'jurisAddModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" data-sn-click="snSaveJurisdictions()">Save Configuration</button>'+
         '</div>'+
@@ -3134,7 +3134,7 @@
     card.classList.toggle('active-j',!isActive);
     var check=card.querySelector('[data-check]')||card.querySelector('span[style*="color:var(--accent)"]');
     if(!isActive){
-      if(!check) card.insertAdjacentHTML('beforeend','<span style="margin-left:auto;font-size:18px;color:var(--accent)">&#10003;</span>');
+      if(!check) card.insertAdjacentHTML('beforeend','<span data-s="s9da3e99">&#10003;</span>');
       // Add to primary select
       var sel=document.getElementById('jurisPrimarySelect');
       if(sel&&!sel.querySelector('option[value="'+key+'"]')){
@@ -3167,18 +3167,18 @@
     var configs=_activeJurisdictions.find(function(c){return (c.jurisdiction_key||c.key)===key;})||{};
 
     var html='<div class="modal-overlay" id="jurisEditModal" data-sn-click="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:560px">'+
+      '<div class="modal-box" data-s="s765d57b">'+
         '<button class="modal-close" data-sn-click="document.getElementById(\'jurisEditModal\').remove()">&#10005;</button>'+
-        '<div style="font-size:24px;margin-bottom:4px">'+snFlag(j.flag)+'</div>'+
+        '<div data-s="s22f7bf7">'+snFlag(j.flag)+'</div>'+
         '<div class="modal-title">'+esc(key)+'</div>'+
-        '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">'+esc(j.name||'')+'</div>'+
+        '<div data-s="s943e0fa">'+esc(j.name||'')+'</div>'+
 
-        '<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px">'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Authority</div><div style="font-weight:700">'+esc(j.authority_short||'DPA')+'</div></div>'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Breach review target</div><div style="font-weight:700">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</div></div>'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">DSR Review Target</div><div style="font-weight:700">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':(j.dsr_days?j.dsr_days+' days':'Not set'))+'</div></div>'+
+        '<div data-s="s3672e38" data-sd="grid">'+
+          '<div><div data-s="se52ac8d">Authority</div><div data-s="se3ec02a">'+esc(j.authority_short||'DPA')+'</div></div>'+
+          '<div><div data-s="se52ac8d">Breach review target</div><div data-s="se3ec02a">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</div></div>'+
+          '<div><div data-s="se52ac8d">DSR Review Target</div><div data-s="se3ec02a">'+(j.legal_status==='proposal_not_enacted'?'Not applicable':(j.dsr_days?j.dsr_days+' days':'Not set'))+'</div></div>'+
         '</div>'+
-        '<p style="font-size:11px;color:var(--muted)">'+(j.legal_status==='proposal_not_enacted'?'Historical proposal that was not enacted. Reclassify this record under an applicable law.':
+        '<p data-s="s1fd8c81">'+(j.legal_status==='proposal_not_enacted'?'Historical proposal that was not enacted. Reclassify this record under an applicable law.':
           (j.breach_source_status==='unverified'?'Legal notification period unverified.':'Source researched; legal rule still needs approval.')+' The displayed numbers are internal review targets.')+'</p>'+
         (j.breach_source_url&&/^https:\/\//.test(j.breach_source_url)?'<p><a href="'+esc(j.breach_source_url)+'" target="_blank" rel="noopener noreferrer">'+esc(j.breach_source_title||'Breach source')+'</a></p>':'')+
         (j.dsr_source_url&&/^https:\/\//.test(j.dsr_source_url)?'<p><a href="'+esc(j.dsr_source_url)+'" target="_blank" rel="noopener noreferrer">'+esc(j.dsr_source_title||'Rights-request source')+'</a></p>':'')+
@@ -3191,11 +3191,11 @@
           '<div class="form-group"><label>DPO Name</label><input id="jurisDpoName" value="'+esc(configs.dpo_name||'')+'"></div>'+
           '<div class="form-group"><label>DPO Email</label><input id="jurisDpoEmail" value="'+esc(configs.dpo_email||'')+'"></div>'+
         '</div>'+
-        '<div class="form-group"><label>Notes</label><textarea id="jurisNotes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box">'+esc(configs.notes||'')+'</textarea></div>'+
+        '<div class="form-group"><label>Notes</label><textarea id="jurisNotes" rows="2" data-s="sdf94b88">'+esc(configs.notes||'')+'</textarea></div>'+
 
-        '<div style="display:flex;gap:8px;justify-content:space-between;margin-top:20px">'+
-          '<button class="btn btn-secondary sn-deactivate-jurisdiction" data-jurisdiction-key="'+esc(key)+'" style="color:var(--red)">Remove</button>'+
-          '<div style="display:flex;gap:8px">'+
+        '<div data-s="s1d91e46" data-sd="flex">'+
+          '<button class="btn btn-secondary sn-deactivate-jurisdiction" data-jurisdiction-key="'+esc(key)+'" data-s="s45e7ae4">Remove</button>'+
+          '<div data-s="s33fcd4c" data-sd="flex">'+
             '<button class="btn btn-secondary" data-sn-click="document.getElementById(\'jurisEditModal\').remove()">Cancel</button>'+
             '<button class="btn btn-primary sn-save-jurisdiction" data-jurisdiction-key="'+esc(key)+'">Save</button>'+
           '</div>'+
@@ -3244,7 +3244,7 @@
       info.classList.add('visible');
       return;
     }
-    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong>'+
+    info.innerHTML='<strong data-s="sa805525">'+esc(reg)+'</strong>'+
       ' &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong>'+
       ' &nbsp;|&nbsp; Breach review target: <strong>'+(j.breach_asap?'ASAP':(j.breach_hours?j.breach_hours+'h':'Not set'))+'</strong>'+
       ' &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days?j.dsr_days+' days':'Not set')+'</strong>'+

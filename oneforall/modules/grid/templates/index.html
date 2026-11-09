@@ -223,18 +223,18 @@
 
 <!-- AI Chat Card -->
 <div class="sidebar-bottom">
-  <a href="/grid/chat" data-spa="/grid/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">
-    <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
+  <a href="/grid/chat" data-spa="/grid/chat" data-s="s7db2fca" data-sd="block">
+    <div data-s="s5c05df5">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
-    <div style="font-size:14px;font-weight:700">Ask GRID AI...</div>
+    <div data-s="s9e5c33b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
+    <div data-s="sa1b26d5">Ask GRID AI...</div>
   </a>
 </div>
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">GRID</span>
+<span data-s="s456fefd">GRID</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current" id="gridBreadcrumb">Dashboard</span>
 {% endblock %}
@@ -259,13 +259,13 @@
     </div>
 
     <!-- Sentinel Cross-Module: Active Data Breach Banner -->
-    <div id="gridSentinelBanner" style="display:none;background:rgba(245,158,11,0.10);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;align-items:center;gap:10px">
-      <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
-      <div style="flex:1">
-        <span style="font-size:13px;font-weight:700;color:var(--amber)">Active data breach in Sentinel</span>
-        <span style="font-size:12px;color:var(--muted);margin-left:8px" id="gridSentinelBannerDetail">Ensure audit evidence is being collected for the affected systems.</span>
+    <div id="gridSentinelBanner" data-s="sa8ae21f" data-sd="none">
+      <span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
+      <div data-s="s97445a8">
+        <span data-s="s03b85b0">Active data breach in Sentinel</span>
+        <span data-s="s7653ea3" id="gridSentinelBannerDetail">Ensure audit evidence is being collected for the affected systems.</span>
       </div>
-      <a href="/sentinel/" class="btn btn-secondary" style="font-size:12px;text-decoration:none">View in Sentinel →</a>
+      <a href="/sentinel/" class="btn btn-secondary" data-s="se1207cb">View in Sentinel →</a>
     </div>
 
     <!-- 4 Stat Cards -->
@@ -277,7 +277,7 @@
           <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
           <span>&mdash;</span>
         </div>
-        <div class="pbar"><div class="pbar-fill" id="gridComplianceBar" style="width:0;background:white"></div></div>
+        <div class="pbar"><div class="pbar-fill" id="gridComplianceBar" data-s="sbac24d8"></div></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Active Audits</div>
@@ -287,28 +287,28 @@
       <div class="stat-card">
         <div class="stat-label">Controls Assessed</div>
         <div class="stat-value" id="gridControlsAssessed">&mdash;</div>
-        <div class="stat-trend up" id="gridControlsTrend" style="color:var(--green-status)">
+        <div class="stat-trend up" id="gridControlsTrend" data-s="sf941d6e">
           <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
           <span>&mdash;</span>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Open NCs</div>
-        <div class="stat-value" id="gridOpenNCs" style="color:var(--red)">&mdash;</div>
+        <div class="stat-value" id="gridOpenNCs" data-s="s45e7ae4">&mdash;</div>
         <div class="stat-sub" id="gridNCsSub">non-conformances</div>
       </div>
     </div>
 
     <!-- Onboarding Banner -->
-    <div id="gridOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with GRID</h3>
-        <button data-grid-static-click="s1" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+    <div id="gridOnboardBanner" class="card animate-fade-up anim-1" data-s="s8ab7f14" data-sd="none">
+      <div data-s="s13c1049" data-sd="flex">
+        <h3 data-s="s0e48de3">Getting Started with GRID</h3>
+        <button data-grid-static-click="s1" data-s="sf06225f" title="Dismiss">&times;</button>
       </div>
-      <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-        <label style="display:block;cursor:pointer"><input type="checkbox" data-grid-static-change="s2"> Map a compliance framework <a href="#" data-grid-static-click="s3" style="color:var(--accent)">Browse frameworks</a></label>
-        <label style="display:block;cursor:pointer"><input type="checkbox" data-grid-static-change="s2"> Create your first audit <a href="#" data-grid-static-click="s4" style="color:var(--accent)">New audit</a></label>
-        <label style="display:block;cursor:pointer"><input type="checkbox" data-grid-static-change="s2"> Upload evidence documents <a href="#" data-grid-static-click="s5" style="color:var(--accent)">Evidence vault</a></label>
+      <div data-s="se495055">
+        <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-grid-static-change="s2"> Map a compliance framework <a href="#" data-grid-static-click="s3" data-s="sa805525">Browse frameworks</a></label>
+        <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-grid-static-change="s2"> Create your first audit <a href="#" data-grid-static-click="s4" data-s="sa805525">New audit</a></label>
+        <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-grid-static-change="s2"> Upload evidence documents <a href="#" data-grid-static-click="s5" data-s="sa805525">Evidence vault</a></label>
       </div>
     </div>
 
@@ -316,7 +316,7 @@
     <div class="three-col animate-fade-up anim-2">
       <div class="panel-card">
         <div class="panel-title">Audit Status</div>
-        <div id="gridAuditStatus"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+        <div id="gridAuditStatus"><div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div></div>
       </div>
       <div class="panel-card">
         <div class="panel-title">Evidence Collection</div>
@@ -326,10 +326,10 @@
               <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="10"/>
               <circle cx="70" cy="70" r="56" fill="none" stroke="var(--accent)" stroke-width="10"
                       stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                      transform="rotate(-90 70 70)" id="gridEvCollectedArc" style="transition:stroke-dashoffset 1s ease"><title>Collected: 0 controls</title></circle>
+                      transform="rotate(-90 70 70)" id="gridEvCollectedArc" data-s="s9ed859d"><title>Collected: 0 controls</title></circle>
               <circle cx="70" cy="70" r="56" fill="none" stroke="var(--amber)" stroke-width="10"
                       stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="butt"
-                      transform="rotate(-90 70 70)" id="gridEvPendingArc" style="transition:stroke-dashoffset 1s ease"><title>Pending: 0 controls</title></circle>
+                      transform="rotate(-90 70 70)" id="gridEvPendingArc" data-s="s9ed859d"><title>Pending: 0 controls</title></circle>
             </svg>
             <div class="grid-donut-center">
               <div class="grid-donut-pct" id="gridEvPct">&mdash;</div>
@@ -337,15 +337,15 @@
             </div>
           </div>
           <div class="grid-ev-stats">
-            <div class="grid-ev-stat"><div class="grid-ev-num" id="gridEvCollected" style="color:var(--green-status)">&mdash;</div><div class="grid-ev-label">Collected</div></div>
-            <div class="grid-ev-stat"><div class="grid-ev-num" id="gridEvPending" style="color:var(--amber)">&mdash;</div><div class="grid-ev-label">Pending</div></div>
-            <div class="grid-ev-stat"><div class="grid-ev-num" id="gridEvOverdue" style="color:var(--red)">&mdash;</div><div class="grid-ev-label">Overdue</div></div>
+            <div class="grid-ev-stat"><div class="grid-ev-num" id="gridEvCollected" data-s="sf941d6e">&mdash;</div><div class="grid-ev-label">Collected</div></div>
+            <div class="grid-ev-stat"><div class="grid-ev-num" id="gridEvPending" data-s="s08935a7">&mdash;</div><div class="grid-ev-label">Pending</div></div>
+            <div class="grid-ev-stat"><div class="grid-ev-num" id="gridEvOverdue" data-s="s45e7ae4">&mdash;</div><div class="grid-ev-label">Overdue</div></div>
           </div>
         </div>
       </div>
       <div class="panel-card">
         <div class="panel-title">Recent Activity</div>
-        <div id="gridRecentActivity"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+        <div id="gridRecentActivity"><div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div></div>
       </div>
     </div>
 
@@ -354,7 +354,7 @@
       <div class="card-header">
         <div class="card-title">Active Audits</div>
       </div>
-      <div class="card-body" style="padding:12px 20px 6px">
+      <div class="card-body" data-s="s7cf50a3">
         <div class="filter-bar" id="gridStatusFilters">
           <button type="button" class="filter-chip active" data-status="all" data-grid-static-click="s6">All</button>
           <button type="button" class="filter-chip" data-status="planning" data-grid-static-click="s7">Planning</button>
@@ -362,24 +362,24 @@
           <button type="button" class="filter-chip" data-status="complete" data-grid-static-click="s9">Complete</button>
         </div>
       </div>
-      <div style="overflow-x:auto">
+      <div data-s="s0ddf068">
         <table class="data-table">
           <thead><tr><th>Audit Name</th><th>Framework</th><th>Status</th><th>Progress</th><th>Due Date</th><th>Lead</th></tr></thead>
           <tbody id="gridAuditsBody">
-            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+            <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
     <!-- Program Dashboard: compliance posture + NC trend -->
-    <div class="card animate-fade-up anim-4" style="margin-top:20px">
+    <div class="card animate-fade-up anim-4" data-s="sa26bda7">
       <div class="card-header">
         <div class="card-title">Audit Program Overview</div>
-        <div style="font-size:11px;color:var(--muted)">Cross-audit compliance posture and NC trends</div>
+        <div data-s="s1fd8c81">Cross-audit compliance posture and NC trends</div>
       </div>
-      <div style="padding:16px 20px" id="programDashboardContent">
-        <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+      <div data-s="s01b9273" id="programDashboardContent">
+        <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
       </div>
     </div>
   </div>
@@ -400,8 +400,8 @@
         </button>
       </div>
     </div>
-    <div id="auditsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
-      <div style="text-align:center;padding:40px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+    <div id="auditsGrid" data-s="s38d7501" data-sd="grid">
+      <div data-s="sf2680ea"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
@@ -409,7 +409,7 @@
   <!-- AUDIT DETAIL VIEW -->
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <div class="spa-view" id="view-audit-detail">
-    <div id="auditDetailContent"><div style="text-align:center;padding:60px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+    <div id="auditDetailContent"><div data-s="sc694a8b"><div class="spinner" data-s="s266e9b0"></div></div></div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -431,7 +431,7 @@
       </div>
     </div>
     <div class="card">
-      <div id="controlsList"><div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+      <div id="controlsList"><div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div></div>
     </div>
   </div>
 
@@ -445,28 +445,28 @@
         <div class="section-sub">All evidence files across audits</div>
       </div>
       <div class="header-actions">
-        <select id="evPageAuditFilter" data-grid-static-change="s15" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">
+        <select id="evPageAuditFilter" data-grid-static-change="s15" data-s="s9604a2b">
           <option value="">All Audits</option>
         </select>
-        <select id="evPageStatusFilter" data-grid-static-change="s15" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">
+        <select id="evPageStatusFilter" data-grid-static-change="s15" data-s="s9604a2b">
           <option value="">All Statuses</option>
           <option value="Uploaded">Uploaded</option>
           <option value="Approved">Approved</option>
           <option value="Rejected">Rejected</option>
         </select>
-        <button class="btn btn-secondary" id="evBulkApproveBtn" data-grid-static-click="s16" style="display:none">
+        <button class="btn btn-secondary" id="evBulkApproveBtn" data-grid-static-click="s16" data-sd="none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg> Bulk Approve
         </button>
-        <button class="btn btn-secondary" id="evBulkRejectBtn" data-grid-static-click="s17" style="display:none;border-color:#ef4444;color:#ef4444">
+        <button class="btn btn-secondary" id="evBulkRejectBtn" data-grid-static-click="s17" data-s="s05cd5b5" data-sd="none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Bulk Reject
         </button>
       </div>
     </div>
     <!-- Completeness dashboard cards -->
-    <div id="evCompletenessCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px"></div>
+    <div id="evCompletenessCards" data-s="s84c533b" data-sd="grid"></div>
     <!-- Evidence table -->
     <div class="card">
-      <div id="evPageTable"><div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+      <div id="evPageTable"><div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div></div>
     </div>
   </div>
 
@@ -480,10 +480,10 @@
         <div class="section-sub">Track and resolve audit findings</div>
       </div>
       <div class="header-actions">
-        <select id="ncAuditFilter" data-grid-static-change="s18" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">
+        <select id="ncAuditFilter" data-grid-static-change="s18" data-s="s9604a2b">
           <option value="">All Audits</option>
         </select>
-        <select id="ncCapFilter" data-grid-static-change="s18" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">
+        <select id="ncCapFilter" data-grid-static-change="s18" data-s="s9604a2b">
           <option value="">All CAP Stages</option>
           <option value="Open">Open</option>
           <option value="RCA">RCA</option>
@@ -500,7 +500,7 @@
       </div>
     </div>
     <div class="card">
-      <div id="findingsList"><div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+      <div id="findingsList"><div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div></div>
     </div>
   </div>
 
@@ -514,8 +514,8 @@
         <div class="section-sub">Active compliance frameworks for auditing</div>
       </div>
     </div>
-    <div id="frameworksGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
-      <div style="text-align:center;padding:40px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+    <div id="frameworksGrid" data-s="s0711ddc" data-sd="grid">
+      <div data-s="sf2680ea"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
@@ -529,7 +529,7 @@
         <div class="section-sub">Third-party compliance assessments — frameworks, scores &amp; cross-module risk</div>
       </div>
       <div class="header-actions">
-        <a href="/vendors" class="module-directory-link" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;transition:all .15s">
+        <a href="/vendors" class="module-directory-link" data-s="s86ea861" data-sd="inline-flex">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           Directory
         </a>
@@ -539,9 +539,9 @@
         </button>
       </div>
     </div>
-    <div id="gridVendorAlertBanner" style="margin-bottom:12px"></div>
+    <div id="gridVendorAlertBanner" data-s="sda12f28"></div>
     <div class="card">
-      <div id="vendorsList"><div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div></div>
+      <div id="vendorsList"><div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div></div>
     </div>
   </div>
 
@@ -556,20 +556,20 @@
       </div>
     </div>
     <div id="reportsContent">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px" id="reportsGrid"></div>
+      <div data-s="s573691e" data-sd="grid" id="reportsGrid"></div>
     </div>
     <!-- Report History -->
-    <div style="margin-top:32px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div data-s="sc2f8546">
+      <div data-s="s46d76eb" data-sd="flex">
         <div>
-          <div style="font-size:16px;font-weight:700;color:var(--text)">Report History</div>
-          <div style="font-size:12px;color:var(--muted)">Previously generated reports saved for reference</div>
+          <div data-s="s0e30530">Report History</div>
+          <div data-s="s7fc448e">Previously generated reports saved for reference</div>
         </div>
       </div>
-      <div class="table-wrap" style="overflow-x:auto">
+      <div class="table-wrap" data-s="s0ddf068">
         <table class="data-table" id="savedReportsTable">
           <thead>
-            <tr><th>Title</th><th>Audit</th><th>Type</th><th>Size</th><th>Generated By</th><th>Date</th><th style="width:90px">Actions</th></tr>
+            <tr><th>Title</th><th>Audit</th><th>Type</th><th>Size</th><th>Generated By</th><th>Date</th><th data-s="s581be41">Actions</th></tr>
           </thead>
           <tbody id="savedReportsTbody"></tbody>
         </table>
@@ -587,17 +587,17 @@
         <div class="section-sub">Compliance assistant powered by AI</div>
       </div>
     </div>
-    <div class="card" style="max-width:800px">
-      <div id="chatMessages" style="min-height:300px;max-height:500px;overflow-y:auto;padding:20px">
-        <div style="text-align:center;color:var(--muted);padding:40px">
-          <div style="font-size:32px;margin-bottom:12px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
-          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">GRID AI Assistant</div>
-          <div style="font-size:13px">Ask about compliance frameworks, audit best practices, or get help with controls.</div>
+    <div class="card" data-s="s3f7efa5">
+      <div id="chatMessages" data-s="sa805199">
+        <div data-s="sc0de2b0">
+          <div data-s="s30de678"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
+          <div data-s="s842707b">GRID AI Assistant</div>
+          <div data-s="s5e0faad">Ask about compliance frameworks, audit best practices, or get help with controls.</div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;padding:16px;border-top:1px solid var(--border)">
+      <div data-s="s87d9bf0" data-sd="flex">
         <input type="text" id="chatInput" placeholder="Ask about compliance, controls, audit procedures..."
-               style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px"
+               data-s="s7ec3013"
                data-grid-static-keydown="s21">
         <button class="btn btn-primary" data-grid-static-click="s22">Send</button>
       </div>

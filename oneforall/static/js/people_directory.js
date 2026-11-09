@@ -50,7 +50,7 @@ function filterPeople() {
 function renderGrid(people) {
   var el = document.getElementById('pdGrid');
   if (!people.length) {
-    el.innerHTML = '<div class="pd-empty" style="grid-column:1/-1"><div class="pd-empty-icon"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg></div><div style="font-size:15px;font-weight:600">No people found</div><div style="font-size:13px;margin-top:4px">Add staff manually or import from Excel.</div></div>';
+    el.innerHTML = '<div class="pd-empty" data-s="s068a8dd"><div class="pd-empty-icon"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg></div><div data-s="s8da9334">No people found</div><div data-s="s5661dcc">Add staff manually or import from Excel.</div></div>';
     return;
   }
   el.innerHTML = people.map(function(p) {
@@ -59,7 +59,7 @@ function renderGrid(people) {
     var initials = (p.full_name||'?').split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
     return '<div class="pd-card' + (p.is_active ? '' : ' inactive') + '" role="button" tabindex="0" data-person-id="' + id + '">' +
       '<div class="pd-card-top">' +
-        '<div class="pd-avatar" style="background:' + avatarColor(p.full_name) + '">' + esc(initials) + '</div>' +
+        '<div class="pd-avatar" data-sv="background:' + avatarColor(p.full_name) + '">' + esc(initials) + '</div>' +
         '<div class="pd-card-info">' +
           '<div class="pd-card-name">' + esc(p.full_name||'') + '</div>' +
           '<div class="pd-card-title">' + esc(p.job_title||'No title') + '</div>' +
@@ -96,7 +96,7 @@ async function openDrawer(pid) {
     kv('Phone', esc(p.phone || '-')) +
     kv('Status', p.is_active ? 'Active' : 'Inactive') +
   '</div>';
-  if (p.notes) html += '<div class="pd-section"><div class="pd-section-title">Notes</div><p style="font-size:12px;color:var(--text);margin:0">'+esc(p.notes)+'</p></div>';
+  if (p.notes) html += '<div class="pd-section"><div class="pd-section-title">Notes</div><p data-s="s6798d13">'+esc(p.notes)+'</p></div>';
   if (p.tasks && p.tasks.length) {
     html += '<div class="pd-section"><div class="pd-section-title">Assigned Tasks (' + p.tasks.length + ')</div>';
     p.tasks.forEach(function(t) {
@@ -111,9 +111,9 @@ async function openDrawer(pid) {
     });
     html += '</div>';
   }
-  html += '<div style="display:flex;gap:8px;margin-top:4px">' +
-    '<button class="pd-btn pd-btn-secondary" style="flex:1" data-person-action="edit" data-person-id="' + pid + '">Edit</button>' +
-    '<button class="pd-btn" style="flex:1;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)" data-person-action="delete" data-person-id="' + pid + '">Delete</button>' +
+  html += '<div data-s="s6f25b08" data-sd="flex">' +
+    '<button class="pd-btn pd-btn-secondary" data-s="s97445a8" data-person-action="edit" data-person-id="' + pid + '">Edit</button>' +
+    '<button class="pd-btn" data-s="s9513c96" data-person-action="delete" data-person-id="' + pid + '">Delete</button>' +
   '</div>';
   document.getElementById('ddBody').innerHTML = html;
   document.getElementById('pdDrawer').classList.add('open');

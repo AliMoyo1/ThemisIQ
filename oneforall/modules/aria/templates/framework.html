@@ -17,9 +17,9 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<a href="/aria/" style="color:var(--muted);text-decoration:none;font-weight:500">ARIA</a>
+<a href="/aria/" data-s="s436d52e">ARIA</a>
 <span class="breadcrumb-sep">&#8250;</span>
-<a href="/aria/frameworks" style="color:var(--muted);text-decoration:none;font-weight:500">Frameworks</a>
+<a href="/aria/frameworks" data-s="s436d52e">Frameworks</a>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">{{ fw.name }}</span>
 {% endblock %}
@@ -38,25 +38,25 @@
   </div>
   <div class="page-actions">
     <a href="/aria/export/excel" class="btn btn-ghost">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export
     </a>
   </div>
 </div>
 
 <!-- Stats -->
-<div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+<div class="stats-row" data-s="s355b188">
   <div class="stat-card">
     <div class="stat-label">Implemented</div>
-    <div class="stat-value" style="color:var(--green-status,#16a34a)">{{ stats.implemented }}</div>
+    <div class="stat-value" data-s="s15540fe">{{ stats.implemented }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">In Progress</div>
-    <div class="stat-value" style="color:var(--blue,#2563eb)">{{ stats.in_progress }}</div>
+    <div class="stat-value" data-s="sd57f15a">{{ stats.in_progress }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Not Started</div>
-    <div class="stat-value" style="color:var(--red,#dc2626)">{{ stats.not_started }}</div>
+    <div class="stat-value" data-s="sf9408e8">{{ stats.not_started }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Total Controls</div>
@@ -66,23 +66,23 @@
 
 <!-- Progress bar -->
 {% set pct = (stats.implemented / stats.total * 100) | round(1) if stats.total > 0 else 0 %}
-<div style="margin-bottom:24px">
+<div data-s="s8677744">
   <div class="progress-label">
     <span class="progress-label-text">Completion Progress</span>
-    <span class="progress-label-pct" style="color:{% if pct >= 80 %}var(--green-status,#16a34a){% elif pct >= 50 %}var(--amber,#d97706){% else %}var(--red,#dc2626){% endif %}">{{ pct }}%</span>
+    <span class="progress-label-pct" data-sv="color:{% if pct >= 80 %}var(--green-status,#16a34a){% elif pct >= 50 %}var(--amber,#d97706){% else %}var(--red,#dc2626){% endif %}">{{ pct }}%</span>
   </div>
   <div class="progress-track">
-    <div class="progress-track-fill" style="width:{{ pct }}%;background:{{ fw.color }}"></div>
+    <div class="progress-track-fill" data-sv="width:{{ pct }}%;background:{{ fw.color }}"></div>
   </div>
 </div>
 
 <!-- Filters -->
 <div class="filter-bar">
-  <div style="flex:1;min-width:180px">
+  <div data-s="s2f7ab6d">
     <label>Search</label>
-    <input type="text" id="searchInput" placeholder="Search controls..." value="{{ filters.search }}" style="width:100%">
+    <input type="text" id="searchInput" placeholder="Search controls..." value="{{ filters.search }}" data-s="s0466783">
   </div>
-  <div style="min-width:140px">
+  <div data-s="s4592c74">
     <label>Status</label>
     <select id="statusFilter">
       <option value="">All Statuses</option>
@@ -91,7 +91,7 @@
       {% endfor %}
     </select>
   </div>
-  <div style="min-width:130px">
+  <div data-s="sb62dc2d">
     <label>Priority</label>
     <select id="priorityFilter">
       <option value="">All Priorities</option>
@@ -100,7 +100,7 @@
       {% endfor %}
     </select>
   </div>
-  <div style="min-width:140px">
+  <div data-s="s4592c74">
     <label>Category</label>
     <select id="categoryFilter">
       <option value="">All Categories</option>
@@ -109,36 +109,36 @@
       {% endfor %}
     </select>
   </div>
-  <div style="align-self:flex-end">
-    <button type="button" id="applyControlFilters" class="btn btn-primary" style="padding:8px 16px">Filter</button>
+  <div data-s="sffd20f1">
+    <button type="button" id="applyControlFilters" class="btn btn-primary" data-s="s9bfd0fc">Filter</button>
   </div>
 </div>
 
 <!-- Controls table -->
-<div class="card" style="padding:0">
+<div class="card" data-s="s41d7d7e">
   <div class="table-wrap">
     <table class="data-table">
       <thead>
         <tr>
-          <th style="width:70px">Ref</th>
-          <th style="min-width:200px">Control Name</th>
+          <th data-s="sec6626e">Ref</th>
+          <th data-s="s47b618f">Control Name</th>
           <th>Category</th>
           <th>Type</th>
-          <th style="width:130px">Status</th>
-          <th style="width:110px">Priority</th>
-          <th style="width:130px">Owner</th>
-          <th style="width:70px;text-align:center">Evidence</th>
-          <th style="width:130px">Target Date</th>
-          <th style="width:60px;text-align:center">Edit</th>
+          <th data-s="sc6fffdf">Status</th>
+          <th data-s="s6074682">Priority</th>
+          <th data-s="sc6fffdf">Owner</th>
+          <th data-s="s745e466">Evidence</th>
+          <th data-s="sc6fffdf">Target Date</th>
+          <th data-s="s4a6a2fd">Edit</th>
         </tr>
       </thead>
       <tbody>
         {% for ctrl in controls %}
         <tr id="row-{{ ctrl.id }}">
-          <td style="font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700">{{ ctrl.ref }}</td>
+          <td data-s="s9867138">{{ ctrl.ref }}</td>
           <td>
-            <div style="font-weight:600;color:var(--text)">{{ ctrl.name }}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4">{{ ctrl.description }}</div>
+            <div data-s="s8fbdd52">{{ ctrl.name }}</div>
+            <div data-s="saeb98b3">{{ ctrl.description }}</div>
           </td>
           <td><span class="row-chip">{{ ctrl.category }}</span></td>
           <td><span class="row-chip">{{ ctrl.doc_type }}</span></td>
@@ -160,23 +160,23 @@
             <input type="text" class="inline-input js-control-owner" value="{{ ctrl.owner or '' }}" placeholder="Assign..."
               data-control-id="{{ ctrl.id | int }}">
           </td>
-          <td style="text-align:center">
+          <td data-s="s91a8701">
             {% if ctrl.evidence_count %}
-            <a href="/evidence/?module=aria" style="text-decoration:none">
-              <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:#dcfce7;color:#16a34a">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            <a href="/evidence/?module=aria" data-s="s80d654f">
+              <span data-s="s245240f" data-sd="inline-flex">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="sf22e2a3"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                 {{ ctrl.evidence_count }}
               </span>
             </a>
             {% else %}
-            <span style="font-size:10px;color:var(--muted)">—</span>
+            <span data-s="sb569cab">—</span>
             {% endif %}
           </td>
           <td>
             <input type="date" class="date-input js-control-date" value="{{ ctrl.target_date or '' }}"
               data-control-id="{{ ctrl.id | int }}">
           </td>
-          <td style="text-align:center">
+          <td data-s="s91a8701">
             <button class="edit-btn js-edit-control" type="button" data-control-id="{{ ctrl.id | int }}"
                     data-control-name="{{ ctrl.name }}" data-control-notes="{{ ctrl.notes or '' }}"
                     data-control-evidence="{{ ctrl.evidence_ref or '' }}" data-control-version="{{ ctrl.version or '1.0' }}"
@@ -194,14 +194,14 @@
 <!-- Edit Modal -->
 <div class="modal-overlay" id="editModal">
   <div class="modal">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div data-s="s6f01855" data-sd="flex">
       <div class="modal-title">Edit Control Details</div>
-      <button type="button" class="modal-close js-close-control-modal" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+      <button type="button" class="modal-close js-close-control-modal" data-s="s0f661b2" data-sd="flex">&#10005;</button>
     </div>
     <input type="hidden" id="editId">
     <div class="form-group">
       <label class="form-label">Control Name</label>
-      <input type="text" id="editName" readonly style="opacity:0.6;cursor:not-allowed">
+      <input type="text" id="editName" readonly data-s="s262f868">
     </div>
     <div class="form-group">
       <label class="form-label">Document Title</label>
@@ -225,7 +225,7 @@
       <label class="form-label">Notes</label>
       <textarea id="editNotes" rows="3" placeholder="Add any notes or comments..."></textarea>
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+    <div data-s="sd28ceac" data-sd="flex">
       <button type="button" class="btn btn-ghost js-close-control-modal">Cancel</button>
       <button type="button" class="btn btn-primary" id="saveControlModal">Save Changes</button>
     </div>

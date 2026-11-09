@@ -104,7 +104,7 @@
   function renderRow(row, variant, checked, working) {
     var lead = '';
     if (variant === 'search') {
-      lead = '<span class="tt-dot" style="background:' + row._tone + '">' +
+      lead = '<span class="tt-dot" data-sv="background:' + row._tone + '">' +
         svg({ width: 9, height: 9, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.5 },
           '<circle cx="12" cy="12" r="9"/><path d="M3.5 12h17M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>') +
         '</span>';

@@ -178,7 +178,7 @@ function filterControls() {
     : allControls.slice(0, 20);
 
   if (!filtered.length) {
-    results.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--muted)">No matching controls</div>';
+    results.innerHTML = '<div data-s="s2dd5897">No matching controls</div>';
     results.style.display = 'block';
     return;
   }
@@ -191,11 +191,11 @@ function filterControls() {
     // IMS badge
     var imsBadgeHtml = '';
     if (c.ims_status === 'integrated') {
-      imsBadgeHtml = '<span style="background:#16a34a;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">INT</span>';
+      imsBadgeHtml = '<span data-s="s44c4256">INT</span>';
     } else if (c.ims_status === 'partial') {
-      imsBadgeHtml = '<span style="background:#d97706;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">PARTIAL</span>';
+      imsBadgeHtml = '<span data-s="s896a448">PARTIAL</span>';
     } else if (c.ims_status === 'unique') {
-      imsBadgeHtml = '<span style="background:#dc2626;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">UNIQUE</span>';
+      imsBadgeHtml = '<span data-s="sbb90e7d">UNIQUE</span>';
     }
     return '<div class="ctrl-result" data-idx="' + idx + '">' +
       '<div class="ctrl-result-top">' +
@@ -251,10 +251,10 @@ function selectControl(id, ref, name, desc) {
     };
     var b = badges[ctrl.ims_status];
     if (b) {
-      imsEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:' + b.bg + '22;border:1px solid ' + b.bg + '44;border-radius:6px;margin-top:8px;">' +
-        '<span style="background:'+b.bg+';color:#fff;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.5px;">'+b.label+'</span>' +
-        '<span style="font-size:11px;color:var(--text-mid);">'+b.msg+'</span>' +
-        (ctrl.mapped_fw_names && ctrl.mapped_fw_names.length ? ' <span style="font-size:10px;color:var(--muted);">↔ ' + ctrl.mapped_fw_names.join(', ') + '</span>' : '') +
+      imsEl.innerHTML = '<div data-sv="display:flex;align-items:center;gap:8px;padding:8px 10px;background:' + b.bg + '22;border:1px solid ' + b.bg + '44;border-radius:6px;margin-top:8px;">' +
+        '<span data-sv="background:'+b.bg+';color:#fff;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.5px;">'+b.label+'</span>' +
+        '<span data-s="s112ff04">'+b.msg+'</span>' +
+        (ctrl.mapped_fw_names && ctrl.mapped_fw_names.length ? ' <span data-s="sb569cab">↔ ' + ctrl.mapped_fw_names.join(', ') + '</span>' : '') +
         '</div>';
       imsEl.style.display = 'block';
       // Show/hide IMS toggle based on status

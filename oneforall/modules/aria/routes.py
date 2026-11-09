@@ -2695,11 +2695,13 @@ async def ai_generator_page(request: Request):
             _gen_scope_params
         ).fetchall()]
 
+        # A document saved without a framework or control (an imported policy, for one) covers no control; the count
+        # above skips it the same way (NULL in the concatenation).
         doc_ctrl_ref_set = [
             r["framework"] + "|" + r["control_ref"]
             for r in db3.execute(
                 f"SELECT DISTINCT framework, control_ref FROM aria_documents "
-                f"WHERE {_gen_scope_sql}",
+                f"WHERE ({_gen_scope_sql}) AND framework IS NOT NULL AND control_ref IS NOT NULL",
                 _gen_scope_params
             ).fetchall()
         ]

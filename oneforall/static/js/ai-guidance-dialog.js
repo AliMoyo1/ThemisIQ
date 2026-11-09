@@ -29,14 +29,14 @@
       var root = document.createElement('div');
       root.id = 'aiGuidanceDialogRoot';
       root.innerHTML =
-        '<div class="ai-guidance-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center">' +
-          '<div style="background:var(--surface,#fff);border:1px solid var(--border,#ddd);border-radius:12px;padding:22px;width:460px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.25)">' +
-            '<div style="font-size:16px;font-weight:700;margin-bottom:6px;color:var(--text,#111)">' + _esc(title) + '</div>' +
-            '<div style="font-size:12.5px;color:var(--muted,#666);margin-bottom:12px">Optional. Tell the AI what to emphasise, include, or avoid. This cannot override its safety or accuracy rules.</div>' +
-            '<textarea id="aiGuidanceInput" rows="5" maxlength="' + maxLength + '" placeholder="' + _esc(placeholder) + '" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border,#ddd);border-radius:8px;background:var(--surface2,#f8f8f8);color:var(--text,#111);font-size:13.5px;resize:vertical"></textarea>' +
-            '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">' +
-              '<button type="button" id="aiGuidanceSkip" style="padding:8px 14px;border:1px solid var(--border,#ddd);border-radius:8px;background:transparent;color:var(--text,#111);cursor:pointer;font-size:13px">Skip</button>' +
-              '<button type="button" id="aiGuidanceGo" style="padding:8px 16px;border:none;border-radius:8px;background:var(--accent,#2563eb);color:#fff;cursor:pointer;font-size:13px;font-weight:600">Continue</button>' +
+        '<div class="ai-guidance-overlay" data-s="s1f192ae" data-sd="flex">' +
+          '<div data-s="sbd0f106">' +
+            '<div data-s="s36f7b06">' + _esc(title) + '</div>' +
+            '<div data-s="se6452a9">Optional. Tell the AI what to emphasise, include, or avoid. This cannot override its safety or accuracy rules.</div>' +
+            '<textarea id="aiGuidanceInput" rows="5" maxlength="' + maxLength + '" placeholder="' + _esc(placeholder) + '" data-s="sf0671b7"></textarea>' +
+            '<div data-s="s53c792b" data-sd="flex">' +
+              '<button type="button" id="aiGuidanceSkip" data-s="s79a22c9">Skip</button>' +
+              '<button type="button" id="aiGuidanceGo" data-s="s68b310c">Continue</button>' +
             '</div>' +
           '</div>' +
         '</div>';

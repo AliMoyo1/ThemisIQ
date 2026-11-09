@@ -155,14 +155,14 @@ function scoreToBand(l,i){
 function bandLabel(band){return ERM_BAND_LABELS[band]||(band||'?').toUpperCase();}
 function bandColor(band){return ERM_BAND_COLORS[band]||'var(--muted)';}
 function bandHeatClass(band){var idx=ERM_BAND_ORDER.indexOf(band);return'heat-'+(idx<0?2:idx);}
-function levelBadge(band){var c=bandColor(band);return'<span class="badge" style="background:'+c+'22;color:'+c+';border:1px solid '+c+'55">'+esc(bandLabel(band).toUpperCase())+'</span>';}
-function qChip(band){var c=bandColor(band);return'<span class="q-chip" style="background:'+c+'22;color:'+c+'">'+esc(bandLabel(band))+'</span>';}
+function levelBadge(band){var c=bandColor(band);return'<span class="badge" data-sv="background:'+c+'22;color:'+c+';border:1px solid '+c+'55">'+esc(bandLabel(band).toUpperCase())+'</span>';}
+function qChip(band){var c=bandColor(band);return'<span class="q-chip" data-sv="background:'+c+'22;color:'+c+'">'+esc(bandLabel(band))+'</span>';}
 function statusBadge(s){var m={open:'badge-high',under_review:'badge-progress',mitigated:'badge-complete',accepted:'badge-draft',closed:'badge-draft',pending:'badge-draft',compliant:'badge-complete',non_compliant:'badge-critical',draft:'badge-draft',active:'badge-high',closed:'badge-draft'};var lbl=(s||'—').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});return'<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc(lbl)+'</span>';}
 function srcPill(mod,src){var cls={erm:'src-pill-erm',grid:'src-pill-grid',bcm:'src-pill-bcm',sentinel:'src-pill-sentinel',orm:'src-pill-orm'};var lbl=src==='erm'?'ERM':(mod||src||'?');return'<span class="src-pill '+(cls[mod]||cls[src]||'')+'">'+esc(lbl.toUpperCase())+'</span>';}
-function spinner(n){return'<tr><td colspan="'+n+'" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
-function emptyRow(n,msg){return'<tr><td colspan="'+n+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records')+'</td></tr>';}
-function trendArrow(n){if(!n&&n!==0)return'';var c=n>0?'var(--red)':n<0?'var(--good,#16a34a)':'var(--muted)';var sym=n>0?'▲':n<0?'▼':'—';return'<span style="color:'+c+';font-weight:700">'+sym+' '+Math.abs(n)+' vs 30d</span>';}
-function statCards(elId,cards){var el=document.getElementById(elId);if(!el)return;el.innerHTML=cards.map(function(c){return'<div class="stat-card" style="padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">'+esc(c.label)+'</div><div style="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+(c.sub?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(c.sub)+'</div>':'')+' </div>';}).join('');el.querySelectorAll('.stat-card').forEach(function(card){card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-.5;var y=(e.clientY-r.top)/r.height-.5;card.style.transform='perspective(600px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg) translateY(-2px)';});card.addEventListener('mouseleave',function(){card.style.transform='';});});}
+function spinner(n){return'<tr><td colspan="'+n+'" data-s="s453f6c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';}
+function emptyRow(n,msg){return'<tr><td colspan="'+n+'" data-s="s2e587c2">'+esc(msg||'No records')+'</td></tr>';}
+function trendArrow(n){if(!n&&n!==0)return'';var c=n>0?'var(--red)':n<0?'var(--good,#16a34a)':'var(--muted)';var sym=n>0?'▲':n<0?'▼':'—';return'<span data-sv="color:'+c+';font-weight:700">'+sym+' '+Math.abs(n)+' vs 30d</span>';}
+function statCards(elId,cards){var el=document.getElementById(elId);if(!el)return;el.innerHTML=cards.map(function(c){return'<div class="stat-card" data-s="sb622587"><div data-s="s5ba562e">'+esc(c.label)+'</div><div data-sv="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+(c.sub?'<div data-s="s8a05498">'+esc(c.sub)+'</div>':'')+' </div>';}).join('');el.querySelectorAll('.stat-card').forEach(function(card){card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-.5;var y=(e.clientY-r.top)/r.height-.5;card.style.transform='perspective(600px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg) translateY(-2px)';});card.addEventListener('mouseleave',function(){card.style.transform='';});});}
 
 async function apiFetch(url,opts){
   // PLAN-36 T06 (findings.md F08): was a hand-rolled fetch wrapper used
@@ -284,13 +284,13 @@ window.ermLoadDashboard=async function(){
     if(ob&&!localStorage.getItem('hide_erm_onboard')){ob.style.display=(d.total_risks||0)===0?'':'none';}
     // Quick-add links on zero-count stat cards
     var qa=document.getElementById('dTotalRisks');
-    if(qa&&(d.total_risks||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-erm-click="event.preventDefault();ermOpenRiskModal()" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add your first</a>');}
+    if(qa&&(d.total_risks||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-erm-click="event.preventDefault();ermOpenRiskModal()" data-s="s61d2d1c" data-sd="block">+ Add your first</a>');}
   }catch(e){console.error('ERM dashboard',e);}
 }
 
 function ermRenderHeatMap(hm){
   var el=document.getElementById('ermHeatMap');if(!el)return;
-  if(!hm||!hm.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px">No risk data yet</div>';return;}
+  if(!hm||!hm.length){el.innerHTML='<div data-s="s33cb10c">No risk data yet</div>';return;}
   var cells='';
   for(var l=4;l>=0;l--){
     cells+='<div class="heat-axis">'+(l+1)+'</div>';
@@ -312,17 +312,17 @@ var _heatL=0,_heatI=0;
 
 function ermRenderAppetitePanel(statuses){
   var el=document.getElementById('ermAppetitePanel');if(!el)return;
-  if(!statuses.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:12px;font-size:12px">No appetite defined yet</div>';return;}
+  if(!statuses.length){el.innerHTML='<div data-s="s7c4debd">No appetite defined yet</div>';return;}
   el.innerHTML=statuses.slice(0,6).map(function(a){
     var pct=a.max_score>0?Math.min(100,Math.round((a.current_max_score/a.max_score)*100)):0;
     var cls=a.breached?'gauge-breach':pct>=80?'gauge-warn':'gauge-ok';
     var ragColor=a.breached?'var(--red)':pct>=80?'var(--amber)':'var(--good,#16a34a)';
-    return'<div style="margin-bottom:10px" title="Residual exposure vs appetite (post-control RRR, or IRR when not yet assessed)">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center">'+
-        '<div style="font-size:12px;font-weight:600;text-transform:capitalize">'+esc(a.category)+'</div>'+
-        '<div style="font-size:11px;font-weight:700;color:'+ragColor+'">'+(a.breached?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> BREACH':a.current_max_score+'/'+a.max_score)+'</div>'+
+    return'<div data-s="s761d3ad" title="Residual exposure vs appetite (post-control RRR, or IRR when not yet assessed)">'+
+      '<div data-s="s2d7d272" data-sd="flex">'+
+        '<div data-s="s45749cd">'+esc(a.category)+'</div>'+
+        '<div data-sv="font-size:11px;font-weight:700;color:'+ragColor+'">'+(a.breached?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> BREACH':a.current_max_score+'/'+a.max_score)+'</div>'+
       '</div>'+
-      '<div class="gauge-bar" style="margin:4px 0 0"><div class="gauge-fill '+cls+'" style="width:'+pct+'%"></div></div>'+
+      '<div class="gauge-bar" data-s="s63e775f"><div class="gauge-fill '+cls+'" data-sv="width:'+pct+'%"></div></div>'+
     '</div>';
   }).join('');
 }
@@ -344,20 +344,20 @@ function ermRenderPosture(p){
 }
 function ermRenderWatchlist(rows){
   var el=document.getElementById('dashWatchlist');if(!el)return;
-  if(!rows||!rows.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">No risks at RRR 15 or above</div>';return;}
+  if(!rows||!rows.length){el.innerHTML='<div data-s="se7dd627">No risks at RRR 15 or above</div>';return;}
   el.innerHTML=rows.map(function(r){
-    return'<div data-erm-click="ermOpenRiskDrawer('+r.id+')" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer">'+
-      '<div style="font-size:15px;font-weight:800;color:var(--red);flex-shrink:0;width:34px;text-align:center">'+r.rrr+'</div>'+
-      '<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
-        (r.risk_ref?'<span style="font-family:monospace;color:var(--muted);margin-right:4px">'+esc(r.risk_ref)+'</span>':'')+esc(r.title)+
+    return'<div data-erm-click="ermOpenRiskDrawer('+r.id+')" data-s="s0b738ea" data-sd="flex">'+
+      '<div data-s="sd25e907">'+r.rrr+'</div>'+
+      '<div data-s="s59eddc6"><div data-s="s72eb8c8">'+
+        (r.risk_ref?'<span data-s="sbb1a51d">'+esc(r.risk_ref)+'</span>':'')+esc(r.title)+
       '</div>'+
-      '<div style="color:var(--muted);font-size:11px;text-transform:capitalize">'+esc(r.category||'')+' · '+esc(r.owner_name||'Unassigned')+'</div></div>'+
+      '<div data-s="sd7e68f4">'+esc(r.category||'')+' · '+esc(r.owner_name||'Unassigned')+'</div></div>'+
     '</div>';
   }).join('');
 }
 function ermRenderTrajectory(buckets){
   var el=document.getElementById('dashTrajectory');if(!el)return;
-  if(!buckets||buckets.length<2){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">Not enough history yet</div>';return;}
+  if(!buckets||buckets.length<2){el.innerHTML='<div data-s="se7dd627">Not enough history yet</div>';return;}
   var W=360,H=140,pad=24,n=buckets.length;
   var xStep=(W-pad*2)/(n-1);
   function y(v){var vv=v==null?0:v;return H-pad-((Math.min(25,vv)/25)*(H-pad*2));}
@@ -370,60 +370,60 @@ function ermRenderTrajectory(buckets){
   buckets.forEach(function(b,idx){
     if(idx%3===0||idx===n-1)labels+='<text x="'+(pad+idx*xStep)+'" y="'+(H-4)+'" font-size="9" fill="var(--muted)" text-anchor="middle">'+esc(b.month)+'</text>';
   });
-  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:150px">'+
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" data-s="s1bcdf5f">'+
     '<line x1="'+pad+'" y1="'+(H-pad)+'" x2="'+(W-pad)+'" y2="'+(H-pad)+'" stroke="var(--border)" stroke-width="1"/>'+
     (irrPts?'<polyline class="premium-chart-line" points="'+irrPts+'" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-dasharray="4,3"><title>Average inherent risk rating</title></polyline>':'')+
     (rrrPts?'<polyline class="premium-chart-line" points="'+rrrPts+'" fill="none" stroke="var(--red)" stroke-width="2.6"><title>Average residual risk rating</title></polyline>':'')+
     buckets.map(function(b,idx){return ['avg_irr','avg_rrr'].map(function(key){if(b[key]==null)return '';var x=pad+idx*xStep;return '<circle class="premium-chart-point" cx="'+x.toFixed(1)+'" cy="'+y(b[key]).toFixed(1)+'" r="4" fill="'+(key==='avg_rrr'?'var(--red)':'var(--muted)')+'" tabindex="0" role="img" aria-label="'+escChartAttr(String(b.month))+': average '+(key==='avg_rrr'?'residual':'inherent')+' risk rating '+escChartAttr(String(b[key]))+'"><title>'+esc(String(b.month))+': '+(key==='avg_rrr'?'RRR':'IRR')+' '+esc(String(b[key]))+'</title></circle>';}).join('');}).join('')+
     labels+
   '</svg>'+
-  '<div style="display:flex;gap:14px;font-size:10px;color:var(--muted);margin-top:4px;justify-content:center">'+
-    '<span><span style="display:inline-block;width:10px;height:2px;background:var(--red);vertical-align:middle;margin-right:4px"></span>Avg RRR</span>'+
-    '<span><span style="display:inline-block;width:10px;height:2px;border-top:1px dashed var(--muted);vertical-align:middle;margin-right:4px"></span>Avg IRR</span>'+
+  '<div data-s="s74ed49e" data-sd="flex">'+
+    '<span><span data-s="sf226cf5" data-sd="inline-block"></span>Avg RRR</span>'+
+    '<span><span data-s="s0b3427b" data-sd="inline-block"></span>Avg IRR</span>'+
   '</div>';
 }
 
 function ermRenderTopCritical(risks){
   var el=document.getElementById('ermTopCritical');if(!el)return;
-  if(!risks.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">No critical risks — well done!</div>';return;}
+  if(!risks.length){el.innerHTML='<div data-s="se7dd627">No critical risks — well done!</div>';return;}
   el.innerHTML=risks.map(function(r){
     var score=r.score||((r.likelihood||0)*(r.impact||0));
     var lvl=scoreToBand(r.likelihood,r.impact);
     var scoreCl=bandColor(lvl);
-    return'<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">'+
-      '<div style="font-size:15px;font-weight:800;color:'+scoreCl+';flex-shrink:0;width:28px;text-align:center">'+score+'</div>'+
-      '<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.title)+'</div>'+
-      '<div style="color:var(--muted);font-size:11px;text-transform:capitalize">'+esc(r.category||'')+'</div></div>'+
+    return'<div data-s="se3824df" data-sd="flex">'+
+      '<div data-sv="font-size:15px;font-weight:800;color:'+scoreCl+';flex-shrink:0;width:28px;text-align:center">'+score+'</div>'+
+      '<div data-s="s59eddc6"><div data-s="s72eb8c8">'+esc(r.title)+'</div>'+
+      '<div data-s="sd7e68f4">'+esc(r.category||'')+'</div></div>'+
       srcPill(r.source_module,'erm')+
-      '<a href="#" data-erm-click="event.preventDefault();ermRouter.navigate(\'/erm/register\')" style="color:var(--accent);font-size:11px;white-space:nowrap;text-decoration:none">View →</a>'+
+      '<a href="#" data-erm-click="event.preventDefault();ermRouter.navigate(\'/erm/register\')" data-s="s79e2826">View →</a>'+
     '</div>';
   }).join('');
 }
 
 function ermRenderActionsRequired(actions){
   var el=document.getElementById('ermActionsRequired');if(!el)return;
-  if(!actions.length){el.innerHTML='<div style="color:var(--good,#16a34a);text-align:center;padding:16px;font-size:13px">✓ No actions required</div>';return;}
+  if(!actions.length){el.innerHTML='<div data-s="s05e0658">✓ No actions required</div>';return;}
   var icons={unowned_risk:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg>',overdue_review:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg>',overdue_obligation:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>'};
   el.innerHTML=actions.map(function(a){
-    return'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">'+
-      '<div style="font-size:16px;flex-shrink:0">'+(icons[a.type]||'!')+'</div>'+
-      '<div style="flex:1">'+esc(a.text)+'</div>'+
-      '<a href="#" data-erm-click="event.preventDefault();ermRouter.navigate(\''+esc(a.link)+'\')" style="color:var(--accent);font-size:11px;white-space:nowrap;text-decoration:none;flex-shrink:0">Fix →</a>'+
+    return'<div data-s="s35c959c" data-sd="flex">'+
+      '<div data-s="sc1827f2">'+(icons[a.type]||'!')+'</div>'+
+      '<div data-s="s97445a8">'+esc(a.text)+'</div>'+
+      '<a href="#" data-erm-click="event.preventDefault();ermRouter.navigate(\''+esc(a.link)+'\')" data-s="s1bbf07c">Fix →</a>'+
     '</div>';
   }).join('');
 }
 
 function ermRenderFeedPanel(items){
   var el=document.getElementById('ermFeedPanel');if(!el)return;
-  if(!items.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">No cross-module risk events yet</div>';return;}
+  if(!items.length){el.innerHTML='<div data-s="se7dd627">No cross-module risk events yet</div>';return;}
   var modColors={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c',platform:'var(--muted)'};
   el.innerHTML=items.map(function(f){
     var col=modColors[f.source_module]||'var(--muted)';
     var payload={};try{payload=JSON.parse(f.payload||'{}');}catch(e){}
     return'<div class="feed-item">'+
-      '<div class="feed-dot" style="background:'+col+'"></div>'+
-      '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(payload.title||f.event_type.replace(/\./g,' '))+'</div>'+
-      '<div style="font-size:11px;color:var(--muted)">'+esc(f.source_module||'?')+' &bull; '+timeAgo(f.created_at)+'</div></div>'+
+      '<div class="feed-dot" data-sv="background:'+col+'"></div>'+
+      '<div data-s="s59eddc6"><div data-s="s0d97b46">'+esc(payload.title||f.event_type.replace(/\./g,' '))+'</div>'+
+      '<div data-s="s1fd8c81">'+esc(f.source_module||'?')+' &bull; '+timeAgo(f.created_at)+'</div></div>'+
     '</div>';
   }).join('');
 }
@@ -472,7 +472,7 @@ window.ermRenderRegister=function(){
     {label:'Showing',value:filtered.length},{label:'Critical',value:critical,color:'var(--red)'},{label:'High',value:high,color:'var(--amber)'},{label:'ERM',value:erm},{label:'Auto-Elevated',value:elevated,sub:'from other modules'}
   ]);
   var banner=document.getElementById('regXmBanner');
-  if(banner){if(elevated>0){banner.style.display='';banner.innerHTML='<div class="xm-banner"><span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-inbox></use></svg></span><div><strong>'+elevated+' risk'+(elevated>1?'s':'')+'</strong> auto-elevated from GRID, BCM, Sentinel or ORM. Review and assign owners.</div></div>';}else{banner.style.display='none';}}
+  if(banner){if(elevated>0){banner.style.display='';banner.innerHTML='<div class="xm-banner"><span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-inbox></use></svg></span><div><strong>'+elevated+' risk'+(elevated>1?'s':'')+'</strong> auto-elevated from GRID, BCM, Sentinel or ORM. Review and assign owners.</div></div>';}else{banner.style.display='none';}}
   var body=document.getElementById('ermRegBody');
   if(!filtered.length){body.innerHTML=emptyRow(13,'No risks match current filters');return;}
   body.innerHTML=filtered.map(function(r){
@@ -485,30 +485,30 @@ window.ermRenderRegister=function(){
     var rrrVal=r.rrr!=null?Number(r.rrr).toFixed(1):'-';
     var rrrStyle=(r.rrr!=null&&r.rrr>=15)?'color:var(--red);font-weight:800':'';
     var reviewDays=daysUntil(r.review_date);
-    var reviewStr=reviewDays===null?'—':reviewDays<0?'<span style="color:var(--red);font-weight:700">'+Math.abs(reviewDays)+'d overdue</span>':'<span style="color:var(--good,#16a34a)">'+reviewDays+'d</span>';
+    var reviewStr=reviewDays===null?'—':reviewDays<0?'<span data-s="s0353c96">'+Math.abs(reviewDays)+'d overdue</span>':'<span data-s="s986c237">'+reviewDays+'d</span>';
     var rid=parseInt(r.id,10)||0;
-    var chk='<input type="checkbox" class="reg-chk" data-id="'+rid+'" aria-label="Select '+(isErm?'enterprise':'platform')+' risk '+rid+'" data-erm-change="ermToggleSelect(this)" style="cursor:pointer"'+(regSelIds.has(r.id)?' checked':'')+'>';
+    var chk='<input type="checkbox" class="reg-chk" data-id="'+rid+'" aria-label="Select '+(isErm?'enterprise':'platform')+' risk '+rid+'" data-erm-change="ermToggleSelect(this)" data-s="s3b6a3a6"'+(regSelIds.has(r.id)?' checked':'')+'>';
     var aiBtn=isErm?'<button class="btn-erm-ai" data-erm-click="event.stopPropagation();ermAiScoreRisk('+rid+',this)" title="AI score"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg></button>':'';
-    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" data-erm-click="event.stopPropagation();ermEditRisk('+rid+')" style="padding:3px 7px" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>':'';
-    var delBtn=ERM_IS_ADMIN?'<button class="erm-delete-risk" data-risk-id="'+rid+'" data-source="'+esc(r.register_source||'erm')+'" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" title="Delete risk"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>':'';
+    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" data-erm-click="event.stopPropagation();ermEditRisk('+rid+')" data-s="sdd269aa" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>':'';
+    var delBtn=ERM_IS_ADMIN?'<button class="erm-delete-risk" data-risk-id="'+rid+'" data-source="'+esc(r.register_source||'erm')+'" data-s="sdd340b4" title="Delete risk"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>':'';
     var ql=r.qualitative_score||lvl;
     var qChipHtml=qChip(ql);
     var wfStep=r.workflow_step||'draft';
     var wfChip='<span class="wf-chip wf-chip-'+esc(wfStep)+'">'+esc(wfStep)+'</span>';
-    return'<tr data-erm-click="ermOpenRiskDrawer('+rid+')" style="cursor:pointer">'+
+    return'<tr data-erm-click="ermOpenRiskDrawer('+rid+')" data-s="s3b6a3a6">'+
       '<td data-erm-click="event.stopPropagation()">'+chk+'</td>'+
-      '<td style="font-family:monospace;font-size:11px;color:var(--muted)">'+esc(r.risk_ref||'-')+'</td>'+
-      '<td style="font-weight:600;max-width:200px">'+boardBadge+esc(r.title||'')+'</td>'+
-      '<td style="text-transform:capitalize;font-size:12px">'+esc(r.category||'')+'</td>'+
-      '<td style="text-align:center;font-weight:800;color:'+scoreCl+'">'+score+qChipHtml+'</td>'+
+      '<td data-s="s78d21f5">'+esc(r.risk_ref||'-')+'</td>'+
+      '<td data-s="sd5ead75">'+boardBadge+esc(r.title||'')+'</td>'+
+      '<td data-s="sbdabe69">'+esc(r.category||'')+'</td>'+
+      '<td data-sv="text-align:center;font-weight:800;color:'+scoreCl+'">'+score+qChipHtml+'</td>'+
       '<td>'+wfChip+'</td>'+
       '<td>'+statusBadge(r.status)+'</td>'+
-      '<td style="font-size:12px">'+esc(r.owner_name||'—')+'</td>'+
-      '<td style="font-size:11px;white-space:nowrap">'+reviewStr+'</td>'+
-      '<td style="text-align:center;font-size:12px">'+resScore+'</td>'+
-      '<td style="text-align:center;font-size:12px;'+rrrStyle+'">'+rrrVal+'</td>'+
+      '<td data-s="s6cb285c">'+esc(r.owner_name||'—')+'</td>'+
+      '<td data-s="s0814631">'+reviewStr+'</td>'+
+      '<td data-s="s827be75">'+resScore+'</td>'+
+      '<td data-sv="text-align:center;font-size:12px;'+rrrStyle+'">'+rrrVal+'</td>'+
       '<td>'+srcPill(r.source_module||'erm',r.register_source)+'</td>'+
-      '<td data-erm-click="event.stopPropagation()"><div style="display:flex;gap:3px;align-items:center">'+aiBtn+editBtn+delBtn+'</div></td>'+
+      '<td data-erm-click="event.stopPropagation()"><div data-s="s3940619" data-sd="flex">'+aiBtn+editBtn+delBtn+'</div></td>'+
     '</tr>';
   }).join('');
 };
@@ -521,14 +521,14 @@ window.ermClearSelection=function(){regSelIds.clear();document.querySelectorAll(
 window.ermBulkStatus=function(){
   var ids=Array.from(regSelIds).filter(function(id){return regCache.find(function(r){return r.id===id&&r.register_source==='erm';});});
   if(!ids.length){typeof showToast==='function'&&showToast('No ERM risks selected','error');return;}
-  var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:400px">'+
+  var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="scb05851">'+
     '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
     '<div class="modal-title">Change Status — '+ids.length+' risk(s)</div>'+
     '<div class="form-group"><label>New Status</label><select id="bulkStatusSel">'+
       '<option value="open">Open</option><option value="under_review">Under Review</option>'+
       '<option value="mitigated">Mitigated</option><option value="accepted">Accepted</option><option value="closed">Closed</option>'+
     '</select></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+    '<div data-s="sd28ceac" data-sd="flex">'+
       '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
       '<button class="btn btn-primary" data-erm-click="ermDoBulkStatus('+JSON.stringify(ids)+')">Apply</button>'+
     '</div></div></div>';
@@ -546,11 +546,11 @@ window.ermBulkAssign=async function(){
   try{
     var users=await apiFetch('/erm/api/users')||[];
     var opts=users.map(function(u){return'<option value="'+u.id+'">'+esc(u.full_name||u.username)+'</option>';}).join('');
-    var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:400px">'+
+    var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="scb05851">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title">Assign Owner — '+ids.length+' risk(s)</div>'+
       '<div class="form-group"><label>Owner</label><select id="bulkOwnerSel">'+opts+'</select></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
         '<button class="btn btn-primary" data-erm-click="ermDoBulkAssign('+JSON.stringify(ids)+')">Assign</button>'+
       '</div></div></div>';
@@ -583,18 +583,18 @@ window.ermImportExcel=async function(input){
   var file=input.files[0];if(!file)return;
   var res=document.getElementById('ermImportResult');
   res.style.display='block';
-  res.innerHTML='<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto;width:24px;height:24px"></div><div style="margin-top:8px;font-size:13px;color:var(--muted)">Parsing Excel file...</div></div>';
+  res.innerHTML='<div data-s="s02c99fd"><div class="spinner" data-s="s3b4a383"></div><div data-s="s66d7142">Parsing Excel file...</div></div>';
   var fd=new FormData();fd.append('file',file);
   try{
     var r=await fetch('/erm/api/risks/import-preview',{method:'POST',body:fd});
     if(!r.ok){var e=await r.json();throw new Error(e.error||'Upload failed');}
     var d=await r.json();
-    if(d.error){res.innerHTML='<div style="color:var(--red);padding:12px">'+esc(d.error)+'</div>';input.value='';return;}
+    if(d.error){res.innerHTML='<div data-s="s01def5f">'+esc(d.error)+'</div>';input.value='';return;}
     _importPreviewData=d;
     res.style.display='none';
     ermShowImportPreview(d);
   }catch(e){
-    res.innerHTML='<div style="color:var(--red);padding:12px">Import failed: '+esc(e.message)+'</div>';
+    res.innerHTML='<div data-s="s01def5f">Import failed: '+esc(e.message)+'</div>';
   }
   input.value='';
 };
@@ -606,7 +606,7 @@ window.ermShowImportPreview=function(d){
   var taxCats=d.taxonomy_categories||[];
   var confBadge=function(c){
     var colors={'exact':'#00B050','fuzzy':'#ED7D31','keyword':'#ED7D31','partial':'#ED7D31','unmatched':'#FF0000','unmapped':'#FF0000','default':'#999'};
-    return '<span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;color:#fff;background:'+(colors[c]||'#999')+'">'+esc(c)+'</span>';
+    return '<span data-sv="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;color:#fff;background:'+(colors[c]||'#999')+'">'+esc(c)+'</span>';
   };
   var catRows='';
   var catKeys=Object.keys(cats);
@@ -617,59 +617,59 @@ window.ermShowImportPreview=function(d){
       opts+='<option value="'+esc(taxCats[j])+'"'+(cm.mapped===taxCats[j]?' selected':'')+'>'+esc(taxCats[j])+'</option>';
     }
     if(cm.confidence==='unmapped')opts+='<option value="'+esc(ck)+'" selected>'+esc(ck)+' (as-is)</option>';
-    catRows+='<tr><td style="font-size:12px">'+esc(ck)+'</td><td><select class="import-cat-sel" data-raw="'+esc(ck)+'" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--surface2);color:var(--text)">'+opts+'</select></td><td>'+confBadge(cm.confidence)+'</td></tr>';
+    catRows+='<tr><td data-s="s6cb285c">'+esc(ck)+'</td><td><select class="import-cat-sel" data-raw="'+esc(ck)+'" data-s="sbeb841c">'+opts+'</select></td><td>'+confBadge(cm.confidence)+'</td></tr>';
   }
   var ownerRows='';
   var owKeys=Object.keys(owners);
   for(var i=0;i<owKeys.length;i++){
     var ok=owKeys[i];var om=owners[ok];
-    ownerRows+='<tr><td style="font-size:12px">'+esc(ok)+'</td><td style="font-size:12px">'+esc(om.display_name||'-')+'</td><td>'+confBadge(om.confidence)+'</td></tr>';
+    ownerRows+='<tr><td data-s="s6cb285c">'+esc(ok)+'</td><td data-s="s6cb285c">'+esc(om.display_name||'-')+'</td><td>'+confBadge(om.confidence)+'</td></tr>';
   }
   var colChips='';
   var colMap=d.column_map||{};
   var colKeys=Object.keys(colMap);
   for(var i=0;i<colKeys.length;i++){
-    colChips+='<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:11px;background:var(--surface2);border:1px solid var(--border)">'+esc(colKeys[i])+' &rarr; '+esc(colMap[colKeys[i]])+'</span>';
+    colChips+='<span data-s="sd9ba608" data-sd="inline-block">'+esc(colKeys[i])+' &rarr; '+esc(colMap[colKeys[i]])+'</span>';
   }
   var sampleRows='';
   var preview=d.rows||[];
   var limit=Math.min(preview.length,8);
   for(var i=0;i<limit;i++){
     var r=preview[i];
-    sampleRows+='<tr><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.title||'')+'</td><td style="font-size:11px">'+esc(r.category||'')+'</td><td style="font-size:11px;text-align:center">'+(r.likelihood||'-')+'</td><td style="font-size:11px;text-align:center">'+(r.impact||'-')+'</td><td style="font-size:11px">'+esc(r.status||'')+'</td><td style="font-size:11px">'+esc(r.owner_name||'-')+'</td></tr>';
+    sampleRows+='<tr><td data-s="s9e3a3ab">'+esc(r.title||'')+'</td><td data-s="s11a5081">'+esc(r.category||'')+'</td><td data-s="se201a89">'+(r.likelihood||'-')+'</td><td data-s="se201a89">'+(r.impact||'-')+'</td><td data-s="s11a5081">'+esc(r.status||'')+'</td><td data-s="s11a5081">'+esc(r.owner_name||'-')+'</td></tr>';
   }
   var warnHtml='';
   if(warns.length){
     var showWarns=warns.slice(0,5);
-    warnHtml='<div style="margin-bottom:14px;padding:10px 12px;border:1px solid #ED7D31;border-radius:6px;background:rgba(237,125,49,0.08);font-size:12px"><strong style="color:#ED7D31">'+warns.length+' warning(s)</strong><ul style="margin:6px 0 0 16px;padding:0">';
-    for(var i=0;i<showWarns.length;i++)warnHtml+='<li style="color:var(--muted)">'+esc(showWarns[i])+'</li>';
-    if(warns.length>5)warnHtml+='<li style="color:var(--muted)">...and '+(warns.length-5)+' more</li>';
+    warnHtml='<div data-s="se43c316"><strong data-s="sdb32386">'+warns.length+' warning(s)</strong><ul data-s="sa1fb5df">';
+    for(var i=0;i<showWarns.length;i++)warnHtml+='<li data-s="s57f9e31">'+esc(showWarns[i])+'</li>';
+    if(warns.length>5)warnHtml+='<li data-s="s57f9e31">...and '+(warns.length-5)+' more</li>';
     warnHtml+='</ul></div>';
   }
   var byCatHtml='';
   var byCat=s.by_category||{};
   var bcKeys=Object.keys(byCat);
   for(var i=0;i<bcKeys.length;i++){
-    byCatHtml+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span>'+esc(bcKeys[i])+'</span><strong>'+byCat[bcKeys[i]]+'</strong></div>';
+    byCatHtml+='<div data-s="sd7946e3" data-sd="flex"><span>'+esc(bcKeys[i])+'</span><strong>'+byCat[bcKeys[i]]+'</strong></div>';
   }
-  var html='<div class="erm-modal-overlay" id="ermImportModal" data-erm-click="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999">'+
-    '<div class="modal-box" style="max-width:860px;max-height:90vh;overflow-y:auto;padding:28px">'+
+  var html='<div class="erm-modal-overlay" id="ermImportModal" data-erm-click="if(event.target===this)this.remove()" data-s="s8b3355b" data-sd="flex">'+
+    '<div class="modal-box" data-s="s9f5cbf8">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'ermImportModal\').remove()">&times;</button>'+
-    '<h3 style="margin:0 0 6px;font-size:18px">Import Risk Register</h3>'+
-    '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">Sheet: '+esc(d.sheet_name||'Sheet1')+'</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'+
-    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:var(--primary)">'+s.total+'</div><div style="font-size:11px;color:var(--muted)">Total Risks</div></div>'+
-    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:var(--green-status)">'+s.with_scores+'</div><div style="font-size:11px;color:var(--muted)">With Scores</div></div>'+
-    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700">'+catKeys.length+'</div><div style="font-size:11px;color:var(--muted)">Categories</div></div>'+
-    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700">'+owKeys.length+'</div><div style="font-size:11px;color:var(--muted)">Owners</div></div>'+
+    '<h3 data-s="s8623991">Import Risk Register</h3>'+
+    '<div data-s="s943e0fa">Sheet: '+esc(d.sheet_name||'Sheet1')+'</div>'+
+    '<div data-s="s876da43" data-sd="grid">'+
+    '<div class="stat-card" data-s="s01f63f3"><div data-s="s7971e4c">'+s.total+'</div><div data-s="s1fd8c81">Total Risks</div></div>'+
+    '<div class="stat-card" data-s="s01f63f3"><div data-s="s625008c">'+s.with_scores+'</div><div data-s="s1fd8c81">With Scores</div></div>'+
+    '<div class="stat-card" data-s="s01f63f3"><div data-s="s86ecc8d">'+catKeys.length+'</div><div data-s="s1fd8c81">Categories</div></div>'+
+    '<div class="stat-card" data-s="s01f63f3"><div data-s="s86ecc8d">'+owKeys.length+'</div><div data-s="s1fd8c81">Owners</div></div>'+
     '</div>'+
     warnHtml+
-    '<details style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Column Mapping ('+colKeys.length+' detected)</summary><div style="margin-top:8px">'+colChips+'</div></details>'+
-    (catKeys.length?'<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">Category Mapping</div><table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Excel Category</th><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Map To</th><th style="font-size:11px;padding:4px;color:var(--muted)">Match</th></tr></thead><tbody>'+catRows+'</tbody></table></div>':'')+
-    (byCatHtml?'<details style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Risks by Category</summary><div style="margin-top:8px;max-width:400px">'+byCatHtml+'</div></details>':'')+
-    (owKeys.length?'<details style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Owner Matching ('+owKeys.length+')</summary><table style="width:100%;border-collapse:collapse;margin-top:8px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Excel Name</th><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Matched To</th><th style="font-size:11px;padding:4px;color:var(--muted)">Match</th></tr></thead><tbody>'+ownerRows+'</tbody></table></details>':'')+
-    '<details open style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Preview (first '+limit+' of '+s.total+')</summary><div style="overflow-x:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px">Title</th><th style="text-align:left;padding:4px">Category</th><th style="text-align:center;padding:4px">L</th><th style="text-align:center;padding:4px">I</th><th style="text-align:left;padding:4px">Status</th><th style="text-align:left;padding:4px">Owner</th></tr></thead><tbody>'+sampleRows+'</tbody></table></div></details>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">'+
+    '<details data-s="s2b583d7"><summary data-s="s21be0ea">Column Mapping ('+colKeys.length+' detected)</summary><div data-s="s8a77e5a">'+colChips+'</div></details>'+
+    (catKeys.length?'<div data-s="s2b583d7"><div data-s="se0b8724">Category Mapping</div><table data-s="sa55f31d"><thead><tr data-s="s1008415"><th data-s="saf13840">Excel Category</th><th data-s="saf13840">Map To</th><th data-s="sf1cc8ae">Match</th></tr></thead><tbody>'+catRows+'</tbody></table></div>':'')+
+    (byCatHtml?'<details data-s="s2b583d7"><summary data-s="s21be0ea">Risks by Category</summary><div data-s="s958c61f">'+byCatHtml+'</div></details>':'')+
+    (owKeys.length?'<details data-s="s2b583d7"><summary data-s="s21be0ea">Owner Matching ('+owKeys.length+')</summary><table data-s="s7251e39"><thead><tr data-s="s1008415"><th data-s="saf13840">Excel Name</th><th data-s="saf13840">Matched To</th><th data-s="sf1cc8ae">Match</th></tr></thead><tbody>'+ownerRows+'</tbody></table></details>':'')+
+    '<details open data-s="s2b583d7"><summary data-s="s21be0ea">Preview (first '+limit+' of '+s.total+')</summary><div data-s="s6100b83"><table data-s="s6b26614"><thead><tr data-s="s1008415"><th data-s="sc637739">Title</th><th data-s="sc637739">Category</th><th data-s="sfafd6b6">L</th><th data-s="sfafd6b6">I</th><th data-s="sc637739">Status</th><th data-s="sc637739">Owner</th></tr></thead><tbody>'+sampleRows+'</tbody></table></div></details>'+
+    '<div data-s="s04de7ff" data-sd="flex">'+
     '<button class="btn btn-secondary" data-erm-click="document.getElementById(\'ermImportModal\').remove()">Cancel</button>'+
     '<button class="btn btn-primary" id="ermImportCommitBtn" data-erm-click="ermCommitImport()">Import '+s.total+' Risks</button>'+
     '</div></div></div>';
@@ -692,18 +692,18 @@ window.ermCommitImport=async function(){
     var res=document.getElementById('ermImportResult');
     var errHtml='';
     if(r.errors&&r.errors.length){
-      errHtml='<div style="margin-top:8px;font-size:12px;color:var(--muted)">'+r.errors.length+' error(s): ';
+      errHtml='<div data-s="s2d6a4f7">'+r.errors.length+' error(s): ';
       for(var i=0;i<Math.min(r.errors.length,3);i++)errHtml+=esc(r.errors[i].title||'Row '+r.errors[i].row)+' - '+esc(r.errors[i].error)+'; ';
       errHtml+='</div>';
     }
     res.style.display='block';
-    res.innerHTML='<div style="padding:14px"><div style="font-size:14px;font-weight:700;color:var(--green-status);margin-bottom:8px">Import Complete</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:13px">'+
-      '<div><div style="color:var(--muted);font-size:11px">Imported</div><div style="font-weight:700">'+r.imported+'</div></div>'+
-      '<div><div style="color:var(--muted);font-size:11px">Skipped</div><div style="font-weight:700">'+r.skipped+'</div></div>'+
-      '<div><div style="color:var(--muted);font-size:11px">Errors</div><div style="font-weight:700">'+(r.errors?r.errors.length:0)+'</div></div>'+
+    res.innerHTML='<div data-s="s8ebc437"><div data-s="se62558e">Import Complete</div>'+
+      '<div data-s="sc449473" data-sd="grid">'+
+      '<div><div data-s="s6d034cc">Imported</div><div data-s="se3ec02a">'+r.imported+'</div></div>'+
+      '<div><div data-s="s6d034cc">Skipped</div><div data-s="se3ec02a">'+r.skipped+'</div></div>'+
+      '<div><div data-s="s6d034cc">Errors</div><div data-s="se3ec02a">'+(r.errors?r.errors.length:0)+'</div></div>'+
       '</div>'+errHtml+
-      '<button class="btn btn-sm btn-secondary" style="margin-top:10px" data-erm-click="this.parentElement.parentElement.style.display=\'none\'">Dismiss</button>'+
+      '<button class="btn btn-sm btn-secondary" data-s="sd2c171b" data-erm-click="this.parentElement.parentElement.style.display=\'none\'">Dismiss</button>'+
       '</div>';
     _importPreviewData=null;
     ermLoadRegister();
@@ -754,10 +754,10 @@ window.ermOpenRiskDrawer=async function(id){
   document.getElementById('ermRiskDrawer').innerHTML=
     '<div class="erm-drawer-overlay" data-erm-click="if(event.target===this)ermCloseRiskDrawer()">'+
     '<div class="erm-drawer-panel">'+
-    '<div style="height:3px;background:var(--accent);flex-shrink:0"></div>'+
-    '<div class="erm-drawer-head"><div style="font-size:15px;font-weight:700;flex:1">Loading…</div>'+
-    '<button data-erm-click="ermCloseRiskDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0 4px">✕</button></div>'+
-    '<div class="erm-drawer-body"><div class="spinner" style="margin:60px auto"></div></div>'+
+    '<div data-s="sc351552"></div>'+
+    '<div class="erm-drawer-head"><div data-s="s2a28563">Loading…</div>'+
+    '<button data-erm-click="ermCloseRiskDrawer()" data-s="s0f63a68">✕</button></div>'+
+    '<div class="erm-drawer-body"><div class="spinner" data-s="sed32f22"></div></div>'+
     '</div></div>';
   try{
     var r=await apiFetch('/erm/api/risks/'+id);
@@ -787,82 +787,82 @@ window.ermOpenRiskDrawer=async function(id){
     var curOrd=wfSteps.indexOf(r.workflow_step||'draft');
     // Detail card helper
     function dCard(label,val,fullWidth){
-      return '<div style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px'+(fullWidth?';grid-column:1/-1':'')+'">'
-        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px">'+label+'</div>'
-        +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+val+'</div>'
+      return '<div data-sv="background:var(--surface2);border-radius:var(--radius);padding:9px 12px'+(fullWidth?';grid-column:1/-1':'')+'">'
+        +'<div data-s="s6b3487e">'+label+'</div>'
+        +'<div data-s="s3da0680">'+val+'</div>'
         +'</div>';
     }
     document.getElementById('ermRiskDrawer').innerHTML=
       '<div class="erm-drawer-overlay" data-erm-click="if(event.target===this)ermCloseRiskDrawer()">'+
       '<div class="erm-drawer-panel">'+
       // Accent strip
-      '<div style="height:3px;background:var(--accent);flex-shrink:0"></div>'+
+      '<div data-s="sc351552"></div>'+
       // ── Header ──
-      '<div class="erm-drawer-head" style="align-items:flex-start;gap:12px;padding:16px 20px 14px">'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:16px;font-weight:800;line-height:1.35;color:var(--text);margin-bottom:9px">'+
-            (r.board_visibility?'<span class="board-badge" style="vertical-align:middle;margin-right:6px">★ Board</span>':'')+
+      '<div class="erm-drawer-head" data-s="s1d4c615">'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="sfe51f19">'+
+            (r.board_visibility?'<span class="board-badge" data-s="s5568cfd">★ Board</span>':'')+
             esc(r.title)+
           '</div>'+
-          '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+
+          '<div data-s="s8453aea" data-sd="flex">'+
             levelBadge(qScore)+statusBadge(r.status)+srcPill(r.source_module||'erm',r.register_source||'erm')+
             '<span class="wf-chip wf-chip-'+(/^[a-z_]+$/.test(r.workflow_step||'')?r.workflow_step:'draft')+'">'+esc(r.workflow_step||'draft')+'</span>'+
           '</div>'+
         '</div>'+
         // Score pill (top-right of header)
-        '<div style="flex-shrink:0;background:'+qBg+';border:1px solid '+qBorder+';border-radius:var(--radius-lg);padding:8px 16px;text-align:center;min-width:64px">'+
-          '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+qColor+';margin-bottom:2px">Score</div>'+
-          '<div style="font-size:28px;font-weight:900;line-height:1;color:'+qColor+'">'+score+'</div>'+
-          '<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:'+qColor+';margin-top:2px">'+qScore+'</div>'+
+        '<div data-sv="flex-shrink:0;background:'+qBg+';border:1px solid '+qBorder+';border-radius:var(--radius-lg);padding:8px 16px;text-align:center;min-width:64px">'+
+          '<div data-sv="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+qColor+';margin-bottom:2px">Score</div>'+
+          '<div data-sv="font-size:28px;font-weight:900;line-height:1;color:'+qColor+'">'+score+'</div>'+
+          '<div data-sv="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:'+qColor+';margin-top:2px">'+qScore+'</div>'+
         '</div>'+
-        '<button data-erm-click="ermCloseRiskDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;flex-shrink:0;padding:0 4px;line-height:1;margin-top:1px">✕</button>'+
+        '<button data-erm-click="ermCloseRiskDrawer()" data-s="s2d97994">✕</button>'+
       '</div>'+
       // ── Scrollable body ──
-      '<div class="erm-drawer-body" style="padding:18px 20px;display:flex;flex-direction:column;gap:0">'+
+      '<div class="erm-drawer-body" data-s="sf396d3f" data-sd="flex">'+
         // Description
         (r.description?
           '<div class="erm-drawer-section">'+
             '<div class="erm-drawer-section-title">Description</div>'+
-            '<div style="font-size:13px;color:var(--text);line-height:1.65;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">'+esc(r.description)+'</div>'+
+            '<div data-s="s5138195">'+esc(r.description)+'</div>'+
           '</div>':'')+
         // Risk Scores — two cards side by side
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title">Risk Scores</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-            '<div style="background:'+qBg+';border:1px solid '+qBorder+';border-radius:var(--radius);padding:14px 12px;text-align:center">'+
-              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:'+qColor+';margin-bottom:5px">Inherent</div>'+
-              '<div style="font-size:30px;font-weight:900;line-height:1;color:'+qColor+'">'+score+'</div>'+
-              '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">'+(r.likelihood||'?')+' × '+(r.impact||'?')+'</div>'+
+          '<div data-s="sc380b59" data-sd="grid">'+
+            '<div data-sv="background:'+qBg+';border:1px solid '+qBorder+';border-radius:var(--radius);padding:14px 12px;text-align:center">'+
+              '<div data-sv="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:'+qColor+';margin-bottom:5px">Inherent</div>'+
+              '<div data-sv="font-size:30px;font-weight:900;line-height:1;color:'+qColor+'">'+score+'</div>'+
+              '<div data-s="sb7ad618">'+(r.likelihood||'?')+' × '+(r.impact||'?')+'</div>'+
             '</div>'+
-            '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 12px;text-align:center">'+
-              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:5px">Residual</div>'+
-              '<div style="font-size:30px;font-weight:900;line-height:1;color:var(--text)">'+(resScore!=null?resScore:'—')+'</div>'+
+            '<div data-s="s91f3a9d">'+
+              '<div data-s="sa017eab">Residual</div>'+
+              '<div data-s="s9f96f9e">'+(resScore!=null?resScore:'—')+'</div>'+
               (resIsOverride?
-                '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">'+r.residual_likelihood+' × '+r.residual_impact+' <span style="font-size:9px;background:rgba(234,179,8,.18);color:#ca8a04;border-radius:3px;padding:1px 4px">Override</span></div>':
+                '<div data-s="sb7ad618">'+r.residual_likelihood+' × '+r.residual_impact+' <span data-s="s86a76ca">Override</span></div>':
                 resIsFormula?
-                  '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">L×I×(1−<strong style="color:var(--text)">'+(r.control_effectiveness||0)+'%</strong>/100) <span style="font-size:9px;background:rgba(59,130,246,.18);color:#3b82f6;border-radius:3px;padding:1px 4px">Formula</span></div>':
-                  '<div style="font-size:11px;color:var(--muted);margin-top:5px">not assessed</div>')+
+                  '<div data-s="sb7ad618">L×I×(1−<strong data-s="sf045bbe">'+(r.control_effectiveness||0)+'%</strong>/100) <span data-s="sff1b3a9">Formula</span></div>':
+                  '<div data-s="s66c5e81">not assessed</div>')+
             '</div>'+
           '</div>'+
           (r.velocity?
-            '<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-radius:var(--radius)">'+
-              '<span style="font-size:12px;color:var(--muted);font-weight:600">Velocity (speed of materialisation)</span>'+
-              '<span style="font-size:13px;font-weight:800;color:var(--text)">'+r.velocity+' / 5</span>'+
+            '<div data-s="s650ef16" data-sd="flex">'+
+              '<span data-s="s2551a01">Velocity (speed of materialisation)</span>'+
+              '<span data-s="s9b24d0e">'+r.velocity+' / 5</span>'+
             '</div>':'')+
         '</div>'+
         // Impact Dimension Breakdown (if dimension scores exist)
         ((r.dimension_scores&&r.dimension_scores.length)?
           '<div class="erm-drawer-section">'+
             '<div class="erm-drawer-section-title">Impact Breakdown</div>'+
-            '<div style="display:flex;flex-direction:column;gap:5px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">'+
+            '<div data-s="s58d0173" data-sd="flex">'+
             r.dimension_scores.map(function(ds){
               var isMax=ds.score===(r.impact||0);
               var pct=Math.round((ds.score/5)*100);
               var barColor=isMax?qColor:'var(--muted)';
-              return'<div style="display:flex;align-items:center;gap:8px">'+
-                '<span style="flex:0 0 180px;font-size:11px;font-weight:'+(isMax?'800':'600')+';color:'+(isMax?'var(--text)':'var(--muted)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(ds.dimension_name)+'">'+esc(ds.dimension_name)+'</span>'+
-                '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:3px;transition:width .3s"></div></div>'+
-                '<span style="flex:0 0 24px;font-size:12px;font-weight:800;text-align:right;color:'+(isMax?qColor:'var(--muted)')+'">'+ds.score+'</span>'+
+              return'<div data-s="s250fc4e" data-sd="flex">'+
+                '<span data-sv="flex:0 0 180px;font-size:11px;font-weight:'+(isMax?'800':'600')+';color:'+(isMax?'var(--text)':'var(--muted)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(ds.dimension_name)+'">'+esc(ds.dimension_name)+'</span>'+
+                '<div data-s="s44aec08"><div data-sv="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:3px;transition:width .3s"></div></div>'+
+                '<span data-sv="flex:0 0 24px;font-size:12px;font-weight:800;text-align:right;color:'+(isMax?qColor:'var(--muted)')+'">'+ds.score+'</span>'+
               '</div>';
             }).join('')+
             '</div>'+
@@ -870,27 +870,27 @@ window.ermOpenRiskDrawer=async function(id){
         // Details - 2-col grid of mini cards
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title">Details</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+          '<div data-s="scf29108" data-sd="grid">'+
             dCard('Category',esc(r.category||'--'))+
             (r.sub_category?dCard('Sub-category',esc(r.sub_category)):'')+
             dCard('Owner',esc(r.owner_name||'Unassigned'))+
             dCard('Review Date',fmtDate(r.review_date))+
             dCard('Source',srcPill(r.source_module||'erm',r.register_source||'erm'))+
-            (r.risk_context?dCard('Risk Context','<span style="background:var(--surface3);color:var(--text);border:1px solid var(--border);font-size:11px;font-weight:700;padding:2px 9px;border-radius:100px;text-transform:capitalize">'+esc(r.risk_context)+'</span>'):'')+
-            (r.objective_title?dCard('Objective',esc(r.objective_title)+(r.strategic_objective_title?' <span style="color:var(--muted);font-weight:500">supporting</span> '+esc(r.strategic_objective_title):''),true):'')+
-            (r.regulation_links?dCard('Regulations','<span style="font-size:12px">'+esc(r.regulation_links)+'</span>',true):'')+
+            (r.risk_context?dCard('Risk Context','<span data-s="s4eab19d">'+esc(r.risk_context)+'</span>'):'')+
+            (r.objective_title?dCard('Objective',esc(r.objective_title)+(r.strategic_objective_title?' <span data-s="sef9a7e4">supporting</span> '+esc(r.strategic_objective_title):''),true):'')+
+            (r.regulation_links?dCard('Regulations','<span data-s="s6cb285c">'+esc(r.regulation_links)+'</span>',true):'')+
           '</div>'+
         '</div>'+
         // Treatment
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title">Treatment</div>'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
-            '<span style="font-size:11px;font-weight:700;color:var(--muted)">Strategy</span>'+
-            '<span style="background:'+txBg+';color:'+txColor+';border:1px solid '+txBorder+';font-size:12px;font-weight:800;text-transform:capitalize;padding:3px 12px;border-radius:100px">'+(r.treatment==='accept'?'Accept strategy, approval separate':(r.treatment||'mitigate'))+'</span>'+
+          '<div data-s="sa6e5612" data-sd="flex">'+
+            '<span data-s="s21a0554">Strategy</span>'+
+            '<span data-sv="background:'+txBg+';color:'+txColor+';border:1px solid '+txBorder+';font-size:12px;font-weight:800;text-transform:capitalize;padding:3px 12px;border-radius:100px">'+(r.treatment==='accept'?'Accept strategy, approval separate':(r.treatment||'mitigate'))+'</span>'+
           '</div>'+
           (r.treatment_plan?
-            '<div style="font-size:13px;color:var(--text);line-height:1.65;padding:12px 14px;background:var(--surface2);border-radius:var(--radius)">'+esc(r.treatment_plan)+'</div>':
-            '<div style="font-size:12px;color:var(--muted);padding:10px 14px;background:var(--surface2);border-radius:var(--radius);font-style:italic">No treatment plan recorded.</div>')+
+            '<div data-s="s1a16f03">'+esc(r.treatment_plan)+'</div>':
+            '<div data-s="s68a83d8">No treatment plan recorded.</div>')+
         '</div>'+
         (isErm?'<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title">Risk acceptance decision</div>'+
@@ -906,34 +906,34 @@ window.ermOpenRiskDrawer=async function(id){
               return'<button class="wf-step-btn '+cls+'" data-erm-click="ermAdvanceWorkflow('+id+',\''+step+'\',this)" title="Advance to: '+step+'">'+step+'</button>';
             }).join('')+
           '</div>'+
-          '<div id="wfHistory_'+id+'" style="margin-top:6px"></div>'+
+          '<div id="wfHistory_'+id+'" data-s="sfe7b497"></div>'+
         '</div>'+
         // ── Assessment section (PLAN-24: CF-grouped ICE scoring) ──
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Assessment'+
-            (r.risk_ref?' <span class="badge" style="font-family:monospace;font-size:11px;margin-left:6px">'+esc(r.risk_ref)+'</span>':'')+
-            (r.irr_score!=null?' <span class="badge" style="font-size:11px;margin-left:4px">IRR '+r.irr_score+'</span>':'')+
+            (r.risk_ref?' <span class="badge" data-s="s61cc435">'+esc(r.risk_ref)+'</span>':'')+
+            (r.irr_score!=null?' <span class="badge" data-s="s09e6206">IRR '+r.irr_score+'</span>':'')+
           '</div>'+
           '<div id="ermAssessSummary"></div>'+
-          '<div id="ermAssessGroups" style="font-size:13px;color:var(--muted)">Loading...</div>'+
-          '<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenLinkControlModal('+id+')" style="margin-top:8px">+ Link control</button>'+
+          '<div id="ermAssessGroups" data-s="s17d902b">Loading...</div>'+
+          '<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenLinkControlModal('+id+')" data-s="s8a77e5a">+ Link control</button>'+
         '</div>'+
         // ── Treatments section (PLAN-25: per-CF treatment plans) ──
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-wrench></use></svg> Treatments</div>'+
-          '<div id="ermTreatmentsList" style="font-size:13px;color:var(--muted)">Loading...</div>'+
+          '<div id="ermTreatmentsList" data-s="s17d902b">Loading...</div>'+
           '<div id="ermTreatmentsFooter"></div>'+
         '</div>'+
         (isErm?'<div class="erm-drawer-section" id="ermRelatedItems"></div>':'')+
       '</div>'+  // closes erm-drawer-body
       // ── Footer ──
       '<div class="erm-drawer-foot">'+
-        (isErm?'<button class="btn btn-primary" style="padding:7px 16px" data-erm-click="ermEditDrawerRisk()">Edit</button>':'')+
+        (isErm?'<button class="btn btn-primary" data-s="sc912b78" data-erm-click="ermEditDrawerRisk()">Edit</button>':'')+
         (isErm?'<button class="btn-erm-ai" data-erm-click="ermAiScoreRisk('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bot></use></svg> AI Score</button>':'')+
         (isErm?'<button class="btn-erm-ai" data-erm-click="ermGetRemediationPlan('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-map></use></svg> Plan</button>':'')+
         (isErm&&r.status!=='mitigated'?'<button class="btn btn-secondary" data-erm-click="ermQuickStatusChange('+id+',\'mitigated\')">✓ Mitigated</button>':'')+
-        (!isErm?'<div style="font-size:11px;color:var(--muted);padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)">Cross-module risk — manage in source module</div>':'')+
-        (ERM_IS_ADMIN?'<button class="btn btn-secondary erm-delete-risk" data-risk-id="'+Number(id)+'" data-source="'+esc(registerSrc)+'" style="color:var(--red);margin-left:auto">Delete</button>':'')+
+        (!isErm?'<div data-s="s43d6918">Cross-module risk — manage in source module</div>':'')+
+        (ERM_IS_ADMIN?'<button class="btn btn-secondary erm-delete-risk" data-risk-id="'+Number(id)+'" data-source="'+esc(registerSrc)+'" data-s="s5fe0fb2">Delete</button>':'')+
       '</div>'+
       '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#ermRiskDrawer .erm-drawer-panel'));
@@ -950,7 +950,7 @@ window.ermOpenRiskDrawer=async function(id){
         ermRenderAssessGroups(riskId,controls,r.contributing_factors);
       }).catch(function(){
         var groupsEl=document.getElementById('ermAssessGroups');
-        if(groupsEl)groupsEl.innerHTML='<div style="color:var(--red)">Failed to load controls</div>';
+        if(groupsEl)groupsEl.innerHTML='<div data-s="s45e7ae4">Failed to load controls</div>';
       });
       Promise.all([
         apiFetch('/erm/api/risks/'+riskId+'/treatments'),
@@ -964,11 +964,11 @@ window.ermOpenRiskDrawer=async function(id){
           if(!match)return;
           var color=match.breached?'var(--red)':'var(--good,#16a34a)';
           var txt=match.breached?'Above appetite':'Within appetite';
-          chipEl.innerHTML='<span style="color:'+color+';font-weight:700">'+txt+' ('+esc(match.category)+')</span>';
+          chipEl.innerHTML='<span data-sv="color:'+color+';font-weight:700">'+txt+' ('+esc(match.category)+')</span>';
         }).catch(function(){});
       }).catch(function(){
         var listEl=document.getElementById('ermTreatmentsList');
-        if(listEl)listEl.innerHTML='<div style="color:var(--red)">Failed to load treatments</div>';
+        if(listEl)listEl.innerHTML='<div data-s="s45e7ae4">Failed to load treatments</div>';
       });
     })(id);
     // Load workflow history
@@ -976,13 +976,13 @@ window.ermOpenRiskDrawer=async function(id){
       var hist=await apiFetch('/erm/api/risks/'+id+'/workflow');
       var histEl=document.getElementById('wfHistory_'+id);
       if(histEl&&hist&&hist.length){
-        histEl.innerHTML='<div style="font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px;padding-top:2px">'+
+        histEl.innerHTML='<div data-s="s244de9a" data-sd="flex">'+
           hist.slice(-4).map(function(h){
-            return'<div style="display:flex;gap:7px;align-items:center">'+
-              '<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0"></span>'+
-              '<span style="color:var(--muted)">'+fmtDate(h.changed_at)+'</span>'+
-              '<span style="font-weight:700;color:var(--text)">'+esc(h.from_step||'—')+' → '+esc(h.to_step)+'</span>'+
-              (h.changed_by_name?'<span style="color:var(--muted)">by '+esc(h.changed_by_name)+'</span>':'')+
+            return'<div data-s="s2f9be41" data-sd="flex">'+
+              '<span data-s="sff9156c"></span>'+
+              '<span data-s="s57f9e31">'+fmtDate(h.changed_at)+'</span>'+
+              '<span data-s="sbed9cea">'+esc(h.from_step||'—')+' → '+esc(h.to_step)+'</span>'+
+              (h.changed_by_name?'<span data-s="s57f9e31">by '+esc(h.changed_by_name)+'</span>':'')+
             '</div>';
           }).join('')+
         '</div>';
@@ -999,12 +999,12 @@ window.ermLoadAcceptance=async function(riskId){
     var latest=rows&&rows.length?rows[0]:null;
     var status=latest?(latest.effective_status||latest.status):'not accepted';
     var tone=status==='approved'?'var(--good,#16a34a)':status==='expired'||status==='needs_re_review'?'var(--red,#dc2626)':'var(--muted)';
-    var html='<div style="padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)">'+
-      '<div style="font-weight:700;color:'+tone+'">'+esc(status.replace(/_/g,' '))+'</div>'+
-      '<p style="font-size:12px;color:var(--muted);margin:6px 0">A treatment choice or historical accepted status is not a formal approval.</p>';
+    var html='<div data-s="s9f07182">'+
+      '<div data-sv="font-weight:700;color:'+tone+'">'+esc(status.replace(/_/g,' '))+'</div>'+
+      '<p data-s="sf1818cf">A treatment choice or historical accepted status is not a formal approval.</p>';
     if(latest){
       var source=latest.source_snapshot||{};
-      html+='<div style="font-size:12px;line-height:1.7">Reason: '+esc(latest.reason)+
+      html+='<div data-s="sfe5ef3c">Reason: '+esc(latest.reason)+
         '<br>Current score at proposal: '+esc(String(source.current_score==null?'not measured':source.current_score))+
         '<br>Planned residual estimate: '+esc(String(source.planned_residual_score==null?'not measured':source.planned_residual_score))+
         '<br>Appetite threshold at proposal: '+esc(String(source.appetite&&source.appetite.max_score!=null?source.appetite.max_score:'not configured'))+
@@ -1014,7 +1014,7 @@ window.ermLoadAcceptance=async function(riskId){
         (latest.conditions?'<br>Conditions: '+esc(latest.conditions):'')+
         (latest.decision_note?'<br>Decision: '+esc(latest.decision_note):'')+'</div>';
     }
-    html+='<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">';
+    html+='<div data-s="se0d3db5" data-sd="flex">';
     if(ERM_CAN_PROPOSE_ACCEPTANCE&&(!latest||latest.status!=='submitted'))
       html+='<button type="button" class="btn btn-sm btn-secondary" data-erm-click="ermOpenAcceptanceForm('+riskId+')">Request acceptance</button>';
     if(ERM_CAN_DECIDE_ACCEPTANCE&&latest&&latest.status==='submitted')
@@ -1022,7 +1022,7 @@ window.ermLoadAcceptance=async function(riskId){
     if(ERM_CAN_DECIDE_ACCEPTANCE&&latest&&latest.status==='approved')
       html+='<button type="button" class="btn btn-sm btn-secondary" data-erm-click="ermOpenAcceptanceDecision('+latest.id+','+latest.version+',true,'+riskId+')">Revoke approval</button>';
     html+='</div></div>';
-    if(rows&&rows.length>1)html+='<div style="font-size:11px;color:var(--muted);margin-top:6px">'+(rows.length-1)+' earlier decision(s) retained in the record.</div>';
+    if(rows&&rows.length>1)html+='<div data-s="s5c3809d">'+(rows.length-1)+' earlier decision(s) retained in the record.</div>';
     panel.innerHTML=html;
   }catch(e){panel.textContent='Decision history unavailable. No approval can be inferred.';}
 };
@@ -1030,14 +1030,14 @@ window.ermOpenAcceptanceForm=function(riskId){
   var html='<div class="erm-modal-overlay" id="ermAcceptanceModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box">'+
     '<button type="button" class="modal-close" data-erm-click="document.getElementById(\'ermAcceptanceModal\').remove()" aria-label="Close">×</button>'+
     '<div class="modal-title">Request risk acceptance</div>'+
-    '<p style="font-size:12px;color:var(--muted)">A different authorized reviewer must decide. This request does not change the risk score or status.</p>'+
+    '<p data-s="s7fc448e">A different authorized reviewer must decide. This request does not change the risk score or status.</p>'+
     '<div class="form-group"><label for="accReason">Reason</label><textarea id="accReason" maxlength="4000" rows="3" required></textarea></div>'+
     '<div class="form-group"><label for="accAlternatives">Alternatives considered</label><textarea id="accAlternatives" maxlength="4000" rows="2" required></textarea></div>'+
     '<div class="form-group"><label for="accScope">Scope of exposure</label><textarea id="accScope" maxlength="4000" rows="2" required></textarea></div>'+
     '<div class="form-group"><label for="accConditions">Proposed conditions</label><textarea id="accConditions" maxlength="4000" rows="2"></textarea></div>'+
     '<div class="form-row"><div class="form-group"><label for="accReview">Review date</label><input id="accReview" type="date" required></div>'+
     '<div class="form-group"><label for="accExpiry">Expiry date</label><input id="accExpiry" type="date" required></div></div>'+
-    '<div id="accError" role="alert" style="color:var(--red,#dc2626)"></div>'+
+    '<div id="accError" role="alert" data-s="sf9408e8"></div>'+
     '<button type="button" class="btn btn-primary" data-erm-click="ermSubmitAcceptance('+riskId+')">Submit for review</button></div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
   document.getElementById('accReason').focus();
@@ -1057,11 +1057,11 @@ window.ermOpenAcceptanceDecision=function(id,version,revoke,riskId){
   var html='<div class="erm-modal-overlay" id="ermAcceptanceDecision" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box">'+
     '<button type="button" class="modal-close" data-erm-click="document.getElementById(\'ermAcceptanceDecision\').remove()" aria-label="Close">×</button>'+
     '<div class="modal-title">'+(revoke?'Revoke risk acceptance':'Review risk acceptance')+'</div>'+
-    '<p style="font-size:12px;color:var(--muted)">Confirm the current exposure, planned residual estimate, appetite and conditions before deciding.</p>'+
+    '<p data-s="s7fc448e">Confirm the current exposure, planned residual estimate, appetite and conditions before deciding.</p>'+
     '<div class="form-group"><label for="accDecisionNote">Decision reason</label><textarea id="accDecisionNote" maxlength="4000" rows="3" required></textarea></div>'+
-    '<div id="accDecisionError" role="alert" style="color:var(--red,#dc2626)"></div>'+
+    '<div id="accDecisionError" role="alert" data-s="sf9408e8"></div>'+
     (revoke?'<button type="button" class="btn btn-primary" data-erm-click="ermSubmitAcceptanceDecision('+id+','+version+',\'revoke\','+riskId+')">Revoke</button>':
-      '<div style="display:flex;gap:8px"><button type="button" class="btn btn-primary" data-erm-click="ermSubmitAcceptanceDecision('+id+','+version+',\'approved\','+riskId+')">Approve</button>'+
+      '<div data-s="s33fcd4c" data-sd="flex"><button type="button" class="btn btn-primary" data-erm-click="ermSubmitAcceptanceDecision('+id+','+version+',\'approved\','+riskId+')">Approve</button>'+
       '<button type="button" class="btn btn-secondary" data-erm-click="ermSubmitAcceptanceDecision('+id+','+version+',\'returned\','+riskId+')">Return</button>'+
       '<button type="button" class="btn btn-secondary" data-erm-click="ermSubmitAcceptanceDecision('+id+','+version+',\'rejected\','+riskId+')">Reject</button></div>')+
     '</div></div>';
@@ -1100,41 +1100,41 @@ function ermRenderAssessSummary(r){
   var rrrColor=(rrrVal!=null&&rrrVal>=15)?'var(--red)':'var(--text)';
   var emvTxt=r.emv_residual!=null?ermFmtUsd(r.emv_residual):'—';
   function box(label,val,color){
-    return '<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;text-align:center">'+
-      '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)">'+label+'</div>'+
-      '<div style="font-size:15px;font-weight:800;color:'+(color||'var(--text)')+'">'+val+'</div></div>';
+    return '<div data-s="s88c4737">'+
+      '<div data-s="s36b0909">'+label+'</div>'+
+      '<div data-sv="font-size:15px;font-weight:800;color:'+(color||'var(--text)')+'">'+val+'</div></div>';
   }
-  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">'+
+  el.innerHTML='<div data-s="sa159512" data-sd="grid">'+
     box('LoA',loaTxt)+box('LoR',lorTxt)+box('RRR',rrrVal!=null?rrrVal:'—',rrrColor)+box('EMV-r',emvTxt)+
   '</div>';
 }
 function ermAssessControlRowHtml(riskId,c,cfs){
   var iceOpts=['','0','10','20','30','40','50','60','70','80','90'];
-  var iceSel='<select class="erm-ice-sel" data-control="'+c.control_id+'" data-erm-change="ermChangeControlAssessment('+riskId+','+c.control_id+')" style="width:64px;font-size:12px;padding:2px 4px">'+
+  var iceSel='<select class="erm-ice-sel" data-control="'+c.control_id+'" data-erm-change="ermChangeControlAssessment('+riskId+','+c.control_id+')" data-s="sd40eb2d">'+
     iceOpts.map(function(v){
       var label=v===''?'--':v+'%';
       var isSel=(v===''?c.ice_score==null:String(c.ice_score)===v);
       return '<option value="'+v+'"'+(isSel?' selected':'')+'>'+label+'</option>';
     }).join('')+
   '</select>';
-  var cfSel='<select class="erm-cf-reassign-sel" data-control="'+c.control_id+'" data-erm-change="ermChangeControlAssessment('+riskId+','+c.control_id+')" style="font-size:12px;padding:2px 4px;max-width:110px">'+
+  var cfSel='<select class="erm-cf-reassign-sel" data-control="'+c.control_id+'" data-erm-change="ermChangeControlAssessment('+riskId+','+c.control_id+')" data-s="s7de84d5">'+
     '<option value=""'+(c.cf_id==null?' selected':'')+'>Unassigned</option>'+
     (cfs||[]).map(function(cf){return '<option value="'+cf.id+'"'+(String(c.cf_id)===String(cf.id)?' selected':'')+'>'+esc(cf.cf_ref)+'</option>';}).join('')+
   '</select>';
   var evidenceCount=c.evidence_count||0;
-  return '<div class="erm-assess-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">'+
-    '<span style="flex:1;min-width:120px;font-size:13px"><strong>'+esc(c.control_ref||'')+'</strong> '+esc(c.control_title)+'</span>'+
+  return '<div class="erm-assess-row" data-s="seabaa0a" data-sd="flex">'+
+    '<span data-s="s4a3ead6"><strong>'+esc(c.control_ref||'')+'</strong> '+esc(c.control_title)+'</span>'+
     iceSel+cfSel+
-    '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" data-erm-click="ermSuggestIce('+riskId+','+c.control_id+')">Suggest</button>'+
-    '<a href="/evidence/?module=erm" target="_blank" title="Evidence module does not yet filter by entity; opens the evidence workspace" style="font-size:11px;color:var(--accent)">Evidence ('+evidenceCount+')</a>'+
-    '<button class="btn btn-sm btn-danger" data-erm-click="ermUnlinkControl('+riskId+','+c.control_id+')" style="padding:2px 8px;font-size:11px">✕</button>'+
+    '<button class="btn btn-sm btn-secondary" data-s="se2b3d6e" data-erm-click="ermSuggestIce('+riskId+','+c.control_id+')">Suggest</button>'+
+    '<a href="/evidence/?module=erm" target="_blank" title="Evidence module does not yet filter by entity; opens the evidence workspace" data-s="s53d0ffa">Evidence ('+evidenceCount+')</a>'+
+    '<button class="btn btn-sm btn-danger" data-erm-click="ermUnlinkControl('+riskId+','+c.control_id+')" data-s="scd7c315">✕</button>'+
   '</div>';
 }
 function ermRenderAssessGroups(riskId,controls,cfs){
   var groupsEl=document.getElementById('ermAssessGroups');
   if(!groupsEl)return;
   if(!controls||!Array.isArray(controls)||!controls.length){
-    groupsEl.innerHTML='<div style="color:var(--muted)">No linked controls</div>';
+    groupsEl.innerHTML='<div data-s="s57f9e31">No linked controls</div>';
     return;
   }
   var cfMap={};(cfs||[]).forEach(function(cf){cfMap[cf.id]=cf;});
@@ -1156,7 +1156,7 @@ function ermRenderAssessGroups(riskId,controls,cfs){
       var loaTxt=(cf&&cf.cf_loa_pct!=null)?(' — '+cf.cf_loa_pct+'% assurance'):'';
       headerTxt=(cf?esc(cf.cf_ref)+': '+esc(cf.description):'CF')+loaTxt;
     }
-    html+='<div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.4px">'+headerTxt+'</div>';
+    html+='<div data-s="s405d49f">'+headerTxt+'</div>';
     html+=groups[key].map(function(c){return ermAssessControlRowHtml(riskId,c,cfs);}).join('');
   });
   groupsEl.innerHTML=html;
@@ -1206,42 +1206,42 @@ function ermTreatmentCardHtml(riskId,t,users){
   var fieldLbl='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)';
   var fieldCtl='padding:4px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)';
   var options=['mitigate','accept','avoid','transfer','exploit'];
-  var optSel='<select class="erm-treat-option" data-tr="'+t.id+'" style="'+fieldCtl+'">'+
+  var optSel='<select class="erm-treat-option" data-tr="'+t.id+'" data-sv="'+fieldCtl+'">'+
     options.map(function(o){return '<option value="'+o+'"'+(t.treatment_option===o?' selected':'')+'>'+ermTreatmentOptionLabel(o)+'</option>';}).join('')+
   '</select>';
   var suggestBadge=(t.suggested_option==='accept'&&t.treatment_option!=='accept')?
-    '<div style="font-size:11px;color:var(--accent);margin:2px 0 6px;font-weight:600">Suggested: Accept (assurance '+(t.cf_assurance!=null?t.cf_assurance:0)+'%)</div>':'';
+    '<div data-s="sef6a5ad">Suggested: Accept (assurance '+(t.cf_assurance!=null?t.cf_assurance:0)+'%)</div>':'';
   var statuses=['open','in_progress','complete'];
-  var statusSel='<select class="erm-treat-status" data-tr="'+t.id+'" style="'+fieldCtl+'">'+
+  var statusSel='<select class="erm-treat-status" data-tr="'+t.id+'" data-sv="'+fieldCtl+'">'+
     statuses.map(function(s){return '<option value="'+s+'"'+(t.status===s?' selected':'')+'>'+s.replace('_',' ')+'</option>';}).join('')+
   '</select>';
   var ownerOpts='<option value="">Unassigned</option>'+
     (users||[]).map(function(u){return '<option value="'+u.id+'"'+(String(t.owner_id)===String(u.id)?' selected':'')+'>'+esc(u.full_name||u.username)+'</option>';}).join('');
-  var ownerSel='<select class="erm-treat-owner" data-tr="'+t.id+'" style="'+fieldCtl+'">'+ownerOpts+'</select>';
-  var overdueChip=t.overdue?'<span style="background:rgba(220,38,38,.12);color:var(--red);font-size:10px;font-weight:800;padding:2px 8px;border-radius:100px;margin-left:6px">OVERDUE</span>':'';
-  return '<div class="erm-treat-card" style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;background:var(--surface)">'+
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'+
-      '<span class="badge" style="font-family:monospace;font-size:11px">'+esc(t.tr_ref)+'</span>'+
-      '<strong style="font-size:12px">'+esc(t.cf_ref)+'</strong>'+
-      '<span style="font-size:12px;color:var(--muted)">'+esc(t.cf_description||'')+'</span>'+
+  var ownerSel='<select class="erm-treat-owner" data-tr="'+t.id+'" data-sv="'+fieldCtl+'">'+ownerOpts+'</select>';
+  var overdueChip=t.overdue?'<span data-s="s70ec07d">OVERDUE</span>':'';
+  return '<div class="erm-treat-card" data-s="s8b5285b">'+
+    '<div data-s="scac1db7" data-sd="flex">'+
+      '<span class="badge" data-s="s1852e8f">'+esc(t.tr_ref)+'</span>'+
+      '<strong data-s="s6cb285c">'+esc(t.cf_ref)+'</strong>'+
+      '<span data-s="s7fc448e">'+esc(t.cf_description||'')+'</span>'+
       overdueChip+
     '</div>'+
     suggestBadge+
-    '<div style="display:flex;flex-direction:column;gap:8px">'+
-      '<div><label style="'+fieldLbl+'">Treatment option</label><br>'+optSel+'</div>'+
-      '<div><label style="'+fieldLbl+'">Action steps</label><br>'+
-        '<textarea class="erm-treat-steps" data-tr="'+t.id+'" rows="2" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:12px;'+fieldCtl+'">'+esc(t.action_steps||'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
-        '<div><label style="'+fieldLbl+'">EMV-a: treatment cost (USD)</label><br>'+
-          '<input type="number" min="0" class="erm-treat-emva" data-tr="'+t.id+'" value="'+(t.emv_a!=null?t.emv_a:'')+'" style="width:120px;'+fieldCtl+'"></div>'+
-        '<div><label style="'+fieldLbl+'">Owner</label><br>'+ownerSel+'</div>'+
-        '<div><label style="'+fieldLbl+'">Due date</label><br>'+
-          '<input type="date" class="erm-treat-due" data-tr="'+t.id+'" value="'+esc(t.due_date||'')+'" style="'+fieldCtl+'"></div>'+
-        '<div><label style="'+fieldLbl+'">Status</label><br>'+statusSel+'</div>'+
+    '<div data-s="scfa7b80" data-sd="flex">'+
+      '<div><label data-sv="'+fieldLbl+'">Treatment option</label><br>'+optSel+'</div>'+
+      '<div><label data-sv="'+fieldLbl+'">Action steps</label><br>'+
+        '<textarea class="erm-treat-steps" data-tr="'+t.id+'" rows="2" data-sv="width:100%;box-sizing:border-box;font-family:inherit;font-size:12px;'+fieldCtl+'">'+esc(t.action_steps||'')+'</textarea></div>'+
+      '<div data-s="se4a4232" data-sd="flex">'+
+        '<div><label data-sv="'+fieldLbl+'">EMV-a: treatment cost (USD)</label><br>'+
+          '<input type="number" min="0" class="erm-treat-emva" data-tr="'+t.id+'" value="'+(t.emv_a!=null?t.emv_a:'')+'" data-sv="width:120px;'+fieldCtl+'"></div>'+
+        '<div><label data-sv="'+fieldLbl+'">Owner</label><br>'+ownerSel+'</div>'+
+        '<div><label data-sv="'+fieldLbl+'">Due date</label><br>'+
+          '<input type="date" class="erm-treat-due" data-tr="'+t.id+'" value="'+esc(t.due_date||'')+'" data-sv="'+fieldCtl+'"></div>'+
+        '<div><label data-sv="'+fieldLbl+'">Status</label><br>'+statusSel+'</div>'+
       '</div>'+
-      '<div><label style="'+fieldLbl+'">Interdependencies</label><br>'+
-        '<input type="text" class="erm-treat-interdeps" data-tr="'+t.id+'" value="'+esc(t.interdependencies||'')+'" style="width:100%;box-sizing:border-box;font-size:12px;'+fieldCtl+'"></div>'+
-      '<button class="btn btn-sm btn-primary" data-erm-click="ermSaveTreatment('+riskId+','+t.id+')" style="align-self:flex-end">Save</button>'+
+      '<div><label data-sv="'+fieldLbl+'">Interdependencies</label><br>'+
+        '<input type="text" class="erm-treat-interdeps" data-tr="'+t.id+'" value="'+esc(t.interdependencies||'')+'" data-sv="width:100%;box-sizing:border-box;font-size:12px;'+fieldCtl+'"></div>'+
+      '<button class="btn btn-sm btn-primary" data-erm-click="ermSaveTreatment('+riskId+','+t.id+')" data-s="sffd20f1">Save</button>'+
     '</div>'+
   '</div>';
 }
@@ -1249,7 +1249,7 @@ function ermRenderTreatments(riskId,treatments,users){
   var el=document.getElementById('ermTreatmentsList');
   if(!el)return;
   if(!treatments||!treatments.length){
-    el.innerHTML='<div style="color:var(--muted)">No contributing factors to treat yet.</div>';
+    el.innerHTML='<div data-s="s57f9e31">No contributing factors to treat yet.</div>';
   }else{
     el.innerHTML=treatments.map(function(t){return ermTreatmentCardHtml(riskId,t,users);}).join('');
   }
@@ -1257,8 +1257,8 @@ function ermRenderTreatments(riskId,treatments,users){
   var total=treatments?treatments.reduce(function(sum,t){return sum+(t.emv_a!=null?Number(t.emv_a):0);},0):0;
   var footEl=document.getElementById('ermTreatmentsFooter');
   if(footEl){
-    footEl.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-top:4px;flex-wrap:wrap;gap:6px">'+
-      '<span>EMV-a total: <strong style="color:var(--text)">'+(hasAny?ermFmtUsd(total):'$0')+'</strong></span>'+
+    footEl.innerHTML='<div data-s="s56e3de9" data-sd="flex">'+
+      '<span>EMV-a total: <strong data-s="sf045bbe">'+(hasAny?ermFmtUsd(total):'$0')+'</strong></span>'+
       '<span id="ermTreatAppetiteChip"></span>'+
     '</div>';
   }
@@ -1302,28 +1302,28 @@ window.ermOpenLinkControlModal=async function(riskId){
     modal.id='ermLinkCtrlModal';
     modal.style.cssText='position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
     modal.innerHTML=
-      '<div style="background:var(--surface);border-radius:var(--radius);padding:24px;min-width:440px;max-width:620px;width:90%;max-height:80vh;display:flex;flex-direction:column;gap:12px">'+
-        '<div style="font-weight:700;font-size:15px">Link Control to Risk</div>'+
-        '<input id="ermCtrlSearchInput" type="text" placeholder="Search by ref or title..." data-erm-input="ermFilterLinkControls()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);width:100%;box-sizing:border-box">'+
-        '<div id="ermCtrlP2st2Chips" style="display:flex;gap:6px;flex-wrap:wrap">'+
-          '<button type="button" class="btn btn-sm btn-secondary erm-p2st2-chip" data-cat="" data-erm-click="ermSetP2st2Filter(\'\')" style="font-size:11px;padding:3px 10px">All</button>'+
-          p2st2Cats.map(function(cat){return '<button type="button" class="btn btn-sm btn-secondary erm-p2st2-chip" data-cat="'+cat+'" data-erm-click="ermSetP2st2Filter(\''+cat+'\')" style="font-size:11px;padding:3px 10px">'+cat+'</button>';}).join('')+
+      '<div data-s="s80950bf" data-sd="flex">'+
+        '<div data-s="s0c7a14e">Link Control to Risk</div>'+
+        '<input id="ermCtrlSearchInput" type="text" placeholder="Search by ref or title..." data-erm-input="ermFilterLinkControls()" data-s="s7bd7478">'+
+        '<div id="ermCtrlP2st2Chips" data-s="sca6f5db" data-sd="flex">'+
+          '<button type="button" class="btn btn-sm btn-secondary erm-p2st2-chip" data-cat="" data-erm-click="ermSetP2st2Filter(\'\')" data-s="sc8e560d">All</button>'+
+          p2st2Cats.map(function(cat){return '<button type="button" class="btn btn-sm btn-secondary erm-p2st2-chip" data-cat="'+cat+'" data-erm-click="ermSetP2st2Filter(\''+cat+'\')" data-s="sc8e560d">'+cat+'</button>';}).join('')+
         '</div>'+
-        '<div id="ermCtrlSearchList" style="overflow-y:auto;max-height:240px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)"></div>'+
-        '<div style="display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap">'+
+        '<div id="ermCtrlSearchList" data-s="s8d5baca"></div>'+
+        '<div data-s="s830149f" data-sd="flex">'+
           '<label>Weight:</label>'+
-          '<input id="ermCtrlWeight" type="number" min="0.1" max="5.0" step="0.1" value="1.0" style="width:70px;padding:4px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)">'+
+          '<input id="ermCtrlWeight" type="number" min="0.1" max="5.0" step="0.1" value="1.0" data-s="s3086d6f">'+
           '<label>CF:</label>'+
-          '<select id="ermCtrlCf" style="padding:4px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)">'+
+          '<select id="ermCtrlCf" data-s="s248e977">'+
             '<option value="">Unassigned</option>'+
             _ermLinkCtrlCfs.map(function(cf){return '<option value="'+cf.id+'">'+esc(cf.cf_ref)+'</option>';}).join('')+
           '</select>'+
           '<label>Initial ICE:</label>'+
-          '<select id="ermCtrlIce" style="padding:4px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)">'+
+          '<select id="ermCtrlIce" data-s="s248e977">'+
             ['','0','10','20','30','40','50','60','70','80','90'].map(function(v){return '<option value="'+v+'">'+(v===''?'--':v+'%')+'</option>';}).join('')+
           '</select>'+
         '</div>'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+        '<div data-s="s88d23e8" data-sd="flex">'+
           '<button class="btn btn-secondary" data-erm-click="ermCloseLinkControlModal()">Cancel</button>'+
           '<button class="btn btn-primary" data-erm-click="ermDoLinkControl()">Link Control</button>'+
         '</div>'+
@@ -1349,12 +1349,12 @@ window.ermFilterLinkControls=function(){
   var filtered=q?data.filter(function(c){
     return (c.title||'').toLowerCase().indexOf(q)>=0||(c.ref||'').toLowerCase().indexOf(q)>=0;
   }):data;
-  if(filtered.length===0){list.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">No controls match</div>';return;}
+  if(filtered.length===0){list.innerHTML='<div data-s="sdc10524">No controls match</div>';return;}
   list.innerHTML=filtered.map(function(c){
     var sel=_ermLinkCtrlSel===c.id;
-    return '<div data-erm-click="ermSelectLinkControl('+c.id+')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;background:'+(sel?'var(--accent-faint,rgba(99,102,241,.1))':'transparent')+'">'+
-      '<strong style="color:var(--accent)">'+esc(c.ref||'#'+c.id)+'</strong> '+esc(c.title)+
-      (c.automation&&c.automation!=='manual'?'<span style="margin-left:8px;font-size:11px;color:var(--muted)">'+esc(c.automation)+'</span>':'')+
+    return '<div data-erm-click="ermSelectLinkControl('+c.id+')" data-sv="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;background:'+(sel?'var(--accent-faint,rgba(99,102,241,.1))':'transparent')+'">'+
+      '<strong data-s="sa805525">'+esc(c.ref||'#'+c.id)+'</strong> '+esc(c.title)+
+      (c.automation&&c.automation!=='manual'?'<span data-s="sd51d7fe">'+esc(c.automation)+'</span>':'')+
     '</div>';
   }).join('');
 };
@@ -1395,8 +1395,8 @@ window.ermAdvanceWorkflow=async function(riskId,toStep,btn){
     var hist=await apiFetch('/erm/api/risks/'+riskId+'/workflow');
     var histEl=document.getElementById('wfHistory_'+riskId);
     if(histEl&&hist&&hist.length){
-      histEl.innerHTML='<div style="font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px">'+
-        hist.slice(-4).map(function(h){return'<div style="display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0"></span><span>'+fmtDate(h.changed_at)+'</span><span style="font-weight:700;color:var(--text)">'+esc(h.from_step||'—')+' → '+esc(h.to_step)+'</span>'+(h.changed_by_name?'<span style="color:var(--muted)">by '+esc(h.changed_by_name)+'</span>':'')+'</div>';}).join('')+
+      histEl.innerHTML='<div data-s="s8eabd24" data-sd="flex">'+
+        hist.slice(-4).map(function(h){return'<div data-s="saebb47c" data-sd="flex"><span data-s="sff9156c"></span><span>'+fmtDate(h.changed_at)+'</span><span data-s="sbed9cea">'+esc(h.from_step||'—')+' → '+esc(h.to_step)+'</span>'+(h.changed_by_name?'<span data-s="s57f9e31">by '+esc(h.changed_by_name)+'</span>':'')+'</div>';}).join('')+
       '</div>';
     }
     // When reaching a status-altering step, refresh the drawer and the background view
@@ -1419,15 +1419,15 @@ window.ermGetRemediationPlan=async function(id,btn){
   try{
     var plan=await apiFetch('/erm/api/ai/remediation-plan/'+id,{method:'POST'});
     btn.disabled=false;btn.textContent=orig;
-    var stepsHtml=(plan.steps||[]).map(function(s){return'<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><strong>'+esc(String(s.step))+'.</strong> '+esc(s.action)+'<span style="float:right;color:var(--muted)">'+esc(s.timeline||'')+'</span></div>';}).join('');
+    var stepsHtml=(plan.steps||[]).map(function(s){return'<div data-s="s9dc5819"><strong>'+esc(String(s.step))+'.</strong> '+esc(s.action)+'<span data-s="scb20d96">'+esc(s.timeline||'')+'</span></div>';}).join('');
     var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-map></use></svg> AI Remediation Plan</div>'+
-      '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">'+esc(plan.summary||'')+'</p>'+
+      '<p data-s="s33b8731">'+esc(plan.summary||'')+'</p>'+
       stepsHtml+
-      (plan.success_criteria?'<div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px"><strong>Success criteria:</strong> '+esc(plan.success_criteria)+'</div>':'')+
-      (plan.cost_tier?'<div style="margin-top:8px;font-size:11px;color:var(--muted)">Estimated effort: <strong>'+esc(plan.cost_tier)+'</strong></div>':'')+
-      '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+
+      (plan.success_criteria?'<div data-s="sa66b29f"><strong>Success criteria:</strong> '+esc(plan.success_criteria)+'</div>':'')+
+      (plan.cost_tier?'<div data-s="sf22c476">Estimated effort: <strong>'+esc(plan.cost_tier)+'</strong></div>':'')+
+      '<div data-s="s7e88441" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
       '</div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
@@ -1438,41 +1438,41 @@ window.ermGetRemediationPlan=async function(id,btn){
 var appetiteCache=[];
 window.ermLoadAppetite=async function(){
   var grid=document.getElementById('ermAppetiteGrid');
-  grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  grid.innerHTML='<div data-s="s6ffcb09"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     var data=await apiFetch('/erm/api/appetite/status');
     appetiteCache=Array.isArray(data)?data:[];
-    if(!appetiteCache.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No appetite thresholds defined. Click <strong>+ Set Appetite</strong>.</div>';return;}
+    if(!appetiteCache.length){grid.innerHTML='<div data-s="se3e8e97">No appetite thresholds defined. Click <strong>+ Set Appetite</strong>.</div>';return;}
     grid.innerHTML=appetiteCache.map(function(a){
       var pct=a.max_score>0?Math.min(100,Math.round((a.current_max_score/a.max_score)*100)):0;
       var breachColor=a.breached?'var(--red)':pct>=80?'var(--amber)':'var(--good,#16a34a)';
       var statusTxt=a.breached?'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> ABOVE APPETITE':pct>=80?'<svg class=ic-amber aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> APPROACHING':'<svg class=ic-green aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> WITHIN APPETITE';
       var fillCls=a.breached?'gauge-breach':pct>=80?'gauge-warn':'gauge-ok';
-      var topRisk=a.top_risk?'<div style="font-size:11px;color:var(--muted);margin-top:8px;padding:7px;background:var(--surface2);border-radius:var(--radius)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Highest: <a href="#" data-erm-click="event.preventDefault();ermOpenRiskDrawer('+a.top_risk.id+')" style="color:var(--accent);text-decoration:none;font-weight:600">'+esc(a.top_risk.title.slice(0,50))+'</a> — score <strong>'+a.top_risk.score+'</strong></div>':'';
-      var notesHtml=a.tolerance_notes?'<details style="margin-top:10px;font-size:12px"><summary style="cursor:pointer;color:var(--muted)">Tolerance notes ▼</summary><div style="padding:6px 0;color:var(--text);line-height:1.5">'+esc(a.tolerance_notes)+'</div></details>':'';
-      var datesHtml=(a.review_date||a.effective_date)?'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+(a.effective_date?'Effective: '+fmtDate(a.effective_date)+' &nbsp;':'')+(a.review_date?'Review: '+fmtDate(a.review_date):'')+'</div>':'';
+      var topRisk=a.top_risk?'<div data-s="s0f0e82b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Highest: <a href="#" data-erm-click="event.preventDefault();ermOpenRiskDrawer('+a.top_risk.id+')" data-s="s86afc58">'+esc(a.top_risk.title.slice(0,50))+'</a> — score <strong>'+a.top_risk.score+'</strong></div>':'';
+      var notesHtml=a.tolerance_notes?'<details data-s="sa6501a2"><summary data-s="s00d4f89">Tolerance notes ▼</summary><div data-s="s5ea2985">'+esc(a.tolerance_notes)+'</div></details>':'';
+      var datesHtml=(a.review_date||a.effective_date)?'<div data-s="sea04831">'+(a.effective_date?'Effective: '+fmtDate(a.effective_date)+' &nbsp;':'')+(a.review_date?'Review: '+fmtDate(a.review_date):'')+'</div>':'';
       return'<div class="appetite-card">'+
-        '<div style="position:absolute;top:12px;right:12px;display:flex;gap:6px">'+
-          '<button data-erm-click="ermEditAppetite('+a.id+')" class="btn btn-sm btn-secondary" style="padding:3px 8px">Edit</button>'+
-          '<button data-erm-click="ermDeleteAppetite('+a.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px" title="Delete"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>'+
+        '<div data-s="s793bf64" data-sd="flex">'+
+          '<button data-erm-click="ermEditAppetite('+a.id+')" class="btn btn-sm btn-secondary" data-s="s84a96e3">Edit</button>'+
+          '<button data-erm-click="ermDeleteAppetite('+a.id+')" data-s="s013d40b" title="Delete"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>'+
         '</div>'+
-        '<div style="font-size:16px;font-weight:800;text-transform:capitalize;margin-bottom:4px">'+esc(a.category)+'</div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Appetite: <strong style="text-transform:capitalize">'+esc(a.appetite_level||'—')+'</strong></div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:'+breachColor+'">'+statusTxt+'</div>'+
-        '<div class="gauge-bar" style="height:10px"><div class="gauge-fill '+fillCls+'" style="width:'+pct+'%"></div></div>'+
-        '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">'+
-          '<span>Current: <strong style="color:'+breachColor+'">'+a.current_max_score+'</strong></span>'+
+        '<div data-s="sa9f06aa">'+esc(a.category)+'</div>'+
+        '<div data-s="s4c5789d">Appetite: <strong data-s="s6fedee3">'+esc(a.appetite_level||'—')+'</strong></div>'+
+        '<div data-sv="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:'+breachColor+'">'+statusTxt+'</div>'+
+        '<div class="gauge-bar" data-s="s6a8e059"><div class="gauge-fill '+fillCls+'" data-sv="width:'+pct+'%"></div></div>'+
+        '<div data-s="s360d374" data-sd="flex">'+
+          '<span>Current: <strong data-sv="color:'+breachColor+'">'+a.current_max_score+'</strong></span>'+
           '<span>Threshold: '+a.max_score+'</span>'+
         '</div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(a.open_count||0)+' open risk(s)</div>'+
+        '<div data-s="sbc021dc">'+esc(a.open_count||0)+' open risk(s)</div>'+
         topRisk+notesHtml+datesHtml+
-        '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
-          '<a href="#" data-appetite-nav="'+Number(a.id)+'" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
-          (a.breached?'<button class="btn btn-sm btn-secondary" data-appetite-breach="'+Number(a.id)+'" style="color:var(--red);border-color:rgba(220,38,38,.4)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Create Remediation</button>':'')+
+        '<div data-s="s242e13d" data-sd="flex">'+
+          '<a href="#" data-appetite-nav="'+Number(a.id)+'" data-s="sb1f9f3f">View all risks →</a>'+
+          (a.breached?'<button class="btn btn-sm btn-secondary" data-appetite-breach="'+Number(a.id)+'" data-s="sd81f93a"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Create Remediation</button>':'')+
         '</div>'+
       '</div>';
     }).join('');
-  }catch(e){document.getElementById('ermAppetiteGrid').innerHTML='<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px">Failed: '+esc(e.message)+'</div>';}
+  }catch(e){document.getElementById('ermAppetiteGrid').innerHTML='<div data-s="s3c0ea10">Failed: '+esc(e.message)+'</div>';}
 };
 document.getElementById('ermAppetiteGrid').addEventListener('click',function(event){
   var nav=event.target.closest('[data-appetite-nav]');
@@ -1489,11 +1489,11 @@ window.ermNavToCategory=function(cat){regStatusFilter='';ermRouter.navigate('/er
 window.ermEditAppetite=function(id){var a=appetiteCache.find(function(x){return x.id===id;});if(a)ermOpenAppetiteModal(a);};
 window.ermDeleteAppetite=async function(id){if(!confirm('Delete this appetite setting?'))return;try{await apiFetch('/erm/api/appetite/'+id,{method:'DELETE'});ermLoadAppetite();typeof showToast==='function'&&showToast('Deleted');}catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}};
 window.ermOpenBreachAction=function(cat){
-  var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:500px">'+
+  var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s4294bfa">'+
     '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
     '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Remediation Action — '+esc(cat)+'</div>'+
     '<div class="form-group"><label>What will you do to reduce this exposure?</label><textarea id="remedTxt" rows="3" placeholder="e.g. Review all compliance risks, schedule treatment plan review…"></textarea></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+    '<div data-s="sd28ceac" data-sd="flex">'+
       '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
       '<button class="btn btn-primary" data-submit-breach-action>Create Risk Action</button>'+
     '</div></div></div>';
@@ -1514,7 +1514,7 @@ window.ermOpenAppetiteModal=function(existing){
   var isEdit=!!(existing&&existing.id);
   var cats=(ERM_FRAMEWORK&&ERM_FRAMEWORK.taxonomy||[]).map(function(n){return n.name;});
   if(!cats.length)cats=['Strategic Risk','Operational Risk','Compliance & Legal Risk','Financial Risk','Reputational Risk','Technology Risk','Third Party Risk','Environmental Risk'];
-  var html='<div class="erm-modal-overlay" id="ermApModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:520px">'+
+  var html='<div class="erm-modal-overlay" id="ermApModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s04391f0">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'ermApModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'Set')+' Risk Appetite</div>'+
     '<div class="form-group"><label>Category</label><select id="ap_cat">'+cats.map(function(c){return'<option value="'+esc(c)+'"'+(isEdit&&existing.category===c?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select></div>'+
@@ -1522,7 +1522,7 @@ window.ermOpenAppetiteModal=function(existing){
     '<div class="form-group"><label>Max Score (L×I threshold)</label><input type="number" id="ap_max" value="'+(isEdit?(existing.max_score||12):12)+'" min="1" max="25"></div></div>'+
     '<div class="form-group"><label>Description</label><textarea id="ap_desc" rows="2">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
     '<div class="form-group"><label>Tolerance Notes</label><textarea id="ap_notes" rows="2">'+esc(isEdit?(existing.tolerance_notes||''):'')+'</textarea></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'ermApModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="ermSaveAppetite()">Save</button></div>'+
+    '<div data-s="sd28ceac" data-sd="flex"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'ermApModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="ermSaveAppetite()">Save</button></div>'+
   '</div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
 };
@@ -1552,7 +1552,7 @@ var libCache=[], libIndustryFilter='';
 window.ermLoadLibrary=async function(){
   var cat=document.getElementById('libCatFilter').value;
   var grid=document.getElementById('ermLibGrid');
-  grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  grid.innerHTML='<div data-s="s6ffcb09"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     var data=await apiFetch('/erm/api/library'+(cat?'?category='+encodeURIComponent(cat):''));
     libCache=Array.isArray(data)?data:[];
@@ -1561,7 +1561,7 @@ window.ermLoadLibrary=async function(){
       chip.addEventListener('click',function(){document.querySelectorAll('#view-library .erm-chip[data-industry]').forEach(function(c){c.classList.remove('active');});chip.classList.add('active');libIndustryFilter=chip.dataset.industry||'';ermFilterLibrary();});
     });
     ermFilterLibrary();
-  }catch(e){document.getElementById('ermLibGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Failed: '+esc(e.message)+'</div>';}
+  }catch(e){document.getElementById('ermLibGrid').innerHTML='<div data-s="se3e8e97">Failed: '+esc(e.message)+'</div>';}
 };
 window.ermFilterLibrary=function(){
   var q=(document.getElementById('libSearch')||{}).value||'';
@@ -1571,7 +1571,7 @@ window.ermFilterLibrary=function(){
     return true;
   });
   var grid=document.getElementById('ermLibGrid');
-  if(!filtered.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No templates match</div>';return;}
+  if(!filtered.length){grid.innerHTML='<div data-s="se3e8e97">No templates match</div>';return;}
   /* Each hex below is darkened from its original to ~4.75:1 against ITS
      OWN 13%-opacity tint (.lib-cat-chip: background:col+'22';color:col --
      both sides come from the same `col`, so this is solved self-
@@ -1589,22 +1589,22 @@ window.ermFilterLibrary=function(){
     var score=(item.default_likelihood||3)*(item.default_impact||3);
     var tags=(item.tags||'').split(',').filter(Boolean).map(function(t){return'<span class="lib-tag">'+esc(t.trim())+'</span>';}).join('');
     var isGlobal=(item.org_id==null);
-    var scopeBadge='<span class="lib-tag" style="background:'+(isGlobal?'var(--surface3)':'var(--accent-soft,var(--surface3))')+'" title="'+(isGlobal?'Platform-wide template':'Your organization\'s own template')+'">'+(isGlobal?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-globe></use></svg> Global':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-building></use></svg> Organization')+'</span>';
+    var scopeBadge='<span class="lib-tag" data-sv="background:'+(isGlobal?'var(--surface3)':'var(--accent-soft,var(--surface3))')+'" title="'+(isGlobal?'Platform-wide template':'Your organization\'s own template')+'">'+(isGlobal?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-globe></use></svg> Global':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-building></use></svg> Organization')+'</span>';
     var manageBtns=ermCanManageLibraryItem(item)?(
       '<button class="btn btn-sm btn-secondary" data-erm-click="ermEditLibraryItem('+item.id+')">Edit</button>'+
-      '<button class="btn btn-sm btn-secondary" style="color:var(--red,#dc2626)" data-erm-click="ermRetireLibraryItem('+item.id+')">Retire</button>'
+      '<button class="btn btn-sm btn-secondary" data-s="sf9408e8" data-erm-click="ermRetireLibraryItem('+item.id+')">Retire</button>'
     ):'';
     return'<div class="lib-card">'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">'+
-        '<div class="lib-cat-chip" style="background:'+col+'22;color:'+col+'">'+esc(item.category||'general')+'</div>'+
+      '<div data-s="seec3429" data-sd="flex">'+
+        '<div class="lib-cat-chip" data-sv="background:'+col+'22;color:'+col+'">'+esc(item.category||'general')+'</div>'+
         scopeBadge+
       '</div>'+
-      '<div style="font-size:14px;font-weight:700;margin:6px 0">'+esc(item.title)+'</div>'+
-      '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px">'+esc((item.description||'').slice(0,100))+((item.description||'').length>100?'…':'')+'</div>'+
-      (tags?'<div style="margin-bottom:8px">'+tags+'</div>':'')+
-      '<div style="display:flex;gap:10px;font-size:11px;color:var(--muted);margin-bottom:10px"><span>Score: <strong>'+score+'</strong></span><span>'+esc(item.typical_treatment||'mitigate')+'</span></div>'+
-      (item.regulatory_references?'<div style="font-size:11px;color:var(--muted);margin-bottom:10px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+esc(item.regulatory_references)+'</div>':'')+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      '<div data-s="s89fb726">'+esc(item.title)+'</div>'+
+      '<div data-s="s2c38a4a">'+esc((item.description||'').slice(0,100))+((item.description||'').length>100?'…':'')+'</div>'+
+      (tags?'<div data-s="sfdf33f2">'+tags+'</div>':'')+
+      '<div data-s="s6abb47a" data-sd="flex"><span>Score: <strong>'+score+'</strong></span><span>'+esc(item.typical_treatment||'mitigate')+'</span></div>'+
+      (item.regulatory_references?'<div data-s="s4c5789d"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg> '+esc(item.regulatory_references)+'</div>':'')+
+      '<div data-s="sca6f5db" data-sd="flex">'+
         '<button class="btn btn-sm btn-primary" data-erm-click="ermQuickAddRisk('+item.id+',this)">+ Quick Add</button>'+
         '<button class="btn btn-sm btn-secondary" data-erm-click="ermCustomizeFromLib('+item.id+')">Customize First</button>'+
         manageBtns+
@@ -1693,7 +1693,7 @@ window.ermRetireLibraryItem=async function(id){
 /* ────────────────── RISK RATING GUIDE (read-only reference) ────────────────── */
 window.ermLoadRatingGuide=async function(){
   var body=document.getElementById('ermRatingGuideBody');
-  body.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  body.innerHTML='<div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     var fw=ERM_FRAMEWORK||await apiFetch('/erm/api/framework/active');
     var t=document.getElementById('rgTitle');if(t)t.textContent=fw.framework.name;
@@ -1701,21 +1701,21 @@ window.ermLoadRatingGuide=async function(){
 
     var dimsHtml=fw.dimensions.map(function(dim){
       var rows=dim.levels.map(function(lv){
-        return'<tr><td style="font-weight:700;text-align:center;width:36px">'+lv.level+'</td>'+
-          '<td style="font-size:12px;line-height:1.5">'+esc(lv.description||'')+
-          (lv.threshold_label?'<div style="color:var(--muted);font-size:11px;margin-top:2px">'+esc(lv.threshold_label)+'</div>':'')+
+        return'<tr><td data-s="sada72ff">'+lv.level+'</td>'+
+          '<td data-s="s37e316d">'+esc(lv.description||'')+
+          (lv.threshold_label?'<div data-s="saa90d69">'+esc(lv.threshold_label)+'</div>':'')+
           '</td></tr>';
       }).join('');
-      return'<div style="margin-bottom:18px"><div style="font-weight:700;font-size:13px;margin-bottom:6px">'+esc(dim.name)+'</div>'+
-        '<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+rows+'</tbody></table></div>';
+      return'<div data-s="s905d8b3"><div data-s="s87e814f">'+esc(dim.name)+'</div>'+
+        '<table data-s="sa55f31d" class="rg-table"><tbody>'+rows+'</tbody></table></div>';
     }).join('');
 
     function scaleTable(rows){
-      return'<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+
+      return'<table data-s="sa55f31d" class="rg-table"><tbody>'+
         rows.map(function(r){
-          return'<tr><td style="font-weight:700;text-align:center;width:36px">'+r.level+'</td>'+
-            '<td style="font-weight:600;width:140px">'+esc(r.label)+'</td>'+
-            '<td style="font-size:12px;color:var(--muted)">'+esc(r.description||'')+'</td></tr>';
+          return'<tr><td data-s="sada72ff">'+r.level+'</td>'+
+            '<td data-s="s9777092">'+esc(r.label)+'</td>'+
+            '<td data-s="s7fc448e">'+esc(r.description||'')+'</td></tr>';
         }).join('')+'</tbody></table>';
     }
 
@@ -1725,39 +1725,39 @@ window.ermLoadRatingGuide=async function(){
     fw.bands.forEach(function(b){bandByKey[b.band_key]=b;});
     var matrixRows='';
     for(var l=5;l>=1;l--){
-      matrixRows+='<tr><td style="font-weight:700;text-align:center;background:var(--surface2)">'+l+'</td>';
+      matrixRows+='<tr><td data-s="se74f1f1">'+l+'</td>';
       for(var i=1;i<=5;i++){
         var bk=matrixByCell[l+'_'+i];var band=bandByKey[bk]||{};
-        matrixRows+='<td style="text-align:center;font-size:11px;font-weight:700;padding:10px;background:'+esc(band.color||'#eee')+';color:#1a1a1a">'+esc(band.label||'?')+'</td>';
+        matrixRows+='<td data-sv="text-align:center;font-size:11px;font-weight:700;padding:10px;background:'+esc(band.color||'#eee')+';color:#1a1a1a">'+esc(band.label||'?')+'</td>';
       }
       matrixRows+='</tr>';
     }
-    var matrixHeader='<tr><td></td>'+[1,2,3,4,5].map(function(i){return'<td style="text-align:center;font-size:11px;font-weight:700;color:var(--muted)">'+i+'</td>';}).join('')+'</tr>';
+    var matrixHeader='<tr><td></td>'+[1,2,3,4,5].map(function(i){return'<td data-s="s54910f9">'+i+'</td>';}).join('')+'</tr>';
 
     function taxonomyList(nodes){
       if(!nodes||!nodes.length)return'';
-      return'<ul style="margin:4px 0 4px 18px;padding:0">'+nodes.map(function(n){
-        return'<li style="font-size:12px;line-height:1.8">'+esc(n.name)+taxonomyList(n.children)+'</li>';
+      return'<ul data-s="sb79b276">'+nodes.map(function(n){
+        return'<li data-s="s4e3fa0b">'+esc(n.name)+taxonomyList(n.children)+'</li>';
       }).join('')+'</ul>';
     }
 
     body.innerHTML=
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">'+
-        '<div class="stat-card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Likelihood</div>'+scaleTable(fw.likelihood)+'</div>'+
-        '<div class="stat-card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Control Effectiveness</div>'+scaleTable(fw.control_effectiveness)+'</div>'+
+      '<div data-s="s9dfa01f" data-sd="grid">'+
+        '<div class="stat-card" data-s="s287f770"><div class="section-title" data-s="sb1d606b">Likelihood</div>'+scaleTable(fw.likelihood)+'</div>'+
+        '<div class="stat-card" data-s="s287f770"><div class="section-title" data-s="sb1d606b">Control Effectiveness</div>'+scaleTable(fw.control_effectiveness)+'</div>'+
       '</div>'+
-      '<div class="stat-card" style="padding:16px;margin-bottom:24px">'+
-        '<div class="section-title" style="font-size:14px;margin-bottom:10px">Risk Matrix (Likelihood × Impact)</div>'+
-        '<table style="border-collapse:collapse;margin:0 auto"><tbody>'+matrixHeader+matrixRows+'</tbody></table>'+
+      '<div class="stat-card" data-s="sa6a97b7">'+
+        '<div class="section-title" data-s="sb1d606b">Risk Matrix (Likelihood × Impact)</div>'+
+        '<table data-s="sdc02406"><tbody>'+matrixHeader+matrixRows+'</tbody></table>'+
       '</div>'+
-      '<div class="stat-card" style="padding:16px;margin-bottom:24px">'+
-        '<div class="section-title" style="font-size:14px;margin-bottom:14px">Impact Dimensions</div>'+dimsHtml+
+      '<div class="stat-card" data-s="sa6a97b7">'+
+        '<div class="section-title" data-s="s53fc0b5">Impact Dimensions</div>'+dimsHtml+
       '</div>'+
-      '<div class="stat-card" style="padding:16px">'+
-        '<div class="section-title" style="font-size:14px;margin-bottom:10px">Risk Taxonomy</div>'+
+      '<div class="stat-card" data-s="s287f770">'+
+        '<div class="section-title" data-s="sb1d606b">Risk Taxonomy</div>'+
         taxonomyList(fw.taxonomy)+
       '</div>';
-  }catch(e){body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load rating guide: '+esc(e.message)+'</div>';}
+  }catch(e){body.innerHTML='<div data-s="s810afb2">Failed to load rating guide: '+esc(e.message)+'</div>';}
 };
 
 /* ────────────────── RATING FRAMEWORKS (admin) ────────────────── */
@@ -1769,42 +1769,42 @@ window.ermLoadFrameworkAdmin=async function(){
   document.getElementById('fwEditorRoot').innerHTML='';
   document.getElementById('fwListRoot').style.display='';
   var root=document.getElementById('fwListRoot');
-  root.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  root.innerHTML='<div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     fwListCache=await apiFetch('/erm/api/frameworks');
     fwRenderList();
-  }catch(e){root.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load frameworks: '+esc(e.message)+'</div>';}
+  }catch(e){root.innerHTML='<div data-s="s810afb2">Failed to load frameworks: '+esc(e.message)+'</div>';}
 };
 
 function fwSourceBadge(source){
   var label=source==='built_in'?'Built-in':source==='imported'?'Imported':'Custom';
   var color=source==='built_in'?'var(--accent)':'var(--muted)';
-  return'<span class="badge" style="background:'+color+'22;color:'+color+';border:1px solid '+color+'55">'+label+'</span>';
+  return'<span class="badge" data-sv="background:'+color+'22;color:'+color+';border:1px solid '+color+'55">'+label+'</span>';
 }
 
 window.fwRenderList=function(){
   var root=document.getElementById('fwListRoot');
-  if(!fwListCache.length){root.innerHTML='<div class="card" style="padding:40px;text-align:center;color:var(--muted)">No frameworks yet</div>';return;}
+  if(!fwListCache.length){root.innerHTML='<div class="card" data-s="sc0add8c">No frameworks yet</div>';return;}
   var rows=fwListCache.map(function(f){
     var canEdit=f.source!=='built_in';
     var canDelete=canEdit&&!f.is_active;
     return'<tr>'+
-      '<td style="font-weight:600">'+esc(f.name)+(f.is_active?' <span class="badge" style="background:var(--good,#16a34a)22;color:var(--good,#16a34a);border:1px solid var(--good,#16a34a)55;margin-left:6px">ACTIVE</span>':'')+
-      '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+esc(f.description||'')+'</div></td>'+
+      '<td data-s="seed0f8f">'+esc(f.name)+(f.is_active?' <span class="badge" data-s="se480118">ACTIVE</span>':'')+
+      '<div data-s="s59a6333">'+esc(f.description||'')+'</div></td>'+
       '<td>'+fwSourceBadge(f.source)+'</td>'+
-      '<td style="text-align:center">'+f.dimension_count+'</td>'+
-      '<td style="font-size:12px;color:var(--muted)">'+fmtDate(f.updated_at)+'</td>'+
-      '<td><div style="display:flex;gap:4px;flex-wrap:wrap">'+
-        (f.is_active?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwActivate('+f.id+')" style="padding:3px 8px">Activate</button>')+
-        '<button class="btn btn-sm btn-secondary" data-erm-click="fwOpenEditor('+f.id+')" style="padding:3px 8px">'+(canEdit?'Edit':'View')+'</button>'+
-        '<button class="btn btn-sm btn-secondary" data-erm-click="fwClone('+f.id+')" style="padding:3px 8px">Clone</button>'+
-        '<button class="btn btn-sm btn-secondary" data-erm-click="fwExport('+f.id+')" style="padding:3px 8px">Export</button>'+
-        (canDelete?'<button class="btn btn-sm btn-secondary" data-erm-click="fwDelete('+f.id+')" style="padding:3px 8px;color:var(--red)">Delete</button>':'')+
+      '<td data-s="s91a8701">'+f.dimension_count+'</td>'+
+      '<td data-s="s7fc448e">'+fmtDate(f.updated_at)+'</td>'+
+      '<td><div data-s="sdd73c0b" data-sd="flex">'+
+        (f.is_active?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwActivate('+f.id+')" data-s="s84a96e3">Activate</button>')+
+        '<button class="btn btn-sm btn-secondary" data-erm-click="fwOpenEditor('+f.id+')" data-s="s84a96e3">'+(canEdit?'Edit':'View')+'</button>'+
+        '<button class="btn btn-sm btn-secondary" data-erm-click="fwClone('+f.id+')" data-s="s84a96e3">Clone</button>'+
+        '<button class="btn btn-sm btn-secondary" data-erm-click="fwExport('+f.id+')" data-s="s84a96e3">Export</button>'+
+        (canDelete?'<button class="btn btn-sm btn-secondary" data-erm-click="fwDelete('+f.id+')" data-s="s4e287a7">Delete</button>':'')+
       '</div></td>'+
     '</tr>';
   }).join('');
-  root.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table">'+
-    '<thead><tr><th>Framework</th><th>Source</th><th style="text-align:center">Dimensions</th><th>Updated</th><th>Actions</th></tr></thead>'+
+  root.innerHTML='<div class="card" data-s="s22a2674"><div data-s="s0ddf068"><table class="data-table">'+
+    '<thead><tr><th>Framework</th><th>Source</th><th data-s="s91a8701">Dimensions</th><th>Updated</th><th>Actions</th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div></div>';
 };
 
@@ -1851,17 +1851,17 @@ window.fwImportFile=function(file){
 };
 
 window.fwShowErrors=function(title,errors){
-  var html='<div class="erm-modal-overlay" id="fwErrModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:560px">'+
+  var html='<div class="erm-modal-overlay" id="fwErrModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s765d57b">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'fwErrModal\').remove()">✕</button>'+
     '<div class="modal-title">'+esc(title)+'</div>'+
-    '<ul style="margin:10px 0 0 18px;padding:0;font-size:12.5px;color:var(--red);line-height:1.8">'+
+    '<ul data-s="s3eaf114">'+
     errors.map(function(er){return'<li>'+esc(er)+'</li>';}).join('')+
     '</ul></div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
 };
 
 window.fwOpenNewModal=function(cloneSrc){
-  var html='<div class="erm-modal-overlay" id="fwNewModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:520px">'+
+  var html='<div class="erm-modal-overlay" id="fwNewModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s04391f0">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'fwNewModal\').remove()">✕</button>'+
     '<div class="modal-title">New Framework</div>'+
     '<div class="form-group"><label>Name *</label><input id="fwn_name" value="'+(cloneSrc?esc(cloneSrc.name+' (Copy)'):'')+'"></div>'+
@@ -1869,7 +1869,7 @@ window.fwOpenNewModal=function(cloneSrc){
     '<div class="form-group"><label>Clone From *</label><select id="fwn_clone">'+
       fwListCache.map(function(f){return'<option value="'+f.id+'"'+(cloneSrc&&cloneSrc.id===f.id?' selected':'')+'>'+esc(f.name)+'</option>';}).join('')+
     '</select></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'fwNewModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="fwSaveNew()">Create</button></div>'+
+    '<div data-s="sd28ceac" data-sd="flex"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'fwNewModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="fwSaveNew()">Create</button></div>'+
   '</div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
 };
@@ -1891,11 +1891,11 @@ window.fwSaveNew=async function(){
 window.fwOpenEditor=async function(id){
   document.getElementById('fwListRoot').style.display='none';
   var root=document.getElementById('fwEditorRoot');
-  root.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  root.innerHTML='<div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     fwEditorState=await apiFetch('/erm/api/frameworks/'+id);
     fwRenderEditor();
-  }catch(e){root.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load framework: '+esc(e.message)+'</div>';}
+  }catch(e){root.innerHTML='<div data-s="s810afb2">Failed to load framework: '+esc(e.message)+'</div>';}
 };
 
 window.fwCloseEditor=function(){
@@ -1910,7 +1910,7 @@ function fwMatrixSelectHtml(l,i,currentBandKey){
     return'<option value="'+esc(b.band_key)+'"'+(b.band_key===currentBandKey?' selected':'')+'>'+esc(b.label)+'</option>';
   }).join('');
   var bandNow=fwEditorState.bands.find(function(b){return b.band_key===currentBandKey;})||{};
-  return'<select '+(locked?'disabled':'')+' style="width:100%;background:'+esc(bandNow.color||'#eee')+';color:#1a1a1a;font-weight:700;font-size:11px;border:none;border-radius:4px;padding:6px" data-erm-change="fwSetMatrixCell('+l+','+i+',this.value)">'+opts+'</select>';
+  return'<select '+(locked?'disabled':'')+' data-sv="width:100%;background:'+esc(bandNow.color||'#eee')+';color:#1a1a1a;font-weight:700;font-size:11px;border:none;border-radius:4px;padding:6px" data-erm-change="fwSetMatrixCell('+l+','+i+',this.value)">'+opts+'</select>';
 }
 
 window.fwSetMatrixCell=function(l,i,bandKey){
@@ -1986,33 +1986,33 @@ function fwRenderEditor(){
 
   var dimsHtml=fw.dimensions.map(function(dim,di){
     var levelRows=dim.levels.map(function(lv){
-      return'<tr><td style="font-weight:700;text-align:center;width:36px">'+lv.level+'</td>'+
-        '<td><textarea rows="2" style="width:100%" '+(locked?'disabled':'')+' data-erm-input="fwEditorSet(\'dimensions\','+di+',\'levels\','+(lv.level-1)+',\'description\',this.value)">'+esc(lv.description||'')+'</textarea></td></tr>';
+      return'<tr><td data-s="sada72ff">'+lv.level+'</td>'+
+        '<td><textarea rows="2" data-s="s0466783" '+(locked?'disabled':'')+' data-erm-input="fwEditorSet(\'dimensions\','+di+',\'levels\','+(lv.level-1)+',\'description\',this.value)">'+esc(lv.description||'')+'</textarea></td></tr>';
     }).join('');
-    return'<div class="card" style="padding:14px;margin-bottom:10px">'+
-      '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">'+
-        '<input style="flex:1;font-weight:700" '+(locked?'disabled':'')+' value="'+esc(dim.name)+'" data-erm-input="fwEditorSet(\'dimensions\','+di+',\'name\',this.value)">'+
-        (locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwRemoveDimension('+di+')" style="color:var(--red)">Remove</button>')+
+    return'<div class="card" data-s="s952d727">'+
+      '<div data-s="s329ecf5" data-sd="flex">'+
+        '<input data-s="sc8f48e7" '+(locked?'disabled':'')+' value="'+esc(dim.name)+'" data-erm-input="fwEditorSet(\'dimensions\','+di+',\'name\',this.value)">'+
+        (locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwRemoveDimension('+di+')" data-s="s45e7ae4">Remove</button>')+
       '</div>'+
-      '<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+levelRows+'</tbody></table>'+
+      '<table data-s="sa55f31d" class="rg-table"><tbody>'+levelRows+'</tbody></table>'+
     '</div>';
   }).join('');
 
   function scaleEditor(key,rows){
-    return'<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+
+    return'<table data-s="sa55f31d" class="rg-table"><tbody>'+
       rows.map(function(r){
-        return'<tr><td style="font-weight:700;text-align:center;width:30px">'+r.level+'</td>'+
-          '<td><input style="width:100%;font-weight:600;margin-bottom:4px" '+(locked?'disabled':'')+' value="'+esc(r.label)+'" data-erm-input="fwEditorSet(\''+key+'\','+(r.level-1)+',\'label\',this.value)">'+
-          '<textarea rows="2" style="width:100%" '+(locked?'disabled':'')+' data-erm-input="fwEditorSet(\''+key+'\','+(r.level-1)+',\'description\',this.value)">'+esc(r.description||'')+'</textarea></td></tr>';
+        return'<tr><td data-s="sc3cf329">'+r.level+'</td>'+
+          '<td><input data-s="se3b40a4" '+(locked?'disabled':'')+' value="'+esc(r.label)+'" data-erm-input="fwEditorSet(\''+key+'\','+(r.level-1)+',\'label\',this.value)">'+
+          '<textarea rows="2" data-s="s0466783" '+(locked?'disabled':'')+' data-erm-input="fwEditorSet(\''+key+'\','+(r.level-1)+',\'description\',this.value)">'+esc(r.description||'')+'</textarea></td></tr>';
       }).join('')+'</tbody></table>';
   }
 
   var bandsHtml=fw.bands.map(function(b,bi){
     return'<tr>'+
-      '<td><input style="width:100%" '+(locked?'disabled':'')+' value="'+esc(b.band_key)+'" data-erm-input="fwEditorSetBand('+bi+',\'band_key\',this.value)"></td>'+
-      '<td><input style="width:100%" '+(locked?'disabled':'')+' value="'+esc(b.label)+'" data-erm-input="fwEditorSetBand('+bi+',\'label\',this.value)"></td>'+
-      '<td style="text-align:center"><input type="color" '+(locked?'disabled':'')+' value="'+esc(b.color)+'" style="width:48px;height:34px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px" data-erm-input="fwEditorSetBand('+bi+',\'color\',this.value)"></td>'+
-      '<td style="text-align:center">'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwRemoveBand('+bi+')" style="color:var(--red)">✕</button>')+'</td>'+
+      '<td><input data-s="s0466783" '+(locked?'disabled':'')+' value="'+esc(b.band_key)+'" data-erm-input="fwEditorSetBand('+bi+',\'band_key\',this.value)"></td>'+
+      '<td><input data-s="s0466783" '+(locked?'disabled':'')+' value="'+esc(b.label)+'" data-erm-input="fwEditorSetBand('+bi+',\'label\',this.value)"></td>'+
+      '<td data-s="s91a8701"><input type="color" '+(locked?'disabled':'')+' value="'+esc(b.color)+'" data-s="s1d08157" data-erm-input="fwEditorSetBand('+bi+',\'color\',this.value)"></td>'+
+      '<td data-s="s91a8701">'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwRemoveBand('+bi+')" data-s="s45e7ae4">✕</button>')+'</td>'+
     '</tr>';
   }).join('');
 
@@ -2020,24 +2020,24 @@ function fwRenderEditor(){
   fw.matrix.forEach(function(m){matrixByCell[m.likelihood+'_'+m.impact]=m.band_key;});
   var matrixRows='';
   for(var l=5;l>=1;l--){
-    matrixRows+='<tr><td style="font-weight:700;text-align:center;background:var(--surface2)">'+l+'</td>';
+    matrixRows+='<tr><td data-s="se74f1f1">'+l+'</td>';
     for(var i=1;i<=5;i++){
-      matrixRows+='<td style="padding:4px" id="fwMatrixCell_'+l+'_'+i+'">'+fwMatrixSelectHtml(l,i,matrixByCell[l+'_'+i])+'</td>';
+      matrixRows+='<td data-s="s2f0ad35" id="fwMatrixCell_'+l+'_'+i+'">'+fwMatrixSelectHtml(l,i,matrixByCell[l+'_'+i])+'</td>';
     }
     matrixRows+='</tr>';
   }
-  var matrixHeader='<tr><td></td>'+[1,2,3,4,5].map(function(i){return'<td style="text-align:center;font-size:11px;font-weight:700;color:var(--muted)">Impact '+i+'</td>';}).join('')+'</tr>';
+  var matrixHeader='<tr><td></td>'+[1,2,3,4,5].map(function(i){return'<td data-s="s54910f9">Impact '+i+'</td>';}).join('')+'</tr>';
 
   function taxonomyEditor(nodes,path){
     if(!nodes.length)return'';
-    return'<ul style="margin:4px 0 4px 18px;padding:0;list-style:none">'+nodes.map(function(n,ni){
+    return'<ul data-s="se4a2e49">'+nodes.map(function(n,ni){
       var p=path.concat(ni);
       var pathStr=JSON.stringify(p);
-      return'<li style="margin:4px 0">'+
-        '<div style="display:flex;gap:6px;align-items:center">'+
-          '<input style="width:220px" '+(locked?'disabled':'')+' value="'+esc(n.name)+'" data-erm-input=\'fwSetTaxonomyName('+pathStr+',this.value)\'>'+
-          (locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click=\'fwAddTaxonomyChild('+pathStr+')\' style="padding:2px 7px">+Child</button>')+
-          (locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click=\'fwRemoveTaxonomyNode('+pathStr+')\' style="padding:2px 7px;color:var(--red)">✕</button>')+
+      return'<li data-s="s557d84c">'+
+        '<div data-s="saebb47c" data-sd="flex">'+
+          '<input data-s="s0fac918" '+(locked?'disabled':'')+' value="'+esc(n.name)+'" data-erm-input=\'fwSetTaxonomyName('+pathStr+',this.value)\'>'+
+          (locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click=\'fwAddTaxonomyChild('+pathStr+')\' data-s="s8f0293e">+Child</button>')+
+          (locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click=\'fwRemoveTaxonomyNode('+pathStr+')\' data-s="sd947742">✕</button>')+
         '</div>'+
         taxonomyEditor(n.children||[],p)+
       '</li>';
@@ -2047,36 +2047,36 @@ function fwRenderEditor(){
   root.innerHTML=
     '<div class="section-header">'+
       '<div><button class="btn btn-secondary" data-erm-click="fwCloseEditor()">← Back to Frameworks</button></div>'+
-      '<div style="display:flex;gap:10px;align-items:center">'+
-        (fw.is_active?'<span class="badge" style="background:var(--good,#16a34a)22;color:var(--good,#16a34a);border:1px solid var(--good,#16a34a)55">ACTIVE</span>':'<button class="btn btn-secondary" data-erm-click="fwActivate('+fw.id+')">Activate</button>')+
+      '<div data-s="s15fa783" data-sd="flex">'+
+        (fw.is_active?'<span class="badge" data-s="s3270e65">ACTIVE</span>':'<button class="btn btn-secondary" data-erm-click="fwActivate('+fw.id+')">Activate</button>')+
         (locked?'':'<button class="btn btn-primary" data-erm-click="fwSaveEditor()">Save Framework</button>')+
       '</div>'+
     '</div>'+
-    '<div class="card" style="padding:16px;margin-bottom:16px">'+
+    '<div class="card" data-s="sec21eec">'+
       '<div class="form-group"><label>Name</label><input '+(locked?'disabled':'')+' value="'+esc(fw.name)+'" data-erm-input="fwEditorSet(\'name\',this.value)"></div>'+
       '<div class="form-group"><label>Description</label><textarea rows="2" '+(locked?'disabled':'')+' data-erm-input="fwEditorSet(\'description\',this.value)">'+esc(fw.description||'')+'</textarea></div>'+
-      (locked?'<div style="font-size:12px;color:var(--muted)">This is the built-in template and cannot be edited directly. Clone it from the list to make changes.</div>':'')+
+      (locked?'<div data-s="s7fc448e">This is the built-in template and cannot be edited directly. Clone it from the list to make changes.</div>':'')+
     '</div>'+
-    '<div class="card" style="padding:16px;margin-bottom:16px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="section-title" style="font-size:14px">Impact Dimensions</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwAddDimension()">+ Add Dimension</button>')+'</div>'+
+    '<div class="card" data-s="sec21eec">'+
+      '<div data-s="s072a6ac" data-sd="flex"><div class="section-title" data-s="s433de30">Impact Dimensions</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwAddDimension()">+ Add Dimension</button>')+'</div>'+
       dimsHtml+
     '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
-      '<div class="card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Likelihood</div>'+scaleEditor('likelihood',fw.likelihood)+'</div>'+
-      '<div class="card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Impact Scale</div>'+scaleEditor('impact_scale',fw.impact_scale)+'</div>'+
+    '<div data-s="sec84138" data-sd="grid">'+
+      '<div class="card" data-s="s287f770"><div class="section-title" data-s="sb1d606b">Likelihood</div>'+scaleEditor('likelihood',fw.likelihood)+'</div>'+
+      '<div class="card" data-s="s287f770"><div class="section-title" data-s="sb1d606b">Impact Scale</div>'+scaleEditor('impact_scale',fw.impact_scale)+'</div>'+
     '</div>'+
-    '<div class="card" style="padding:16px;margin-bottom:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Control Effectiveness</div>'+scaleEditor('control_effectiveness',fw.control_effectiveness)+'</div>'+
-    '<div class="card" style="padding:16px;margin-bottom:16px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="section-title" style="font-size:14px">Severity Bands</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwAddBand()">+ Add Band</button>')+'</div>'+
-      '<table style="width:100%;border-collapse:collapse" class="rg-table"><thead><tr><th>Key</th><th>Label</th><th style="text-align:center">Color</th><th></th></tr></thead><tbody>'+bandsHtml+'</tbody></table>'+
+    '<div class="card" data-s="sec21eec"><div class="section-title" data-s="sb1d606b">Control Effectiveness</div>'+scaleEditor('control_effectiveness',fw.control_effectiveness)+'</div>'+
+    '<div class="card" data-s="sec21eec">'+
+      '<div data-s="s072a6ac" data-sd="flex"><div class="section-title" data-s="s433de30">Severity Bands</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwAddBand()">+ Add Band</button>')+'</div>'+
+      '<table data-s="sa55f31d" class="rg-table"><thead><tr><th>Key</th><th>Label</th><th data-s="s91a8701">Color</th><th></th></tr></thead><tbody>'+bandsHtml+'</tbody></table>'+
     '</div>'+
-    '<div class="card" style="padding:16px;margin-bottom:16px">'+
-      '<div class="section-title" style="font-size:14px;margin-bottom:10px">Risk Matrix (Likelihood × Impact)</div>'+
-      '<div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Save bands first if you just added or renamed one, so it appears as a matrix option.</div>'+
-      '<table style="border-collapse:collapse"><tbody>'+matrixHeader+matrixRows+'</tbody></table>'+
+    '<div class="card" data-s="sec21eec">'+
+      '<div class="section-title" data-s="sb1d606b">Risk Matrix (Likelihood × Impact)</div>'+
+      '<div data-s="sa507795">Save bands first if you just added or renamed one, so it appears as a matrix option.</div>'+
+      '<table data-s="s454826f"><tbody>'+matrixHeader+matrixRows+'</tbody></table>'+
     '</div>'+
-    '<div class="card" style="padding:16px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="section-title" style="font-size:14px">Risk Taxonomy</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwAddTaxonomyRoot()">+ Add Category</button>')+'</div>'+
+    '<div class="card" data-s="s287f770">'+
+      '<div data-s="s072a6ac" data-sd="flex"><div class="section-title" data-s="s433de30">Risk Taxonomy</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" data-erm-click="fwAddTaxonomyRoot()">+ Add Category</button>')+'</div>'+
       taxonomyEditor(fw.taxonomy,[])+
     '</div>';
 }
@@ -2124,20 +2124,20 @@ window.ermRenderObligations=function(){
   });
   var overdue=filtered.filter(function(o){return o.status!=='compliant'&&o.due_date&&new Date(o.due_date)<new Date();});
   var banner=document.getElementById('oblAlertBanner');
-  if(banner){if(overdue.length){banner.style.display='';banner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--red)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+overdue.length+' obligation'+(overdue.length>1?'s':'')+'</strong> overdue and not compliant.</div>';}else{banner.style.display='none';}}
+  if(banner){if(overdue.length){banner.style.display='';banner.innerHTML='<div data-s="s2b11515"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+overdue.length+' obligation'+(overdue.length>1?'s':'')+'</strong> overdue and not compliant.</div>';}else{banner.style.display='none';}}
   var body=document.getElementById('ermOblBody');
   if(!filtered.length){body.innerHTML=emptyRow(7,'No obligations match');return;}
   body.innerHTML=filtered.map(function(o){
     var days=daysUntil(o.due_date);
-    var dueStr=days===null?'—':days<0?'<span style="color:var(--red);font-weight:700">'+Math.abs(days)+'d overdue</span>':days===0?'<span style="color:var(--amber);font-weight:700">Due today</span>':'<span style="color:'+(days<14?'var(--amber)':'var(--good,#16a34a)')+'">'+days+'d</span>';
+    var dueStr=days===null?'—':days<0?'<span data-s="s0353c96">'+Math.abs(days)+'d overdue</span>':days===0?'<span data-s="se690a23">Due today</span>':'<span data-sv="color:'+(days<14?'var(--amber)':'var(--good,#16a34a)')+'">'+days+'d</span>';
     return'<tr>'+
-      '<td style="font-weight:600">'+esc(o.regulator)+'</td>'+
+      '<td data-s="seed0f8f">'+esc(o.regulator)+'</td>'+
       '<td>'+esc(o.regulation_name)+'</td>'+
-      '<td style="max-width:180px;font-size:12px">'+esc((o.obligation||'').slice(0,70))+((o.obligation||'').length>70?'…':'')+'</td>'+
-      '<td style="font-size:12px">'+esc(o.owner_name||'—')+'</td>'+
-      '<td style="white-space:nowrap">'+dueStr+'</td>'+
+      '<td data-s="s84f971d">'+esc((o.obligation||'').slice(0,70))+((o.obligation||'').length>70?'…':'')+'</td>'+
+      '<td data-s="s6cb285c">'+esc(o.owner_name||'—')+'</td>'+
+      '<td data-s="s86abdab">'+dueStr+'</td>'+
       '<td>'+statusBadge(o.status)+'</td>'+
-      '<td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" data-erm-click="ermEditObl('+o.id+')" style="padding:3px 8px">Edit</button><button class="btn btn-sm btn-secondary" data-erm-click="ermDeleteObl('+o.id+')" style="padding:3px 8px;color:var(--red)">Del</button></div></td>'+
+      '<td><div data-s="sd767683" data-sd="flex"><button class="btn btn-sm btn-secondary" data-erm-click="ermEditObl('+o.id+')" data-s="s84a96e3">Edit</button><button class="btn btn-sm btn-secondary" data-erm-click="ermDeleteObl('+o.id+')" data-s="s4e287a7">Del</button></div></td>'+
     '</tr>';
   }).join('');
 };
@@ -2145,7 +2145,7 @@ window.ermEditObl=function(id){var o=oblCache.find(function(x){return x.id===id;
 window.ermDeleteObl=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/erm/api/obligations/'+id,{method:'DELETE'});ermLoadObligations();}catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}};
 window.ermOpenOblModal=function(existing){
   var isEdit=!!(existing&&existing.id);
-  var html='<div class="erm-modal-overlay" id="oblModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:640px">'+
+  var html='<div class="erm-modal-overlay" id="oblModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="se2b01b0">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'oblModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Regulatory Obligation</div>'+
     '<div class="form-row"><div class="form-group"><label>Regulator *</label><input id="obl_reg" value="'+esc(isEdit?existing.regulator||'':'')+'"></div>'+
@@ -2156,7 +2156,7 @@ window.ermOpenOblModal=function(existing){
     '<div class="form-row"><div class="form-group"><label>Status</label><select id="obl_status">'+['pending','compliant','non_compliant','under_review'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
     '<div class="form-group"><label>Evidence Required</label><input id="obl_evid" value="'+esc(isEdit?existing.evidence_required||'':'')+'"></div></div>'+
     '<div class="form-group"><label>Notes</label><textarea id="obl_notes" rows="2">'+esc(isEdit?existing.notes||'':'')+'</textarea></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'oblModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="ermSaveObl('+(isEdit?existing.id:'null')+')">Save</button></div>'+
+    '<div data-s="sd28ceac" data-sd="flex"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'oblModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="ermSaveObl('+(isEdit?existing.id:'null')+')">Save</button></div>'+
   '</div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
 };
@@ -2189,19 +2189,19 @@ window.ermRenderAssessments=function(){
   body.innerHTML=filtered.map(function(a){
     var canRespond=a.status==='active';var canResults=a.status==='active'||a.status==='closed';
     return'<tr>'+
-      '<td style="font-weight:600;cursor:pointer;color:var(--accent)" data-erm-click="ermOpenAssessmentDetail('+a.id+')">'+esc(a.title)+'</td>'+
-      '<td style="text-transform:capitalize;font-size:12px">'+esc(a.type||'risk')+'</td>'+
-      '<td style="text-align:center">'+esc(a.question_count||0)+'</td>'+
-      '<td style="text-align:center;font-size:12px;color:var(--muted)">—</td>'+
+      '<td data-s="s1724438" data-erm-click="ermOpenAssessmentDetail('+a.id+')">'+esc(a.title)+'</td>'+
+      '<td data-s="sbdabe69">'+esc(a.type||'risk')+'</td>'+
+      '<td data-s="s91a8701">'+esc(a.question_count||0)+'</td>'+
+      '<td data-s="sb88e8ac">—</td>'+
       '<td>'+statusBadge(a.status)+'</td>'+
       '<td>'+fmtDate(a.due_date)+'</td>'+
-      '<td><div style="display:flex;gap:4px;flex-wrap:nowrap">'+
-        '<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenAssessmentDetail('+a.id+')" style="padding:3px 8px">View</button>'+
-        (canResults?'<button class="btn btn-sm btn-primary" data-erm-click="ermOpenResultsDrawer('+a.id+')" style="padding:3px 8px">Results</button>':'')+
-        (canRespond?'<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenRespond('+a.id+')" style="padding:3px 8px">Respond</button>':'')+
-        (a.status==='draft'?'<button class="btn btn-sm btn-secondary" data-erm-click="ermLaunchAssessment('+a.id+')" style="padding:3px 8px">Launch</button>':'')+
-        (a.status==='active'?'<button class="btn btn-sm btn-secondary" data-erm-click="ermCloseAssessment('+a.id+')" style="padding:3px 8px;color:var(--muted)">Close</button>':'')+
-        '<button class="btn btn-sm btn-secondary" data-erm-click="ermDeleteAssessment('+a.id+')" style="padding:3px 8px;color:var(--red)">Del</button>'+
+      '<td><div data-s="s56e1ffb" data-sd="flex">'+
+        '<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenAssessmentDetail('+a.id+')" data-s="s84a96e3">View</button>'+
+        (canResults?'<button class="btn btn-sm btn-primary" data-erm-click="ermOpenResultsDrawer('+a.id+')" data-s="s84a96e3">Results</button>':'')+
+        (canRespond?'<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenRespond('+a.id+')" data-s="s84a96e3">Respond</button>':'')+
+        (a.status==='draft'?'<button class="btn btn-sm btn-secondary" data-erm-click="ermLaunchAssessment('+a.id+')" data-s="s84a96e3">Launch</button>':'')+
+        (a.status==='active'?'<button class="btn btn-sm btn-secondary" data-erm-click="ermCloseAssessment('+a.id+')" data-s="sb079c1a">Close</button>':'')+
+        '<button class="btn btn-sm btn-secondary" data-erm-click="ermDeleteAssessment('+a.id+')" data-s="s4e287a7">Del</button>'+
       '</div></td>'+
     '</tr>';
   }).join('');
@@ -2210,14 +2210,14 @@ window.ermLaunchAssessment=async function(id){try{await apiFetch('/erm/api/asses
 window.ermCloseAssessment=async function(id){if(!confirm('Close this assessment?'))return;try{await apiFetch('/erm/api/assessments/'+id,{method:'PUT',body:{status:'closed'}});ermLoadAssessments();typeof showToast==='function'&&showToast('Assessment closed');}catch(e){typeof showToast==='function'&&showToast('Failed','error');}};
 window.ermDeleteAssessment=async function(id){if(!confirm('Delete assessment and all responses?'))return;try{await apiFetch('/erm/api/assessments/'+id,{method:'DELETE'});ermLoadAssessments();}catch(e){typeof showToast==='function'&&showToast('Failed','error');}};
 window.ermOpenAssessmentModal=function(){
-  var html='<div class="erm-modal-overlay" id="assessModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:540px">'+
+  var html='<div class="erm-modal-overlay" id="assessModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="sc1130cd">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'assessModal\').remove()">✕</button>'+
     '<div class="modal-title">New Self-Assessment</div>'+
     '<div class="form-group"><label>Title *</label><input id="as_title" placeholder="e.g. Q4 Risk Self-Assessment"></div>'+
     '<div class="form-row"><div class="form-group"><label>Type</label><select id="as_type">'+['risk','control','vendor','compliance','privacy','bcm'].map(function(t){return'<option value="'+t+'">'+t+'</option>';}).join('')+'</select></div><div class="form-group"><label>Due Date</label><input type="date" id="as_due"></div></div>'+
     '<div class="form-group"><label>Description</label><textarea id="as_desc" rows="2"></textarea></div>'+
     '<div class="form-group"><label>Target Audience</label><input id="as_audience" placeholder="Department Heads, Risk Owners"></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'assessModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="ermSaveAssessment()">Create</button></div>'+
+    '<div data-s="sd28ceac" data-sd="flex"><button class="btn btn-secondary" data-erm-click="document.getElementById(\'assessModal\').remove()">Cancel</button><button class="btn btn-primary" data-erm-click="ermSaveAssessment()">Create</button></div>'+
   '</div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
 };
@@ -2230,13 +2230,13 @@ window.ermOpenAssessmentDetail=async function(id){
   try{
     var a=await apiFetch('/erm/api/assessments/'+id);
     var qs=a.questions||[];var isDraft=a.status==='draft';
-    var qHtml=qs.length?qs.map(function(q,i){return'<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:start"><div><div style="font-size:13px;font-weight:600">'+(i+1)+'. '+esc(q.question)+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(q.question_type)+' &bull; weight: '+q.weight+'</div></div>'+(isDraft?'<button class="btn btn-sm btn-secondary" data-erm-click="ermDelQ('+id+','+q.id+',this)" style="padding:3px 8px;color:var(--red);flex-shrink:0">Del</button>':'')+' </div>';}).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">No questions yet</div>';
-    var addQHtml=isDraft?'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Add Question</div><div class="form-group"><textarea id="aq_q" rows="2" placeholder="Question text…"></textarea></div><div class="form-row"><div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--muted)">TYPE</label><select id="aq_type"><option value="scale">1–5 Scale</option><option value="yes_no">Yes / No</option><option value="text">Free Text</option></select></div><div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--muted)">WEIGHT</label><input type="number" id="aq_weight" value="1" min="0.1" max="5" step="0.1"></div></div><button class="btn btn-sm btn-primary" data-erm-click="ermAddQuestion('+id+',this)">+ Add Question</button></div>':'';
-    var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:660px">'+
+    var qHtml=qs.length?qs.map(function(q,i){return'<div data-s="s781602d" data-sd="flex"><div><div data-s="seb673ec">'+(i+1)+'. '+esc(q.question)+'</div><div data-s="s3823a5b">'+esc(q.question_type)+' &bull; weight: '+q.weight+'</div></div>'+(isDraft?'<button class="btn btn-sm btn-secondary" data-erm-click="ermDelQ('+id+','+q.id+',this)" data-s="s7ceb62e">Del</button>':'')+' </div>';}).join(''):'<div data-s="sb314795">No questions yet</div>';
+    var addQHtml=isDraft?'<div data-s="sb756e24"><div data-s="se9f6309">Add Question</div><div class="form-group"><textarea id="aq_q" rows="2" placeholder="Question text…"></textarea></div><div class="form-row"><div class="form-group"><label data-s="s21a0554">TYPE</label><select id="aq_type"><option value="scale">1–5 Scale</option><option value="yes_no">Yes / No</option><option value="text">Free Text</option></select></div><div class="form-group"><label data-s="s21a0554">WEIGHT</label><input type="number" id="aq_weight" value="1" min="0.1" max="5" step="0.1"></div></div><button class="btn btn-sm btn-primary" data-erm-click="ermAddQuestion('+id+',this)">+ Add Question</button></div>':'';
+    var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s3e4a62f">'+
       '<div class="modal-title">'+esc(a.title)+'</div>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">'+statusBadge(a.status)+'<span style="font-size:12px;color:var(--muted)">'+esc(a.type)+' &bull; '+qs.length+' question(s)</span>'+(a.target_audience?'<span style="font-size:12px;color:var(--muted)">&bull; '+esc(a.target_audience)+'</span>':'')+' </div>'+
-      '<div id="aqList" style="max-height:280px;overflow-y:auto">'+qHtml+'</div>'+addQHtml+
-      '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">'+
+      '<div data-s="s5a0d086" data-sd="flex">'+statusBadge(a.status)+'<span data-s="s7fc448e">'+esc(a.type)+' &bull; '+qs.length+' question(s)</span>'+(a.target_audience?'<span data-s="s7fc448e">&bull; '+esc(a.target_audience)+'</span>':'')+' </div>'+
+      '<div id="aqList" data-s="s6f2cf3d">'+qHtml+'</div>'+addQHtml+
+      '<div data-s="se7c2e9c" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
         (isDraft?'<button class="btn-erm-ai" data-erm-click="ermSuggestQuestions('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggest Questions</button>':'')+
         (a.status==='closed'||a.status==='active'?'<button class="btn-erm-ai" data-erm-click="ermIdentifyRisks('+id+',this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Identify Risks</button>':'')+
@@ -2254,25 +2254,25 @@ window.ermAddQuestion=async function(assessId,btn){
     document.getElementById('aq_q').value='';
     var detail=await apiFetch('/erm/api/assessments/'+assessId);var qs=detail.questions||[];
     var list=document.getElementById('aqList');
-    if(list)list.innerHTML=qs.map(function(q2,i){return'<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:start"><div><div style="font-size:13px;font-weight:600">'+(i+1)+'. '+esc(q2.question)+'</div><div style="font-size:11px;color:var(--muted)">'+esc(q2.question_type)+' &bull; weight: '+q2.weight+'</div></div><button class="btn btn-sm btn-secondary" data-erm-click="ermDelQ('+assessId+','+q2.id+',this)" style="padding:3px 8px;color:var(--red)">Del</button></div>';}).join('');
+    if(list)list.innerHTML=qs.map(function(q2,i){return'<div data-s="s781602d" data-sd="flex"><div><div data-s="seb673ec">'+(i+1)+'. '+esc(q2.question)+'</div><div data-s="s1fd8c81">'+esc(q2.question_type)+' &bull; weight: '+q2.weight+'</div></div><button class="btn btn-sm btn-secondary" data-erm-click="ermDelQ('+assessId+','+q2.id+',this)" data-s="s4e287a7">Del</button></div>';}).join('');
     btn.disabled=false;btn.textContent=orig;ermLoadAssessments();typeof showToast==='function'&&showToast('Question added ✓');
   }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Failed','error');}
 };
-window.ermDelQ=async function(aId,qId,btn){if(!confirm('Remove question?'))return;try{await apiFetch('/erm/api/assessments/'+aId+'/questions/'+qId,{method:'DELETE'});var row=btn.closest('div[style*="border-bottom"]');if(row)row.remove();ermLoadAssessments();}catch(e){}};
+window.ermDelQ=async function(aId,qId,btn){if(!confirm('Remove question?'))return;try{await apiFetch('/erm/api/assessments/'+aId+'/questions/'+qId,{method:'DELETE'});var row=btn.parentElement;while(row&&!(row.tagName==='DIV'&&getComputedStyle(row).borderBottomStyle!=='none'))row=row.parentElement;if(row)row.remove();ermLoadAssessments();}catch(e){}};
 window.ermOpenRespond=async function(id){
   try{
     var a=await apiFetch('/erm/api/assessments/'+id);var qs=a.questions||[];if(!qs.length){typeof showToast==='function'&&showToast('No questions','error');return;}
     var _scaleAns={};
     var qHtml=qs.map(function(q){
-      if(q.question_type==='scale')return'<div class="assess-q-item" data-qid="'+q.id+'" style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div><div class="scale-btns">'+[1,2,3,4,5].map(function(v){return'<button class="scale-btn" data-erm-click="ermScaleSel(this,\''+q.id+'\','+v+')">'+v+'</button>';}).join('')+'</div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px"><span>Low</span><span>High</span></div></div>';
-      if(q.question_type==='yes_no')return'<div style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div><div class="scale-btns"><button class="scale-btn" data-erm-click="ermScaleSel(this,\''+q.id+'\',\'yes\')">Yes</button><button class="scale-btn" data-erm-click="ermScaleSel(this,\''+q.id+'\',\'no\')">No</button></div></div>';
-      return'<div style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div><textarea id="resp_'+q.id+'" rows="2" style="width:100%;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box"></textarea></div>';
+      if(q.question_type==='scale')return'<div class="assess-q-item" data-qid="'+q.id+'" data-s="se60425b"><div data-s="seb673ec">'+esc(q.question)+'</div><div class="scale-btns">'+[1,2,3,4,5].map(function(v){return'<button class="scale-btn" data-erm-click="ermScaleSel(this,\''+q.id+'\','+v+')">'+v+'</button>';}).join('')+'</div><div data-s="sd0ebdaa" data-sd="flex"><span>Low</span><span>High</span></div></div>';
+      if(q.question_type==='yes_no')return'<div data-s="se60425b"><div data-s="seb673ec">'+esc(q.question)+'</div><div class="scale-btns"><button class="scale-btn" data-erm-click="ermScaleSel(this,\''+q.id+'\',\'yes\')">Yes</button><button class="scale-btn" data-erm-click="ermScaleSel(this,\''+q.id+'\',\'no\')">No</button></div></div>';
+      return'<div data-s="se60425b"><div data-s="seb673ec">'+esc(q.question)+'</div><textarea id="resp_'+q.id+'" rows="2" data-s="sda5f6fb"></textarea></div>';
     }).join('');
-    var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:640px">'+
+    var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="se2b01b0">'+
       '<div class="modal-title">Respond: '+esc(a.title)+'</div>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+qs.length+' question(s) &bull; '+esc(a.type)+'</div>'+
-      '<div id="respondQs" style="max-height:420px;overflow-y:auto">'+qHtml+'</div>'+
-      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button><button class="btn btn-primary erm-submit-responses" id="submitRespBtn" data-assessment-id="'+Number(id)+'">Submit Responses</button></div>'+
+      '<div data-s="sd489e5b">'+qs.length+' question(s) &bull; '+esc(a.type)+'</div>'+
+      '<div id="respondQs" data-s="sd5d249b">'+qHtml+'</div>'+
+      '<div data-s="sfa58bc4" data-sd="flex"><button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button><button class="btn btn-primary erm-submit-responses" id="submitRespBtn" data-assessment-id="'+Number(id)+'">Submit Responses</button></div>'+
     '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
     document.body.lastElementChild._questions=qs;
@@ -2289,7 +2289,7 @@ window.ermSubmitResponses=async function(assessId,qs){
 
 /* ── Assessment Results Drawer ── */
 window.ermOpenResultsDrawer=async function(id){
-  document.getElementById('ermResultsDrawer').innerHTML='<div class="erm-drawer-overlay" data-erm-click="if(event.target===this)ermCloseResultsDrawer()"><div class="erm-drawer-panel"><div class="erm-drawer-head"><div style="font-size:15px;font-weight:700">Loading results…</div><button data-erm-click="ermCloseResultsDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px">✕</button></div><div class="erm-drawer-body"><div class="spinner" style="margin:40px auto"></div></div></div></div>';
+  document.getElementById('ermResultsDrawer').innerHTML='<div class="erm-drawer-overlay" data-erm-click="if(event.target===this)ermCloseResultsDrawer()"><div class="erm-drawer-panel"><div class="erm-drawer-head"><div data-s="s582cf27">Loading results…</div><button data-erm-click="ermCloseResultsDrawer()" data-s="s45ca30e">✕</button></div><div class="erm-drawer-body"><div class="spinner" data-s="sa20208b"></div></div></div></div>';
   try{
     var a=await apiFetch('/erm/api/assessments/'+id);
     var responses=await apiFetch('/erm/api/assessments/'+id+'/responses');
@@ -2311,33 +2311,33 @@ window.ermOpenResultsDrawer=async function(id){
       var s=qStats(q.id,q.question_type);
       if(q.question_type==='scale'){
         var maxDist=Math.max.apply(null,Object.values(s.dist||{}).concat([1]));
-        var bars=[1,2,3,4,5].map(function(v){var cnt=s.dist[v]||0;var pct=Math.round(cnt/maxDist*100);return'<div class="assess-bar-row"><span style="width:12px;text-align:right;flex-shrink:0">'+v+'</span><div class="assess-bar-track"><div class="assess-bar-fill" title="'+v+': '+cnt+' responses" style="width:'+pct+'%"></div></div><span style="width:20px;color:var(--muted)">'+cnt+'</span></div>';}).join('');
-        return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div>'+bars+'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+s.count+' response(s) &bull; avg: <strong>'+s.avg+'</strong></div></div>';
+        var bars=[1,2,3,4,5].map(function(v){var cnt=s.dist[v]||0;var pct=Math.round(cnt/maxDist*100);return'<div class="assess-bar-row"><span data-s="s24896af">'+v+'</span><div class="assess-bar-track"><div class="assess-bar-fill" title="'+v+': '+cnt+' responses" data-sv="width:'+pct+'%"></div></div><span data-s="sa4f632c">'+cnt+'</span></div>';}).join('');
+        return'<div class="assess-q-result"><div data-s="s5810767">'+esc(q.question)+'</div>'+bars+'<div data-s="sbc021dc">'+s.count+' response(s) &bull; avg: <strong>'+s.avg+'</strong></div></div>';
       }
-      if(q.question_type==='yes_no'){var yPct=s.count?Math.round(s.yes/s.count*100):0;var nPct=100-yPct;return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div><div class="assess-bar-row"><span style="width:28px;font-size:11px">Yes</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+yPct+'%;background:var(--good,#16a34a)"></div></div><span style="font-size:11px;color:var(--muted);width:40px">'+s.yes+' ('+yPct+'%)</span></div><div class="assess-bar-row"><span style="width:28px;font-size:11px">No</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+nPct+'%;background:var(--red)"></div></div><span style="font-size:11px;color:var(--muted);width:40px">'+s.no+' ('+nPct+'%)</span></div></div>';}
-      return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div>'+(s.texts&&s.texts.length?s.texts.map(function(t){return'<div style="font-size:12px;padding:6px 10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:4px">'+esc(t)+'</div>';}).join(''):'<div style="color:var(--muted);font-size:12px">No text responses</div>')+'</div>';
+      if(q.question_type==='yes_no'){var yPct=s.count?Math.round(s.yes/s.count*100):0;var nPct=100-yPct;return'<div class="assess-q-result"><div data-s="s5810767">'+esc(q.question)+'</div><div class="assess-bar-row"><span data-s="s911f92e">Yes</span><div class="assess-bar-track"><div class="assess-bar-fill" data-sv="width:'+yPct+'%;background:var(--good,#16a34a)"></div></div><span data-s="s7ce6cfd">'+s.yes+' ('+yPct+'%)</span></div><div class="assess-bar-row"><span data-s="s911f92e">No</span><div class="assess-bar-track"><div class="assess-bar-fill" data-sv="width:'+nPct+'%;background:var(--red)"></div></div><span data-s="s7ce6cfd">'+s.no+' ('+nPct+'%)</span></div></div>';}
+      return'<div class="assess-q-result"><div data-s="s5810767">'+esc(q.question)+'</div>'+(s.texts&&s.texts.length?s.texts.map(function(t){return'<div data-s="s3b9aa8a">'+esc(t)+'</div>';}).join(''):'<div data-s="sbf8965d">No text responses</div>')+'</div>';
     }).join('');
     var scoreColor=overallPct>=80?'var(--good,#16a34a)':overallPct>=50?'var(--amber)':'var(--red)';
     document.getElementById('ermResultsDrawer').innerHTML=
       '<div class="erm-drawer-overlay" data-erm-click="if(event.target===this)ermCloseResultsDrawer()">'+
       '<div class="erm-drawer-panel">'+
         '<div class="erm-drawer-head">'+
-          '<div style="flex:1"><div style="font-size:15px;font-weight:800">'+esc(a.title)+' — Results</div>'+
-          '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+respondents+' respondent(s) &bull; '+qs.length+' question(s) &bull; '+statusBadge(a.status)+'</div></div>'+
-          '<button data-erm-click="ermCloseResultsDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;flex-shrink:0">✕</button>'+
+          '<div data-s="s97445a8"><div data-s="s8747e03">'+esc(a.title)+' — Results</div>'+
+          '<div data-s="sd14d7bf">'+respondents+' respondent(s) &bull; '+qs.length+' question(s) &bull; '+statusBadge(a.status)+'</div></div>'+
+          '<button data-erm-click="ermCloseResultsDrawer()" data-s="se42d8ec">✕</button>'+
         '</div>'+
         '<div class="erm-drawer-body">'+
-          '<div style="text-align:center;padding:16px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px">'+
-            '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">OVERALL WEIGHTED SCORE</div>'+
-            '<div style="font-size:36px;font-weight:800;color:'+scoreColor+'">'+overallPct+'%</div>'+
-            '<div class="gauge-bar" style="margin:8px 0"><div class="gauge-fill" style="width:'+overallPct+'%;background:'+scoreColor+'"></div></div>'+
+          '<div data-s="see3c7e7">'+
+            '<div data-s="s1d8ef62">OVERALL WEIGHTED SCORE</div>'+
+            '<div data-sv="font-size:36px;font-weight:800;color:'+scoreColor+'">'+overallPct+'%</div>'+
+            '<div class="gauge-bar" data-s="sf5554e4"><div class="gauge-fill" data-sv="width:'+overallPct+'%;background:'+scoreColor+'"></div></div>'+
           '</div>'+
           qsHtml+
         '</div>'+
         '<div class="erm-drawer-foot">'+
           '<button class="btn btn-secondary" data-erm-click="ermExportResponses('+id+')">⬇ Export CSV</button>'+
           (a.status==='active'?'<button class="btn btn-secondary" data-erm-click="ermCloseAssessment('+id+');ermCloseResultsDrawer()">Close Assessment</button>':'')+
-          '<button class="btn btn-secondary" data-erm-click="ermCloseResultsDrawer()" style="margin-left:auto">Close</button>'+
+          '<button class="btn btn-secondary" data-erm-click="ermCloseResultsDrawer()" data-s="s6d00061">Close</button>'+
         '</div>'+
       '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#ermResultsDrawer .erm-drawer-panel'));
@@ -2371,33 +2371,33 @@ window.ermLoadReports=async function(){
       var rawTotal=Object.values(s.by_level).reduce(function(a,b){return a+b;},0);var total=rawTotal||1;
       var r=52,cx=64,cy=64,stroke=22;var dash=2*Math.PI*r;
       var offset=0;var segs=lvls.map(function(lv){var pct=(s.by_level[lv.k]||0)/total;var seg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+lv.c+'" stroke-width="'+stroke+'" stroke-dasharray="'+(pct*dash).toFixed(2)+' '+dash.toFixed(2)+'" stroke-dashoffset="'+(-offset*dash).toFixed(2)+'" transform="rotate(-90 '+cx+' '+cy+')" opacity="0.9"><title>'+esc(lv.l)+': '+esc(String(s.by_level[lv.k]||0))+'</title></circle>';offset+=pct;return seg;}).join('');
-      var legend=lvls.map(function(lv){return'<div class="erm-ring-item"><div class="erm-ring-dot" style="background:'+lv.c+'"></div><span>'+lv.l+': <strong>'+(s.by_level[lv.k]||0)+'</strong></span></div>';}).join('');
+      var legend=lvls.map(function(lv){return'<div class="erm-ring-item"><div class="erm-ring-dot" data-sv="background:'+lv.c+'"></div><span>'+lv.l+': <strong>'+(s.by_level[lv.k]||0)+'</strong></span></div>';}).join('');
       donut.innerHTML='<div class="erm-ring-wrap"><svg width="148" height="148" viewBox="0 0 128 128"><circle cx="64" cy="64" r="52" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="22"/>'+segs+'</svg><div class="erm-ring-legend">'+legend+'</div></div>';
     }
     // Module bars
     var byMod=document.getElementById('rptByModule');
-    if(byMod&&s.by_module){var maxV=Math.max.apply(null,Object.values(s.by_module).concat([1]));var modC={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c'};byMod.innerHTML=Object.entries(s.by_module).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxV*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0])+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div class="erm-trend-fill" title="'+escChartAttr(e[0])+': '+e[1]+' risks" style="height:100%;width:'+pct+'%;background:'+(modC[e[0]]||'var(--accent)')+';border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
+    if(byMod&&s.by_module){var maxV=Math.max.apply(null,Object.values(s.by_module).concat([1]));var modC={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c'};byMod.innerHTML=Object.entries(s.by_module).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxV*100);return'<div data-s="sfdf33f2"><div data-s="s4f4ad05" data-sd="flex"><span data-s="s6fedee3">'+esc(e[0])+'</span><span>'+e[1]+'</span></div><div data-s="sac3dcd9"><div class="erm-trend-fill" title="'+escChartAttr(e[0])+': '+e[1]+' risks" data-sv="height:100%;width:'+pct+'%;background:'+(modC[e[0]]||'var(--accent)')+';border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
     // Category bars
     var byCat=document.getElementById('rptByCategory');
-    if(byCat&&s.by_category){var maxC=Math.max.apply(null,Object.values(s.by_category).concat([1]));byCat.innerHTML=Object.entries(s.by_category).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxC*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0].replace(/_/g,' '))+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div class="erm-trend-fill" title="'+escChartAttr(e[0].replace(/_/g,' '))+': '+e[1]+' risks" style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
+    if(byCat&&s.by_category){var maxC=Math.max.apply(null,Object.values(s.by_category).concat([1]));byCat.innerHTML=Object.entries(s.by_category).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxC*100);return'<div data-s="sfdf33f2"><div data-s="s4f4ad05" data-sd="flex"><span data-s="s6fedee3">'+esc(e[0].replace(/_/g,' '))+'</span><span>'+e[1]+'</span></div><div data-s="sac3dcd9"><div class="erm-trend-fill" title="'+escChartAttr(e[0].replace(/_/g,' '))+': '+e[1]+' risks" data-sv="height:100%;width:'+pct+'%;background:var(--accent);border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
     // Appetite matrix
     var matrix=document.getElementById('rptAppetiteMatrix');
     if(matrix){
       try{
         var ap=await apiFetch('/erm/api/appetite/status');
         if(ap&&ap.length){
-          matrix.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+ap.map(function(a){var icon=a.breached?'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>':((a.current_max_score/(a.max_score||1))>=0.8?'<svg class=ic-amber aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>');return'<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:var(--radius);font-size:12px">'+icon+'<span style="text-transform:capitalize">'+esc(a.category)+'</span></div>';}).join('')+'</div>';
-        }else{matrix.innerHTML='<div style="color:var(--muted);font-size:12px">No appetite configured</div>';}
-      }catch(e){matrix.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load</div>';}
+          matrix.innerHTML='<div data-s="scf29108" data-sd="grid">'+ap.map(function(a){var icon=a.breached?'<svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>':((a.current_max_score/(a.max_score||1))>=0.8?'<svg class=ic-amber aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg>':'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-circle-check></use></svg>');return'<div data-s="s8f99484" data-sd="flex">'+icon+'<span data-s="s6fedee3">'+esc(a.category)+'</span></div>';}).join('')+'</div>';
+        }else{matrix.innerHTML='<div data-s="sbf8965d">No appetite configured</div>';}
+      }catch(e){matrix.innerHTML='<div data-s="sbf8965d">Could not load</div>';}
     }
     // Assessment summary
     var asSum=document.getElementById('rptAssessments');
     if(asSum){
       try{
         var asList=await apiFetch('/erm/api/assessments');var closed=(asList||[]).filter(function(a){return a.status==='closed'||a.status==='active';});
-        if(closed.length){asSum.innerHTML=closed.slice(0,5).map(function(a){return'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="font-weight:600">'+esc(a.title)+'</span><div style="display:flex;gap:6px;align-items:center">'+statusBadge(a.status)+'<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenResultsDrawer('+a.id+')" style="padding:2px 7px">Results</button></div></div>';}).join('');}
-        else{asSum.innerHTML='<div style="color:var(--muted);font-size:12px">No completed assessments yet</div>';}
-      }catch(e){asSum.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load</div>';}
+        if(closed.length){asSum.innerHTML=closed.slice(0,5).map(function(a){return'<div data-s="s71883e6" data-sd="flex"><span data-s="seed0f8f">'+esc(a.title)+'</span><div data-s="saebb47c" data-sd="flex">'+statusBadge(a.status)+'<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenResultsDrawer('+a.id+')" data-s="s8f0293e">Results</button></div></div>';}).join('');}
+        else{asSum.innerHTML='<div data-s="sbf8965d">No completed assessments yet</div>';}
+      }catch(e){asSum.innerHTML='<div data-s="sbf8965d">Could not load</div>';}
     }
     // Trend and aging charts
     ermLoadTrendChart(30);
@@ -2417,7 +2417,7 @@ window.ermLoadTrendChart=async function(period){
   try{
     var data=await apiFetch('/erm/api/reports/trend?period='+period);
     var daily=data.daily||[];
-    if(!daily.length){el.innerHTML='<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">No trend data for this period</div>';return;}
+    if(!daily.length){el.innerHTML='<div data-s="sc8b3652">No trend data for this period</div>';return;}
     var maxV=Math.max.apply(null,daily.map(function(d){return d.new_risks||0;}).concat([1]));
     var W=el.offsetWidth||300,H=100,PAD=20;
     var pts=daily.map(function(d,i){
@@ -2425,7 +2425,7 @@ window.ermLoadTrendChart=async function(period){
       var y=H-PAD-(d.new_risks/maxV)*(H-PAD*2);
       return x.toFixed(1)+','+y.toFixed(1);
     }).join(' ');
-    el.innerHTML='<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="overflow:visible">'+
+    el.innerHTML='<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" data-s="s5b89f6c">'+
       '<polyline class="premium-chart-line" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" points="'+pts+'" />'+
       daily.filter(function(d,i){return i===0||i===daily.length-1||d.new_risks===maxV;}).map(function(d,i){
         var idx=daily.indexOf(d);
@@ -2435,8 +2435,8 @@ window.ermLoadTrendChart=async function(period){
       }).join('')+
       '<text x="'+PAD+'" y="'+(H-5)+'" font-size="9" fill="var(--muted)">'+esc((daily[0]||{}).day||'')+'</text>'+
       '<text x="'+(W-PAD)+'" y="'+(H-5)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+esc((daily[daily.length-1]||{}).day||'')+'</text>'+
-    '</svg><div style="font-size:11px;color:var(--muted);margin-top:4px">Total open: <strong>'+data.total_open+'</strong> · Critical: <strong>'+data.critical_open+'</strong></div>';
-  }catch(e){el.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load trend data</div>';}
+    '</svg><div data-s="sbc021dc">Total open: <strong>'+data.total_open+'</strong> · Critical: <strong>'+data.critical_open+'</strong></div>';
+  }catch(e){el.innerHTML='<div data-s="sbf8965d">Could not load trend data</div>';}
 };
 
 window.ermLoadAgingChart=async function(){
@@ -2454,16 +2454,16 @@ window.ermLoadAgingChart=async function(){
     el.innerHTML=buckets.map(function(b){
       var cnt=(data[b.k]&&data[b.k].count)||0;
       var pct=total?Math.round(cnt/total*100):0;
-      return'<div style="margin-bottom:10px">'+
-        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">'+
-          '<span>'+b.label+'</span><span style="font-weight:700;color:'+b.color+'">'+cnt+'</span>'+
+      return'<div data-s="s761d3ad">'+
+        '<div data-s="s4f4ad05" data-sd="flex">'+
+          '<span>'+b.label+'</span><span data-sv="font-weight:700;color:'+b.color+'">'+cnt+'</span>'+
         '</div>'+
-        '<div style="height:8px;background:var(--surface3);border-radius:100px">'+
-          '<div class="premium-chart-bar" title="'+b.label+': '+cnt+' risks" style="height:100%;width:'+pct+'%;background:'+b.color+';border-radius:100px;transition:width .6s ease"></div>'+
+        '<div data-s="sa1859be">'+
+          '<div class="premium-chart-bar" title="'+b.label+': '+cnt+' risks" data-sv="height:100%;width:'+pct+'%;background:'+b.color+';border-radius:100px;transition:width .6s ease"></div>'+
         '</div>'+
       '</div>';
-    }).join('')+'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+total+' open risks tracked</div>';
-  }catch(e){el.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load aging data</div>';}
+    }).join('')+'<div data-s="sea04831">'+total+' open risks tracked</div>';
+  }catch(e){el.innerHTML='<div data-s="sbf8965d">Could not load aging data</div>';}
 };
 window.ermBoardReport=async function(btn){
   var orig=btn.textContent;btn.disabled=true;btn.textContent='Generating…';
@@ -2541,13 +2541,13 @@ window.ermOpenRiskModal=function(existing){
   var hasDims=dims.length>0;
   var existImpact=existing?existing.impact||3:3;
   var curContext=(existing&&existing.risk_context)||'';
-  var html='<div class="erm-modal-overlay" id="ermRiskModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:640px;max-height:90vh;overflow-y:auto">'+
+  var html='<div class="erm-modal-overlay" id="ermRiskModal" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="sbfa4afc">'+
     '<button class="modal-close" data-erm-click="document.getElementById(\'ermRiskModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'New')+' Enterprise Risk</div>'+
     '<div class="form-group"><label>Risk Title *</label><input id="rsk_title" value="'+esc(existing?existing.title||'':'')+'"></div>'+
     '<div class="form-group"><label>Description</label><textarea id="rsk_desc" rows="3">'+esc(existing?existing.description||'':'')+'</textarea></div>'+
     '<div class="form-row"><div class="form-group"><label>Category</label><select id="rsk_cat" data-erm-change="ermUpdateSubcats()">'+cats.map(function(c){return'<option value="'+esc(c)+'"'+(existCat===c?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select></div>'+
-    '<div class="form-group" id="rsk_subcat_wrap" style="'+(children.length?'':'display:none')+'"><label>Sub-category</label><select id="rsk_subcat"><option value="">-- None --</option>'+children.map(function(ch){return'<option value="'+esc(ch.name)+'"'+(existSub===ch.name?' selected':'')+'>'+esc(ch.name)+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="form-group" id="rsk_subcat_wrap" data-sv="'+(children.length?'':'display:none')+'"><label>Sub-category</label><select id="rsk_subcat"><option value="">-- None --</option>'+children.map(function(ch){return'<option value="'+esc(ch.name)+'"'+(existSub===ch.name?' selected':'')+'>'+esc(ch.name)+'</option>';}).join('')+'</select></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Impacted Pillar</label><select id="rsk_pillar"><option value="">-- None --</option>'+ERM_PILLARS.map(function(p){return'<option value="'+esc(p.name)+'"'+((existing&&existing.impacted_pillar===p.name)?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>'+
     '<div class="form-group"><label>EMV-i: inherent amount at risk (USD)</label><input type="number" id="rsk_emvi" min="0" step="1000" value="'+(existing&&existing.emv_inherent!=null?existing.emv_inherent:'')+'"></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Risk Context</label><select id="rsk_context" data-erm-change="ermFilterObjectiveOptions()">'+
@@ -2559,28 +2559,28 @@ window.ermOpenRiskModal=function(existing){
     '<div class="form-group"><label>Objective</label><select id="rsk_objective">'+
       ermObjectiveOptionsHtml(curContext, existing&&existing.objective_id, existing&&existing.objective_title)+
     '</select></div></div>'+
-    '<div class="form-group"><label>Contributing Factors <span style="font-size:11px;font-weight:400;color:var(--muted)">(root causes - at least one recommended)</span></label>'+
-    '<div id="rsk_cfs" style="display:flex;flex-direction:column;gap:6px"></div>'+
-    '<button type="button" class="btn btn-secondary" style="margin-top:6px;font-size:12px;padding:4px 10px" data-erm-click="ermAddCfRow()">+ Add contributing factor</button></div>'+
+    '<div class="form-group"><label>Contributing Factors <span data-s="s051e7dc">(root causes - at least one recommended)</span></label>'+
+    '<div id="rsk_cfs" data-s="s619b338" data-sd="flex"></div>'+
+    '<button type="button" class="btn btn-secondary" data-s="sc927d28" data-erm-click="ermAddCfRow()">+ Add contributing factor</button></div>'+
     '<div class="form-row"><div class="form-group"><label>Treatment</label><select id="rsk_treat">'+['mitigate','accept','avoid','transfer'].map(function(t){return'<option value="'+t+'"'+((existing&&existing.treatment===t)?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'+
     '<div class="form-group"><label>Velocity (1-5)</label><input type="number" id="rsk_v" min="1" max="5" value="'+(existing?existing.velocity||3:3)+'" title="How fast could this materialise?"></div></div>'+
     '<div class="form-group"><label>Likelihood (1-5)</label><input type="number" id="rsk_l" min="1" max="5" value="'+(existing?existing.likelihood||3:3)+'"></div>'+
-    (isEdit&&existing.irr_score!=null?'<div style="font-size:11px;color:var(--muted);margin:-8px 0 12px">IRR locked at first assessment: '+esc(String(existing.irr_score))+'</div>':'')+
+    (isEdit&&existing.irr_score!=null?'<div data-s="s9f32bf7">IRR locked at first assessment: '+esc(String(existing.irr_score))+'</div>':'')+
     (hasDims?
-      '<div class="form-group"><label style="font-weight:700;margin-bottom:8px">Impact Dimensions <span style="font-size:11px;font-weight:400;color:var(--muted)">(score each 1-5, overall impact = highest score)</span></label>'+
-      '<div id="rsk_dims" style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">'+
+      '<div class="form-group"><label data-s="s05dcabb">Impact Dimensions <span data-s="s051e7dc">(score each 1-5, overall impact = highest score)</span></label>'+
+      '<div id="rsk_dims" data-s="s8d1c1bc" data-sd="flex">'+
       dims.map(function(dim){
         var curScore=dimMap[dim.name]||'';
         var tipParts=(dim.levels||[]).map(function(lv){return lv.level+': '+lv.description;});
-        return'<div style="display:flex;align-items:center;gap:8px">'+
-          '<span style="flex:1;font-size:12px;font-weight:600;color:var(--text)" title="'+esc(tipParts.join('\n'))+'">'+esc(dim.name)+'</span>'+
-          '<select class="dim-score-sel" data-dim="'+esc(dim.name)+'" data-erm-change="ermUpdateOverallImpact()" style="width:70px;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">'+
+        return'<div data-s="s250fc4e" data-sd="flex">'+
+          '<span data-s="sd440f58" title="'+esc(tipParts.join('\n'))+'">'+esc(dim.name)+'</span>'+
+          '<select class="dim-score-sel" data-dim="'+esc(dim.name)+'" data-erm-change="ermUpdateOverallImpact()" data-s="s59e609d">'+
             '<option value="">--</option>'+
             [1,2,3,4,5].map(function(n){var lvl=(dim.levels||[]).find(function(l){return l.level===n;});return'<option value="'+n+'"'+(curScore==n?' selected':'')+(lvl?' title="'+esc(lvl.description)+'"':'')+'>'+n+'</option>';}).join('')+
           '</select></div>';
       }).join('')+
       '</div>'+
-      '<div id="rsk_impact_summary" style="margin-top:6px;font-size:13px;font-weight:700;color:var(--accent)">Overall Impact (MAX): '+(existDimScores.length?Math.max.apply(null,existDimScores.map(function(d){return d.score;})):'-')+'</div>'+
+      '<div id="rsk_impact_summary" data-s="sf503d5c">Overall Impact (MAX): '+(existDimScores.length?Math.max.apply(null,existDimScores.map(function(d){return d.score;})):'-')+'</div>'+
       '</div>'
     :
       '<div class="form-group"><label>Impact (1-5)</label><input type="number" id="rsk_i" min="1" max="5" value="'+existImpact+'"></div>'
@@ -2588,8 +2588,8 @@ window.ermOpenRiskModal=function(existing){
     '<div class="form-group"><label>Treatment Plan</label><textarea id="rsk_plan" rows="2">'+esc(existing?existing.treatment_plan||'':'')+'</textarea></div>'+
     '<div class="form-row"><div class="form-group"><label>Status</label><select id="rsk_status">'+['open','under_review','mitigated','accepted','closed'].map(function(s){return'<option value="'+s+'"'+((existing&&existing.status===s)?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
     '<div class="form-group"><label>Review Date</label><input type="date" id="rsk_review" value="'+(existing?existing.review_date||'':'')+'"></div></div>'+
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><input type="checkbox" id="rsk_board" style="width:auto;margin:0"'+((existing&&existing.board_visibility)?' checked':'')+'><label for="rsk_board" style="font-size:13px;font-weight:600;margin:0;cursor:pointer">Flag as Board-Visible (escalate to executive reporting)</label></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+    '<div data-s="s1299e68" data-sd="flex"><input type="checkbox" id="rsk_board" data-s="se7442a1"'+((existing&&existing.board_visibility)?' checked':'')+'><label for="rsk_board" data-s="s60e224f">Flag as Board-Visible (escalate to executive reporting)</label></div>'+
+    '<div data-s="s3894e59" data-sd="flex">'+
     '<button class="btn btn-secondary" data-erm-click="document.getElementById(\'ermRiskModal\').remove()">Cancel</button>'+
     '<button class="btn-erm-ai" data-erm-click="ermAiSuggestScores()" title="AI score suggestion">AI Score</button>'+
     '<button class="btn-erm-ai" data-erm-click="ermAiSuggestTreatment()" title="AI suggest">AI Suggest</button>'+
@@ -2605,10 +2605,10 @@ function ermCfRowHtml(cf){
   cf=cf||{};
   var idAttr=cf.id?' data-cfid="'+cf.id+'"':'';
   var refChip=cf.cf_ref?esc(cf.cf_ref):'new';
-  return '<div class="erm-cf-row" style="display:flex;align-items:center;gap:6px">'+
-    '<span class="badge" style="font-family:monospace;font-size:11px;min-width:44px;text-align:center">'+refChip+'</span>'+
-    '<input type="text" class="cf-desc-input"'+idAttr+' value="'+esc(cf.description||'')+'" placeholder="Describe this root cause..." style="flex:1">'+
-    '<button type="button" class="btn btn-secondary" style="padding:2px 8px;font-size:12px" data-erm-click="this.closest(\'.erm-cf-row\').remove()">✕</button>'+
+  return '<div class="erm-cf-row" data-s="s2ce310b" data-sd="flex">'+
+    '<span class="badge" data-s="s8c748b5">'+refChip+'</span>'+
+    '<input type="text" class="cf-desc-input"'+idAttr+' value="'+esc(cf.description||'')+'" placeholder="Describe this root cause..." data-s="s97445a8">'+
+    '<button type="button" class="btn btn-secondary" data-s="s5d6fbec" data-erm-click="this.closest(\'.erm-cf-row\').remove()">✕</button>'+
   '</div>';
 }
 window.ermAddCfRow=function(){
@@ -2721,14 +2721,14 @@ window.ermSendChat=async function(){
   input.value='';var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='none';
   var c=document.getElementById('ermChatMsgs');
   var ud=document.createElement('div');ud.style.cssText='align-self:flex-end;background:var(--accent);color:white;padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';ud.textContent=msg;c.appendChild(ud);c.scrollTop=c.scrollHeight;
-  var tid='t'+Date.now();var aid=document.createElement('div');aid.id=tid;aid.style.cssText='align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';aid.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px"></div>';c.appendChild(aid);c.scrollTop=c.scrollHeight;
+  var tid='t'+Date.now();var aid=document.createElement('div');aid.id=tid;aid.style.cssText='align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';aid.innerHTML='<div class="spinner" data-s="se29191c"></div>';c.appendChild(aid);c.scrollTop=c.scrollHeight;
   try{var d=await apiFetch('/erm/api/chat',{method:'POST',body:{message:msg}});var el=document.getElementById(tid);if(el)el.innerHTML=esc(d.reply||'No reply').replace(/\n/g,'<br>');}
   catch(e){var el2=document.getElementById(tid);if(el2)el2.textContent='Error: '+e.message;}
   c.scrollTop=c.scrollHeight;
 };
 window.ermClearChat=async function(){
   if(!confirm('Clear chat history?'))return;
-  try{await apiFetch('/erm/api/chat/clear',{method:'POST'});chatLoaded=false;var c=document.getElementById('ermChatMsgs');if(c){c.innerHTML='<div style="align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%">Chat cleared. Ask me anything about enterprise risk management.</div>';}var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='';}
+  try{await apiFetch('/erm/api/chat/clear',{method:'POST'});chatLoaded=false;var c=document.getElementById('ermChatMsgs');if(c){c.innerHTML='<div data-s="sf71e6be">Chat cleared. Ask me anything about enterprise risk management.</div>';}var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='';}
   catch(e){typeof showToast==='function'&&showToast('Clear failed','error');}
 };
 
@@ -2737,7 +2737,7 @@ var kriCache=[];
 window.ermLoadIndicators=async function(){
   var grid=document.getElementById('kriGrid');
   if(!grid)return;
-  grid.innerHTML='<div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>';
+  grid.innerHTML='<div data-s="scef1891"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     var data=await apiFetch('/erm/api/kris');
     kriCache=Array.isArray(data)?data:[];
@@ -2757,13 +2757,13 @@ window.ermLoadIndicators=async function(){
       if(breaching>0){
         var names=kriCache.filter(function(k){return k.threshold_crit&&k.current_value>=k.threshold_crit;}).map(function(k){return esc(k.name);});
         breachBanner.style.display='';
-        breachBanner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px">'+
-          '<span style="font-size:18px"><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg></span><div><strong>'+breaching+' KRI'+(breaching>1?'s':'')+' at critical threshold:</strong> '+names.join(', ')+'</div></div>';
+        breachBanner.innerHTML='<div data-s="sd6bd9fc" data-sd="flex">'+
+          '<span data-s="s4ff818f"><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg></span><div><strong>'+breaching+' KRI'+(breaching>1?'s':'')+' at critical threshold:</strong> '+names.join(', ')+'</div></div>';
       }else{breachBanner.style.display='none';}
     }
     // Nav badge
     var badge=document.getElementById('ermNavKriBreach');if(badge)badge.style.display=breaching>0?'':'none';
-    if(!kriCache.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No KRIs yet</div><div class="empty-state-text">Create Key Risk Indicators to monitor performance thresholds linked to enterprise risks.</div><button class="btn btn-primary" data-erm-click="ermOpenKriModal()">+ Add KRI</button></div>';return;}
+    if(!kriCache.length){grid.innerHTML='<div class="empty-state" data-s="s068a8dd"><div class="empty-state-title">No KRIs yet</div><div class="empty-state-text">Create Key Risk Indicators to monitor performance thresholds linked to enterprise risks.</div><button class="btn btn-primary" data-erm-click="ermOpenKriModal()">+ Add KRI</button></div>';return;}
     grid.innerHTML=kriCache.map(function(k){
       var warn=k.threshold_warn||0,crit=k.threshold_crit||0;
       var val=k.current_value||0;
@@ -2773,34 +2773,34 @@ window.ermLoadIndicators=async function(){
       var trendColor=k.trend==='worsening'?'var(--red)':k.trend==='improving'?'var(--good,#16a34a)':'var(--muted)';
       var gaugeHtml=ermKriGauge(val,warn,crit);
       return'<div class="kri-card">'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'+
-          '<div style="font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(k.name)+'</div>'+
-          '<span style="font-size:18px;font-weight:900;color:'+trendColor+';flex-shrink:0;margin-left:8px">'+trendIcon+'</span>'+
+        '<div data-s="s82d9d89" data-sd="flex">'+
+          '<div data-s="s9f1b680">'+esc(k.name)+'</div>'+
+          '<span data-sv="font-size:18px;font-weight:900;color:'+trendColor+';flex-shrink:0;margin-left:8px">'+trendIcon+'</span>'+
         '</div>'+
-        (k.risk_title?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px;font-weight:600"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> '+esc(k.risk_title)+'</div>':'')+
-        '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">'+
-          '<div class="kri-val-big" style="color:'+statusColor+'">'+val+'</div>'+
-          '<div style="font-size:12px;color:var(--muted)">'+esc(k.unit||'')+'</div>'+
+        (k.risk_title?'<div data-s="s1ed8114"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg> '+esc(k.risk_title)+'</div>':'')+
+        '<div data-s="saa3d511" data-sd="flex">'+
+          '<div class="kri-val-big" data-sv="color:'+statusColor+'">'+val+'</div>'+
+          '<div data-s="s7fc448e">'+esc(k.unit||'')+'</div>'+
         '</div>'+
         gaugeHtml+
         '<div class="kri-threshold-labels">'+
           '<span>0</span>'+
-          (warn?'<span style="color:var(--amber)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+warn+'</span>':'')+
-          (crit?'<span style="color:var(--red)"><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> '+crit+'</span>':'')+
+          (warn?'<span data-s="s08935a7"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> '+warn+'</span>':'')+
+          (crit?'<span data-s="s45e7ae4"><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> '+crit+'</span>':'')+
         '</div>'+
-        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--muted)">'+
+        '<div data-s="s2eb17d3" data-sd="flex">'+
           (k.frequency?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-calendar></use></svg> '+esc(k.frequency)+'</span>':'')+
           (k.owner_name?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg> '+esc(k.owner_name)+'</span>':'')+
           (k.last_updated?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clock></use></svg> '+fmtDate(k.last_updated)+'</span>':'')+
         '</div>'+
-        '<div style="margin-top:12px;display:flex;gap:6px">'+
+        '<div data-s="s5be60fe" data-sd="flex">'+
           '<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenKriValueModal('+k.id+','+(Number(val)||0)+')">Update Value</button>'+
           '<button class="btn btn-sm btn-secondary" data-erm-click="ermOpenKriModal('+k.id+')">Edit</button>'+
-          '<button data-erm-click="ermDeleteKri('+k.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;margin-left:auto"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>'+
+          '<button data-erm-click="ermDeleteKri('+k.id+')" data-s="s155f551"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-trash></use></svg></button>'+
         '</div>'+
       '</div>';
     }).join('');
-  }catch(e){console.error('ERM KRI',e);if(grid)grid.innerHTML='<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px">Failed to load indicators</div>';}
+  }catch(e){console.error('ERM KRI',e);if(grid)grid.innerHTML='<div data-s="s3c0ea10">Failed to load indicators</div>';}
 };
 
 function ermKriGauge(val,warn,crit){
@@ -2810,10 +2810,10 @@ function ermKriGauge(val,warn,crit){
   var curPct=Math.min(100,val/maxV*100);
   var fillColor=crit&&val>=crit?'var(--red)':warn&&val>=warn?'var(--amber)':'var(--good,#16a34a)';
   return'<div class="kri-gauge-track">'+
-    '<div style="position:absolute;left:0;top:0;height:100%;width:'+warnPct.toFixed(1)+'%;background:rgba(22,163,74,.25)"></div>'+
-    '<div style="position:absolute;left:'+warnPct.toFixed(1)+'%;top:0;height:100%;width:'+(critPct-warnPct).toFixed(1)+'%;background:rgba(217,119,6,.25)"></div>'+
-    '<div style="position:absolute;left:'+critPct.toFixed(1)+'%;top:0;height:100%;width:'+(100-critPct).toFixed(1)+'%;background:rgba(220,38,38,.25)"></div>'+
-    '<div class="kri-gauge-fill" style="width:'+curPct.toFixed(1)+'%;background:'+fillColor+';position:relative;z-index:1"></div>'+
+    '<div data-sv="position:absolute;left:0;top:0;height:100%;width:'+warnPct.toFixed(1)+'%;background:rgba(22,163,74,.25)"></div>'+
+    '<div data-sv="position:absolute;left:'+warnPct.toFixed(1)+'%;top:0;height:100%;width:'+(critPct-warnPct).toFixed(1)+'%;background:rgba(217,119,6,.25)"></div>'+
+    '<div data-sv="position:absolute;left:'+critPct.toFixed(1)+'%;top:0;height:100%;width:'+(100-critPct).toFixed(1)+'%;background:rgba(220,38,38,.25)"></div>'+
+    '<div class="kri-gauge-fill" data-sv="width:'+curPct.toFixed(1)+'%;background:'+fillColor+';position:relative;z-index:1"></div>'+
   '</div>';
 }
 
@@ -2841,7 +2841,7 @@ window.ermOpenKriModal=async function(id){
       '<div class="form-group"><label>Frequency</label><select id="kriFreq"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly"'+((!k.frequency||k.frequency==='monthly')?' selected':'')+'>Monthly</option><option value="quarterly">Quarterly</option></select></div>'+
       '<div class="form-group"><label>Trend</label><select id="kriTrend"><option value="stable"'+((!k.trend||k.trend==='stable')?' selected':'')+'>Stable</option><option value="improving"'+(k.trend==='improving'?' selected':'')+'>Improving ↓</option><option value="worsening"'+(k.trend==='worsening'?' selected':'')+'>Worsening ↑</option></select></div>'+
     '</div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+    '<div data-s="sd28ceac" data-sd="flex">'+
       '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
       '<button class="btn btn-primary" data-erm-click="ermSaveKri('+(id||'null')+')">Save</button>'+
     '</div></div></div>';
@@ -2872,11 +2872,11 @@ window.ermSaveKri=async function(id){
 };
 
 window.ermOpenKriValueModal=function(id,currentVal){
-  var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:360px">'+
+  var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box" data-s="s4a724ce">'+
     '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
     '<div class="modal-title">Update KRI Value</div>'+
     '<div class="form-group"><label>New Value</label><input id="kriNewVal" type="number" value="'+currentVal+'" autofocus></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+    '<div data-s="sd28ceac" data-sd="flex">'+
       '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
       '<button class="btn btn-primary" data-erm-click="ermDoUpdateKriValue('+id+')">Update</button>'+
     '</div></div></div>';
@@ -2911,13 +2911,13 @@ window.ermSuggestQuestions=async function(assessmentId,btn){
     var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> Suggested Questions</div>'+
-      '<div style="margin-bottom:14px;font-size:13px;color:var(--muted)">Select questions to add to the assessment:</div>'+
-      sug.map(function(q,i){return'<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)">'+
-        '<input type="checkbox" id="sugQ'+i+'" checked style="margin-top:3px">'+
-        '<div><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div>'+
-        '<div style="font-size:11px;color:var(--muted)">Type: '+esc(q.question_type)+'  Weight: '+esc(String(q.weight||1))+'</div></div>'+
+      '<div data-s="sc3f206c">Select questions to add to the assessment:</div>'+
+      sug.map(function(q,i){return'<div data-s="sf7d5408" data-sd="flex">'+
+        '<input type="checkbox" id="sugQ'+i+'" checked data-s="sc00d391">'+
+        '<div><div data-s="seb673ec">'+esc(q.question)+'</div>'+
+        '<div data-s="s1fd8c81">Type: '+esc(q.question_type)+'  Weight: '+esc(String(q.weight||1))+'</div></div>'+
       '</div>';}).join('')+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
         '<button class="btn btn-primary erm-add-suggestions" data-assessment-id="'+Number(assessmentId)+'">Add Selected</button>'+
       '</div></div></div>';
@@ -2951,21 +2951,21 @@ window.ermIdentifyRisks=async function(assessmentId,btn){
     var html='<div class="erm-modal-overlay" data-erm-click="if(event.target===this)this.remove()"><div class="modal-box">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Identified Risks</div>'+
-      '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">'+candidates.length+' risk(s) identified from assessment responses:</div>'+
+      '<div data-s="s33b8731">'+candidates.length+' risk(s) identified from assessment responses:</div>'+
       candidates.map(function(c,i){
         var score=(c.likelihood||3)*(c.impact||3);
         var lvl=scoreToBand(c.likelihood,c.impact);
-        return'<div style="padding:10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:8px">'+
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
-            '<div style="font-size:13px;font-weight:700;flex:1">'+esc(c.title)+'</div>'+
+        return'<div data-s="s0c0bd43">'+
+          '<div data-s="s13c1049" data-sd="flex">'+
+            '<div data-s="s5163cc0">'+esc(c.title)+'</div>'+
             levelBadge(lvl)+
           '</div>'+
-          '<div style="font-size:12px;color:var(--muted);margin:4px 0">'+esc(c.category)+'</div>'+
-          '<div style="font-size:12px;line-height:1.5">'+esc(c.description||'')+'</div>'+
-          '<button class="btn btn-sm btn-primary erm-add-identified-risk" data-risk-index="'+i+'" style="margin-top:8px">+ Add to Register</button>'+
+          '<div data-s="s2a857f7">'+esc(c.category)+'</div>'+
+          '<div data-s="s37e316d">'+esc(c.description||'')+'</div>'+
+          '<button class="btn btn-sm btn-primary erm-add-identified-risk" data-risk-index="'+i+'" data-s="s8a77e5a">+ Add to Register</button>'+
         '</div>';
       }).join('')+
-      '<div style="display:flex;justify-content:flex-end;margin-top:14px">'+
+      '<div data-s="sd5329c3" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
       '</div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
@@ -2987,7 +2987,7 @@ var _objCache=[],_pillarCache=[];
 function objTypeBadge(t){
   var map={strategic:{c:'#7c3aed',l:'Strategic'},standard:{c:'#2563eb',l:'Standard'},departmental:{c:'#16a34a',l:'Departmental'}};
   var m=map[t]||{c:'var(--muted)',l:t||'?'};
-  return '<span style="background:'+m.c+'1a;color:'+m.c+';border:1px solid '+m.c+'40;font-size:11px;font-weight:700;padding:2px 9px;border-radius:100px">'+esc(m.l)+'</span>';
+  return '<span data-sv="background:'+m.c+'1a;color:'+m.c+';border:1px solid '+m.c+'40;font-size:11px;font-weight:700;padding:2px 9px;border-radius:100px">'+esc(m.l)+'</span>';
 }
 window.ermLoadObjectivesPage=async function(){
   try{
@@ -2995,31 +2995,31 @@ window.ermLoadObjectivesPage=async function(){
     objRenderObjectivesTable(_objCache);
   }catch(e){
     var oEl=document.getElementById('objObjectivesList');
-    if(oEl)oEl.innerHTML='<div style="color:var(--red)">Failed to load objectives</div>';
+    if(oEl)oEl.innerHTML='<div data-s="s45e7ae4">Failed to load objectives</div>';
   }
   try{
     _pillarCache=await apiFetch('/erm/api/pillars?include_inactive=1')||[];
     objRenderPillarsList(_pillarCache);
   }catch(e){
     var pEl=document.getElementById('objPillarsList');
-    if(pEl)pEl.innerHTML='<div style="color:var(--red)">Failed to load pillars</div>';
+    if(pEl)pEl.innerHTML='<div data-s="s45e7ae4">Failed to load pillars</div>';
   }
 };
 function objRenderObjectivesTable(objs){
   var el=document.getElementById('objObjectivesList');if(!el)return;
-  if(!objs.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:24px">No objectives yet. Click "+ New Objective" to create one.</div>';return;}
+  if(!objs.length){el.innerHTML='<div data-s="s3abeccb">No objectives yet. Click "+ New Objective" to create one.</div>';return;}
   var order={strategic:0,standard:1,departmental:2};
   var sorted=objs.slice().sort(function(a,b){
     var oa=order[a.obj_type]!=null?order[a.obj_type]:9,ob=order[b.obj_type]!=null?order[b.obj_type]:9;
     if(oa!==ob)return oa-ob;
     return (a.title||'').localeCompare(b.title||'');
   });
-  el.innerHTML='<div style="overflow-x:auto"><table class="data-table"><thead><tr>'+
-    '<th>Title</th><th>Type</th><th>Standard Ref</th><th>Supports</th><th>Pillar</th><th>Owner</th><th>Status</th><th style="width:130px">Actions</th>'+
+  el.innerHTML='<div data-s="s0ddf068"><table class="data-table"><thead><tr>'+
+    '<th>Title</th><th>Type</th><th>Standard Ref</th><th>Supports</th><th>Pillar</th><th>Owner</th><th>Status</th><th data-s="sc6fffdf">Actions</th>'+
     '</tr></thead><tbody>'+
     sorted.map(function(o){
       var archived=o.status==='archived';
-      return '<tr style="'+(archived?'opacity:.55':'')+'">'+
+      return '<tr data-sv="'+(archived?'opacity:.55':'')+'">'+
         '<td><strong>'+esc(o.title)+'</strong></td>'+
         '<td>'+objTypeBadge(o.obj_type)+'</td>'+
         '<td>'+esc(o.standard_ref||'--')+'</td>'+
@@ -3028,8 +3028,8 @@ function objRenderObjectivesTable(objs){
         '<td>'+esc(o.owner_name||'Unassigned')+'</td>'+
         '<td>'+(archived?'<span class="badge badge-draft">Archived</span>':'<span class="badge badge-complete">Active</span>')+'</td>'+
         '<td>'+
-          '<button class="btn btn-sm btn-secondary" data-erm-click="objEditObjective('+o.id+')" style="padding:2px 8px;font-size:11px">Edit</button> '+
-          (archived?'':'<button class="btn btn-sm btn-danger" data-erm-click="objArchiveObjective('+o.id+')" style="padding:2px 8px;font-size:11px">Archive</button>')+
+          '<button class="btn btn-sm btn-secondary" data-erm-click="objEditObjective('+o.id+')" data-s="scd7c315">Edit</button> '+
+          (archived?'':'<button class="btn btn-sm btn-danger" data-erm-click="objArchiveObjective('+o.id+')" data-s="scd7c315">Archive</button>')+
         '</td>'+
       '</tr>';
     }).join('')+
@@ -3037,16 +3037,16 @@ function objRenderObjectivesTable(objs){
 }
 function objRenderPillarsList(pillars){
   var el=document.getElementById('objPillarsList');if(!el)return;
-  if(!pillars.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:24px">No pillars yet.</div>';return;}
-  el.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+
+  if(!pillars.length){el.innerHTML='<div data-s="s3abeccb">No pillars yet.</div>';return;}
+  el.innerHTML='<div data-s="scfa7b80" data-sd="flex">'+
     pillars.map(function(p){
       var inactive=!p.is_active;
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)'+(inactive?';opacity:.55':'')+'">'+
-        '<div style="flex:1"><strong>'+esc(p.name)+'</strong>'+(inactive?' <span class="badge badge-draft" style="margin-left:6px">Inactive</span>':'')+
-          (p.description?'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(p.description)+'</div>':'')+
+      return '<div data-sv="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)'+(inactive?';opacity:.55':'')+'">'+
+        '<div data-s="s97445a8"><strong>'+esc(p.name)+'</strong>'+(inactive?' <span class="badge badge-draft" data-s="s391ef12">Inactive</span>':'')+
+          (p.description?'<div data-s="s3823a5b">'+esc(p.description)+'</div>':'')+
         '</div>'+
-        '<button class="btn btn-sm btn-secondary" data-erm-click="objEditPillar('+p.id+')" style="padding:2px 8px;font-size:11px">Edit</button>'+
-        (inactive?'':'<button class="btn btn-sm btn-danger" data-erm-click="objDeactivatePillar('+p.id+')" style="padding:2px 8px;font-size:11px">Deactivate</button>')+
+        '<button class="btn btn-sm btn-secondary" data-erm-click="objEditPillar('+p.id+')" data-s="scd7c315">Edit</button>'+
+        (inactive?'':'<button class="btn btn-sm btn-danger" data-erm-click="objDeactivatePillar('+p.id+')" data-s="scd7c315">Deactivate</button>')+
       '</div>';
     }).join('')+
   '</div>';
@@ -3062,7 +3062,7 @@ window.objOpenObjectiveModal=async function(existing){
   modal.className='erm-modal-overlay';
   modal.onclick=function(e){if(e.target===modal)modal.remove();};
   modal.innerHTML=
-    '<div class="modal-box" style="max-width:520px">'+
+    '<div class="modal-box" data-s="s04391f0">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'New')+' Objective</div>'+
       '<div class="form-group"><label>Title</label><input id="objTitle" type="text" value="'+esc((existing&&existing.title)||'')+'"></div>'+
@@ -3086,7 +3086,7 @@ window.objOpenObjectiveModal=async function(existing){
         users.map(function(u){return '<option value="'+u.id+'"'+((existing&&String(existing.owner_id)===String(u.id))?' selected':'')+'>'+esc(u.full_name||u.username)+'</option>';}).join('')+
       '</select></div>'+
       '<div class="form-group"><label>Description</label><textarea id="objDescription" rows="3">'+esc((existing&&existing.description)||'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
         '<button class="btn btn-primary" data-erm-click="objSaveObjective('+(isEdit?existing.id:'null')+')">Save</button>'+
       '</div>'+
@@ -3139,12 +3139,12 @@ window.objOpenPillarModal=function(existing){
   modal.className='erm-modal-overlay';
   modal.onclick=function(e){if(e.target===modal)modal.remove();};
   modal.innerHTML=
-    '<div class="modal-box" style="max-width:420px">'+
+    '<div class="modal-box" data-s="s0fd8744">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'New')+' Pillar</div>'+
       '<div class="form-group"><label>Name</label><input id="pillarName" type="text" value="'+esc((existing&&existing.name)||'')+'"></div>'+
       '<div class="form-group"><label>Description</label><textarea id="pillarDescription" rows="3">'+esc((existing&&existing.description)||'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
         '<button class="btn btn-primary" data-erm-click="objSavePillar('+(isEdit?existing.id:'null')+')">Save</button>'+
       '</div>'+
@@ -3185,7 +3185,7 @@ window.ermLoadExternal=async function(){
     ermFilterExternal();
   }catch(e){
     var el=document.getElementById('extInboxList');
-    if(el)el.innerHTML='<div style="color:var(--red)">Failed to load emerging risks</div>';
+    if(el)el.innerHTML='<div data-s="s45e7ae4">Failed to load emerging risks</div>';
   }
 };
 function ermFilterExternal(){
@@ -3195,21 +3195,21 @@ function ermFilterExternal(){
 function extOriginBadge(origin){
   var map={manual:{c:'var(--muted)',l:'Manual'},ai_scan_web:{c:'#16a34a',l:'Web scan'},ai_scan:{c:'#d97706',l:'AI knowledge'}};
   var m=map[origin]||{c:'var(--muted)',l:origin||'?'};
-  return '<span style="background:'+m.c+'1a;color:'+m.c+';border:1px solid '+m.c+'40;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;white-space:nowrap">'+esc(m.l)+'</span>';
+  return '<span data-sv="background:'+m.c+'1a;color:'+m.c+';border:1px solid '+m.c+'40;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;white-space:nowrap">'+esc(m.l)+'</span>';
 }
 function ermRenderExternalList(items){
   var el=document.getElementById('extInboxList');if(!el)return;
   items=items||[];
-  if(!items.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:40px">No items in this view.</div>';return;}
+  if(!items.length){el.innerHTML='<div data-s="scfef23c">No items in this view.</div>';return;}
   el.innerHTML=items.map(function(it){
-    var chips=(it.pillar?'<span class="badge" style="margin-right:4px">'+esc(it.pillar)+'</span>':'')+
+    var chips=(it.pillar?'<span class="badge" data-s="sc6b76b8">'+esc(it.pillar)+'</span>':'')+
       (it.standard_ref?'<span class="badge">'+esc(it.standard_ref)+'</span>':'');
     var caveat=it.origin==='ai_scan'?
-      '<div style="font-size:11px;color:#d97706;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius);padding:6px 10px;margin-top:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Generated from model knowledge, not a live source. Verify independently before acting.</div>':'';
+      '<div data-s="s727a9d0"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Generated from model knowledge, not a live source. Verify independently before acting.</div>':'';
     var sourceUrl='';
     try{var parsedSource=new URL(it.source_url);if(parsedSource.protocol==='https:'&&!parsedSource.username&&!parsedSource.password)sourceUrl=parsedSource.href;}catch(_){}
     var sourceLink=sourceUrl?
-      '<a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent);margin-top:8px;display:inline-block"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Source</a>':'';
+      '<a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" data-s="se08e5ee" data-sd="inline-block"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-link></use></svg> Source</a>':'';
     var actions='';
     if(it.status==='new'){
       actions='<button class="btn btn-sm btn-secondary" data-erm-click="extDismiss('+it.id+')">Dismiss</button> '+
@@ -3221,20 +3221,20 @@ function ermRenderExternalList(items){
       // boot handler (which only runs on page load) picks up ?open=risk:N.
       actions='<a class="btn btn-sm btn-secondary" href="/erm/register?open=risk:'+it.added_risk_id+'">View risk →</a>';
     }
-    return '<div class="card" style="padding:16px;margin-bottom:12px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-weight:700;font-size:14px;margin-bottom:4px">'+esc(it.title)+'</div>'+
-          (it.summary?'<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:6px">'+esc(it.summary)+'</div>':'')+
+    return '<div class="card" data-s="sed375c8">'+
+      '<div data-s="sb234d92" data-sd="flex">'+
+        '<div data-s="s59eddc6">'+
+          '<div data-s="s0c95f40">'+esc(it.title)+'</div>'+
+          (it.summary?'<div data-s="s8849019">'+esc(it.summary)+'</div>':'')+
           '<div>'+chips+'</div>'+
           caveat+sourceLink+
         '</div>'+
-        '<div style="flex-shrink:0;text-align:right">'+
+        '<div data-s="s6a4e572">'+
           extOriginBadge(it.origin)+
-          '<div style="font-size:11px;color:var(--muted);margin-top:6px;white-space:nowrap">'+fmtDate(it.created_at)+'</div>'+
+          '<div data-s="s31cde12">'+fmtDate(it.created_at)+'</div>'+
         '</div>'+
       '</div>'+
-      '<div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">'+actions+'</div>'+
+      '<div data-s="s0418f8a" data-sd="flex">'+actions+'</div>'+
     '</div>';
   }).join('');
 }
@@ -3344,7 +3344,7 @@ window.extOpenAddModal=function(){
   modal.className='erm-modal-overlay';
   modal.onclick=function(e){if(e.target===modal)modal.remove();};
   modal.innerHTML=
-    '<div class="modal-box" style="max-width:520px">'+
+    '<div class="modal-box" data-s="s04391f0">'+
       '<button class="modal-close" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
       '<div class="modal-title">Add Emerging Risk</div>'+
       '<div class="form-group"><label>Title</label><input id="extTitle" type="text"></div>'+
@@ -3357,7 +3357,7 @@ window.extOpenAddModal=function(){
       '</div>'+
       '<div class="form-group"><label>Source Note</label><input id="extSourceNote" type="text" placeholder="Where did this come from?"></div>'+
       '<div class="form-group"><label>Source URL (optional)</label><input id="extSourceUrl" type="text" placeholder="https://..."></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-erm-click="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
         '<button class="btn btn-primary" data-erm-click="extSaveManual()">Save</button>'+
       '</div>'+

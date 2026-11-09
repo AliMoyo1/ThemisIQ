@@ -40,9 +40,9 @@
           '<div class="ec-row">' +
             '<div><strong>' + esc(c.name) + '</strong> ' + badge(c.status) +
               '<div class="ec-meta">Due ' + esc((c.due_date || '').slice(0, 10)) + (c.recurrence !== 'none' ? (' · recurs ' + esc(c.recurrence)) : '') + '</div></div>' +
-            (c.status !== 'closed' ? '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-close-campaign="' + c.id + '" data-name="' + esc(c.name) + '">Close</button>' : '') +
+            (c.status !== 'closed' ? '<button type="button" class="btn btn-ghost" data-s="s562fe77" data-close-campaign="' + c.id + '" data-name="' + esc(c.name) + '">Close</button>' : '') +
           '</div>' +
-          '<div class="ec-coverage" style="margin-top:8px">' +
+          '<div class="ec-coverage" data-s="s8a77e5a">' +
             '<span>Requested ' + cov.requested + '</span><span>Submitted ' + cov.submitted + '</span>' +
             '<span>In review ' + cov.in_review + '</span><span>Accepted ' + cov.accepted + '</span>' +
             '<span>Returned ' + cov.returned + '</span><span>Overdue ' + cov.overdue + '</span>' +
@@ -134,12 +134,12 @@
       el.innerHTML = reqs.map(function (r) {
         var actions = '';
         if (which === 'mine' && ['requested', 'returned', 'overdue'].indexOf(r.status) !== -1) {
-          actions = '<button type="button" class="btn btn-primary" style="font-size:11px;padding:4px 10px" data-submit="' + r.id + '" data-lock="' + r.lock_version + '">Submit evidence</button>';
+          actions = '<button type="button" class="btn btn-primary" data-s="s562fe77" data-submit="' + r.id + '" data-lock="' + r.lock_version + '">Submit evidence</button>';
         } else if (which === 'review' && r.status === 'submitted') {
-          actions = '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-start-review="' + r.id + '" data-lock="' + r.lock_version + '">Start review</button>';
+          actions = '<button type="button" class="btn btn-ghost" data-s="s562fe77" data-start-review="' + r.id + '" data-lock="' + r.lock_version + '">Start review</button>';
         } else if (which === 'review' && r.status === 'in_review') {
-          actions = '<button type="button" class="btn btn-primary" style="font-size:11px;padding:4px 10px" data-decide="' + r.id + '" data-decision="accept" data-lock="' + r.lock_version + '">Accept</button> ' +
-                    '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-decide="' + r.id + '" data-decision="return" data-lock="' + r.lock_version + '">Return</button>';
+          actions = '<button type="button" class="btn btn-primary" data-s="s562fe77" data-decide="' + r.id + '" data-decision="accept" data-lock="' + r.lock_version + '">Accept</button> ' +
+                    '<button type="button" class="btn btn-ghost" data-s="s562fe77" data-decide="' + r.id + '" data-decision="return" data-lock="' + r.lock_version + '">Return</button>';
         }
         return '<div class="ec-card"><div class="ec-row">' +
           '<div><strong>' + esc(r.title) + '</strong> ' + badge(r.status) +

@@ -31,7 +31,7 @@
     Evidence Campaigns
     <span>Coordinated evidence requests with due dates, reminders, and review -- files stay in Evidence Vault; this only tracks who owes what by when.</span>
   </div>
-  <div style="display:flex;gap:8px">
+  <div data-s="s33fcd4c" data-sd="flex">
     <button type="button" class="btn btn-ghost" id="ecNewRequestBtn">New request</button>
     <button type="button" class="btn btn-primary" id="ecNewCampaignBtn">New campaign</button>
   </div>
@@ -44,8 +44,8 @@
 </div>
 
 <div id="ecCampaignsTab"><div class="ec-empty">Loading…</div></div>
-<div id="ecMineTab" style="display:none"></div>
-<div id="ecReviewTab" style="display:none"></div>
+<div id="ecMineTab" data-sd="none"></div>
+<div id="ecReviewTab" data-sd="none"></div>
 
 <script src="/static/js/evidence_campaigns.js?v=1"></script>
 {% endblock %}

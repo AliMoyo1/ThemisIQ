@@ -212,18 +212,18 @@
 
 <!-- AI Chat Card -->
 <div class="sidebar-bottom">
-  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" data-cc-action="openTrainer">
-    <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
+  <div data-s="s48af26e" data-cc-action="openTrainer">
+    <div data-s="s5c05df5">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
-    <div style="font-size:14px;font-weight:700">Ask ThemisIQ AI…</div>
+    <div data-s="s9e5c33b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
+    <div data-s="sa1b26d5">Ask ThemisIQ AI…</div>
   </div>
 </div>
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="font-weight:700"><span style="color:var(--accent)">Themis</span><span style="color:#C9A84C">IQ</span></span>
+<span data-s="se3ec02a"><span data-s="sa805525">Themis</span><span data-s="s4a1581c">IQ</span></span>
 <span class="breadcrumb-sep">›</span>
 <span class="breadcrumb-current">Command Centre</span>
 {% endblock %}
@@ -248,36 +248,36 @@
 </div>
 
 <!-- Greeting row -->
-<div class="animate-fade-up" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px">
+<div class="animate-fade-up" data-s="sa198380" data-sd="flex">
   <div>
-    <div id="ccGreeting" style="font-size:20px;font-weight:700;color:var(--text)">
+    <div id="ccGreeting" data-s="s1f96e76">
       Welcome back{% if user and (user.full_name or user.username) %}, {{ (user.full_name or user.username).split(' ')[0] }}{% endif %}
     </div>
-    <div id="ccAttention" style="font-size:12.5px;color:var(--muted);margin-top:3px">Loading your day…</div>
+    <div id="ccAttention" data-s="s98a3579">Loading your day…</div>
   </div>
-  <div id="ccToday" style="font-size:12px;color:var(--text-mid);font-family:var(--mono)"></div>
+  <div id="ccToday" data-s="sf25de9f"></div>
 </div>
 
 <!-- Module Tiles Grid -->
 {% if modules %}
-<div id="ccModulesSection" class="animate-fade-up" style="margin-bottom:24px">
-  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px">Your Modules</div>
-  <div class="cc-modules-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px">
+<div id="ccModulesSection" class="animate-fade-up" data-s="s8677744">
+  <div data-s="sbfc7153">Your Modules</div>
+  <div class="cc-modules-grid" data-s="s8eb3104" data-sd="grid">
     {% for mod in modules %}
     {% set mod_urls = {'aria':'/aria/','grid':'/grid/','bcm':'/bcm/','sentinel':'/sentinel/','erm':'/erm/','orm':'/orm/'} %}
-    <a href="{{ mod_urls.get(mod.key, '/' + mod.key + '/') }}" class="glass-module" data-glass-tilt style="text-decoration:none">
-      <div style="background:{{ mod.gradient or 'var(--surface2)' }};padding:14px 16px;position:relative;overflow:hidden">
+    <a href="{{ mod_urls.get(mod.key, '/' + mod.key + '/') }}" class="glass-module" data-glass-tilt data-s="s80d654f">
+      <div data-sv="background:{{ mod.gradient or 'var(--surface2)' }};padding:14px 16px;position:relative;overflow:hidden">
         <!-- Corner radial highlight -->
-        <div style="position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.13;background:radial-gradient(circle at 15% 20%,rgba(255,255,255,.95),transparent 52%)"></div>
+        <div data-s="s8d44a45"></div>
         <!-- Glass reflection -->
-        <div style="position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.06) 25%,transparent 55%)"></div>
+        <div data-s="sa88a444"></div>
         <!-- Bottom shimmer -->
-        <div style="position:absolute;bottom:0;left:0;right:0;height:38%;z-index:1;pointer-events:none;opacity:.09;background:linear-gradient(to top,rgba(255,255,255,.3),transparent)"></div>
+        <div data-s="s4c73123"></div>
         <!-- Content -->
-        <div style="position:relative;z-index:5">
-          <div style="font-size:13px;font-weight:800;color:white;margin-bottom:2px;text-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ mod.name }}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.72);font-weight:500;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ mod.subtitle }}</div>
-          <div style="margin-top:8px;display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:rgba(255,255,255,.65)">Open <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M3 8h10M9 4l4 4-4 4"/></svg></div>
+        <div data-s="s2f835ea">
+          <div data-s="sad9db8d">{{ mod.name }}</div>
+          <div data-s="s00e8c78">{{ mod.subtitle }}</div>
+          <div data-s="sb824b1f" data-sd="inline-flex">Open <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M3 8h10M9 4l4 4-4 4"/></svg></div>
         </div>
       </div>
     </a>
@@ -287,14 +287,14 @@
 {% endif %}
 
 <!-- Breach Notification Countdown Alert -->
-<div id="ccBreachAlert" class="card breach-alert-card animate-fade-up" style="display:none">
+<div id="ccBreachAlert" class="card breach-alert-card animate-fade-up" data-sd="none">
   <div class="breach-alert-header">
     <div class="ba-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="18" height="18"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
     </div>
     <div>
       <div class="ba-title">Breach Notification Deadline</div>
-      <div style="font-size:11px;color:var(--muted)">Regulatory reporting countdown</div>
+      <div data-s="s1fd8c81">Regulatory reporting countdown</div>
     </div>
     <span class="ba-count" id="ccBreachAlertCount">0</span>
   </div>
@@ -313,21 +313,21 @@
 </div>
 <div id="ccDashboardCanvas" class="cc-dashboard-canvas" data-modules="{{ user_modules|join(',') }}" aria-label="Customizable Command Centre cards"></div>
 
-<div id="ccUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+<div id="ccUnavailable" class="card" role="alert" data-s="s5a936fa" data-sd="none">
   <span><strong>The figures could not be read just now.</strong> A dash below means "not read", not zero.</span>
   <button type="button" class="btn btn-secondary btn-sm" id="ccRetry">Try again</button>
 </div>
-<section id="ccFirstScreen" class="cc-first-screen" aria-labelledby="ccFirstScreenTitle" style="margin:0 0 20px">
+<section id="ccFirstScreen" class="cc-first-screen" aria-labelledby="ccFirstScreenTitle" data-s="s448f599">
   <div class="dash-section-heading"><h2 id="ccFirstScreenTitle">Your day</h2><span><span id="ccFirstScreenAsOf">Read when the page opened</span> &middot; <a href="/metrics">How each figure is defined</a></span></div>
-  <div id="ccFirstScreenFailed" role="alert" style="display:none;border-left:4px solid var(--red);padding:10px 14px;margin-bottom:10px">
+  <div id="ccFirstScreenFailed" role="alert" data-s="sad2d50b" data-sd="none">
     <strong>Your day could not be read just now.</strong> Nothing below is a count of zero.
-    <button type="button" class="btn btn-secondary btn-sm" id="ccFirstScreenRetry" style="margin-left:10px">Try again</button>
+    <button type="button" class="btn btn-secondary btn-sm" id="ccFirstScreenRetry" data-s="s78fa54e">Try again</button>
   </div>
-  <div id="ccFirstScreenGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"></div>
+  <div id="ccFirstScreenGrid" data-s="s466b857" data-sd="grid"></div>
 </section>
 {% if can_view_attention %}
 <a class="stat-card cc-attention-card" href="/governance/attention/" aria-label="Open Needs attention"
-   style="display:block;margin:0 0 20px;text-decoration:none;max-width:360px">
+   data-s="sb25e0cb" data-sd="block">
   <div class="stat-label">Needs attention</div>
   <div class="stat-value" id="ccAttentionOpen" aria-live="polite">—</div>
   <div class="stat-sub" id="ccAttentionNote">Checking the records in your scope…</div>
@@ -336,29 +336,29 @@
 <div class="dash-section-heading"><h2>At a glance</h2><span>Enterprise position today</span></div>
 <div class="stats-row premium-kpi-grid cc-primary-metrics animate-fade-up anim-1">
   <!-- Hero: Overall Compliance — click to open ARIA -->
-  <div class="stat-card stat-card-hero" id="ccComplianceCard" data-cc-href="/aria/" style="cursor:pointer" title="Open ARIA GRC module">
+  <div class="stat-card stat-card-hero" id="ccComplianceCard" data-cc-href="/aria/" data-s="s3b6a3a6" title="Open ARIA GRC module">
     <div class="stat-label">Overall Compliance</div>
     <div class="stat-value" id="ccCompliancePct">—</div>
     <div class="stat-trend up" id="ccComplianceTrend">
       <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
       <span>—</span>
     </div>
-    <div class="pbar"><div class="pbar-fill" id="ccComplianceBar" style="width:0"></div></div>
+    <div class="pbar"><div class="pbar-fill" id="ccComplianceBar" data-s="sc40a0ed"></div></div>
     <div class="cc-hero-ring" aria-hidden="true"><div><strong id="ccHeroRingPct">0%</strong><span>coverage</span></div></div>
   </div>
 
   <!-- Active Projects — click to open Compliance Projects page -->
-  <div class="stat-card" id="ccProjectsCard" data-cc-href="/projects" style="cursor:pointer" title="View Compliance Projects">
+  <div class="stat-card" id="ccProjectsCard" data-cc-href="/projects" data-s="s3b6a3a6" title="View Compliance Projects">
     <div class="stat-label">Active Projects</div>
     <div class="stat-value" id="ccActiveProjects">—</div>
     <div class="stat-sub" id="ccProjectsList">—</div>
   </div>
 
   <!-- Overdue Actions — click to scroll to table -->
-  <div class="stat-card" id="ccOverdueCard" data-cc-action="scrollOverdue" style="cursor:pointer" title="Jump to overdue items">
+  <div class="stat-card" id="ccOverdueCard" data-cc-action="scrollOverdue" data-s="s3b6a3a6" title="Jump to overdue items">
     <div class="stat-label">Overdue Actions</div>
-    <div class="stat-value" id="ccOverdueCount" style="color:var(--red)">—</div>
-    <div class="stat-trend down" id="ccOverdueTrend" style="color:var(--red)">
+    <div class="stat-value" id="ccOverdueCount" data-s="s45e7ae4">—</div>
+    <div class="stat-trend down" id="ccOverdueTrend" data-s="s45e7ae4">
       <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v6M3 7l3 3 3-3"/></svg>
       <span>—</span>
     </div>
@@ -369,51 +369,51 @@
 
 <!-- ═══ Today's Briefing Strip ═══ -->
 <div class="cc-personal-source" id="ccPersonalSource">
-  <div class="stat-card" id="ccPendingActionsCard" data-cc-href="/workflows" style="cursor:pointer" title="Open assigned workflow actions">
+  <div class="stat-card" id="ccPendingActionsCard" data-cc-href="/workflows" data-s="s3b6a3a6" title="Open assigned workflow actions">
     <div class="stat-label">My Pending Actions</div><div class="stat-value" id="ccPendingActions">&mdash;</div><div class="stat-sub">Assigned to you</div>
   </div>
-  <div class="stat-card" id="ccUnreadAlertsCard" data-cc-action="openNotifications" style="cursor:pointer" title="Open your notifications">
+  <div class="stat-card" id="ccUnreadAlertsCard" data-cc-action="openNotifications" data-s="s3b6a3a6" title="Open your notifications">
     <div class="stat-label">Unread Alerts</div><div class="stat-value" id="ccUnreadAlerts">&mdash;</div><div class="stat-sub">Your notifications</div>
   </div>
 </div>
 
-<div id="briefingStrip" style="display:none;margin-bottom:16px">
-  <div class="panel-card" style="padding:0;overflow:hidden">
-    <div style="display:flex;align-items:center;padding:12px 16px;background:var(--accent);color:white;font-size:13px;font-weight:700">
-      <svg viewBox="0 0 24 24" style="width:16px;height:16px;margin-right:8px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3V3z"/><circle cx="12" cy="12" r="2"/><path d="M12 9v3l2 2"/></svg>
+<div id="briefingStrip" data-s="s87c136d" data-sd="none">
+  <div class="panel-card" data-s="s22a2674">
+    <div data-s="sea4358b" data-sd="flex">
+      <svg viewBox="0 0 24 24" data-s="sb493b7d" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3V3z"/><circle cx="12" cy="12" r="2"/><path d="M12 9v3l2 2"/></svg>
       Today's Briefing
     </div>
-    <div id="briefingItems" style="padding:8px 16px"></div>
+    <div id="briefingItems" data-s="s9bfd0fc"></div>
   </div>
 </div>
 
 <!-- ── Predictive Risk Intelligence Panel (collapsible) ── -->
 {% if user and user.is_super_admin %}
-<div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;overflow:hidden">
+<div id="prPanel" class="card animate-fade-up" data-s="s637c7c8" data-sd="none">
   <!-- Collapsed bar — always visible once loaded -->
-  <div id="prBar" data-cc-action="togglePredictiveRisk" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s" class="cc-hover-row">
-    <span style="font-size:15px;flex-shrink:0"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-telescope></use></svg></span>
-    <span style="font-size:13px;font-weight:700;color:var(--text)">Predictive Risk Intelligence</span>
-    <span id="prBadge" class="badge" style="display:none;flex-shrink:0"></span>
+  <div id="prBar" data-cc-action="togglePredictiveRisk" data-s="sa5e0e91" data-sd="flex" class="cc-hover-row">
+    <span data-s="sed31fa5"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-telescope></use></svg></span>
+    <span data-s="s36970da">Predictive Risk Intelligence</span>
+    <span id="prBadge" class="badge" data-s="s6ee0661" data-sd="none"></span>
     <!-- Inline summary (shown when collapsed) -->
-    <div id="prSummary" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;overflow:hidden">
-      <span id="prSumDelta" style="font-size:13px;font-weight:800;color:var(--pr-color,var(--muted));flex-shrink:0"></span>
-      <span id="prSumDomains" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <div id="prSummary" data-s="sdedd106" data-sd="flex">
+      <span id="prSumDelta" data-s="scf62878"></span>
+      <span id="prSumDomains" data-s="se6935fa"></span>
     </div>
     <!-- Right actions -->
-    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0" data-cc-stop>
-      <span id="prAge" style="font-size:11px;color:var(--muted)"></span>
-      <span id="prErmBadge" style="display:none;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-pale);padding:2px 7px;border-radius:100px;border:1px solid var(--accent-shadow)">&#8593; ERM</span>
-      <button class="btn btn-sm btn-secondary" data-cc-action="refreshPredictiveRisk" id="prRefreshBtn" style="padding:3px 8px;font-size:11px">&#8635;</button>
-      <button class="btn btn-sm btn-secondary" id="prAckBtn" data-cc-action="acknowledgePrediction" style="display:none;padding:3px 8px;font-size:11px">&#10003;</button>
+    <div data-s="s6f085fb" data-sd="flex" data-cc-stop>
+      <span id="prAge" data-s="s1fd8c81"></span>
+      <span id="prErmBadge" data-s="sc8452a6" data-sd="none">&#8593; ERM</span>
+      <button class="btn btn-sm btn-secondary" data-cc-action="refreshPredictiveRisk" id="prRefreshBtn" data-s="se053a92">&#8635;</button>
+      <button class="btn btn-sm btn-secondary" id="prAckBtn" data-cc-action="acknowledgePrediction" data-s="se053a92" data-sd="none">&#10003;</button>
     </div>
-    <svg id="prChevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="color:var(--muted);flex-shrink:0;transition:transform .25s"><path d="M4 6l4 4 4-4"/></svg>
+    <svg id="prChevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="sed63db4"><path d="M4 6l4 4 4-4"/></svg>
   </div>
   <!-- Expanded body — hidden by default -->
-  <div id="prBody" style="display:none;padding:20px;border-top:1px solid var(--border)">
-    <div style="display:flex;align-items:center;gap:8px;color:var(--muted)">
-      <div class="spinner" style="width:16px;height:16px;border-width:2px"></div>
-      <span style="font-size:13px">Analysing platform telemetry…</span>
+  <div id="prBody" data-s="s51b644e" data-sd="none">
+    <div data-s="s5e60230" data-sd="flex">
+      <div class="spinner" data-s="se29191c"></div>
+      <span data-s="s5e0faad">Analysing platform telemetry…</span>
     </div>
   </div>
 </div>
@@ -423,37 +423,37 @@
 <div class="dash-section-heading"><h2>Operational exposure</h2><span>Signals from across the estate</span></div>
 <div class="stats-row premium-kpi-grid cc-exposure-metrics animate-fade-up anim-1">
   <!-- Critical/High ERM Risks -->
-  <div class="stat-card" id="ccErmCritCard" data-cc-href="/erm/" style="cursor:pointer" title="Open Enterprise Risk Register">
+  <div class="stat-card" id="ccErmCritCard" data-cc-href="/erm/" data-s="s3b6a3a6" title="Open Enterprise Risk Register">
     <div class="stat-label">Critical / High Risks</div>
-    <div class="stat-value" id="ccErmCritHigh" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccErmCritHigh" data-s="s57f9e31">—</div>
     <div class="stat-sub">ERM</div>
   </div>
 
   <!-- Sentinel: Open Breaches -->
-  <div class="stat-card" id="ccSentinelCard" data-cc-href="/sentinel/" style="cursor:pointer" title="Open Data Protection Sentinel">
+  <div class="stat-card" id="ccSentinelCard" data-cc-href="/sentinel/" data-s="s3b6a3a6" title="Open Data Protection Sentinel">
     <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Open Breaches</div>
-    <div class="stat-value" id="ccSentinelBreaches" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccSentinelBreaches" data-s="s57f9e31">—</div>
     <div class="stat-sub" id="ccSentinelSub">Sentinel</div>
   </div>
 
   <!-- ERM: Appetite Breaches -->
-  <div class="stat-card" id="ccErmCard" data-cc-href="/erm/" style="cursor:pointer" title="Open Enterprise Risk Management">
+  <div class="stat-card" id="ccErmCard" data-cc-href="/erm/" data-s="s3b6a3a6" title="Open Enterprise Risk Management">
     <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-scale></use></svg> Appetite Breaches</div>
-    <div class="stat-value" id="ccErmBreaches" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccErmBreaches" data-s="s57f9e31">—</div>
     <div class="stat-sub">ERM</div>
   </div>
 
   <!-- ORM: Open Events (30d) -->
-  <div class="stat-card" id="ccOrmCard" data-cc-href="/orm/" style="cursor:pointer" title="Open Operational Risk Management">
+  <div class="stat-card" id="ccOrmCard" data-cc-href="/orm/" data-s="s3b6a3a6" title="Open Operational Risk Management">
     <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Open Events (30d)</div>
-    <div class="stat-value" id="ccOrmEvents" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccOrmEvents" data-s="s57f9e31">—</div>
     <div class="stat-sub">ORM</div>
   </div>
 
   <!-- BCM: Active Incidents -->
-  <div class="stat-card" id="ccBcmCard" data-cc-href="/bcm/" style="cursor:pointer" title="Open Business Continuity">
+  <div class="stat-card" id="ccBcmCard" data-cc-href="/bcm/" data-s="s3b6a3a6" title="Open Business Continuity">
     <div class="stat-label"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg> Active Incidents</div>
-    <div class="stat-value" id="ccBcmIncidents" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccBcmIncidents" data-s="s57f9e31">—</div>
     <div class="stat-sub">BCM</div>
   </div>
 </div>
@@ -462,25 +462,25 @@
 <div class="dash-section-heading"><h2>Assurance workflow</h2><span>Evidence and reviews</span></div>
 <div class="stats-row premium-kpi-grid cc-workflow-metrics animate-fade-up anim-2">
   <!-- GRID: Open Findings -->
-  <div class="stat-card" id="ccGridFindCard" data-cc-href="/grid/" style="cursor:pointer" title="Open Audit Management">
+  <div class="stat-card" id="ccGridFindCard" data-cc-href="/grid/" data-s="s3b6a3a6" title="Open Audit Management">
     <div class="stat-label">Open Audit Findings</div>
-    <div class="stat-value" id="ccGridFindings" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccGridFindings" data-s="s57f9e31">—</div>
     <div class="stat-sub">GRID</div>
   </div>
   <!-- Upcoming Reviews -->
-  <div class="stat-card" id="ccReviewsCard" style="cursor:default" title="Risks and plans due for review within 30 days">
+  <div class="stat-card" id="ccReviewsCard" data-s="s2a9295c" title="Risks and plans due for review within 30 days">
     <div class="stat-label">Upcoming Reviews</div>
-    <div class="stat-value" id="ccUpcomingReviews" style="color:var(--muted)">—</div>
+    <div class="stat-value" id="ccUpcomingReviews" data-s="s57f9e31">—</div>
     <div class="stat-sub">Next 30 days</div>
   </div>
   <!-- Active Frameworks -->
-  <div class="stat-card" id="ccFrameworksCard" data-cc-href="/aria/" style="cursor:pointer" title="Open Governance">
+  <div class="stat-card" id="ccFrameworksCard" data-cc-href="/aria/" data-s="s3b6a3a6" title="Open Governance">
     <div class="stat-label">Active Frameworks</div>
-    <div class="stat-value" id="ccActiveFrameworks" style="color:var(--accent)">—</div>
+    <div class="stat-value" id="ccActiveFrameworks" data-s="sa805525">—</div>
     <div class="stat-sub">Compliance frameworks</div>
   </div>
   <!-- Evidence Collected (kept but demoted) -->
-  <div class="stat-card" id="ccEvidenceCard" data-cc-href="/evidence/" style="cursor:pointer" title="Open Evidence Repository">
+  <div class="stat-card" id="ccEvidenceCard" data-cc-href="/evidence/" data-s="s3b6a3a6" title="Open Evidence Repository">
     <div class="stat-label">Evidence Collected</div>
     <div class="stat-value" id="ccEvidenceCount">—</div>
     <div class="stat-sub">Repository</div>
@@ -493,7 +493,7 @@
   <div class="panel-card" id="ccModuleHealthCard">
     <div class="panel-title">Module Health</div>
     <div id="ccModuleHealth">
-      <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+      <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
@@ -506,10 +506,10 @@
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="11"/>
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--accent)" stroke-width="10"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                  transform="rotate(-90 70 70)" id="ccSlaArc" style="transition:stroke-dashoffset 1s ease"><title>Met SLA: 0</title></circle>
+                  transform="rotate(-90 70 70)" id="ccSlaArc" data-s="s9ed859d"><title>Met SLA: 0</title></circle>
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--red)" stroke-width="11"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="butt"
-                  transform="rotate(-90 70 70)" id="ccSlaBreachArc" style="transition:stroke-dashoffset 1s ease"><title>Breached SLA: 0</title></circle>
+                  transform="rotate(-90 70 70)" id="ccSlaBreachArc" data-s="s9ed859d"><title>Breached SLA: 0</title></circle>
         </svg>
         <div class="cc-donut-center">
           <div class="cc-donut-pct" id="ccSlaPct">—</div>
@@ -518,15 +518,15 @@
       </div>
       <div class="cc-sla-stats" id="ccSlaStats">
         <div class="cc-sla-stat">
-          <div class="cc-sla-num" id="ccSlaMet" style="color:var(--green-status)">—</div>
+          <div class="cc-sla-num" id="ccSlaMet" data-s="sf941d6e">—</div>
           <div class="cc-sla-label">Met SLA</div>
         </div>
         <div class="cc-sla-stat">
-          <div class="cc-sla-num" id="ccSlaRisk" style="color:var(--amber)">—</div>
+          <div class="cc-sla-num" id="ccSlaRisk" data-s="s08935a7">—</div>
           <div class="cc-sla-label">At Risk</div>
         </div>
         <div class="cc-sla-stat">
-          <div class="cc-sla-num" id="ccSlaBreach" style="color:var(--red)">—</div>
+          <div class="cc-sla-num" id="ccSlaBreach" data-s="s45e7ae4">—</div>
           <div class="cc-sla-label">Breached</div>
         </div>
       </div>
@@ -537,32 +537,32 @@
   <div class="panel-card" id="ccActivityCard">
     <div class="panel-title">Recent Activity</div>
     <div id="ccRecentActivity">
-      <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+      <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 </div>
 
 <!-- Risk Register + Workflow strip -->
-<div class="two-col animate-fade-up anim-3" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
+<div class="two-col animate-fade-up anim-3" data-s="s5441317" data-sd="grid">
   <!-- Open Risks -->
-  <div class="panel-card" id="ccRisksCard" style="cursor:pointer" data-cc-href="/risk-register" title="Open Risk Register">
+  <div class="panel-card" id="ccRisksCard" data-s="s3b6a3a6" data-cc-href="/risk-register" title="Open Risk Register">
     <div class="panel-title">Open Risks
-      <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗ Risk Register</span>
+      <span data-s="sc03b511">↗ Risk Register</span>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <span id="ccRiskCrit" style="display:inline-flex;align-items:center;gap:4px;background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700">0 Critical</span>
-      <span id="ccRiskHigh" style="display:inline-flex;align-items:center;gap:4px;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700">0 High</span>
-      <span id="ccRiskMed"  style="display:inline-flex;align-items:center;gap:4px;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700">0 Medium</span>
+    <div data-s="s12c3b1b" data-sd="flex">
+      <span id="ccRiskCrit" data-s="s777e40f" data-sd="inline-flex">0 Critical</span>
+      <span id="ccRiskHigh" data-s="s89b789f" data-sd="inline-flex">0 High</span>
+      <span id="ccRiskMed"  data-s="s3af5a24" data-sd="inline-flex">0 Medium</span>
     </div>
   </div>
   <!-- Active Workflows -->
-  <div class="panel-card" id="ccWorkflowsCard" style="cursor:pointer" data-cc-href="/workflows" title="Open Workflows">
+  <div class="panel-card" id="ccWorkflowsCard" data-s="s3b6a3a6" data-cc-href="/workflows" title="Open Workflows">
     <div class="panel-title">Active Workflows
-      <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗</span>
+      <span data-s="sc03b511">↗</span>
     </div>
-    <div style="display:flex;align-items:baseline;gap:6px">
-      <span id="ccWorkflowActive" style="font-size:32px;font-weight:800;color:var(--text);line-height:1">0</span>
-      <span style="font-size:11px;color:var(--muted);font-weight:600">in progress</span>
+    <div data-s="scaba572" data-sd="flex">
+      <span id="ccWorkflowActive" data-s="s534c571">0</span>
+      <span data-s="s4b825bf">in progress</span>
     </div>
   </div>
 </div>
@@ -572,7 +572,7 @@
   <div class="card-header">
     <div class="card-title">Overdue Action Items</div>
   </div>
-  <div class="card-body" style="padding:12px 20px 6px">
+  <div class="card-body" data-s="s7cf50a3">
     <div class="filter-bar" id="ccModuleFilters">
       <button type="button" class="filter-chip active" data-mod="all" data-cc-filter="all">All</button>
       {% if 'aria' in user_modules %}
@@ -595,7 +595,7 @@
       {% endif %}
     </div>
   </div>
-  <div style="overflow-x:auto">
+  <div data-s="s0ddf068">
     <table class="data-table" id="ccOverdueTable">
       <thead>
         <tr>
@@ -608,7 +608,7 @@
         </tr>
       </thead>
       <tbody id="ccOverdueBody">
-        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+        <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
       </tbody>
     </table>
   </div>

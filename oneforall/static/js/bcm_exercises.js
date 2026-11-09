@@ -18,13 +18,13 @@
   }
   function base() { return '/bcm/api/exercises/' + activeId; }
   function field(label, name, value, type, required) {
-    return '<label style="display:block;margin:8px 0">' + esc(label) +
-      '<input class="form-input" style="display:block;width:100%" type="' + (type || 'text') +
+    return '<label data-s="sf5554e4" data-sd="block">' + esc(label) +
+      '<input class="form-input" data-s="s0466783" data-sd="block" type="' + (type || 'text') +
       '" name="' + esc(name) + '" value="' + esc(value) + '"' + (required ? ' required' : '') + '></label>';
   }
   function area(label, name, value, required) {
-    return '<label style="display:block;margin:8px 0">' + esc(label) +
-      '<textarea class="form-input" style="display:block;width:100%" name="' + esc(name) + '"' +
+    return '<label data-s="sf5554e4" data-sd="block">' + esc(label) +
+      '<textarea class="form-input" data-s="s0466783" data-sd="block" name="' + esc(name) + '"' +
       (required ? ' required' : '') + '>' + esc(value) + '</textarea></label>';
   }
   function btn(action, label, disabled) {
@@ -32,7 +32,7 @@
       (disabled ? ' disabled' : '') + '>' + esc(label) + '</button>';
   }
   function section(title, content) {
-    return '<section style="padding:14px 0;border-bottom:1px solid var(--border)"><h3>' +
+    return '<section data-s="sc40abdd"><h3>' +
       esc(title) + '</h3>' + content + '</section>';
   }
   function personSelect(name, managersOnly, selectedId) {
@@ -168,7 +168,7 @@
     overlay.innerHTML = '<div class="bcm-doc-panel" role="dialog" aria-modal="true" aria-labelledby="bcmExDialogTitle">' +
       '<div class="bcm-doc-head"><h2 id="bcmExDialogTitle" data-ex-title>Exercise workspace</h2>' +
       '<button type="button" class="btn btn-secondary" data-ex-close>Close</button></div>' +
-      '<div class="bcm-doc-body" style="white-space:normal;font-family:inherit" data-ex-content>Loading…</div></div>';
+      '<div class="bcm-doc-body" data-s="sacb8543" data-ex-content>Loading…</div></div>';
     document.body.appendChild(overlay);
     document.addEventListener('keydown', keydown);
     overlay.querySelector('[data-ex-close]').focus();

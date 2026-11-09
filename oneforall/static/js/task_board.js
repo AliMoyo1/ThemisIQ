@@ -134,7 +134,7 @@ function renderBoard(){
     if(!col) return;
     if(count) count.textContent = items.length;
     if(!items.length){
-      col.innerHTML = '<div style="padding:28px 12px;text-align:center;color:var(--muted);font-size:11px;opacity:.5">Drop tasks here</div>';
+      col.innerHTML = '<div data-s="s8dbb0d6">Drop tasks here</div>';
       return;
     }
     col.innerHTML = items.map(renderCard).join('');
@@ -153,14 +153,14 @@ function renderCard(t){
 
   var sel = selectedTasks.has(id) ? ' selected' : '';
   return `<div class="task-card ${priCls}${sel}" data-id="${id}" role="button" tabindex="0" draggable="true">
-    <input type="checkbox" class="tc-checkbox" aria-label="Select task" ${selectedTasks.has(id)?'checked':''} style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+    <input type="checkbox" class="tc-checkbox" aria-label="Select task" ${selectedTasks.has(id)?'checked':''} data-s="s9daaa60">
     <div class="tc-title">${esc(t.title)}</div>
     <div class="tc-meta">
-      ${ml ? `<span class="tc-mod" style="background:${mc}18;color:${mc}">${esc(ml)}</span>` : ''}
+      ${ml ? `<span class="tc-mod" data-sv="background:${mc}18;color:${mc}">${esc(ml)}</span>` : ''}
       ${t.due_date ? `<span class="tc-due${over?' overdue':''}">${over?'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> ':''}${esc(fmtDate(t.due_date)||t.due_date)}</span>` : ''}
     </div>
     ${t.assigned_name ? `<div class="tc-assignee">
-      <span class="tc-avatar" style="background:${avColor}">${esc(init)}</span>
+      <span class="tc-avatar" data-sv="background:${avColor}">${esc(init)}</span>
       ${esc(t.assigned_name)}
     </div>` : ''}
   </div>`;
@@ -271,7 +271,7 @@ window.aiPrioritize = async function(){
   }catch(e){
     if(typeof showToast==='function')showToast(e.detail || 'AI prioritization failed','error');
   }finally{
-    btn.disabled=false;btn.innerHTML='<span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Prioritize';
+    btn.disabled=false;btn.innerHTML='<span data-s="s433de30"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></span> AI Prioritize';
   }
 };
 
@@ -282,23 +282,23 @@ function showAiPriPanel(ranked){
   panel.id='aiPriPanel';
   panel.className='card';
   panel.style.cssText='padding:16px 20px;margin-bottom:16px;border-left:3px solid var(--accent)';
-  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-    '<div style="font-size:14px;font-weight:700;color:var(--text)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> AI Priority Suggestions</div>'+
-    '<div style="display:flex;gap:8px">'+
-      '<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" data-ai-action="apply">Apply All</button>'+
-      '<button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" data-ai-action="dismiss">Dismiss</button>'+
+  var html='<div data-s="sce63d6d" data-sd="flex">'+
+    '<div data-s="s8a79397"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg> AI Priority Suggestions</div>'+
+    '<div data-s="s33fcd4c" data-sd="flex">'+
+      '<button class="btn btn-primary" data-s="s4ccfc2c" data-ai-action="apply">Apply All</button>'+
+      '<button class="btn btn-secondary" data-s="s4ccfc2c" data-ai-action="dismiss">Dismiss</button>'+
     '</div></div>';
-  html+='<div style="max-height:200px;overflow-y:auto">';
+  html+='<div data-s="sedd685d">';
   ranked.forEach(function(r,i){
     const taskId=Number(r.task_id);
     if(!Number.isSafeInteger(taskId)||taskId<=0) return;
     var task=allTasks.find(function(t){return t.id===r.task_id;});
     var priColor={'critical':'var(--red)','high':'#f97316','medium':'var(--amber)','low':'var(--green-status)'}[r.suggested_priority]||'var(--muted)';
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:12px" data-ai-task="'+taskId+'">'+
-      '<span style="width:20px;font-weight:800;color:var(--accent)">#'+(Number.isSafeInteger(Number(r.rank))&&Number(r.rank)>0?Number(r.rank):i+1)+'</span>'+
-      '<span style="flex:1;font-weight:600;color:var(--text)">'+esc(task?task.title:'Task #'+taskId)+'</span>'+
-      '<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+priColor+'18;color:'+priColor+'">'+esc(r.suggested_priority)+'</span>'+
-      '<span style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.rationale||'')+'">'+esc(r.rationale||'')+'</span>'+
+    html+='<div data-s="s2d97f70" data-sd="flex" data-ai-task="'+taskId+'">'+
+      '<span data-s="sbfc7338">#'+(Number.isSafeInteger(Number(r.rank))&&Number(r.rank)>0?Number(r.rank):i+1)+'</span>'+
+      '<span data-s="s518f82c">'+esc(task?task.title:'Task #'+taskId)+'</span>'+
+      '<span data-sv="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+priColor+'18;color:'+priColor+'">'+esc(r.suggested_priority)+'</span>'+
+      '<span data-s="s3e80330" title="'+esc(r.rationale||'')+'">'+esc(r.rationale||'')+'</span>'+
     '</div>';
   });
   html+='</div>';
@@ -395,7 +395,7 @@ function openDrawer(taskId){
       <select class="td-select" id="ddAssignTo">${usersSelectHtml(t.assigned_to)}</select>
     </div>
     ${t.tags ? `<div class="td-field"><div class="td-label">Tags</div>
-      <div style="font-size:12px;color:var(--muted);padding:6px 0">${esc(t.tags)}</div></div>` : ''}
+      <div data-s="s303c838">${esc(t.tags)}</div></div>` : ''}
     ${entityHtml ? `<div class="td-field"><div class="td-label">Source</div>${entityHtml}</div>` : ''}
     <div class="td-meta-footer">
       ${creatorHtml}${createdAtHtml}

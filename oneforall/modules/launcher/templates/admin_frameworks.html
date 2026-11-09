@@ -5,72 +5,72 @@
 <div class="topbar">
   <span class="page-title">Framework Management</span>
   <div class="topbar-actions">
-    <button class="btn" style="font-size:12px; padding:7px 14px;" id="seedBtn">Seed Controls</button>
-    <button class="btn btn-primary" id="newFwOpenBtn" style="font-size:12px; padding:7px 14px;">+ Custom Framework</button>
+    <button class="btn" data-s="s1561182" id="seedBtn">Seed Controls</button>
+    <button class="btn btn-primary" id="newFwOpenBtn" data-s="s1561182">+ Custom Framework</button>
   </div>
 </div>
 
 <div class="content">
 
   <!-- Stats Summary Cards -->
-  <div id="fw-stats" style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;">
+  <div id="fw-stats" data-s="sd493af7" data-sd="grid">
     {% set active_count = frameworks|selectattr('is_active')|list|length %}
     {% set total_count = frameworks|length %}
     {% set total_ctrls = frameworks|map(attribute='total_controls')|sum %}
-    <div class="card" style="padding:16px 20px;">
-      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Total Frameworks</div>
-      <div style="font-size:28px; font-weight:700; color:var(--text); line-height:1;">{{ total_count }}</div>
+    <div class="card" data-s="s01b9273">
+      <div data-s="scdd16a7">Total Frameworks</div>
+      <div data-s="sca99d61">{{ total_count }}</div>
     </div>
-    <div class="card" style="padding:16px 20px;">
-      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Active</div>
-      <div style="font-size:28px; font-weight:700; color:var(--good); line-height:1;">{{ active_count }}</div>
+    <div class="card" data-s="s01b9273">
+      <div data-s="scdd16a7">Active</div>
+      <div data-s="sb0cddc6">{{ active_count }}</div>
     </div>
-    <div class="card" style="padding:16px 20px;">
-      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Inactive</div>
-      <div style="font-size:28px; font-weight:700; color:var(--muted); line-height:1;">{{ total_count - active_count }}</div>
+    <div class="card" data-s="s01b9273">
+      <div data-s="scdd16a7">Inactive</div>
+      <div data-s="s3629c40">{{ total_count - active_count }}</div>
     </div>
-    <div class="card" style="padding:16px 20px;">
-      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Total Controls</div>
-      <div style="font-size:28px; font-weight:700; color:var(--text); line-height:1;">{{ total_ctrls }}</div>
+    <div class="card" data-s="s01b9273">
+      <div data-s="scdd16a7">Total Controls</div>
+      <div data-s="sca99d61">{{ total_ctrls }}</div>
     </div>
   </div>
 
   <!-- Info Banner -->
-  <div class="card" style="padding:14px 18px; margin-bottom:18px; background:var(--info-soft); border:1px solid rgba(96,165,250,0.15);">
-    <div style="display:flex; align-items:center; gap:10px; color:var(--info); font-size:12.5px;">
+  <div class="card" data-s="sc24c89e">
+    <div data-s="s1ca0092" data-sd="flex">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
       <span>Only <strong>activated</strong> frameworks appear in module dashboards and compliance statistics. Deactivated frameworks preserve all data but are hidden from normal users.</span>
     </div>
   </div>
 
   <!-- Frameworks Table -->
-  <div class="card" style="padding:0; overflow:hidden;">
-    <table style="width:100%; border-collapse:collapse;">
+  <div class="card" data-s="s22a2674">
+    <table data-s="sa55f31d">
       <thead>
-        <tr style="background:var(--surface2);">
-          <th style="padding:12px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);">Framework</th>
-          <th style="padding:12px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);">Modules</th>
-          <th style="padding:12px 18px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);">Controls</th>
-          <th style="padding:12px 18px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border); width:130px;">Status</th>
+        <tr data-s="s851d787">
+          <th data-s="s1c5e463">Framework</th>
+          <th data-s="s1c5e463">Modules</th>
+          <th data-s="s37c5c0d">Controls</th>
+          <th data-s="sbeddfed">Status</th>
         </tr>
       </thead>
       <tbody>
         {% for fw in frameworks %}
-        <tr id="fw-row-{{ fw.id }}" class="fw-row" style="border-bottom:1px solid var(--border-soft); transition:background 0.15s;">
-          <td style="padding:14px 18px;">
-            <div style="display:flex; align-items:center; gap:12px;">
-              <span style="width:10px; height:10px; border-radius:50%; background:{{ fw.color }}; flex-shrink:0; box-shadow:0 0 0 3px {{ fw.color }}22;"></span>
+        <tr id="fw-row-{{ fw.id }}" class="fw-row" data-s="s014459f">
+          <td data-s="s186530a">
+            <div data-s="s12bf1ab" data-sd="flex">
+              <span data-sv="width:10px; height:10px; border-radius:50%; background:{{ fw.color }}; flex-shrink:0; box-shadow:0 0 0 3px {{ fw.color }}22;"></span>
               <div>
-                <div style="font-weight:600; font-size:13.5px; color:var(--text); line-height:1.3;">{{ fw.name }}</div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:2px; max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ fw.description }}</div>
+                <div data-s="sf17da5e">{{ fw.name }}</div>
+                <div data-s="sc7e33ae">{{ fw.description }}</div>
               </div>
             </div>
           </td>
-          <td style="padding:14px 18px;">
+          <td data-s="s186530a">
             {% for mod in fw.relevant_modules.split(',') %}
               {% set mod_name = mod.strip() %}
               {% if mod_name %}
-              <span style="display:inline-block; padding:2px 8px; margin:2px; border-radius:4px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;
+              <span data-sv="display:inline-block; padding:2px 8px; margin:2px; border-radius:4px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;
                 {% if mod_name == 'aria' %}background:#dbeafe; color:#2563eb;
                 {% elif mod_name == 'grid' %}background:#d1fae5; color:#059669;
                 {% elif mod_name == 'bcm' %}background:#fef3c7; color:#d97706;
@@ -80,30 +80,30 @@
               {% endif %}
             {% endfor %}
           </td>
-          <td id="fw-controls-{{ fw.id }}" style="padding:14px 18px; text-align:center;">
+          <td id="fw-controls-{{ fw.id }}" data-s="scbc0e8a">
             {% if fw.total_controls > 0 %}
-              <span style="font-size:14px; font-weight:700; color:var(--text);">{{ fw.total_controls }}</span>
+              <span data-s="s8a79397">{{ fw.total_controls }}</span>
             {% else %}
               <button class="fw-ai-btn js-generate-controls" type="button" data-framework-id="{{ fw.id | int }}"
                       data-framework-name="{{ fw.name }}"
                       id="fw-ai-btn-{{ fw.id }}"
-                      style="font-size:11px; padding:5px 12px; background:linear-gradient(135deg, rgba(124,58,237,0.08), rgba(124,58,237,0.15)); color:#7c3aed; border:1px solid rgba(124,58,237,0.2); border-radius:6px; cursor:pointer; font-weight:600; transition:all 0.2s;">
+                      data-s="s0231ec5">
                 AI Generate
               </button>
             {% endif %}
           </td>
-          <td style="padding:14px 18px; text-align:center;">
-            <label style="display:inline-flex; align-items:center; cursor:pointer; gap:8px; user-select:none;">
+          <td data-s="scbc0e8a">
+            <label data-s="saca85ac" data-sd="inline-flex">
               <input type="checkbox" id="fw-toggle-{{ fw.id }}"
                      {% if fw.is_active %}checked{% endif %}
                      data-framework-id="{{ fw.id | int }}"
-                     style="display:none;">
-              <span class="toggle-track" id="fw-track-{{ fw.id }}" style="
+                     data-sd="none">
+              <span class="toggle-track" id="fw-track-{{ fw.id }}" data-sv="
                 position:relative; width:40px; height:22px; border-radius:11px;
                 background: {% if fw.is_active %}#22c55e{% else %}var(--surface3){% endif %};
                 transition: background 0.25s ease; display:inline-block; flex-shrink:0;
               ">
-                <span class="toggle-thumb" id="fw-thumb-{{ fw.id }}" style="
+                <span class="toggle-thumb" id="fw-thumb-{{ fw.id }}" data-sv="
                   position:absolute; top:2px;
                   left: {% if fw.is_active %}20px{% else %}2px{% endif %};
                   width:18px; height:18px; border-radius:50%;
@@ -111,7 +111,7 @@
                   transition: left 0.25s ease;
                 "></span>
               </span>
-              <span id="fw-label-{{ fw.id }}" style="font-size:12px; font-weight:600;
+              <span id="fw-label-{{ fw.id }}" data-sv="font-size:12px; font-weight:600;
                 color:{% if fw.is_active %}#22c55e{% else %}var(--muted){% endif %}; min-width:50px; text-align:left;">
                 {{ "Active" if fw.is_active else "Inactive" }}
               </span>
@@ -123,7 +123,7 @@
     </table>
   </div>
 
-  <div style="margin-top:14px; padding:0 4px; font-size:12px; color:var(--muted);">
+  <div data-s="s1880140">
     <strong>{{ frameworks|selectattr('is_active')|list|length }}</strong> of <strong>{{ frameworks|length }}</strong> frameworks active &middot;
     Frameworks with no controls can use <strong>AI Generate</strong> to auto-populate controls from the framework specification.
   </div>
@@ -132,39 +132,39 @@
 
 <!-- Custom Framework Modal -->
 <div class="modal-overlay" id="newFwModal" role="dialog" aria-modal="true" aria-labelledby="newFwModal-title">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" data-s="s4294bfa">
     <div class="modal-header">
-      <h3 id="newFwModal-title" style="margin:0;font-size:17px;font-weight:700;color:var(--text);">Create Custom Framework</h3>
+      <h3 id="newFwModal-title" data-s="s411c656">Create Custom Framework</h3>
       <button class="modal-close js-close-fw-modal" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <form id="newFwForm">
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Framework Name *</label>
-          <input type="text" name="name" required maxlength="100" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="e.g. NIST CSF 2.0">
+        <div data-s="s2b583d7">
+          <label data-s="s03b57f1" data-sd="block">Framework Name *</label>
+          <input type="text" name="name" required maxlength="100" data-s="sa63a379" placeholder="e.g. NIST CSF 2.0">
         </div>
-        <div style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Description *</label>
-          <input type="text" name="description" required maxlength="200" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="Cybersecurity Framework for critical infrastructure">
+        <div data-s="s2b583d7">
+          <label data-s="s03b57f1" data-sd="block">Description *</label>
+          <input type="text" name="description" required maxlength="200" data-s="sa63a379" placeholder="Cybersecurity Framework for critical infrastructure">
         </div>
-        <div style="display:flex;gap:14px;margin-bottom:16px;">
-          <div style="flex:0 0 70px;">
-            <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Color</label>
-            <input type="color" name="color" value="#1E3A5F" style="width:48px;height:38px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;">
+        <div data-s="s04cc2c3" data-sd="flex">
+          <div data-s="s13bc451">
+            <label data-s="s03b57f1" data-sd="block">Color</label>
+            <input type="color" name="color" value="#1E3A5F" data-s="s0df94b6">
           </div>
-          <div style="flex:1;">
-            <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Relevant Modules</label>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
-              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="aria" checked> ARIA</label>
-              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="grid"> GRID</label>
-              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="bcm"> BCM</label>
-              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="sentinel"> Sentinel</label>
+          <div data-s="s97445a8">
+            <label data-s="s03b57f1" data-sd="block">Relevant Modules</label>
+            <div data-s="s1e8f931" data-sd="flex">
+              <label data-s="s4104fd7" data-sd="flex"><input type="checkbox" name="modules" value="aria" checked> ARIA</label>
+              <label data-s="s4104fd7" data-sd="flex"><input type="checkbox" name="modules" value="grid"> GRID</label>
+              <label data-s="s4104fd7" data-sd="flex"><input type="checkbox" name="modules" value="bcm"> BCM</label>
+              <label data-s="s4104fd7" data-sd="flex"><input type="checkbox" name="modules" value="sentinel"> Sentinel</label>
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);">
-          <button type="button" class="btn js-close-fw-modal" style="padding:8px 18px;font-size:13px;">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="createFwBtn" style="padding:8px 18px;font-size:13px;">Create Framework</button>
+        <div data-s="s42346c7" data-sd="flex">
+          <button type="button" class="btn js-close-fw-modal" data-s="s7e93a17">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="createFwBtn" data-s="s7e93a17">Create Framework</button>
         </div>
       </form>
     </div>

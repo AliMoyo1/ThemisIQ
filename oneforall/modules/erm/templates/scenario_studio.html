@@ -90,7 +90,7 @@ input[type=range]{accent-color:var(--accent);padding:0;width:auto}
 {% endblock %}
 
 {% block breadcrumb %}
-<a href="/erm/" style="color:var(--accent);font-weight:700;text-decoration:none">ERM</a>
+<a href="/erm/" data-s="s59fe22c">ERM</a>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Scenario Studio</span>
 {% endblock %}
@@ -126,24 +126,24 @@ input[type=range]{accent-color:var(--accent);padding:0;width:auto}
 
 {% if can_manage_scenarios %}
 <div class="modal-overlay" id="ssNewModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ssNewModalTitle" style="max-width:720px;width:92vw">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ssNewModalTitle" data-s="s8de3c07">
     <div class="modal-header">
       <div class="modal-title" id="ssNewModalTitle">New Scenario</div>
       <button class="modal-close" id="ssNewModalClose" type="button" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+    <div class="modal-body" data-s="sa7ef6ff">
       <p class="ss-help">Start from a template, describe it in a sentence, or fill it in yourself. You can change everything afterwards.</p>
       <div class="ss-card-title">Templates</div>
-      <div class="ss-tpl-grid" id="ssNewTemplates" style="margin-bottom:14px"></div>
+      <div class="ss-tpl-grid" id="ssNewTemplates" data-s="s2b583d7"></div>
       {% if can_use_ai %}
       <div class="ss-ai" id="ssNewAiBox">
         <h4>Or describe it in a sentence</h4>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input type="text" id="ssNewSentence" maxlength="600" style="flex:1;min-width:220px" placeholder="For example: our main payment processor is down for five days" aria-label="Describe the scenario">
+        <div data-s="s4725bb7" data-sd="flex">
+          <input type="text" id="ssNewSentence" maxlength="600" data-s="s6c0d09d" placeholder="For example: our main payment processor is down for five days" aria-label="Describe the scenario">
           <button class="btn btn-secondary" id="ssNewDraftBtn" type="button">Draft with AI</button>
         </div>
-        <div class="ss-sub" style="margin-top:6px">The AI proposes the text and which of your risks, controls and indicators it touches. Nothing is saved until you create the scenario. Do not include names, email addresses or account numbers.</div>
-        <div id="ssNewLinks" style="margin-top:8px"></div>
+        <div class="ss-sub" data-s="sfe7b497">The AI proposes the text and which of your risks, controls and indicators it touches. Nothing is saved until you create the scenario. Do not include names, email addresses or account numbers.</div>
+        <div id="ssNewLinks" data-s="s8a77e5a"></div>
       </div>
       {% endif %}
       <div class="form-group"><label class="form-label" for="ssNewTitle">Title</label><input type="text" id="ssNewTitle" maxlength="200"></div>

@@ -326,7 +326,7 @@ html[data-theme="dark"] body[data-module] .mh-dot[data-module-key="governance"]{
 }
 html[data-theme="dark"] body[data-module] #ccSlaArc{stroke:var(--accent-ink)}
 @media (prefers-reduced-motion:reduce){
-  body[data-module] :is(#ccSlaArc,#ariaArcImpl,#ariaArcProg,[style*="transition:stroke-dasharray"],[style*="transition:width"]){
+  body[data-module] :is(#ccSlaArc,#ariaArcImpl,#ariaArcProg,[style*="transition:stroke-dasharray"],[data-s="s750482f"],[style*="transition: stroke-dasharray"],[style*="transition:width"],[style*="transition: width"]){
     animation:none!important;transition:none!important;
   }
 }
@@ -343,7 +343,7 @@ body[data-module] .kri-sparkline{
 }
 body[data-module] .kri-sparkline polyline{stroke-width:2.2}
 @media (prefers-reduced-motion:reduce){
-  body[data-module] :is(.kri-sparkline,#snRiskHigh,#snRiskMed,#snRiskLow,[style*="transition:stroke-dashoffset"]){
+  body[data-module] :is(.kri-sparkline,#snRiskHigh,#snRiskMed,#snRiskLow,[style*="transition:stroke-dashoffset"],[data-s="s9ed859d"],[style*="transition: stroke-dashoffset"]){
     animation:none!important;transition:none!important;transform:none!important;
   }
 }

@@ -15,7 +15,7 @@
     var node = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
       if (k === 'text') node.textContent = attrs[k];
-      else if (k === 'style') node.setAttribute('style', attrs[k]);
+      else if (k === 'style') node.style.cssText = attrs[k];
       else node.setAttribute(k, attrs[k]);
     });
     (children || []).forEach(function (c) { node.appendChild(c); });

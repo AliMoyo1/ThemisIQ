@@ -63,7 +63,7 @@ function sensitivityChips(row){
   if(row.contains_phi) out.push('<span class="badge badge-pii">PHI</span>');
   if(row.contains_financial) out.push('<span class="badge badge-pii">FIN</span>');
   if(row.contains_ip) out.push('<span class="badge badge-pii">IP</span>');
-  return out.join(' ') || '<span style="color:var(--muted);font-size:11px">–</span>';
+  return out.join(' ') || '<span data-s="s6d034cc">–</span>';
 }
 
 // ── Tab switching ────────────────────────────────────────────────────
@@ -99,15 +99,15 @@ function govLoadTab(tab){
 function govLoadPeople(){
   var body = document.getElementById('peopleBody');
   apiFetch('/governance/api/users').then(function(users){
-    if(!users || !users.length){ body.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">No users</td></tr>'; return; }
+    if(!users || !users.length){ body.innerHTML='<tr><td colspan="3" data-s="sa1e3045">No users</td></tr>'; return; }
     var rows = users.map(function(u){
-      return '<tr><td><strong>'+esc(u.full_name||u.username)+'</strong><div style="font-size:11px;color:var(--muted)">@'+esc(u.username)+'</div></td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+esc(u.email||'')+'</td>'+
-        '<td><span style="font-size:12px">'+esc(u.business_unit_name||'Unassigned')+'</span>'+
-        ' <a href="/admin/users" style="font-size:11px;margin-left:8px">Move SBU</a></td></tr>';
+      return '<tr><td><strong>'+esc(u.full_name||u.username)+'</strong><div data-s="s1fd8c81">@'+esc(u.username)+'</div></td>'+
+        '<td data-s="s7fc448e">'+esc(u.email||'')+'</td>'+
+        '<td><span data-s="s6cb285c">'+esc(u.business_unit_name||'Unassigned')+'</span>'+
+        ' <a href="/admin/users" data-s="sea54340">Move SBU</a></td></tr>';
     });
     body.innerHTML = rows.join('');
-  }).catch(function(){ body.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--red)">Failed to load</td></tr>'; });
+  }).catch(function(){ body.innerHTML='<tr><td colspan="3" data-s="sabf5cc1">Failed to load</td></tr>'; });
 }
 
 // ── Summary ──────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ function govLoadBus(){
 function renderBuNode(n){
   var kids = (n.children||[]).map(renderBuNode).join('');
   var code = n.code ? '<span class="tree-node-code">'+esc(n.code)+'</span>' : '';
-  var head = n.head_name ? '<span style="color:var(--muted);font-size:12px"> — head: '+esc(n.head_name)+'</span>' : '';
+  var head = n.head_name ? '<span data-s="sbf8965d"> — head: '+esc(n.head_name)+'</span>' : '';
   var actions = CAN_MANAGE ? (
     '<button class="gov-btn ghost small" data-gov-action="edit-bu" data-id="'+govId(n.id)+'">Edit</button>' +
     '<button class="gov-btn ghost small" data-gov-action="delete-bu" data-id="'+govId(n.id)+'">Delete</button>'
@@ -190,18 +190,18 @@ function govLoadDepts(){
   apiFetch(url).then(rows=>{
     govDeptList = rows;
     var tbody = document.getElementById('deptTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No departments yet.</td></tr>'; return}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="6" data-s="sa1e3045">No departments yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
       var actions = CAN_MANAGE ? (
         '<button class="gov-btn ghost small" data-gov-action="edit-dept" data-id="'+govId(r.id)+'">Edit</button> '+
         '<button class="gov-btn ghost small" data-gov-action="delete-dept" data-id="'+govId(r.id)+'">Delete</button>'
       ) : '';
       return '<tr>'
-        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
-        + '<td>'+(r.code ? '<code style="background:var(--surface2);padding:2px 6px;border-radius:3px">'+esc(r.code)+'</code>' : '–')+'</td>'
+        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small data-s="s57f9e31">'+esc(r.description)+'</small>' : '')+'</td>'
+        + '<td>'+(r.code ? '<code data-s="s5f0ff92">'+esc(r.code)+'</code>' : '–')+'</td>'
         + '<td>'+esc(r.bu_name || '–')+'</td>'
         + '<td>'+esc(r.head_name || '–')+'</td>'
-        + '<td>'+(r.is_active ? '<span class="badge" style="background:rgba(22,163,74,.15);color:#16a34a">Active</span>' : '<span class="badge badge-inactive">Inactive</span>')+'</td>'
+        + '<td>'+(r.is_active ? '<span class="badge" data-s="s6f12565">Active</span>' : '<span class="badge badge-inactive">Inactive</span>')+'</td>'
         + '<td class="actions">'+actions+'</td>'
       + '</tr>';
     }).join('');
@@ -232,7 +232,7 @@ function govLoadBps(){
   apiFetch('/governance/api/business-processes' + (qs.length ? '?'+qs.join('&') : '')).then(rows=>{
     govBpList = rows;
     var tbody = document.getElementById('bpTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No processes yet.</td></tr>'; return}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" data-s="sa1e3045">No processes yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
       var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/process/'+govId(r.id)+'">Connected</a> ' + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" data-gov-action="edit-bp" data-id="'+govId(r.id)+'">Edit</button> '+
@@ -241,7 +241,7 @@ function govLoadBps(){
       var rto = r.rto_hours!=null ? r.rto_hours+'h' : '–';
       var rpo = r.rpo_hours!=null ? r.rpo_hours+'h' : '–';
       return '<tr>'
-        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
+        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small data-s="s57f9e31">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.bu_name || '–')+'</td>'
         + '<td>'+esc(r.dept_name || '–')+'</td>'
         + '<td>'+esc(r.owner_name || '–')+'</td>'
@@ -272,14 +272,14 @@ function govLoadApps(){
   apiFetch('/governance/api/applications' + (bu ? '?bu_id='+bu : '')).then(rows=>{
     govAppList = rows;
     var tbody = document.getElementById('appTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No applications yet.</td></tr>'; return}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="8" data-s="sa1e3045">No applications yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
       var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/application/'+govId(r.id)+'">Connected</a> ' + (GOV_AI_ON && r.has_ai_profile ? '<a class="gov-btn ghost small" href="/ai-governance/systems/'+govId(r.id)+'">AI workspace</a> ' : '') + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" data-gov-action="edit-app" data-id="'+govId(r.id)+'">Edit</button> '+
         '<button class="gov-btn ghost small" data-gov-action="delete-app" data-id="'+govId(r.id)+'">Delete</button>'
       ) : '');
       return '<tr>'
-        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
+        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small data-s="s57f9e31">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.application_type || '–')+'</td>'
         + '<td>'+esc(r.hosting || '–')+'</td>'
         + '<td>'+esc(r.vendor_name || '–')+'</td>'
@@ -309,7 +309,7 @@ function govLoadControls(){
   apiFetch('/governance/api/controls' + (bu ? '?bu_id='+bu : '')).then(rows=>{
     govCtrlList = rows;
     var tbody = document.getElementById('ctrlTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No controls yet.</td></tr>'; return}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="8" data-s="sa1e3045">No controls yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
       var actions = CAN_MANAGE ? (
         '<button class="gov-btn ghost small" data-gov-action="edit-ctrl" data-id="'+govId(r.id)+'">Edit</button> '+
@@ -318,16 +318,16 @@ function govLoadControls(){
       var lastTested = r.last_tested_at ? esc(String(r.last_tested_at).substring(0,10)) : '–';
       var score = Number(r.score);
       var scoreBadge = r.score!=null && Number.isFinite(score) && score>=0 && score<=100
-        ? '<span class="badge" title="Scored: '+esc(String(r.scored_at||'').substring(0,10))+'" style="'+govScoreColor(score)+'">'+score+'</span>'
-        : '<span style="color:var(--muted);font-size:.8rem">–</span>';
+        ? '<span class="badge" title="Scored: '+esc(String(r.scored_at||'').substring(0,10))+'" data-sv="'+govScoreColor(score)+'">'+score+'</span>'
+        : '<span data-s="s0096636">–</span>';
       return '<tr>'
-        + '<td><code style="background:var(--surface2);padding:2px 6px;border-radius:3px">'+esc(r.ref || '–')+'</code></td>'
-        + '<td><strong>'+esc(r.title)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
+        + '<td><code data-s="s5f0ff92">'+esc(r.ref || '–')+'</code></td>'
+        + '<td><strong>'+esc(r.title)+'</strong>'+(r.description ? '<br><small data-s="s57f9e31">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.owner_name || '–')+'</td>'
         + '<td>'+esc(r.automation || '–')+'</td>'
         + '<td>'+lastTested+'</td>'
         + '<td>'+scoreBadge+'</td>'
-        + '<td>'+(r.is_active ? '<span class="badge" style="background:rgba(22,163,74,.15);color:#16a34a">Active</span>' : '<span class="badge badge-inactive">Inactive</span>')+'</td>'
+        + '<td>'+(r.is_active ? '<span class="badge" data-s="s6f12565">Active</span>' : '<span class="badge badge-inactive">Inactive</span>')+'</td>'
         + '<td class="actions">'+actions+'</td>'
       + '</tr>';
     }).join('');
@@ -402,14 +402,14 @@ function govLoadDas(){
   apiFetch('/governance/api/data-assets' + (qs.length ? '?'+qs.join('&') : '')).then(rows=>{
     govDaList = rows;
     var tbody = document.getElementById('daTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No data assets yet.</td></tr>'; return}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" data-s="sa1e3045">No data assets yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
       var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/data_asset/'+govId(r.id)+'">Connected</a> ' + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" data-gov-action="edit-da" data-id="'+govId(r.id)+'">Edit</button> '+
         '<button class="gov-btn ghost small" data-gov-action="delete-da" data-id="'+govId(r.id)+'">Delete</button>'
       ) : '');
       return '<tr>'
-        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
+        + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small data-s="s57f9e31">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.category || '–')+'</td>'
         + '<td>'+classBadge(r.classification)+'</td>'
         + '<td>'+esc(r.application_name || '–')+'</td>'
@@ -650,7 +650,7 @@ function govOpenDaModal(row){
         + '<div class="form-group"><label>Storage location</label><input id="da_loc" value="'+esc(row?(row.location||''):'')+'" placeholder="e.g. AWS S3, SharePoint"></div>'
       + '</div>'
       + '<div class="form-group"><label>Description</label><textarea id="da_desc" rows="3">'+esc(row?(row.description||''):'')+'</textarea></div>'
-      + '<div style="display:flex;gap:16px;flex-wrap:wrap;padding:10px 0">'
+      + '<div data-s="s2cde380" data-sd="flex">'
         + '<div class="form-check"><input type="checkbox" id="da_pii"'+((row&&row.contains_pii)?' checked':'')+'><label for="da_pii">Contains PII</label></div>'
         + '<div class="form-check"><input type="checkbox" id="da_phi"'+((row&&row.contains_phi)?' checked':'')+'><label for="da_phi">Contains PHI</label></div>'
         + '<div class="form-check"><input type="checkbox" id="da_fin"'+((row&&row.contains_financial)?' checked':'')+'><label for="da_fin">Contains Financial</label></div>'
@@ -697,7 +697,7 @@ function govLoadReg(){
   apiFetch('/governance/api/regulatory-updates'+(st?'?status='+encodeURIComponent(st):'')).then(rows=>{
     govRegList = rows;
     var tbody = document.getElementById('regTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No regulatory updates yet.</td></tr>'; return;}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" data-s="sa1e3045">No regulatory updates yet.</td></tr>'; return;}
     tbody.innerHTML = rows.map(r=>{
       var actions = CAN_MANAGE ? (
         '<button class="gov-btn ghost small" data-gov-action="edit-reg" data-id="'+govId(r.id)+'">Edit</button> '+
@@ -711,7 +711,7 @@ function govLoadReg(){
         r.ai_review_state==='pending' ? 'AI draft awaiting human review' : '';
       var sourceUrl=govSafeSourceUrl(r.source_url);
       return '<tr>'
-        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(aiState?'<br><span style="font-size:11px;color:var(--muted)">'+aiState+'</span>':'')+(sourceUrl?'<br><a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent)">Source</a>':'')+'</td>'
+        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(aiState?'<br><span data-s="s1fd8c81">'+aiState+'</span>':'')+(sourceUrl?'<br><a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" data-s="s53d0ffa">Source</a>':'')+'</td>'
         + '<td>'+esc(r.framework_name)+'</td>'
         + '<td>'+sevBadge(r.severity)+'</td>'
         + '<td>'+(r.effective_date?esc(String(r.effective_date).substring(0,10)):'–')+'</td>'
@@ -733,9 +733,9 @@ function govReviewRegAi(id){
     '<div class="modal-overlay"><div class="modal-box">'+
       '<button class="modal-close" data-gov-action="close-modal">x</button>'+
       '<div class="modal-title">Review AI draft</div>'+
-      '<p style="font-size:12px;color:var(--muted)">Check the cited source and affected controls. This draft does not decide legal applicability.</p>'+
-      '<div style="padding:12px;background:var(--surface2);white-space:pre-wrap;font-size:13px">'+esc(row.ai_summary)+'</div>'+
-      '<div class="form-group" style="margin-top:12px"><label>Review reason</label><textarea id="reg_ai_reason" maxlength="500" rows="3"></textarea></div>'+
+      '<p data-s="s7fc448e">Check the cited source and affected controls. This draft does not decide legal applicability.</p>'+
+      '<div data-s="sc112876">'+esc(row.ai_summary)+'</div>'+
+      '<div class="form-group" data-s="s56f4356"><label>Review reason</label><textarea id="reg_ai_reason" maxlength="500" rows="3"></textarea></div>'+
       '<div class="modal-actions"><button class="gov-btn ghost" data-gov-action="close-modal">Cancel</button>'+
         '<button class="gov-btn ghost" data-gov-action="decide-reg" data-id="'+govId(id)+'" data-decision="rejected">Reject</button>'+
         '<button class="gov-btn" data-gov-action="decide-reg" data-id="'+govId(id)+'" data-decision="approved">Approve draft</button></div>'+

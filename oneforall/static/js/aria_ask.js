@@ -64,7 +64,7 @@
   if (rebuildBtn) {
     rebuildBtn.addEventListener('click', async function () {
       rebuildBtn.disabled = true;
-      rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuilding…';
+      rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s723ec8d"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuilding…';
       try {
         var r = await fetch('/aria/api/ask/rebuild', { method: 'POST' });
         var j = await r.json();
@@ -72,7 +72,7 @@
         else       { if (typeof showToast === 'function') showToast(j.error || 'Rebuild failed', 'error'); }
       } catch (e) { if (typeof showToast === 'function') showToast(e.message, 'error'); }
       rebuildBtn.disabled = false;
-      rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuild Index';
+      rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s723ec8d"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuild Index';
     });
   }
 
@@ -205,7 +205,7 @@
       contentHtml =
         '<div class="msg-meta">ARIA · no matching policy</div>' +
         '<div class="msg-bubble">' +
-          '<div class="nc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Not in our policy library</div>' +
+          '<div class="nc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Not in our policy library</div>' +
           '<p>' + mdToHtml(result.answer || '') + owner + '</p>' +
         '</div>';
     }

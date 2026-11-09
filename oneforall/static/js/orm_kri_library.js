@@ -31,20 +31,20 @@ var KRI_LIBRARY=[
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'Choose a KRI from the library');
-    overlay.innerHTML = '<div class="modal-box" style="max-width:700px;max-height:80vh;overflow-y:auto">' +
+    overlay.innerHTML = '<div class="modal-box" data-s="sae5b6ed">' +
       '<button type="button" class="modal-close" data-orm-close-kri-library aria-label="Close KRI library">&#10005;</button>' +
       '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-library></use></svg> KRI Library — Pre-built Indicators</div>' +
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Click "Add" to pre-fill the KRI form with suggested settings</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+      '<div data-s="see36960">Click "Add" to pre-fill the KRI form with suggested settings</div>' +
+      '<div data-s="s4a37ffe" data-sd="grid">' +
       KRI_LIBRARY.map(function (indicator, index) {
-        return '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;border:1px solid var(--border)">' +
-          '<div style="font-size:13px;font-weight:700;margin-bottom:4px">' + esc(indicator.name) + '</div>' +
-          '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">' + esc(indicator.description) + '</div>' +
-          '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">' +
-            '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--muted)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> ' + esc(indicator.frequency) + '</span>' +
-            (indicator.threshold_warn ? '<span style="font-size:10px;background:rgba(217,119,6,.1);padding:2px 7px;border-radius:100px;color:var(--amber,#d97706)">Warn: ' + indicator.threshold_warn + '</span>' : '') +
-            (indicator.threshold_crit ? '<span style="font-size:10px;background:rgba(220,38,38,.1);padding:2px 7px;border-radius:100px;color:var(--red)">Crit: ' + indicator.threshold_crit + '</span>' : '') +
-            (indicator.auto_update_event_type ? '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--accent)">Auto: ' + esc(indicator.auto_update_event_type.replace(/_/g, ' ')) + '</span>' : '') +
+        return '<div data-s="sb12e81d">' +
+          '<div data-s="scfbf4c9">' + esc(indicator.name) + '</div>' +
+          '<div data-s="sa0f62e4">' + esc(indicator.description) + '</div>' +
+          '<div data-s="s4b67c47" data-sd="flex">' +
+            '<span data-s="s84f2de7"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> ' + esc(indicator.frequency) + '</span>' +
+            (indicator.threshold_warn ? '<span data-s="sc8b6fad">Warn: ' + indicator.threshold_warn + '</span>' : '') +
+            (indicator.threshold_crit ? '<span data-s="s8d1240d">Crit: ' + indicator.threshold_crit + '</span>' : '') +
+            (indicator.auto_update_event_type ? '<span data-s="s58fa7f5">Auto: ' + esc(indicator.auto_update_event_type.replace(/_/g, ' ')) + '</span>' : '') +
           '</div>' +
           '<button type="button" class="btn btn-sm btn-primary" data-orm-kri-index="' + index + '">+ Add this KRI</button>' +
           '</div>';

@@ -49,12 +49,12 @@
       tbody.innerHTML = findings.map(function (f) {
         var actions = '';
         if (f.status === 'open') {
-          actions = '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-ack="' + f.id + '">Acknowledge</button>';
+          actions = '<button type="button" class="btn btn-ghost" data-s="s562fe77" data-ack="' + f.id + '">Acknowledge</button>';
         } else {
-          actions = '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-reopen="' + f.id + '">Reopen</button>';
+          actions = '<button type="button" class="btn btn-ghost" data-s="s562fe77" data-reopen="' + f.id + '">Reopen</button>';
         }
         var link = f.remediation_route
-          ? '<a href="' + esc(f.remediation_route) + '" style="display:block;margin-top:2px;font-size:11px">Open record &rarr;</a>' : '';
+          ? '<a href="' + esc(f.remediation_route) + '" data-s="se6fe00e" data-sd="block">Open record &rarr;</a>' : '';
         return '<tr>' +
           '<td><span class="rd-sev rd-sev-' + esc(f.severity) + '">' + esc(f.severity) + '</span></td>' +
           '<td>' + esc(f.module) + '</td>' +

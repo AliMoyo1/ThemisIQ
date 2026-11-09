@@ -57,13 +57,24 @@ def test_a_style_without_the_nonce_is_refused_and_the_print_window_keeps_its_own
     assert popup.evaluate("getComputedStyle(document.body).color") == "rgb(1, 2, 3)"
 
 
-# ── Pages that refuse every style attribute (STRICT_STYLE_PREFIXES) ─────────────────────────────────────────────────
+# ── Every page refuses style attributes (part 4) ───────────────────────────────────────────────────────────────────
 
 STRICT_ROUTES = [
     "/ai-governance/", "/ai-governance/platform-features", "/ai-governance/systems", "/ai-governance/registers",
     "/ai-governance/monitoring", "/ai-governance/assessments", "/ai-governance/assessments/new",
     "/ai-governance/decisions", "/ai-governance/regulatory", "/ai-governance/packs", "/ai-governance/register",
     "/ai-governance/requests", "/ai-governance/review", "/ai-governance/import",
+    "/", "/my-work", "/tasks", "/calendar", "/analytics", "/reports", "/risk-register", "/workflows", "/projects",
+    "/people", "/vendors", "/timeline", "/metrics", "/profile", "/mfa/setup", "/change-password", "/launcher",
+    "/admin/users", "/admin/ai-policy", "/admin/api-keys", "/admin/connectors", "/admin/email", "/admin/frameworks",
+    "/admin/logs", "/admin/security", "/admin/webhooks", "/super-admin/",
+    "/aria/", "/aria/documents", "/aria/frameworks", "/aria/mapping", "/aria/risks", "/aria/templates", "/aria/ask",
+    "/aria/ai-generator", "/aria/audit-log", "/bcm/", "/bcm/bia", "/bcm/plans", "/bcm/exercises", "/bcm/incidents",
+    "/erm/", "/erm/register", "/erm/appetite", "/erm/assessments", "/erm/indicators", "/erm/scenario-studio",
+    "/grid/", "/grid/audits", "/grid/controls", "/grid/findings", "/grid/gap-analysis", "/orm/", "/orm/events",
+    "/orm/indicators", "/orm/aims", "/sentinel/", "/sentinel/ropa", "/sentinel/dpia", "/sentinel/dsr",
+    "/sentinel/breaches", "/evidence/", "/evidence/companies/", "/evidence-campaigns/", "/governance/",
+    "/governance/group/figures/", "/readiness/", "/an/unknown/page",
 ]
 
 
@@ -73,8 +84,8 @@ def _refusals(page):
     return found
 
 
-@pytest.mark.parametrize("persona", ["super_admin", "dpo"])
-def test_ai_governance_pages_open_with_style_attributes_refused(login_as, live_app, persona):
+@pytest.mark.parametrize("persona", ["super_admin", "org_admin", "dpo"])
+def test_pages_open_with_style_attributes_refused(login_as, live_app, persona):
     page = login_as(persona)
     refused = _refusals(page)
     for route in STRICT_ROUTES:
@@ -83,6 +94,39 @@ def test_ai_governance_pages_open_with_style_attributes_refused(login_as, live_a
         assert "style-src-attr 'none'" in response.headers.get("content-security-policy", ""), route
         assert refused == [], f"{route}: {refused[:2]}"
         assert "!important" not in page.inner_text("body"), f"{route}: style rules are showing as page text"
+        assert page.evaluate("document.querySelectorAll('[data-sd],[data-sv]').length") == 0, f"{route}: not applied"
+
+
+def test_starting_display_and_run_time_values_apply_through_element_style(login_as, live_app):
+    """data-sd becomes element.style.display, so a script can still show the element by clearing it; data-sv values
+    apply after their checks (no fixed positioning, no URL); both attributes are removed once applied."""
+    page = login_as("risk_owner")
+    page.goto(f"{live_app}/erm/")
+    page.wait_for_load_state("networkidle", timeout=15000)
+    assert "/erm/" in page.url
+    # from the template: elements that start hidden are hidden through element.style, and no attribute is left
+    assert page.evaluate("""() => [document.querySelectorAll('[data-sd],[data-sv]').length,
+      [...document.querySelectorAll('body *')].some(e => e.style.display === 'none')]""") == [0, True]
+    result = page.evaluate("""async () => {
+      const box = document.createElement('div');
+      box.innerHTML = '<p id="zz1" data-sd="none">a</p>'
+        + '<p id="zz2" data-sv="width:37px;color:rgb(1, 2, 3);--zz-tone:#123456">b</p>'
+        + '<p id="zz3" data-sv="position:fixed;background:url(https://example.test/x);margin-left:5px;top:0">c</p>';
+      document.getElementById('mainContent').appendChild(box);
+      await Promise.resolve();
+      const one = document.getElementById('zz1'), two = document.getElementById('zz2'), three = document.getElementById('zz3');
+      const hidden = [one.style.display, getComputedStyle(one).display, one.hasAttribute('data-sd')];
+      one.style.display = '';
+      return {hidden, shown: getComputedStyle(one).display, width: getComputedStyle(two).width,
+              colour: getComputedStyle(two).color, custom: two.style.getPropertyValue('--zz-tone'),
+              position: getComputedStyle(three).position, background: three.style.background,
+              margin: three.style.marginLeft, top: three.style.top, left: three.hasAttribute('data-sv')};
+    }""")
+    assert result["hidden"] == ["none", "none", False]
+    assert result["shown"] == "block"
+    assert (result["width"], result["colour"], result["custom"]) == ("37px", "rgb(1, 2, 3)", "#123456")
+    assert result["position"] == "static" and result["background"] == "", "fixed positioning and URLs are refused"
+    assert (result["margin"], result["top"], result["left"]) == ("5px", "0px", False)
 
 
 @pytest.mark.expected_page_errors("the test injects a style attribute, and the browser reports refusing it")

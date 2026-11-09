@@ -146,7 +146,7 @@
   <a href="/bcm/incidents" class="nav-item" data-spa="/bcm/incidents">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     Incidents
-    <span class="nav-badge" id="navIncBadge" style="display:none">0</span>
+    <span class="nav-badge" id="navIncBadge" data-sd="none">0</span>
   </a>
   <a href="/bcm/exercises" class="nav-item" data-spa="/bcm/exercises">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -204,19 +204,19 @@
 
 <!-- AI Chat Card -->
 <div class="sidebar-bottom">
-  <a href="/bcm/chat" data-spa="/bcm/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">
-    <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
+  <a href="/bcm/chat" data-spa="/bcm/chat" data-s="s7db2fca" data-sd="block">
+    <div data-s="s5c05df5">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
-    <div style="font-size:24px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
-    <div style="font-size:14px;font-weight:700">Ask BCM AI...</div>
-    <div style="font-size:11px;opacity:0.7;margin-top:4px">Continuity planning guidance</div>
+    <div data-s="s9e5c33b"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-sparkles></use></svg></div>
+    <div data-s="sa1b26d5">Ask BCM AI...</div>
+    <div data-s="sffd8f2a">Continuity planning guidance</div>
   </a>
 </div>
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">BCM</span>
+<span data-s="s456fefd">BCM</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current" id="bcmBreadcrumb">Dashboard</span>
 {% endblock %}
@@ -235,7 +235,7 @@
     </div>
     <div class="header-actions">
       <a href="/bcm/api/export/csv" class="btn btn-secondary" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="sb17605b"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
       </a>
       <button class="btn btn-secondary" data-bcm-static-click="s0">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -247,21 +247,21 @@
   <!-- Active Plans Alert Banner -->
   <div class="active-plans-alert" id="activePlansAlert">
     <div class="live-badge">LIVE</div>
-    <div style="flex:1">
-      <span style="font-size:13px;font-weight:700;color:#dc2626" id="activePlansAlertText">Plans are currently activated</span>
-      <span style="font-size:12px;color:var(--muted);margin-left:8px">Your organisation has active continuity plans deployed.</span>
+    <div data-s="s97445a8">
+      <span data-s="sa56e747" id="activePlansAlertText">Plans are currently activated</span>
+      <span data-s="s7653ea3">Your organisation has active continuity plans deployed.</span>
     </div>
-    <button class="btn btn-secondary" style="font-size:12px" data-bcm-static-click="s1">View Active Plans</button>
+    <button class="btn btn-secondary" data-s="s6cb285c" data-bcm-static-click="s1">View Active Plans</button>
   </div>
 
   <!-- Sentinel Cross-Module: Active Data Breach Banner -->
-  <div id="bcmSentinelBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px;display:none;align-items:center;gap:10px">
-    <span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
-    <div style="flex:1">
-      <span style="font-size:13px;font-weight:700;color:var(--amber)">Active data breach detected in Sentinel</span>
-      <span style="font-size:12px;color:var(--muted);margin-left:8px" id="bcmSentinelBannerDetail"></span>
+  <div id="bcmSentinelBanner" data-s="s900d6cb" data-sd="none">
+    <span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span>
+    <div data-s="s97445a8">
+      <span data-s="s03b85b0">Active data breach detected in Sentinel</span>
+      <span data-s="s7653ea3" id="bcmSentinelBannerDetail"></span>
     </div>
-    <a href="/sentinel/" class="btn btn-secondary" style="font-size:12px;text-decoration:none">View in Sentinel →</a>
+    <a href="/sentinel/" class="btn btn-secondary" data-s="se1207cb">View in Sentinel →</a>
   </div>
 
   <!-- 4 Stat Cards -->
@@ -273,39 +273,39 @@
         <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
         <span>&mdash;</span>
       </div>
-      <div class="pbar"><div class="pbar-fill" id="bcmBiaBar" style="width:0;background:white"></div></div>
+      <div class="pbar"><div class="pbar-fill" id="bcmBiaBar" data-s="sbac24d8"></div></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Continuity Plans</div>
       <div class="stat-value" id="bcmPlanCount">&mdash;</div>
-      <div class="stat-trend" id="bcmPlanTrend" style="color:var(--muted)"><span>&mdash;</span></div>
+      <div class="stat-trend" id="bcmPlanTrend" data-s="s57f9e31"><span>&mdash;</span></div>
     </div>
     <div class="stat-card stat-card-incident">
       <div class="stat-label">Open Incidents</div>
-      <div class="stat-value" id="bcmIncidentCount" style="color:var(--red)">&mdash;</div>
-      <div class="stat-trend" id="bcmIncidentTrend" style="color:var(--red)"><span>&mdash;</span></div>
+      <div class="stat-value" id="bcmIncidentCount" data-s="s45e7ae4">&mdash;</div>
+      <div class="stat-trend" id="bcmIncidentTrend" data-s="s45e7ae4"><span>&mdash;</span></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Exercise Completion</div>
       <div class="stat-value" id="bcmExPct">&mdash;</div>
-      <div class="pbar"><div class="pbar-fill" id="bcmExBar" style="width:0;background:var(--accent)"></div></div>
+      <div class="pbar"><div class="pbar-fill" id="bcmExBar" data-s="sa174281"></div></div>
     </div>
   </div>
 
   <!-- Getting Started banner -->
-  <div id="bcmUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+  <div id="bcmUnavailable" class="card" role="alert" data-s="s5a936fa" data-sd="none">
     <span><strong>The programme figures could not be read just now.</strong> A dash means "not read", not zero.</span>
     <button type="button" class="btn btn-secondary btn-sm" data-bcm-static-click="s2">Try again</button>
   </div>
-  <div id="bcmOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Business Continuity</h3>
-      <button data-bcm-static-click="s3" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+  <div id="bcmOnboardBanner" class="card animate-fade-up anim-1" data-s="s8ab7f14" data-sd="none">
+    <div data-s="s13c1049" data-sd="flex">
+      <h3 data-s="s0e48de3">Getting Started with Business Continuity</h3>
+      <button data-bcm-static-click="s3" data-s="sf06225f" title="Dismiss">&times;</button>
     </div>
-    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-bcm-static-change="s4"> Run a Business Impact Analysis <a href="#" data-bcm-static-click="s5" style="color:var(--accent)">Start BIA</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-bcm-static-change="s4"> Create your first continuity plan <a href="#" data-bcm-static-click="s6" style="color:var(--accent)">View plans</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-bcm-static-change="s4"> Schedule a tabletop exercise <a href="#" data-bcm-static-click="s7" style="color:var(--accent)">Set up exercise</a></label>
+    <div data-s="se495055">
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-bcm-static-change="s4"> Run a Business Impact Analysis <a href="#" data-bcm-static-click="s5" data-s="sa805525">Start BIA</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-bcm-static-change="s4"> Create your first continuity plan <a href="#" data-bcm-static-click="s6" data-s="sa805525">View plans</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-bcm-static-change="s4"> Schedule a tabletop exercise <a href="#" data-bcm-static-click="s7" data-s="sa805525">Set up exercise</a></label>
     </div>
   </div>
 
@@ -314,45 +314,45 @@
     <div class="panel-card">
       <div class="panel-title">Plan Status</div>
       <div id="bcmPlanStatus">
-        <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+        <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
       </div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Risk Distribution</div>
-      <div id="bcmRiskDist" style="display:flex;align-items:center;gap:16px">
-        <div style="position:relative;width:110px;height:110px;flex-shrink:0">
+      <div id="bcmRiskDist" data-s="s33d6af7" data-sd="flex">
+        <div data-s="saea5ceb">
           <svg viewBox="0 0 120 120" width="110" height="110" id="bcmRiskDonut">
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface3)" stroke-width="10"/>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--red)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcCrit" style="transition:stroke-dasharray 1s ease"><title>Critical: 0 risks</title></circle>
+                    transform="rotate(-90 60 60)" id="riskArcCrit" data-s="s750482f"><title>Critical: 0 risks</title></circle>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--amber)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcHigh" style="transition:stroke-dasharray 1s ease"><title>High: 0 risks</title></circle>
+                    transform="rotate(-90 60 60)" id="riskArcHigh" data-s="s750482f"><title>High: 0 risks</title></circle>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--blue)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcMed" style="transition:stroke-dasharray 1s ease"><title>Medium: 0 risks</title></circle>
+                    transform="rotate(-90 60 60)" id="riskArcMed" data-s="s750482f"><title>Medium: 0 risks</title></circle>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--green-status)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcLow" style="transition:stroke-dasharray 1s ease"><title>Low: 0 risks</title></circle>
+                    transform="rotate(-90 60 60)" id="riskArcLow" data-s="s750482f"><title>Low: 0 risks</title></circle>
           </svg>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-            <div style="font-size:20px;font-weight:800;color:var(--text);line-height:1" id="riskTotal">&mdash;</div>
-            <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:2px">RISKS</div>
+          <div data-s="s05023b7" data-sd="flex">
+            <div data-s="sb0d386b" id="riskTotal">&mdash;</div>
+            <div data-s="s4140d85">RISKS</div>
           </div>
         </div>
         <div class="ring-legend" id="bcmRiskLegend">
-          <div class="ring-item"><div class="ring-dot" style="background:var(--red)"></div><div class="ring-lbl">Critical</div><div class="ring-val" id="riskCritVal">0</div></div>
-          <div class="ring-item"><div class="ring-dot" style="background:var(--amber)"></div><div class="ring-lbl">High</div><div class="ring-val" id="riskHighVal">0</div></div>
-          <div class="ring-item"><div class="ring-dot" style="background:var(--blue)"></div><div class="ring-lbl">Medium</div><div class="ring-val" id="riskMedVal">0</div></div>
-          <div class="ring-item"><div class="ring-dot" style="background:var(--green-status)"></div><div class="ring-lbl">Low</div><div class="ring-val" id="riskLowVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="sa14c7d6"></div><div class="ring-lbl">Critical</div><div class="ring-val" id="riskCritVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="s8014d76"></div><div class="ring-lbl">High</div><div class="ring-val" id="riskHighVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="s993d3db"></div><div class="ring-lbl">Medium</div><div class="ring-val" id="riskMedVal">0</div></div>
+          <div class="ring-item"><div class="ring-dot" data-s="s5568726"></div><div class="ring-lbl">Low</div><div class="ring-val" id="riskLowVal">0</div></div>
         </div>
       </div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Recent Activity</div>
       <div id="bcmRecentActivity">
-        <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+        <div data-s="s6629491"><div class="spinner" data-s="s266e9b0"></div></div>
       </div>
     </div>
   </div>
@@ -361,13 +361,13 @@
   <div class="card animate-fade-up anim-3">
     <div class="card-header">
       <span class="card-title">Active Incidents</span>
-      <a href="/bcm/incidents" class="btn btn-sm btn-secondary" data-spa="/bcm/incidents" style="cursor:pointer">View All</a>
+      <a href="/bcm/incidents" class="btn btn-sm btn-secondary" data-spa="/bcm/incidents" data-s="s3b6a3a6">View All</a>
     </div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Incident</th><th>Severity</th><th>Status</th><th>Reported Date</th><th>Assigned To</th><th>Impact</th></tr></thead>
         <tbody id="bcmIncidentBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -395,11 +395,11 @@
   </div>
   <div id="bcmBiaStats" class="bcm-view-stats"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Process / Function</th><th>Department</th><th>RTO</th><th>RPO</th><th>Criticality</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="bcmBiaBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -425,11 +425,11 @@
   </div>
   <div id="bcmPlanStats" class="bcm-view-stats"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Plan Name</th><th>Scope</th><th>Owner</th><th>Status</th><th>Last Reviewed</th><th>Actions</th></tr></thead>
         <tbody id="bcmPlanBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -454,7 +454,7 @@
   </div>
   <div id="bcmIncStats" class="bcm-view-stats"></div>
   <div class="card">
-    <div class="card-body" style="padding:12px 20px 6px">
+    <div class="card-body" data-s="s7cf50a3">
       <div class="filter-bar">
         <button type="button" class="filter-chip active" data-bcm-static-click="s13">All</button>
         <button type="button" class="filter-chip" data-bcm-static-click="s14">Active</button>
@@ -463,11 +463,11 @@
         <button type="button" class="filter-chip" data-bcm-static-click="s17">Closed</button>
       </div>
     </div>
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Title</th><th>Severity</th><th>Status</th><th>Declared</th><th>Assigned To</th><th>Actions</th></tr></thead>
         <tbody id="bcmIncViewBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -494,11 +494,11 @@
   </div>
   <div id="bcmExStats" class="bcm-view-stats"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Exercise Name</th><th>Type</th><th>Date</th><th>Status</th><th>Outcome</th><th>Actions</th></tr></thead>
         <tbody id="bcmExBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -523,11 +523,11 @@
   </div>
   <div id="bcmRiskStats" class="bcm-view-stats"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Risk Title</th><th>Category</th><th>Likelihood</th><th>Impact</th><th>Risk Level</th><th>Owner</th><th>Actions</th></tr></thead>
         <tbody id="bcmRiskBody">
-          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -554,12 +554,12 @@
     </div>
   </div>
   <div id="bcmDepSentinelBanner"></div>
-  <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Add the processes, systems and partners you rely on. Connect them to see what a disruption could affect.</p>
+  <p data-s="sa283584">Add the processes, systems and partners you rely on. Connect them to see what a disruption could affect.</p>
   <div class="dep-grid" id="bcmDepGrid">
-    <div style="text-align:center;padding:32px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+    <div data-s="s51a4943"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
-  <div class="card" style="margin-top:18px;padding:20px">
-    <div style="font-size:16px;font-weight:700;margin-bottom:12px">Connections</div>
+  <div class="card" data-s="se5a6480">
+    <div data-s="s6902610">Connections</div>
     <div id="bcmDepConnections">Connect two nodes to map their relationship.</div>
   </div>
 </div>
@@ -581,11 +581,11 @@
     </div>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Module Title</th><th>Category</th><th>Duration</th><th>Status</th><th>Completions</th><th>Actions</th></tr></thead>
         <tbody id="bcmTrainingBody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -606,33 +606,33 @@
       <button class="btn-bcm-gen" id="boardReportBtn" data-bcm-static-click="s24"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> AI Narrative</button>
     </div>
   </div>
-  <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:16px"></div>
-  <div class="stats-row" style="margin-bottom:24px">
-    <div class="stat-card" style="cursor:pointer" data-bcm-static-click="s25">
+  <div id="boardRptTraceMount" data-s="s3a3280e" data-sd="none"></div>
+  <div class="stats-row" data-s="s8677744">
+    <div class="stat-card" data-s="s3b6a3a6" data-bcm-static-click="s25">
       <div class="stat-label">BIA Coverage Report</div>
-      <div class="stat-value" style="font-size:16px">Generate</div>
+      <div class="stat-value" data-s="s1444c6e">Generate</div>
       <div class="stat-sub">Process coverage analysis</div>
     </div>
-    <div class="stat-card" style="cursor:pointer" data-bcm-static-click="s26">
+    <div class="stat-card" data-s="s3b6a3a6" data-bcm-static-click="s26">
       <div class="stat-label">Plan Status Report</div>
-      <div class="stat-value" style="font-size:16px">Generate</div>
+      <div class="stat-value" data-s="s1444c6e">Generate</div>
       <div class="stat-sub">Plan review &amp; approval status</div>
     </div>
-    <div class="stat-card" style="cursor:pointer" data-bcm-static-click="s27">
+    <div class="stat-card" data-s="s3b6a3a6" data-bcm-static-click="s27">
       <div class="stat-label">Incident Report</div>
-      <div class="stat-value" style="font-size:16px">Generate</div>
+      <div class="stat-value" data-s="s1444c6e">Generate</div>
       <div class="stat-sub">Incident history &amp; response times</div>
     </div>
-    <div class="stat-card" style="cursor:pointer" data-bcm-static-click="s28">
+    <div class="stat-card" data-s="s3b6a3a6" data-bcm-static-click="s28">
       <div class="stat-label">Exercise Report</div>
-      <div class="stat-value" style="font-size:16px">Generate</div>
+      <div class="stat-value" data-s="s1444c6e">Generate</div>
       <div class="stat-sub">Test results &amp; findings</div>
     </div>
   </div>
   <div class="card">
     <div class="card-header"><div class="card-title">Programme Dashboard</div></div>
-    <div class="card-body" id="bcmReportSummary" style="padding:20px">
-      <div style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+    <div class="card-body" id="bcmReportSummary" data-s="s769fed3">
+      <div data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 </div>
@@ -647,7 +647,7 @@
       <div class="section-sub">Business continuity guidance &amp; plan generation</div>
     </div>
   </div>
-  <div class="card" style="overflow:hidden">
+  <div class="card" data-s="s6982440">
     <div class="chat-container">
       <div class="chat-messages" id="bcmChatMessages">
         <div class="chat-msg ai">Hello! I'm your BCM AI assistant. Ask me about business continuity planning, incident response, BIA methodology, or recovery strategies.</div>
@@ -670,7 +670,7 @@
       <div class="section-sub">Pre-approved templates for incident communications: internal, external, media &amp; regulatory</div>
     </div>
     <div class="header-actions">
-      <select id="commsFilter" class="form-control" style="min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-bcm-static-change="s31">
+      <select id="commsFilter" class="form-control" data-s="s68ff526" data-bcm-static-change="s31">
         <option value="all">All Categories</option>
         <option value="all-staff">All Staff</option>
         <option value="internal">Internal</option>
@@ -685,8 +685,8 @@
       {% endif %}
     </div>
   </div>
-  <div id="commsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:8px">
-    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+  <div id="commsGrid" data-s="s6df45fa" data-sd="grid">
+    <div data-s="se3e8e97"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 
@@ -701,8 +701,8 @@
     </div>
     <button class="btn btn-primary" data-bcm-static-click="s34">+ Add Contact</button>
   </div>
-  <div id="contactTree" style="margin-top:8px">
-    <div style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+  <div id="contactTree" data-s="s8a77e5a">
+    <div data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 
@@ -716,7 +716,7 @@
       <div class="section-sub">Pre-built tabletop and functional exercise scenarios, click <strong>Use Scenario</strong> to spawn an exercise</div>
     </div>
     <div class="header-actions">
-      <select id="scenarioFilter" class="form-control" style="min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-bcm-static-change="s35">
+      <select id="scenarioFilter" class="form-control" data-s="s68ff526" data-bcm-static-change="s35">
         <option value="all">All Categories</option>
         <option value="cyber">Cyber</option>
         <option value="physical">Physical</option>
@@ -726,8 +726,8 @@
       </select>
     </div>
   </div>
-  <div id="scenariosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;margin-top:8px">
-    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+  <div id="scenariosGrid" data-s="sb754dec" data-sd="grid">
+    <div data-s="se3e8e97"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 
@@ -744,16 +744,16 @@
 
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Title</th><th>Source</th><th>Tags</th><th>Chunks</th><th>Added</th><th>Actions</th></tr></thead>
-        <tbody id="bcmDocBody"><tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="bcmDocBody"><tr><td colspan="6" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
-  <div class="card" style="margin-top:16px">
-    <div class="panel-title" style="padding:16px 20px 0">Document Q&amp;A</div>
-    <div class="chat-container" style="height:320px">
+  <div class="card" data-s="s1b0f499">
+    <div class="panel-title" data-s="s482f549">Document Q&amp;A</div>
+    <div class="chat-container" data-s="s79e0d09">
       <div class="chat-messages" id="bcmDocChatMsgs"><div class="chat-msg ai">Ask questions about your uploaded BCM documents...</div></div>
       <div class="chat-input-wrap">
         <input id="bcmDocQuestion" placeholder="e.g. What is our RTO for the finance system?" data-bcm-static-keydown="s37">
@@ -773,7 +773,7 @@
       <div class="section-sub">ISO 22301 and other BCM framework controls with evidence tracking</div>
     </div>
     <div class="header-actions">
-      <select id="complianceFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-bcm-static-change="s39">
+      <select id="complianceFilter" data-s="s7a36414" data-bcm-static-change="s39">
         <option value="">All Frameworks</option>
         <option value="ISO 22301:2019">ISO 22301</option>
         <option value="ISO 31000:2018">ISO 31000</option>
@@ -783,10 +783,10 @@
     </div>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Framework</th><th>Clause</th><th>Title</th><th>Status</th><th>Owner</th><th>Next Review</th><th>Actions</th></tr></thead>
-        <tbody id="bcmComplianceBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="bcmComplianceBody"><tr><td colspan="7" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -801,20 +801,20 @@
       <div class="section-title">BCM Vendor Register</div>
       <div class="section-sub">Critical vendor continuity — SLA, tier, and cross-module risk coverage</div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <a href="/vendors" class="module-directory-link" style="display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;transition:all .15s">
+    <div data-s="s250fc4e" data-sd="flex">
+      <a href="/vendors" class="module-directory-link" data-s="s86ea861" data-sd="inline-flex">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         Directory
       </a>
       <button class="btn btn-primary" data-bcm-static-click="s41">+ Add Vendor</button>
     </div>
   </div>
-  <div id="bcmVendorAlertBanner" style="margin-bottom:12px"></div>
+  <div id="bcmVendorAlertBanner" data-s="sda12f28"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Vendor</th><th>Category</th><th>Criticality</th><th>Tier</th><th>Privacy &amp; Audit</th><th>Contract Renewal</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="bcmVendorBody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="bcmVendorBody"><tr><td colspan="8" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>

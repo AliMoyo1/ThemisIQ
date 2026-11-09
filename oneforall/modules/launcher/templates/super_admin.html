@@ -79,43 +79,43 @@
 .panel-section h4{margin:0 0 12px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 </style>
 
-<div style="max-width:1180px;margin:0 auto;padding:28px 20px">
+<div data-s="sc935f4c">
 
   <!-- Header -->
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+  <div data-s="s5712a83" data-sd="flex">
     <div>
-      <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0">Super Admin</h1>
-      <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Tenant, subscription and licence management</p>
+      <h1 data-s="sccfd5e1">Super Admin</h1>
+      <p data-s="sdf9581e">Tenant, subscription and licence management</p>
     </div>
     <button class="sa-btn sa-btn-primary" data-sa-action="open-org">+ New Organisation</button>
   </div>
 
   <!-- Stats -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px">
-    <div class="sa-card" style="padding:16px 20px;margin:0">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Organisations</div>
-      <div id="statOrgs" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
+  <div data-s="s48b4a09" data-sd="grid">
+    <div class="sa-card" data-s="sd1b84f4">
+      <div data-s="s73f274d">Organisations</div>
+      <div id="statOrgs" data-s="sb4e3996">-</div>
     </div>
-    <div class="sa-card" style="padding:16px 20px;margin:0">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Total Users</div>
-      <div id="statUsers" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
+    <div class="sa-card" data-s="sd1b84f4">
+      <div data-s="s73f274d">Total Users</div>
+      <div id="statUsers" data-s="sb4e3996">-</div>
     </div>
-    <div class="sa-card" style="padding:16px 20px;margin:0">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Active Tenants</div>
-      <div id="statActive" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
+    <div class="sa-card" data-s="sd1b84f4">
+      <div data-s="s73f274d">Active Tenants</div>
+      <div id="statActive" data-s="sb4e3996">-</div>
     </div>
-    <div class="sa-card" style="padding:16px 20px;margin:0">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Expiring &lt; 30 days</div>
-      <div id="statExpiring" style="font-size:28px;font-weight:800;color:#b45309;margin-top:4px">-</div>
+    <div class="sa-card" data-s="sd1b84f4">
+      <div data-s="s73f274d">Expiring &lt; 30 days</div>
+      <div id="statExpiring" data-s="s64931fe">-</div>
     </div>
   </div>
 
   <!-- Platform tools: records the operator keeps about the platform itself, not about any organization -->
-  <div class="sa-card" style="padding:16px 20px;margin:0 0 20px">
-    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Platform tools</div>
-    <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
-      <a href="/ai-governance/platform-features" style="color:var(--accent);font-weight:600">Platform AI features</a>
-      <span style="color:var(--muted)">Owner, limitations, incident path and review date for each first-party AI feature. No organization's content is stored here.</span>
+  <div class="sa-card" data-s="sf63ff09">
+    <div data-s="s73f274d">Platform tools</div>
+    <div data-s="s64b7971" data-sd="flex">
+      <a href="/ai-governance/platform-features" data-s="s64ac89c">Platform AI features</a>
+      <span data-s="s57f9e31">Owner, limitations, incident path and review date for each first-party AI feature. No organization's content is stored here.</span>
     </div>
   </div>
 
@@ -129,10 +129,10 @@
   </div>
 
   <!-- Orgs table -->
-  <div class="sa-card" style="padding:0;overflow:hidden">
-    <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
-      <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--text)">Organisations</h2>
-      <input type="text" id="orgSearch" placeholder="Search..."  style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:12px;width:220px"/>
+  <div class="sa-card" data-s="s22a2674">
+    <div data-s="sf184f42" data-sd="flex">
+      <h2 data-s="sac50f8b">Organisations</h2>
+      <input type="text" id="orgSearch" placeholder="Search..."  data-s="sd322087"/>
     </div>
     <table class="sa-table">
       <thead>
@@ -143,60 +143,60 @@
           <th>Seats</th>
           <th>Renewal</th>
           <th>Status</th>
-          <th style="text-align:right">Actions</th>
+          <th data-s="s54c2afb">Actions</th>
         </tr>
       </thead>
       <tbody id="orgsBody">
-        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>
+        <tr><td colspan="7" data-s="sa1e3045">Loading...</td></tr>
       </tbody>
     </table>
   </div>
 
   <!-- Demo Requests section -->
-  <div style="margin-top:32px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+  <div data-s="sc2f8546">
+    <div data-s="s83c005e" data-sd="flex">
       <div>
-        <h2 style="margin:0;font-size:18px;font-weight:800;color:var(--text)">Demo Requests</h2>
-        <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Inbound requests from the landing page</p>
+        <h2 data-s="sdb79074">Demo Requests</h2>
+        <p data-s="sdf9581e">Inbound requests from the landing page</p>
       </div>
     </div>
 
     <!-- Stat cards -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
-      <div class="sa-card" style="padding:18px 20px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Total</div>
-        <div id="drStatTotal" style="font-size:28px;font-weight:800;color:var(--text)">-</div>
+    <div data-s="s56c5f8b" data-sd="grid">
+      <div class="sa-card" data-s="s2e47314">
+        <div data-s="s541cd36">Total</div>
+        <div id="drStatTotal" data-s="s90a9f85">-</div>
       </div>
-      <div class="sa-card" style="padding:18px 20px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">This Week</div>
-        <div id="drStatWeek" style="font-size:28px;font-weight:800;color:var(--text)">-</div>
+      <div class="sa-card" data-s="s2e47314">
+        <div data-s="s541cd36">This Week</div>
+        <div id="drStatWeek" data-s="s90a9f85">-</div>
       </div>
-      <div class="sa-card" style="padding:18px 20px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Pending</div>
-        <div id="drStatPending" style="font-size:28px;font-weight:800;color:#b45309">-</div>
+      <div class="sa-card" data-s="s2e47314">
+        <div data-s="s541cd36">Pending</div>
+        <div id="drStatPending" data-s="sdfa4de0">-</div>
       </div>
-      <div class="sa-card" style="padding:18px 20px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Contacted</div>
-        <div id="drStatContacted" style="font-size:28px;font-weight:800;color:#16a34a">-</div>
+      <div class="sa-card" data-s="s2e47314">
+        <div data-s="s541cd36">Contacted</div>
+        <div id="drStatContacted" data-s="sdaab1ad">-</div>
       </div>
     </div>
 
     <!-- 14-day chart -->
-    <div class="sa-card" style="padding:18px 20px;margin-bottom:20px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">Requests — Last 14 Days</div>
-      <div id="drChart" style="display:flex;align-items:flex-end;gap:6px;height:80px"></div>
-      <div id="drChartLabels" style="display:flex;gap:6px;margin-top:6px"></div>
+    <div class="sa-card" data-s="sacb6d9d">
+      <div data-s="sa0ab7d2">Requests — Last 14 Days</div>
+      <div id="drChart" data-s="s33968c0" data-sd="flex"></div>
+      <div id="drChartLabels" data-s="se763382" data-sd="flex"></div>
     </div>
 
     <!-- Filter pills + table -->
-    <div class="sa-card" style="padding:0;overflow:hidden">
-      <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px">
-        <div class="filter-pills" style="margin-bottom:0">
+    <div class="sa-card" data-s="s22a2674">
+      <div data-s="s54cde12" data-sd="flex">
+        <div class="filter-pills" data-s="sef0b7a1">
           <button class="filter-pill active" id="drFilterAll"     data-dr-filter="all">All</button>
           <button class="filter-pill"        id="drFilterPending" data-dr-filter="pending">Pending</button>
           <button class="filter-pill"        id="drFilterContacted" data-dr-filter="contacted">Contacted</button>
         </div>
-        <input type="text" id="drSearch" placeholder="Search name, email, company..."  style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:12px;width:280px"/>
+        <input type="text" id="drSearch" placeholder="Search name, email, company..."  data-s="sd03103f"/>
       </div>
       <table class="sa-table">
         <thead>
@@ -207,11 +207,11 @@
             <th>Plan</th>
             <th>Date</th>
             <th>Status</th>
-            <th style="text-align:right">Actions</th>
+            <th data-s="s54c2afb">Actions</th>
           </tr>
         </thead>
         <tbody id="drBody">
-          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>
+          <tr><td colspan="7" data-s="sa1e3045">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -223,11 +223,11 @@
 <div id="orgPanel" class="side-panel">
   <div class="side-panel-header">
     <div>
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Tenant</div>
-      <div id="panelTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px"></div>
-      <div id="panelSlug" style="font-size:12px;color:var(--muted);font-family:monospace;margin-top:2px"></div>
+      <div data-s="s73f274d">Tenant</div>
+      <div id="panelTitle" data-s="s3fb979a"></div>
+      <div id="panelSlug" data-s="sf8db265"></div>
     </div>
-    <button data-sa-action="close-panel" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px">&times;</button>
+    <button data-sa-action="close-panel" data-s="s44d6095">&times;</button>
   </div>
   <div class="side-panel-tabs">
     <button class="tab-btn active" data-tab="subscription" >Subscription</button>
@@ -240,7 +240,7 @@
     <div class="tab-pane active" id="tab-subscription">
       <div class="panel-section">
         <h4>Plan</h4>
-        <select id="editPlan" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px">
+        <select id="editPlan" data-s="s0d331eb">
           <option value="trial">Trial</option>
           <option value="starter">Starter</option>
           <option value="professional">Professional</option>
@@ -249,7 +249,7 @@
       </div>
       <div class="panel-section">
         <h4>Status</h4>
-        <select id="editStatus" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px">
+        <select id="editStatus" data-s="s0d331eb">
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
           <option value="cancelled">Cancelled</option>
@@ -257,31 +257,31 @@
       </div>
       <div class="panel-section">
         <h4>Seats</h4>
-        <input id="editSeats" type="number" min="1" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px"/>
-        <div id="seatHint" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+        <input id="editSeats" type="number" min="1" data-s="s0d331eb"/>
+        <div id="seatHint" data-s="s5c3809d"></div>
       </div>
       <div class="panel-section">
         <h4>Renewal Date</h4>
-        <input id="editValidUntil" type="date" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px"/>
-        <div style="font-size:11px;color:var(--muted);margin-top:6px">Leave blank for perpetual licence.</div>
+        <input id="editValidUntil" type="date" data-s="s0d331eb"/>
+        <div data-s="s5c3809d">Leave blank for perpetual licence.</div>
       </div>
-      <div style="display:flex;gap:10px;margin-top:24px">
-        <button class="sa-btn sa-btn-primary" data-sa-action="save-subscription" id="saveSubBtn" style="flex:1">Save Changes</button>
+      <div data-s="s20e900e" data-sd="flex">
+        <button class="sa-btn sa-btn-primary" data-sa-action="save-subscription" id="saveSubBtn" data-s="s97445a8">Save Changes</button>
         <button class="sa-btn sa-btn-danger" data-sa-action="delete-org" id="deleteOrgBtn">Delete</button>
       </div>
-      <div id="subErr" style="color:#dc2626;font-size:12px;margin-top:10px;display:none"></div>
+      <div id="subErr" data-s="sc88c51b" data-sd="none"></div>
     </div>
 
     <!-- Modules tab -->
     <div class="tab-pane" id="tab-modules">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Toggle modules for this tenant. Changes save instantly.</div>
+      <div data-s="sd489e5b">Toggle modules for this tenant. Changes save instantly.</div>
       <div id="moduleList"></div>
     </div>
 
     <!-- Users tab -->
     <div class="tab-pane" id="tab-users">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:12px;color:var(--muted)">Tenant users and roles</div>
+      <div data-s="sce63d6d" data-sd="flex">
+        <div data-s="s7fc448e">Tenant users and roles</div>
         <button class="sa-btn sa-btn-primary" data-sa-action="open-user">+ Add User</button>
       </div>
       <div id="usersList"></div>
@@ -291,10 +291,10 @@
 </div>
 
 <!-- Create Org Modal -->
-<div id="createOrgModal" style="display:none" class="modal-overlay" >
+<div id="createOrgModal" data-sd="none" class="modal-overlay" >
   <div class="modal-box">
-    <button data-sa-action="close-org" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">&times;</button>
-    <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">New Organisation</h3>
+    <button data-sa-action="close-org" data-s="s8969fcb">&times;</button>
+    <h3 data-s="s3c7e32f">New Organisation</h3>
     <div class="form-group">
       <label>Organisation Name</label>
       <input id="newOrgName" type="text" placeholder="Acme Corp"/>
@@ -310,15 +310,15 @@
     </div>
     <div class="form-group">
       <label>Modules</label>
-      <div id="newOrgModulesPicker" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+      <div id="newOrgModulesPicker" data-s="s8dddc49" data-sd="grid"></div>
       <input id="newOrgModules" type="hidden" value="aria,bcm,erm,grid,orm,sentinel"/>
     </div>
     <div class="form-group">
       <label>Seats</label>
       <input id="newOrgSeats" type="number" value="10" min="1"/>
     </div>
-    <div id="createOrgErr" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+    <div id="createOrgErr" data-s="s2ec8831" data-sd="none"></div>
+    <div data-s="s635f7ad" data-sd="flex">
       <button class="sa-btn sa-btn-secondary" data-sa-action="close-org">Cancel</button>
       <button class="sa-btn sa-btn-primary" data-sa-action="create-org" id="createOrgBtn">Create</button>
     </div>
@@ -326,10 +326,10 @@
 </div>
 
 <!-- Create User Modal -->
-<div id="createUserModal" style="display:none" class="modal-overlay" >
+<div id="createUserModal" data-sd="none" class="modal-overlay" >
   <div class="modal-box">
-    <button data-sa-action="close-user" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">&times;</button>
-    <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">Add User</h3>
+    <button data-sa-action="close-user" data-s="s8969fcb">&times;</button>
+    <h3 data-s="s3c7e32f">Add User</h3>
     <input type="hidden" id="newUserOrgId"/>
     <div class="form-group"><label>Full Name</label><input id="newUserName" type="text" placeholder="Jane Smith"/></div>
     <div class="form-group"><label>Username</label><input id="newUserUsername" type="text" placeholder="jsmith"/></div>
@@ -348,8 +348,8 @@
         <option value="employee">Employee (read-only)</option>
       </select>
     </div>
-    <div id="createUserErr" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+    <div id="createUserErr" data-s="s2ec8831" data-sd="none"></div>
+    <div data-s="s635f7ad" data-sd="flex">
       <button class="sa-btn sa-btn-secondary" data-sa-action="close-user">Cancel</button>
       <button class="sa-btn sa-btn-primary" data-sa-action="create-user" id="createUserBtn">Create User</button>
     </div>

@@ -131,7 +131,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">Platform</span>
+<span data-s="s456fefd">Platform</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current" id="wfBreadcrumb">Workflows</span>
 {% endblock %}
@@ -170,7 +170,7 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">My Pending</div>
-    <div class="stat-value" id="statPending" style="color:var(--amber)">--</div>
+    <div class="stat-value" id="statPending" data-s="s08935a7">--</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Completed</div>
@@ -178,17 +178,17 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">SLA Breached</div>
-    <div class="stat-value" id="statSlaBreached" style="color:var(--red)">--</div>
+    <div class="stat-value" id="statSlaBreached" data-s="s45e7ae4">--</div>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- PENDING ACTIONS BANNER                                                -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="card animate-fade-up anim-2" id="pendingBanner" style="display:none;border-left:3px solid var(--amber);margin-bottom:16px">
+<div class="card animate-fade-up anim-2" id="pendingBanner" data-s="sb35eb38" data-sd="none">
   <div class="card-header">
-    <span class="card-title" style="color:var(--amber)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="vertical-align:-3px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span class="card-title" data-s="s08935a7">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" data-s="s23f1074"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       Actions Awaiting Your Decision
     </span>
   </div>
@@ -212,7 +212,7 @@
 <div class="wf-panel active" id="panel-templates">
   <div class="filter-row" id="tplFilters"></div>
   <div class="tpl-grid" id="tplGrid">
-    <div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+    <div data-s="sf649963"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 
@@ -220,20 +220,20 @@
 <!-- TAB: DEFINITIONS                                                      -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="wf-panel" id="panel-definitions">
-  <div class="card" style="overflow:hidden">
-    <div style="overflow-x:auto">
+  <div class="card" data-s="s6982440">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr>
           <th>Workflow</th>
           <th>Trigger</th>
-          <th style="text-align:center">Steps</th>
-          <th style="text-align:center">Instances</th>
+          <th data-s="s91a8701">Steps</th>
+          <th data-s="s91a8701">Instances</th>
           <th>Created By</th>
-          <th style="text-align:center">Status</th>
-          <th style="text-align:center">Actions</th>
+          <th data-s="s91a8701">Status</th>
+          <th data-s="s91a8701">Actions</th>
         </tr></thead>
         <tbody id="defBody">
-          <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -252,20 +252,20 @@
     <button class="chip" data-wf-filter="returned">Returned</button>
     <input type="search" id="instSearch" class="wf-search" placeholder="Search flows…" >
   </div>
-  <div class="card" style="overflow:hidden">
-    <div style="overflow-x:auto">
+  <div class="card" data-s="s6982440">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr>
           <th>Workflow</th>
           <th>Entity</th>
           <th>Current Step</th>
-          <th style="text-align:center">Progress</th>
+          <th data-s="s91a8701">Progress</th>
           <th>Started By</th>
           <th>Started</th>
-          <th style="text-align:center">Status</th>
+          <th data-s="s91a8701">Status</th>
         </tr></thead>
         <tbody id="instBody">
-          <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -277,17 +277,17 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="wf-panel" id="panel-sla">
   <!-- SLA Stats -->
-  <div class="stats-row" id="slaStats" style="margin-bottom:20px">
+  <div class="stats-row" id="slaStats" data-s="s49f14f8">
     <div class="stat-card"><div class="stat-label">Definitions</div><div class="stat-value" id="slStatDefs">--</div></div>
     <div class="stat-card"><div class="stat-label">Active SLAs</div><div class="stat-value" id="slStatActive">--</div></div>
-    <div class="stat-card"><div class="stat-label">Breached</div><div class="stat-value" id="slStatBreached" style="color:var(--red)">--</div></div>
-    <div class="stat-card"><div class="stat-label">At Risk</div><div class="stat-value" id="slStatRisk" style="color:var(--amber)">--</div></div>
+    <div class="stat-card"><div class="stat-label">Breached</div><div class="stat-value" id="slStatBreached" data-s="s45e7ae4">--</div></div>
+    <div class="stat-card"><div class="stat-label">At Risk</div><div class="stat-value" id="slStatRisk" data-s="s08935a7">--</div></div>
     <div class="stat-card stat-card-hero"><div class="stat-label">Compliance</div><div class="stat-value" id="slStatCompliance">--</div></div>
     <div class="stat-card"><div class="stat-label">Resolved</div><div class="stat-value" id="slStatResolved">--</div></div>
   </div>
 
   <!-- SLA Sub-tabs -->
-  <div style="display:flex;gap:2px;background:var(--surface2);border-radius:var(--radius);padding:3px;margin-bottom:16px;width:fit-content">
+  <div data-s="sd6512de" data-sd="flex">
     <button class="wf-tab active" data-sla-tab="defs">Policies</button>
     <button class="wf-tab" data-sla-tab="inst">Tracked SLAs</button>
     <button class="wf-tab" data-sla-tab="breach">Breach Monitor</button>
@@ -295,7 +295,7 @@
 
   <!-- Sub-panel: Policies -->
   <div class="sla-sub active" id="slaSub-defs">
-    <div class="section-header" style="margin-bottom:16px">
+    <div class="section-header" data-s="s87c136d">
       <div><div class="section-sub">Define response, resolution &amp; escalation time limits per entity type</div></div>
       <div class="header-actions">
         {% if can_author_sla %}<button class="btn btn-primary" data-wf-action="new-sla">
@@ -305,13 +305,13 @@
       </div>
     </div>
     <div class="sla-grid" id="slaGrid">
-      <div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+      <div data-s="sf649963"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
   <!-- Sub-panel: Tracked SLAs -->
-  <div class="sla-sub" id="slaSub-inst" style="display:none">
-    <div class="section-header" style="margin-bottom:16px">
+  <div class="sla-sub" id="slaSub-inst" data-sd="none">
+    <div class="section-header" data-s="s87c136d">
       <div><div class="section-sub">Active &amp; resolved SLA tracking instances</div></div>
       <div class="header-actions">
         <button class="btn btn-primary" data-wf-action="start-sla">
@@ -326,16 +326,16 @@
       <button class="chip" data-sla-filter="breached">Breached</button>
       <button class="chip" data-sla-filter="resolved">Resolved</button>
     </div>
-    <div class="card" style="overflow:hidden">
-      <div style="overflow-x:auto">
+    <div class="card" data-s="s6982440">
+      <div data-s="s0ddf068">
         <table class="data-table">
           <thead><tr>
             <th>SLA Policy</th><th>Entity</th><th>Priority</th>
-            <th style="text-align:center">Response</th><th style="text-align:center">Resolution</th>
-            <th style="text-align:center">Status</th><th style="text-align:center">Actions</th>
+            <th data-s="s91a8701">Response</th><th data-s="s91a8701">Resolution</th>
+            <th data-s="s91a8701">Status</th><th data-s="s91a8701">Actions</th>
           </tr></thead>
           <tbody id="slaInstBody">
-            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+            <tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -343,8 +343,8 @@
   </div>
 
   <!-- Sub-panel: Breach Monitor -->
-  <div class="sla-sub" id="slaSub-breach" style="display:none">
-    <div class="section-header" style="margin-bottom:16px">
+  <div class="sla-sub" id="slaSub-breach" data-sd="none">
+    <div class="section-header" data-s="s87c136d">
       <div><div class="section-sub">Real-time breach detection across all active SLAs</div></div>
       <div class="header-actions">
         <button class="btn btn-secondary" data-wf-action="breach-check">
@@ -354,17 +354,17 @@
       </div>
     </div>
     <div id="breachResults">
-      <div style="text-align:center;padding:36px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:8px;font-size:12px">Scanning SLAs…</div></div>
+      <div data-s="s2c0605f"><div class="spinner" data-s="s266e9b0"></div><div data-s="sc5b0b89">Scanning SLAs…</div></div>
     </div>
-    <div class="card" style="overflow:hidden;margin-top:16px">
+    <div class="card" data-s="s3663848">
       <div class="card-header"><span class="card-title">Breached SLAs</span></div>
-      <div style="overflow-x:auto">
+      <div data-s="s0ddf068">
         <table class="data-table">
           <thead><tr>
-            <th>SLA Policy</th><th>Entity</th><th>Breach Type</th><th>Started</th><th style="text-align:center">Status</th><th style="text-align:center">Actions</th>
+            <th>SLA Policy</th><th>Entity</th><th>Breach Type</th><th>Started</th><th data-s="s91a8701">Status</th><th data-s="s91a8701">Actions</th>
           </tr></thead>
           <tbody id="breachBody">
-            <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">No breached SLAs</td></tr>
+            <tr><td colspan="6" data-s="s810afb2">No breached SLAs</td></tr>
           </tbody>
         </table>
       </div>
@@ -376,7 +376,7 @@
 <!-- TAB: NOTIFICATION TEMPLATES                                           -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="wf-panel" id="panel-comms">
-  <div class="section-header" style="margin-bottom:16px">
+  <div class="section-header" data-s="s87c136d">
     <div>
       <div class="section-sub">Reusable email &amp; notification templates with variable placeholders</div>
     </div>
@@ -387,8 +387,8 @@
       </button>{% endif %}
     </div>
   </div>
-  <div class="card" style="overflow:hidden">
-    <div style="overflow-x:auto">
+  <div class="card" data-s="s6982440">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr>
           <th>Template</th>
@@ -396,11 +396,11 @@
           <th>Module</th>
           <th>Subject</th>
           <th>Body Preview</th>
-          <th style="text-align:center">v</th>
-          <th style="text-align:center">Actions</th>
+          <th data-s="s91a8701">v</th>
+          <th data-s="s91a8701">Actions</th>
         </tr></thead>
         <tbody id="commBody">
-          <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+          <tr><td colspan="7" data-s="s810afb2"><div class="spinner" data-s="s266e9b0"></div></td></tr>
         </tbody>
       </table>
     </div>

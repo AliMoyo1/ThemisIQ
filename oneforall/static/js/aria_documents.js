@@ -78,7 +78,7 @@ function filterPickerDD(prefix) {
   var dd = document.getElementById(prefix + '-ctrl-dropdown');
   dd.innerHTML = '';
   if (!_ctrlOptions.length) {
-    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">No controls loaded</div>';
+    dd.innerHTML = '<div data-s="sce44318">No controls loaded</div>';
     dd.style.display = '';
     return;
   }
@@ -88,7 +88,7 @@ function filterPickerDD(prefix) {
     return (c.ref + ' ' + c.name + ' ' + c.fw).toLowerCase().indexOf(q) !== -1;
   });
   if (!matches.length) {
-    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">' +
+    dd.innerHTML = '<div data-s="sce44318">' +
       (selRefs.length ? 'All matching controls selected' : 'No matching controls') + '</div>';
     dd.style.display = '';
     return;
@@ -222,7 +222,7 @@ async function analyseFile() {
   var statusEl = document.getElementById('analyseStatus');
   btn.disabled = true;
   btn.style.opacity = '.6';
-  statusEl.innerHTML = '<span style="color:var(--accent)">Extracting metadata...</span>';
+  statusEl.innerHTML = '<span data-s="sa805525">Extracting metadata...</span>';
 
   var form = new FormData();
   form.append('file', _addFile);
@@ -231,7 +231,7 @@ async function analyseFile() {
     var res = await fetch('/aria/documents/parse-upload', { method: 'POST', body: form });
     var data = await res.json();
     if (!data.ok) {
-      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Could not extract: ' + esc(data.error || 'unknown error') + '</span>';
+      statusEl.innerHTML = '<span data-s="sf9408e8">Could not extract: ' + esc(data.error || 'unknown error') + '</span>';
       return;
     }
 
@@ -250,12 +250,12 @@ async function analyseFile() {
     }
 
     if (filled.length > 0) {
-      statusEl.innerHTML = '<span style="color:var(--green-status,#16a34a)">Filled in: ' + filled.join(', ') + '. Review and adjust below.</span>';
+      statusEl.innerHTML = '<span data-s="s15540fe">Filled in: ' + filled.join(', ') + '. Review and adjust below.</span>';
     } else {
-      statusEl.innerHTML = '<span style="color:var(--muted)">No structured metadata found. Please fill in the details below.</span>';
+      statusEl.innerHTML = '<span data-s="s57f9e31">No structured metadata found. Please fill in the details below.</span>';
     }
   } catch(e) {
-    statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Extraction failed. Fill in manually below.</span>';
+    statusEl.innerHTML = '<span data-s="sf9408e8">Extraction failed. Fill in manually below.</span>';
   } finally {
     btn.disabled = false;
     btn.style.opacity = '1';
@@ -334,7 +334,7 @@ async function openEditModal(doc) {
 
     var revisionActionEl = document.getElementById('edit-revision-action');
     revisionActionEl.innerHTML =
-      '<button type="button" class="btn btn-ghost" style="font-size:12px;padding:6px 14px" id="edit-start-revision-btn">Start a revision</button>';
+      '<button type="button" class="btn btn-ghost" data-s="s2cbaf86" id="edit-start-revision-btn">Start a revision</button>';
     document.getElementById('edit-start-revision-btn').onclick = function () {
       AriaPolicyWorkflow.ui.startRevision(doc);
     };
@@ -413,7 +413,7 @@ async function uploadRevision() {
   if (!file) { showToast('Select a file to upload', 'error'); return; }
   var docId = document.getElementById('edit-doc-id').value;
   var statusEl = document.getElementById('edit-revision-status');
-  statusEl.innerHTML = '<span style="color:var(--accent)">Uploading...</span>';
+  statusEl.innerHTML = '<span data-s="sa805525">Uploading...</span>';
   var form = new FormData();
   form.append('file', file);
   form.append('notes', 'Manual revision upload');
@@ -422,15 +422,15 @@ async function uploadRevision() {
     var data = await res.json();
     if (data.success) {
       var ver = esc(String(data.version||''));
-      statusEl.innerHTML = '<span style="color:var(--green-status,#16a34a)">Uploaded - v' + ver + '. Status set to Under Review.</span>';
+      statusEl.innerHTML = '<span data-s="s15540fe">Uploaded - v' + ver + '. Status set to Under Review.</span>';
       document.getElementById('edit-version').value = data.version;
       document.getElementById('edit-status').value = 'Under Review';
       showToast('Revision uploaded - v' + ver);
     } else {
-      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + esc(data.error || 'Failed') + '</span>';
+      statusEl.innerHTML = '<span data-s="sf9408e8">' + esc(data.error || 'Failed') + '</span>';
     }
   } catch(e) {
-    statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Upload failed</span>';
+    statusEl.innerHTML = '<span data-s="sf9408e8">Upload failed</span>';
   }
 }
 
@@ -439,22 +439,22 @@ async function applyTemplate() {
   if (!tplId) { showToast('Select a template first', 'error'); return; }
   var docId = document.getElementById('edit-doc-id').value;
   var statusEl = document.getElementById('edit-template-status');
-  statusEl.innerHTML = '<span style="color:var(--accent)">Applying template...</span>';
+  statusEl.innerHTML = '<span data-s="sa805525">Applying template...</span>';
   var form = new FormData();
   form.append('template_id', tplId);
   try {
     var res = await fetch('/aria/documents/' + encodeURIComponent(docId) + '/apply-template', { method: 'POST', body: form });
     var data = await res.json();
     if (data.ok) {
-      statusEl.innerHTML = '<span style="color:var(--green-status,#16a34a)">Template applied. Download the branded version below.</span>';
+      statusEl.innerHTML = '<span data-s="s15540fe">Template applied. Download the branded version below.</span>';
       document.getElementById('edit-download-row').style.display = 'block';
       document.getElementById('edit-download-link').href = '/aria/documents/' + encodeURIComponent(docId) + '/download';
       showToast('Branding template applied');
     } else {
-      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + esc(data.error || 'Failed') + '</span>';
+      statusEl.innerHTML = '<span data-s="sf9408e8">' + esc(data.error || 'Failed') + '</span>';
     }
   } catch(e) {
-    statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Template application failed</span>';
+    statusEl.innerHTML = '<span data-s="sf9408e8">Template application failed</span>';
   }
 }
 

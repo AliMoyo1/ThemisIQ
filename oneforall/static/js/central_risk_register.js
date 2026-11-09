@@ -9,11 +9,11 @@ async function loadStats() {
   const resp = await fetch('/api/risks/stats');
   const s = await resp.json();
   document.getElementById('riskStats').innerHTML = `
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Total Open</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${safeCount(s.total)}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Critical</div><div style="font-size:22px;font-weight:700;color:var(--bad);margin-top:2px;">${safeCount(s.by_level?.critical)}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">High</div><div style="font-size:22px;font-weight:700;color:#f97316;margin-top:2px;">${safeCount(s.by_level?.high)}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Medium</div><div style="font-size:22px;font-weight:700;color:var(--warn);margin-top:2px;">${safeCount(s.by_level?.medium)}</div></div>
-    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Low</div><div style="font-size:22px;font-weight:700;color:var(--good);margin-top:2px;">${safeCount(s.by_level?.low)}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Total Open</div><div data-s="s745dcfb">${safeCount(s.total)}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Critical</div><div data-s="sb3437ed">${safeCount(s.by_level?.critical)}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">High</div><div data-s="s0b9497f">${safeCount(s.by_level?.high)}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Medium</div><div data-s="s12a73a9">${safeCount(s.by_level?.medium)}</div></div>
+    <div class="card" data-s="sfdf20b9"><div data-s="s94ea384">Low</div><div data-s="s4513d46">${safeCount(s.by_level?.low)}</div></div>
   `;
   renderHeatMap(s.heat_map);
 }
@@ -28,7 +28,7 @@ function renderHeatMap(data) {
       const count = safeCount(cell?.count);
       const score = l * i;
       const bg = score >= 20 ? 'rgba(248,113,113,0.6)' : score >= 12 ? 'rgba(249,115,22,0.5)' : score >= 6 ? 'rgba(251,191,36,0.4)' : 'rgba(74,222,128,0.3)';
-      html += '<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:4px;background:' + bg + ';font-size:11px;font-weight:600;color:var(--text);">' + (count || '') + '</div>';
+      html += '<div data-sv="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:4px;background:' + bg + ';font-size:11px;font-weight:600;color:var(--text);">' + (count || '') + '</div>';
     }
   }
   grid.innerHTML = html;
@@ -51,19 +51,19 @@ async function loadRisks(page) {
 
   const tbody = document.getElementById('riskBody');
   if (!risks.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--muted);">No risks found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" data-s="sc0add8c">No risks found</td></tr>';
     document.getElementById('riskPager').innerHTML = '';
     return;
   }
 
   tbody.innerHTML = risks.map(r => `
-    <tr style="border-bottom:1px solid var(--border-soft);">
-      <td style="padding:10px 14px;"><div style="font-weight:500;font-size:13px;color:var(--text);">${esc(r.title)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(r.category)}</div></td>
-      <td style="padding:10px 14px;text-align:center;"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;background:${Object.hasOwn(levelBg, r.risk_level) ? levelBg[r.risk_level] : 'var(--surface3)'};color:${Object.hasOwn(levelColors, r.risk_level) ? levelColors[r.risk_level] : 'var(--muted)'};">${esc(r.risk_score)}</span></td>
-      <td style="padding:10px 14px;font-size:12px;text-transform:uppercase;color:var(--muted);">${esc(r.source_module||'—')}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--text);">${esc(r.treatment)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--text);">${esc(r.owner_name||'Unassigned')}</td>
-      <td style="padding:10px 14px;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:var(--surface3);color:var(--muted);">${esc(r.status)}</span></td>
+    <tr data-s="sc91b18f">
+      <td data-s="s9944357"><div data-s="s1ae31e3">${esc(r.title)}</div><div data-s="s3823a5b">${esc(r.category)}</div></td>
+      <td data-s="s9c0b302"><span data-sv="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;background:${Object.hasOwn(levelBg, r.risk_level) ? levelBg[r.risk_level] : 'var(--surface3)'};color:${Object.hasOwn(levelColors, r.risk_level) ? levelColors[r.risk_level] : 'var(--muted)'};">${esc(r.risk_score)}</span></td>
+      <td data-s="s6a6318d">${esc(r.source_module||'—')}</td>
+      <td data-s="s0a1e521">${esc(r.treatment)}</td>
+      <td data-s="s0a1e521">${esc(r.owner_name||'Unassigned')}</td>
+      <td data-s="s9944357"><span data-s="s046e0ea">${esc(r.status)}</span></td>
     </tr>
   `).join('');
 

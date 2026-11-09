@@ -119,35 +119,65 @@ def test_style_elements_need_the_nonce_of_their_own_response(monkeypatch):
     # The fallback for older browsers must not name a nonce: that would switch off its 'unsafe-inline' for style
     # attributes too and strip every page of its layout.
     assert _directive(first, "style-src") == ["'self'", "'unsafe-inline'"]
-    # Style attributes stay allowed until the pages stop building them (the plan records why and how to end it).
-    assert _directive(first, "style-src-attr") == ["'unsafe-inline'"]
-    # Converted modules refuse every style attribute, and keep the same fallback and nonce.
-    strict, strict_nonce = _policy_and_nonce("/ai-governance/registers")
-    assert _directive(strict, "style-src-attr") == ["'none'"]
-    assert _directive(strict, "style-src-elem") == ["'self'", f"'nonce-{strict_nonce}'"]
-    assert _directive(strict, "style-src") == ["'self'", "'unsafe-inline'"]
+    # Every page refuses style attributes, injected or not.
+    for path in ("/", "/ai-governance/registers", "/erm/register", "/login", "/reports/runs/12/print", "/an/unknown"):
+        policy, page_nonce = _policy_and_nonce(path)
+        assert _directive(policy, "style-src-attr") == ["'none'"], path
+        assert _directive(policy, "style-src-elem") == ["'self'", f"'nonce-{page_nonce}'"], path
 
 
 STYLE_ATTR = re.compile(r"""\bstyle\s*=\s*\\?["']""", re.I)
-SCRIPT_SRC = re.compile(r"/static/js/([\w.\-]+\.js)")
-SHELL = ["templates/base_shell.html", "templates/_platform_trainer.html"]
+SET_STYLE_ATTR = re.compile(r"""setAttribute\(\s*['"]style['"]""")
 
 
-def test_strict_style_pages_and_the_shell_write_no_style_attribute():
-    """A module listed in STRICT_STYLE_PREFIXES, and the shell around it, must not write style="...": the browser would
-    drop it. Setting element.style from a script is allowed and is how run-time values are applied."""
-    templates = [ROOT / p for p in SHELL] + sorted((ROOT / "modules/ai_governance/templates").glob("*.html"))
-    assert [p for p in middleware.STRICT_STYLE_PREFIXES] == ["/ai-governance"], "add the new module's templates here"
-    scripts = set()
-    for template in templates:
-        markup = template.read_text(encoding="utf-8")
-        assert not STYLE_ATTR.search(markup), f"{template.relative_to(ROOT)} writes a style attribute"
-        scripts.update(SCRIPT_SRC.findall(markup))
-    assert "shell_core.js" in scripts and "related_items.js" in scripts and "ai_governance_registers.js" in scripts
-    for name in sorted(scripts):
-        source = (ROOT / "static/js" / name).read_text(encoding="utf-8")
-        assert not STYLE_ATTR.search(source), f"{name} writes a style attribute into markup"
-        assert not re.search(r"setAttribute\(\s*['\"]style['\"]", source), f"{name} sets a style attribute"
+def _pages():
+    return [p for p in ROOT.rglob("*.html") if not {".venv", "node_modules", "tests"} & set(p.parts)]
+
+
+def _project_scripts():
+    return [p for p in (ROOT / "static/js").rglob("*.js") if ".min." not in p.name and "vendor" not in p.parts]
+
+
+def test_no_page_or_script_writes_a_style_attribute():
+    """The browser drops every style="..." (style-src-attr 'none'). Fixed styles are classes or data-s tokens, a
+    starting display is data-sd and a value filled in at run time is data-sv (static/js/style_tokens.js), or a script
+    sets element.style, which the policy allows."""
+    for page in _pages():
+        assert not STYLE_ATTR.search(page.read_text(encoding="utf-8")), f"{page.relative_to(ROOT)} writes a style attribute"
+    for script in _project_scripts():
+        source = script.read_text(encoding="utf-8")
+        assert not STYLE_ATTR.search(source), f"{script.name} writes a style attribute into markup"
+        assert not SET_STYLE_ATTR.search(source), f"{script.name} sets a style attribute"
+        # small element helpers take {style: '...'} and copy every key with setAttribute: style must go to cssText
+        if re.search(r"""[{,]\s*style\s*:\s*['"`]""", source):
+            assert ".style.cssText = " in source, f"{script.name} passes style: to a helper that may set the attribute"
+    # HTML that Python serves to a browser (emails are not pages and keep their inline styles)
+    for module in ("core/report_kit/render_html.py", "core/report_kit/charts.py"):
+        assert not re.search(r"""\sstyle=\\?["']""", (ROOT / module).read_text(encoding="utf-8")), module
+
+
+def test_every_page_loads_the_style_tokens_first():
+    """Every full page (one with a <head>) loads the token stylesheet and the script that applies data-sd and data-sv,
+    and loads them before its own styles so a page rule can still override a token with !important as before."""
+    heads = [p for p in _pages() if re.search(r"<head[\s>]", p.read_text(encoding="utf-8"))]
+    assert len(heads) >= 10
+    for page in heads:
+        markup = page.read_text(encoding="utf-8")
+        head = markup[:markup.index("</head>")]
+        css, js = head.rfind("<link", 0, head.find("/static/css/style-tokens.css")), head.find('<script src="/static/js/style_tokens.js')
+        assert css > 0 and js > 0 and "/static/css/style-tokens.css" in head, f"{page.relative_to(ROOT)} does not load the style tokens"
+        first_style = min([i for i in (head.find("<style"), head.find('rel="stylesheet"')) if i >= 0] or [len(head)])
+        assert css <= first_style, f"{page.relative_to(ROOT)} loads a stylesheet before the tokens"
+        assert "defer" not in head[js:head.index(">", js)], "style_tokens.js must run as the page is parsed"
+
+
+def test_every_token_a_page_uses_has_its_rule():
+    rules = set(re.findall(r'\[data-s="(s[0-9a-f]{7})"\]', (ROOT / "static/css/style-tokens.css").read_text(encoding="utf-8")))
+    assert len(rules) > 1500
+    used = set()
+    for source in [*_pages(), *_project_scripts()]:
+        used.update(re.findall(r"""data-s=\\?["'](s[0-9a-f]{7})""", source.read_text(encoding="utf-8")))
+    assert used and used <= rules, sorted(used - rules)[:10]
 
 
 def test_every_style_element_in_a_page_carries_the_nonce():

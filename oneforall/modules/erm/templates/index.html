@@ -174,7 +174,7 @@
 {% block module_sidebar %}{% include "_erm_sidebar.html" %}{% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">ERM</span>
+<span data-s="s456fefd">ERM</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current" id="ermBreadcrumb">Dashboard</span>
 {% endblock %}
@@ -191,7 +191,7 @@
     </div>
     <div class="header-actions">
       <a href="/erm/api/export/csv" class="btn btn-secondary" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" data-s="sb17605b"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
       </a>
       <button class="btn btn-secondary" data-erm-click="ermNav('/erm/register')">View Register</button>
       <button class="btn btn-primary" data-erm-click="ermOpenRiskModal()">+ Add Risk</button>
@@ -199,26 +199,26 @@
   </div>
 
   <!-- Hero stats -->
-  <div class="stats-row animate-fade-up anim-1" id="dashStatRow" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+  <div class="stats-row animate-fade-up anim-1" id="dashStatRow" data-s="s68d79cd">
     <div class="stat-card stat-card-hero">
       <div class="stat-label">Total Risks</div>
       <div class="stat-value" id="dTotalRisks">—</div>
       <div class="stat-sub" id="dTotalSub">enterprise + platform</div>
-      <div class="stat-trend" id="dTrendTotal" style="font-size:11px;margin-top:4px"></div>
+      <div class="stat-trend" id="dTrendTotal" data-s="scdff1de"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Critical</div>
-      <div class="stat-value" id="dCritical" style="color:var(--red)">—</div>
-      <div class="stat-trend" id="dTrendCrit" style="font-size:11px;margin-top:4px"></div>
+      <div class="stat-value" id="dCritical" data-s="s45e7ae4">—</div>
+      <div class="stat-trend" id="dTrendCrit" data-s="scdff1de"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Appetite Breaches</div>
-      <div class="stat-value" id="dAppetiteBreaches" style="color:var(--amber)">—</div>
+      <div class="stat-value" id="dAppetiteBreaches" data-s="s08935a7">—</div>
       <div class="stat-sub">categories over threshold</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Overdue Obligations</div>
-      <div class="stat-value" id="dObligations" style="color:var(--red)">—</div>
+      <div class="stat-value" id="dObligations" data-s="s45e7ae4">—</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Board-Visible</div>
@@ -230,25 +230,25 @@
   <!-- PLAN-26: Posture filter bar. Only the posture block below (KPI row,
        watchlist, trajectory) responds to these; the legacy stats above
        intentionally stay whole-tenant/unfiltered. -->
-  <div class="erm-filter-bar" id="dashFilterBar" style="margin-top:16px">
+  <div class="erm-filter-bar" id="dashFilterBar" data-s="s1b0f499">
     <label class="sr-only" for="dashCatFilter">Filter by category</label>
-    <select id="dashCatFilter" data-erm-change="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
+    <select id="dashCatFilter" data-erm-change="ermLoadDashboard()" data-s="sf9a0f9a">
       <option value="">All Categories</option>
     </select>
     <label class="sr-only" for="dashPillarFilter">Filter by pillar</label>
-    <select id="dashPillarFilter" data-erm-change="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
+    <select id="dashPillarFilter" data-erm-change="ermLoadDashboard()" data-s="sf9a0f9a">
       <option value="">All Pillars</option>
     </select>
     <label class="sr-only" for="dashBuFilter">Filter by business unit</label>
-    <select id="dashBuFilter" data-erm-change="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;display:none">
+    <select id="dashBuFilter" data-erm-change="ermLoadDashboard()" data-s="sf9a0f9a" data-sd="none">
       <option value="">All Business Units</option>
     </select>
     <label class="sr-only" for="dashObjectiveFilter">Filter by objective</label>
-    <select id="dashObjectiveFilter" data-erm-change="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
+    <select id="dashObjectiveFilter" data-erm-change="ermLoadDashboard()" data-s="sf9a0f9a">
       <option value="">All Objectives</option>
     </select>
     <label class="sr-only" for="dashPeriodFilter">Filter by time period</label>
-    <select id="dashPeriodFilter" data-erm-change="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
+    <select id="dashPeriodFilter" data-erm-change="ermLoadDashboard()" data-s="sf9a0f9a">
       <option value="">All time</option>
       <option value="year">Last 12 months</option>
       <option value="quarter">Last quarter (90 days)</option>
@@ -257,64 +257,64 @@
   </div>
 
   <!-- PLAN-26: Risk posture KPI row (residual, filtered) -->
-  <div class="panel-card animate-fade-up anim-1" style="margin-top:12px">
-    <div class="panel-title">Risk Posture <span style="font-size:10px;color:var(--muted);font-weight:400">(residual exposure, responds to filters above)</span></div>
-    <div id="dashPostureRow" class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-top:8px"></div>
+  <div class="panel-card animate-fade-up anim-1" data-s="s56f4356">
+    <div class="panel-title">Risk Posture <span data-s="s8e93b13">(residual exposure, responds to filters above)</span></div>
+    <div id="dashPostureRow" class="stats-row" data-s="s49b6db8"></div>
   </div>
 
   <!-- PLAN-26: High-risk watchlist + trajectory -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px" class="animate-fade-up anim-2">
+  <div data-s="s20ef848" data-sd="grid" class="animate-fade-up anim-2">
     <div class="panel-card">
-      <div class="panel-title">High-Risk Watchlist <span style="font-size:10px;color:var(--muted);font-weight:400">(RRR ≥ 15)</span></div>
-      <div id="dashWatchlist"><div class="spinner" style="margin:0 auto"></div></div>
+      <div class="panel-title">High-Risk Watchlist <span data-s="s8e93b13">(RRR ≥ 15)</span></div>
+      <div id="dashWatchlist"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
     <div class="panel-card">
-      <div class="panel-title">Risk Trajectory <span style="font-size:10px;color:var(--muted);font-weight:400">(avg RRR vs avg IRR by month)</span></div>
-      <div id="dashTrajectory"><div class="spinner" style="margin:0 auto"></div></div>
+      <div class="panel-title">Risk Trajectory <span data-s="s8e93b13">(avg RRR vs avg IRR by month)</span></div>
+      <div id="dashTrajectory"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
   <!-- Getting Started banner (shown when no risks exist) -->
-  <div id="ermOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Enterprise Risk</h3>
-      <button data-erm-click="ermDismissOnboarding()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+  <div id="ermOnboardBanner" class="card animate-fade-up anim-1" data-s="s8ab7f14" data-sd="none">
+    <div data-s="s13c1049" data-sd="flex">
+      <h3 data-s="s0e48de3">Getting Started with Enterprise Risk</h3>
+      <button data-erm-click="ermDismissOnboarding()" data-s="sf06225f" title="Dismiss">&times;</button>
     </div>
-    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Define your risk appetite categories <a href="#" data-erm-click="event.preventDefault();ermRouter.navigate('/erm/appetite')" style="color:var(--accent)">Set up now</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Add your first enterprise risk <a href="#" data-erm-click="event.preventDefault();ermOpenRiskModal()" style="color:var(--accent)">Add risk</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Browse the risk library for templates <a href="#" data-erm-click="event.preventDefault();ermRouter.navigate('/erm/library')" style="color:var(--accent)">Open library</a></label>
-      <label style="display:block;cursor:pointer"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Create compliance obligations <a href="#" data-erm-click="event.preventDefault();ermRouter.navigate('/erm/obligations')" style="color:var(--accent)">View obligations</a></label>
+    <div data-s="se495055">
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Define your risk appetite categories <a href="#" data-erm-click="event.preventDefault();ermRouter.navigate('/erm/appetite')" data-s="sa805525">Set up now</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Add your first enterprise risk <a href="#" data-erm-click="event.preventDefault();ermOpenRiskModal()" data-s="sa805525">Add risk</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Browse the risk library for templates <a href="#" data-erm-click="event.preventDefault();ermRouter.navigate('/erm/library')" data-s="sa805525">Open library</a></label>
+      <label data-s="s3b6a3a6" data-sd="block"><input type="checkbox" data-erm-change="ermMarkChecklistItem(this)"> Create compliance obligations <a href="#" data-erm-click="event.preventDefault();ermRouter.navigate('/erm/obligations')" data-s="sa805525">View obligations</a></label>
     </div>
   </div>
 
   <!-- Row 2: Heat map + Appetite + Top Critical -->
   <div class="three-col animate-fade-up anim-2">
     <div class="panel-card">
-      <div class="panel-title">Risk Heat Map <span style="font-size:10px;color:var(--muted);font-weight:400">(click cell to filter)</span></div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Likelihood (rows 1–5) × Impact (cols 1–5)</div>
-      <div id="ermHeatMap"><div class="spinner" style="margin:0 auto"></div></div>
+      <div class="panel-title">Risk Heat Map <span data-s="s8e93b13">(click cell to filter)</span></div>
+      <div data-s="sa0f62e4">Likelihood (rows 1–5) × Impact (cols 1–5)</div>
+      <div id="ermHeatMap"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Appetite Status</div>
-      <div id="ermAppetitePanel"><div class="spinner" style="margin:0 auto"></div></div>
-      <div style="margin-top:10px"><a href="#" data-spa="/erm/appetite" style="font-size:12px;color:var(--accent);text-decoration:none">View all →</a></div>
+      <div id="ermAppetitePanel"><div class="spinner" data-s="s266e9b0"></div></div>
+      <div data-s="sd2c171b"><a href="#" data-spa="/erm/appetite" data-s="sb1f9f3f">View all →</a></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Top 5 Critical Risks</div>
-      <div id="ermTopCritical"><div class="spinner" style="margin:0 auto"></div></div>
+      <div id="ermTopCritical"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 
   <!-- Row 3: Actions Required + Feed -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px" class="animate-fade-up anim-3">
+  <div data-s="s5cf4b9b" data-sd="grid" class="animate-fade-up anim-3">
     <div class="panel-card">
       <div class="panel-title">Actions Required</div>
-      <div id="ermActionsRequired"><div class="spinner" style="margin:0 auto"></div></div>
+      <div id="ermActionsRequired"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Cross-Module Risk Feed</div>
-      <div id="ermFeedPanel"><div class="spinner" style="margin:0 auto"></div></div>
+      <div id="ermFeedPanel"><div class="spinner" data-s="s266e9b0"></div></div>
     </div>
   </div>
 </div>
@@ -328,7 +328,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" data-erm-click="ermPickImportFile()" title="Import risks from Excel">⬆ Import Excel</button>
-      <input type="file" id="ermImportFile" accept=".xlsx,.xls,.xlsm" style="display:none" data-erm-change="ermImportExcel(this)">
+      <input type="file" id="ermImportFile" accept=".xlsx,.xls,.xlsm" data-sd="none" data-erm-change="ermImportExcel(this)">
       <button class="btn btn-secondary" data-erm-click="ermExportCSV()" title="Export visible rows to CSV">⬇ Export</button>
       <button class="btn btn-primary" data-erm-click="ermOpenRiskModal()">+ Add Risk</button>
     </div>
@@ -342,37 +342,37 @@
     <button type="button" class="erm-chip" data-status="accepted">Accepted</button>
     <button type="button" class="erm-chip" data-status="closed">Closed</button>
     <label class="sr-only" for="regCatFilter">Filter by category</label>
-    <select id="regCatFilter" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600" data-erm-change="ermRenderRegister()">
+    <select id="regCatFilter" data-s="sf9a0f9a" data-erm-change="ermRenderRegister()">
       <option value="">All Categories</option>
     </select>
     <label class="sr-only" for="regSearch">Search risks</label>
     <input class="erm-search" id="regSearch" placeholder="Search risks…" data-erm-input="ermRenderRegister()">
   </div>
   <!-- Import result banner -->
-  <div id="ermImportResult" style="display:none" class="card" style="margin-bottom:14px;padding:16px"></div>
+  <div id="ermImportResult" data-sd="none" class="card" data-s="s1645647"></div>
   <!-- Stats strip -->
-  <div id="regStats" class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:14px"></div>
+  <div id="regStats" class="stats-row" data-s="s71221bb"></div>
   <!-- Auto-elevation banner -->
-  <div id="regXmBanner" style="display:none"></div>
+  <div id="regXmBanner" data-sd="none"></div>
   <!-- Bulk action bar (hidden until rows selected) -->
-  <div id="ermBulkBar" class="erm-bulk-bar" style="display:none">
-    <span id="ermBulkCount" style="font-size:13px;font-weight:600;color:var(--text)">0 selected</span>
-    <div style="width:1px;height:20px;background:var(--border)"></div>
+  <div id="ermBulkBar" class="erm-bulk-bar" data-sd="none">
+    <span id="ermBulkCount" data-s="s3da0680">0 selected</span>
+    <div data-s="s20c70bb"></div>
     <button class="btn btn-sm btn-secondary" data-erm-click="ermBulkStatus()">Change Status ▼</button>
     <button class="btn btn-sm btn-secondary" data-erm-click="ermBulkAssign()">Assign Owner ▼</button>
-    <button class="btn btn-sm btn-secondary" data-erm-click="ermBulkDelete()" style="color:var(--red)">Delete</button>
+    <button class="btn btn-sm btn-secondary" data-erm-click="ermBulkDelete()" data-s="s45e7ae4">Delete</button>
     <button class="btn btn-sm btn-secondary" data-erm-click="ermClearSelection()">✕ Clear</button>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table" id="ermRegTable">
         <thead><tr>
-          <th style="width:32px"><input type="checkbox" id="regSelectAll" data-erm-change="ermSelectAll(this)" aria-label="Select all risks" style="cursor:pointer"></th>
+          <th data-s="s82b9d86"><input type="checkbox" id="regSelectAll" data-erm-change="ermSelectAll(this)" aria-label="Select all risks" data-s="s3b6a3a6"></th>
           <th>Ref</th><th>Risk</th><th>Category</th><th>Score</th><th>Level</th>
           <th>Status</th><th>Owner</th><th>Review</th><th>Residual</th><th>RRR</th>
-          <th>Source</th><th style="width:60px">Actions</th>
+          <th>Source</th><th data-s="sbd09c41">Actions</th>
         </tr></thead>
-        <tbody id="ermRegBody"><tr><td colspan="13" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="ermRegBody"><tr><td colspan="13" data-s="s453f6c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -387,8 +387,8 @@
     </div>
     <button class="btn btn-primary" data-erm-click="ermOpenAppetiteModal()">+ Set Appetite</button>
   </div>
-  <div id="ermAppetiteGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:8px">
-    <div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
+  <div id="ermAppetiteGrid" data-s="s23c4e03" data-sd="grid">
+    <div data-s="s6ffcb09"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 
@@ -401,7 +401,7 @@
     </div>
     <div class="header-actions">
       <label class="sr-only" for="libCatFilter">Filter by category</label>
-      <select id="libCatFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" data-erm-change="ermLoadLibrary()">
+      <select id="libCatFilter" data-s="s7a36414" data-erm-change="ermLoadLibrary()">
         <option value="">All Categories</option>
         <option value="technology">Technology</option><option value="operational">Operational</option>
         <option value="compliance">Compliance</option><option value="financial">Financial</option>
@@ -413,17 +413,17 @@
       {% endif %}
     </div>
   </div>
-  <div class="erm-filter-bar" style="margin-bottom:16px">
+  <div class="erm-filter-bar" data-s="s87c136d">
     <label class="sr-only" for="libSearch">Search templates</label>
-    <input class="erm-search" id="libSearch" placeholder="Search templates…" data-erm-input="ermFilterLibrary()" style="max-width:320px">
+    <input class="erm-search" id="libSearch" placeholder="Search templates…" data-erm-input="ermFilterLibrary()" data-s="s3521b3d">
     <button type="button" class="erm-chip active" data-industry="">All Industries</button>
     <button type="button" class="erm-chip" data-industry="telecom">Telecom</button>
     <button type="button" class="erm-chip" data-industry="banking">Banking</button>
     <button type="button" class="erm-chip" data-industry="healthcare">Healthcare</button>
     <button type="button" class="erm-chip" data-industry="general">General</button>
   </div>
-  <div id="ermLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px">
-    <div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
+  <div id="ermLibGrid" data-s="se2d9b87" data-sd="grid">
+    <div data-s="s6ffcb09"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 
@@ -432,12 +432,12 @@
      Uses the T02 shared dialog contract/manager, loaded globally by
      base_shell.html, and the existing /erm/api/library endpoints. -->
 <div class="modal-overlay" id="libItemModal" role="dialog" aria-modal="true" aria-labelledby="libItemModal-title">
-  <div class="modal" style="max-width:560px">
+  <div class="modal" data-s="s765d57b">
     <div class="modal-header">
-      <h3 id="libItemModal-title" style="margin:0;font-size:16px">Add Template</h3>
+      <h3 id="libItemModal-title" data-s="s4499790">Add Template</h3>
       <button class="modal-close" data-erm-click="ModalManager.close('libItemModal')" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <input type="hidden" id="lib-item-id">
       <div class="form-group">
         <label class="form-label">Title *</label>
@@ -496,8 +496,8 @@
         <label class="form-label">Tags (comma-separated)</label>
         <input type="text" id="lib-tags" maxlength="200">
       </div>
-      <div id="lib-item-error" class="aria-workflow-hint" style="display:none;color:var(--red,#dc2626)"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <div id="lib-item-error" class="aria-workflow-hint" data-s="sf9408e8" data-sd="none"></div>
+      <div data-s="sd28ceac" data-sd="flex">
         <button class="btn btn-ghost" data-erm-click="ModalManager.close('libItemModal')">Cancel</button>
         <button class="btn btn-primary" id="lib-item-save-btn" data-erm-click="ermSaveLibraryItem()">Save Template</button>
       </div>
@@ -513,7 +513,7 @@
       <div class="section-sub" id="rgDesc">The active rating methodology used to score risks in this register</div>
     </div>
   </div>
-  <div id="ermRatingGuideBody"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+  <div id="ermRatingGuideBody"><div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div></div>
 </div>
 
 <!-- ══════════════════════ RISK RATING FRAMEWORKS (admin editor) ══════════════════════ -->
@@ -523,13 +523,13 @@
       <div class="section-title">Rating Frameworks</div>
       <div class="section-sub">Build, import, and activate risk rating methodologies for this organization</div>
     </div>
-    <div style="display:flex;gap:10px">
+    <div data-s="sf3d7ce7" data-sd="flex">
       <button class="btn btn-secondary" data-erm-click="fwImportPick()">Import</button>
-      <input type="file" id="fwImportFile" accept=".json" style="display:none" data-erm-change="fwImportFile(this.files[0])">
+      <input type="file" id="fwImportFile" accept=".json" data-sd="none" data-erm-change="fwImportFile(this.files[0])">
       <button class="btn btn-primary" data-erm-click="fwOpenNewModal()">+ New Framework</button>
     </div>
   </div>
-  <div id="fwListRoot"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+  <div id="fwListRoot"><div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div></div>
   <div id="fwEditorRoot"></div>
 </div>
 
@@ -540,18 +540,18 @@
       <div class="section-title">Objectives & Pillars</div>
       <div class="section-sub">Assessment contexts: strategic, standard, and departmental objectives, plus organisational pillars</div>
     </div>
-    <div style="display:flex;gap:10px">
+    <div data-s="sf3d7ce7" data-sd="flex">
       <button class="btn btn-secondary" data-erm-click="objOpenPillarModal()">+ New Pillar</button>
       <button class="btn btn-primary" data-erm-click="objOpenObjectiveModal()">+ New Objective</button>
     </div>
   </div>
-  <div class="panel-card" style="margin-bottom:16px">
+  <div class="panel-card" data-s="s87c136d">
     <div class="panel-title">Objectives</div>
-    <div id="objObjectivesList"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+    <div id="objObjectivesList"><div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div></div>
   </div>
   <div class="panel-card">
     <div class="panel-title">Pillars</div>
-    <div id="objPillarsList"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+    <div id="objPillarsList"><div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div></div>
   </div>
 </div>
 
@@ -562,20 +562,20 @@
       <div class="section-title">External Context</div>
       <div class="section-sub">Emerging risks from manual entries and an AI horizon scan of reliable sources</div>
     </div>
-    <div style="display:flex;gap:10px">
+    <div data-s="sf3d7ce7" data-sd="flex">
       <button class="btn btn-secondary" data-erm-click="extOpenAddModal()">+ Add Item</button>
-      <button class="btn btn-primary" id="extScanBtn" style="display:none" data-erm-click="extRunScan(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Scan for emerging risks</button>
+      <button class="btn btn-primary" id="extScanBtn" data-sd="none" data-erm-click="extRunScan(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg> Scan for emerging risks</button>
     </div>
   </div>
-  <div id="extScanState" role="status" style="font-size:12px;color:var(--muted)"></div>
-  <div id="extScanTraceMount" style="display:none;max-width:420px;margin-bottom:14px"></div>
-  <div class="erm-filter-bar" id="extStatusBar" style="margin-bottom:14px">
+  <div id="extScanState" role="status" data-s="s7fc448e"></div>
+  <div id="extScanTraceMount" data-s="s9b0c7d5" data-sd="none"></div>
+  <div class="erm-filter-bar" id="extStatusBar" data-s="s2b583d7">
     <button type="button" class="erm-chip active" data-status="new">New</button>
     <button type="button" class="erm-chip" data-status="dismissed">Dismissed</button>
     <button type="button" class="erm-chip" data-status="added">Added</button>
     <button type="button" class="erm-chip" data-status="">All</button>
   </div>
-  <div id="extInboxList"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+  <div id="extInboxList"><div data-s="sc282580"><div class="spinner" data-s="s266e9b0"></div></div></div>
 </div>
 
 <!-- ══════════════════════ OBLIGATIONS ══════════════════════ -->
@@ -587,21 +587,21 @@
     </div>
     <button class="btn btn-primary" data-erm-click="ermOpenOblModal()">+ Add Obligation</button>
   </div>
-  <div id="oblStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
+  <div id="oblStats" class="stats-row" data-s="sbc04c77"></div>
   <div class="erm-filter-bar" id="oblFilterBar">
     <button type="button" class="erm-chip active" data-status="">All</button>
     <button type="button" class="erm-chip" data-status="pending">Pending</button>
     <button type="button" class="erm-chip" data-status="compliant">Compliant</button>
     <button type="button" class="erm-chip" data-status="non_compliant">Non-Compliant</button>
     <button type="button" class="erm-chip" data-status="under_review">Under Review</button>
-    <input class="erm-search" id="oblSearch" placeholder="Search regulator…" data-erm-input="ermRenderObligations()" style="max-width:220px">
+    <input class="erm-search" id="oblSearch" placeholder="Search regulator…" data-erm-input="ermRenderObligations()" data-s="s27af898">
   </div>
-  <div id="oblAlertBanner" style="display:none;margin-bottom:12px"></div>
+  <div id="oblAlertBanner" data-s="sda12f28" data-sd="none"></div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Regulator</th><th>Regulation</th><th>Obligation</th><th>Owner</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="ermOblBody"><tr><td colspan="7" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="ermOblBody"><tr><td colspan="7" data-s="s453f6c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -616,7 +616,7 @@
     </div>
     <button class="btn btn-primary" data-erm-click="ermOpenAssessmentModal()">+ New Assessment</button>
   </div>
-  <div id="assessStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
+  <div id="assessStats" class="stats-row" data-s="sbc04c77"></div>
   <div class="erm-filter-bar" id="assessFilterBar">
     <button type="button" class="erm-chip active" data-status="">All</button>
     <button type="button" class="erm-chip" data-status="draft">Draft</button>
@@ -624,10 +624,10 @@
     <button type="button" class="erm-chip" data-status="closed">Closed</button>
   </div>
   <div class="card">
-    <div style="overflow-x:auto">
+    <div data-s="s0ddf068">
       <table class="data-table">
         <thead><tr><th>Title</th><th>Type</th><th>Questions</th><th>Responses</th><th>Status</th><th>Due</th><th>Actions</th></tr></thead>
-        <tbody id="ermAssessBody"><tr><td colspan="7" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        <tbody id="ermAssessBody"><tr><td colspan="7" data-s="s453f6c2"><div class="spinner" data-s="s266e9b0"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -640,76 +640,76 @@
       <div class="section-title">Reports &amp; Analytics</div>
       <div class="section-sub">AI-generated board narratives and risk analytics</div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div data-s="s4725bb7" data-sd="flex">
       <button class="btn btn-secondary" data-erm-click="ermOpenBoardDocument()"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-text></use></svg> Board Report PDF</button>
       <button class="btn-erm-ai" id="ermBoardRptBtn" data-erm-click="ermBoardReport(this)"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-chart-column></use></svg> Generate AI Narrative</button>
     </div>
   </div>
-  <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:20px"></div>
+  <div id="boardRptTraceMount" data-s="s2acdad1" data-sd="none"></div>
   <!-- Stats strip -->
-  <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px">
+  <div class="stats-row" data-s="se1c0332">
     <div class="stat-card" id="rptTotal"><div class="stat-label">Total Risks</div><div class="stat-value">—</div></div>
-    <div class="stat-card" id="rptCritical"><div class="stat-label">Critical</div><div class="stat-value" style="color:var(--red)">—</div></div>
-    <div class="stat-card" id="rptHigh"><div class="stat-label">High</div><div class="stat-value" style="color:var(--amber)">—</div></div>
+    <div class="stat-card" id="rptCritical"><div class="stat-label">Critical</div><div class="stat-value" data-s="s45e7ae4">—</div></div>
+    <div class="stat-card" id="rptHigh"><div class="stat-label">High</div><div class="stat-value" data-s="s08935a7">—</div></div>
     <div class="stat-card" id="rptBreaches"><div class="stat-label">Appetite Breaches</div><div class="stat-value">—</div></div>
     <div class="stat-card" id="rptBoard"><div class="stat-label">Board-Visible</div><div class="stat-value">—</div></div>
   </div>
   <!-- 3-panel row: donut + by-module + by-category -->
-  <div class="three-col" style="margin-bottom:20px">
+  <div class="three-col" data-s="s49f14f8">
     <div class="panel-card">
       <div class="panel-title">Risk Level Distribution</div>
-      <div id="rptDonut" style="padding:8px 0"></div>
+      <div id="rptDonut" data-s="sd8c0226"></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Risks by Source Module</div>
-      <div id="rptByModule" style="padding:8px 0"></div>
+      <div id="rptByModule" data-s="sd8c0226"></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">By Category</div>
-      <div id="rptByCategory" style="padding:8px 0"></div>
+      <div id="rptByCategory" data-s="sd8c0226"></div>
     </div>
   </div>
   <!-- Appetite compliance matrix + Assessment summary -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <div data-s="s5cf4b9b" data-sd="grid">
     <div class="panel-card">
       <div class="panel-title">Appetite Compliance</div>
-      <div id="rptAppetiteMatrix" style="padding:8px 0"></div>
+      <div id="rptAppetiteMatrix" data-s="sd8c0226"></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Assessment Results Summary</div>
-      <div id="rptAssessments" style="padding:8px 0"></div>
+      <div id="rptAssessments" data-s="sd8c0226"></div>
     </div>
   </div>
   <!-- Risk Trend + Aging row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <div data-s="s5cf4b9b" data-sd="grid">
     <div class="panel-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="panel-title" style="margin-bottom:0">Risk Trend</div>
-        <div style="display:flex;gap:4px" id="trendPeriodBtns">
+      <div data-s="sce63d6d" data-sd="flex">
+        <div class="panel-title" data-s="sef0b7a1">Risk Trend</div>
+        <div data-s="sd767683" data-sd="flex" id="trendPeriodBtns">
           <button class="erm-chip active" data-days="30" data-erm-click="ermSelectTrendPeriod(this)">30d</button>
           <button class="erm-chip" data-days="60" data-erm-click="ermSelectTrendPeriod(this)">60d</button>
           <button class="erm-chip" data-days="90" data-erm-click="ermSelectTrendPeriod(this)">90d</button>
         </div>
       </div>
-      <div class="erm-trend-wrap"><div id="rptTrendChart" style="width:100%;height:120px">Loading…</div></div>
+      <div class="erm-trend-wrap"><div id="rptTrendChart" data-s="sa631afc">Loading…</div></div>
     </div>
     <div class="panel-card">
       <div class="panel-title">Risk Aging</div>
-      <div id="rptAgingChart" style="padding:8px 0">Loading…</div>
+      <div id="rptAgingChart" data-s="sd8c0226">Loading…</div>
     </div>
   </div>
   <!-- Board report output -->
-  <div id="boardRptOutput" style="display:none">
+  <div id="boardRptOutput" data-sd="none">
     <div class="panel-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div class="panel-title" style="margin-bottom:0">Board Report</div>
-        <div style="display:flex;gap:8px">
+      <div data-s="s16d36c0" data-sd="flex">
+        <div class="panel-title" data-s="sef0b7a1">Board Report</div>
+        <div data-s="s33fcd4c" data-sd="flex">
           <button class="btn btn-sm btn-secondary" data-erm-click="ermCopyBoardReport()">Copy</button>
           <button class="btn btn-sm btn-secondary" data-erm-click="ermDownloadBoardReport()">⬇ .txt</button>
           <button class="btn btn-sm btn-secondary" data-erm-click="ermHideBoardReport()">Close</button>
         </div>
       </div>
-      <div id="boardRptText" style="white-space:pre-wrap;line-height:1.8;font-size:14px;color:var(--text)"></div>
+      <div id="boardRptText" data-s="s2699116"></div>
     </div>
   </div>
 </div>
@@ -721,24 +721,24 @@
       <div class="section-title">Ask ERM AI</div>
       <div class="section-sub">Risk management advice, treatment planning, regulatory guidance</div>
     </div>
-    <button class="btn btn-secondary" data-erm-click="ermClearChat()" style="font-size:12px">Clear History</button>
+    <button class="btn btn-secondary" data-erm-click="ermClearChat()" data-s="s6cb285c">Clear History</button>
   </div>
-  <div class="card" style="overflow:hidden">
-    <div style="display:flex;flex-direction:column;height:calc(100vh - 230px);min-height:420px">
-      <div id="ermChatMsgs" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px">
-        <div style="align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5">
+  <div class="card" data-s="s6982440">
+    <div data-s="sc246b1c" data-sd="flex">
+      <div id="ermChatMsgs" data-s="s319cc41" data-sd="flex">
+        <div data-s="s72ba990">
           Hello! I'm your ERM AI assistant. Ask me about risk scoring, treatment strategies, appetite frameworks, or regulatory requirements.
         </div>
       </div>
       <!-- Prompt chips -->
-      <div id="ermPromptChips" style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;background:var(--surface2)">
+      <div id="ermPromptChips" data-s="s9877835" data-sd="flex">
         <button type="button" class="chat-prompt-chip" data-erm-click="ermQuickPrompt(this)">Suggest treatment for my top risk</button>
         <button type="button" class="chat-prompt-chip" data-erm-click="ermQuickPrompt(this)">Summarise our appetite breaches</button>
         <button type="button" class="chat-prompt-chip" data-erm-click="ermQuickPrompt(this)">Key GDPR obligations to track</button>
         <button type="button" class="chat-prompt-chip" data-erm-click="ermQuickPrompt(this)">Help me score a technology risk</button>
       </div>
-      <div style="display:flex;gap:10px;padding:14px 16px;border-top:1px solid var(--border);background:var(--surface)">
-        <input type="text" id="ermChatInput" placeholder="Ask about enterprise risks, appetite, treatment plans…" style="flex:1;padding:11px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);font-size:14px" data-erm-keydown="ermChatKeydown(event)">
+      <div data-s="s517c72a" data-sd="flex">
+        <input type="text" id="ermChatInput" placeholder="Ask about enterprise risks, appetite, treatment plans…" data-s="s2523965" data-erm-keydown="ermChatKeydown(event)">
         <button class="btn btn-primary" data-erm-click="ermSendChat()">Send</button>
       </div>
     </div>
@@ -756,10 +756,10 @@
       <button class="btn btn-primary" data-erm-click="ermOpenKriModal()">+ Add KRI</button>
     </div>
   </div>
-  <div id="kriBreachBanner" style="display:none;margin-bottom:16px"></div>
-  <div class="stats-row" id="kriStats" style="margin-bottom:20px"></div>
-  <div id="kriGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
-    <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+  <div id="kriBreachBanner" data-s="s87c136d" data-sd="none"></div>
+  <div class="stats-row" id="kriStats" data-s="s49f14f8"></div>
+  <div id="kriGrid" data-s="s61a9ac7" data-sd="grid">
+    <div data-s="scef1891"><div class="spinner" data-s="s266e9b0"></div></div>
   </div>
 </div>
 

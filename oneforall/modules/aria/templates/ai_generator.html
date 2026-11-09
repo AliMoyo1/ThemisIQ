@@ -206,7 +206,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<a href="/aria/" style="color:var(--muted);text-decoration:none;font-weight:500">ARIA</a>
+<a href="/aria/" data-s="s436d52e">ARIA</a>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">AI Policy Generator</span>
 {% endblock %}
@@ -220,9 +220,9 @@
 </div>
 
 {% if not api_configured %}
-<div class="card" style="padding:13px 17px;margin-bottom:18px;border-left:3px solid var(--amber,#d97706);display:flex;align-items:center;gap:10px">
-  <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber,#d97706)" stroke-width="2" style="width:17px;height:17px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-  <span style="font-size:13px;color:var(--text-mid)"><strong>AI provider not configured.</strong> Set <code>AI_PROVIDER</code> and the matching API key in your <code>.env</code> file and restart.</span>
+<div class="card" data-s="s01f4ced" data-sd="flex">
+  <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber,#d97706)" stroke-width="2" data-s="s23df438"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <span data-s="sa22da1d"><strong>AI provider not configured.</strong> Set <code>AI_PROVIDER</code> and the matching API key in your <code>.env</code> file and restart.</span>
 </div>
 {% endif %}
 
@@ -239,8 +239,8 @@
   </div>
   <div class="ag-stat stat-card">
     <div class="ag-stat-label">Controls Covered</div>
-    <div class="ag-stat-val" style="color:{% if covered_pct >= 50 %}var(--good){% else %}var(--amber){% endif %}">
-      {{ controls_with_docs }}<span style="font-size:14px;font-weight:600;color:var(--muted)"> / {{ total_controls }}</span>
+    <div class="ag-stat-val" data-sv="color:{% if covered_pct >= 50 %}var(--good){% else %}var(--amber){% endif %}">
+      {{ controls_with_docs }}<span data-s="s0413707"> / {{ total_controls }}</span>
     </div>
     <div class="ag-stat-sub">{{ covered_pct }}% have documents</div>
   </div>
@@ -254,7 +254,7 @@
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       AI Provider
     </div>
-    <div class="ag-stat-val" style="font-size:16px;font-weight:700;">{{ ai_provider_label }}</div>
+    <div class="ag-stat-val" data-s="see5749f">{{ ai_provider_label }}</div>
     <div class="ag-stat-sub">active model</div>
   </div>
 </div>
@@ -264,7 +264,7 @@
   <div>
     <div class="gen-panel">
       <div class="gen-panel-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:15px;height:15px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" data-s="s2535720"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         Generation Settings
       </div>
 
@@ -300,14 +300,14 @@
 
       <!-- IMS: Integrated Policy option -->
       <div class="form-group">
-        <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-          <input type="checkbox" id="imsToggle" style="width:14px;height:14px;cursor:pointer;">
+        <label class="form-label" data-s="sfcd20dd" data-sd="flex">
+          <input type="checkbox" id="imsToggle" data-s="sdbf9c49">
           Integrated Policy (IMS)
-          <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:2px;">(covers multiple frameworks)</span>
+          <span data-s="sacf2b49">(covers multiple frameworks)</span>
         </label>
-        <div id="imsPanel" style="display:none;margin-top:8px;">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Select additional framework(s) to include. Only frameworks with mapped controls for the selected control will contribute content.</div>
-          <select id="imsFramework" class="form-select" style="width:100%;">
+        <div id="imsPanel" data-s="s8a77e5a" data-sd="none">
+          <div data-s="s641c5f4">Select additional framework(s) to include. Only frameworks with mapped controls for the selected control will contribute content.</div>
+          <select id="imsFramework" class="form-select" data-s="s0466783">
             <option value="">Select additional framework...</option>
             {% for fw in active_frameworks %}
             <option value="{{ fw.id }}">{{ fw.name }}</option>
@@ -320,23 +320,23 @@
         <label class="form-label">Control / Requirement</label>
         <input type="text" id="ctrlSearch" placeholder="Select a framework first..."
                autocomplete="off" disabled>
-        <div id="ctrlResults" class="ctrl-search-results" style="display:none"></div>
+        <div id="ctrlResults" class="ctrl-search-results" data-sd="none"></div>
         <input type="hidden" id="ctrlId">
-        <div id="selectedCtrl" class="sel-ctrl" style="display:none">
+        <div id="selectedCtrl" class="sel-ctrl" data-sd="none">
           <div class="ref" id="selRef"></div>
           <div class="name" id="selName"></div>
           <div class="desc" id="selDesc"></div>
-          <div id="selImsStatus" style="display:none;"></div>
+          <div id="selImsStatus" data-sd="none"></div>
         </div>
       </div>
 
       <button type="button" class="btn btn-ghost" id="guideAiBtn" data-generator-action="guidance"
-              style="width:100%;margin-bottom:8px;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:6px">
+              data-s="s8f8cfd3" data-sd="flex">
         <span id="guideAiBtnText"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-target></use></svg> Guide the AI (optional)</span>
       </button>
 
       <button class="btn-generate" id="generateBtn" data-generator-action="generate" disabled>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s2535720"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span id="genBtnText">Generate Policy Document</span>
       </button>
 
@@ -347,7 +347,7 @@
       {# ── My Drafts (PLAN-35 T10) -- editable drafts only, fetched live
            since these change without a page reload; server-rendered
            Recent Documents below is confirmed/published documents only. ── #}
-      <div class="recent-section" id="myDraftsSection" style="display:none">
+      <div class="recent-section" id="myDraftsSection" data-sd="none">
         <div class="recent-header" id="myDraftsHeader" role="button" tabindex="0" data-generator-action="drafts">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           My Drafts
@@ -390,11 +390,11 @@
       {# Tab bar #}
       <div class="gen-tabs">
         <button class="gen-tab active" data-tab="policy" >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s1128ad6" data-sd="inline"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Policy Generator
         </button>
         <button class="gen-tab" data-tab="gap" >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s1128ad6" data-sd="inline"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Gap Analysis
         </button>
       </div>
@@ -403,20 +403,20 @@
       <div class="tab-content active" id="tab-policy">
         <div class="output-header">
           <span class="output-title" id="outputTitle">Generated Document</span>
-          <div class="output-actions" id="outputActions" style="display:none">
-            <button class="btn btn-ghost" data-generator-action="generate" style="font-size:12px;padding:5px 10px" title="Regenerate this document">↻ Regenerate</button>
-            <button class="btn btn-ghost" data-generator-action="copy" style="font-size:12px;padding:5px 10px">Copy</button>
-            <button class="btn btn-ghost" data-generator-action="download-md" style="font-size:12px;padding:5px 10px">Markdown</button>
-            <button class="btn btn-primary" data-generator-action="download-word" style="font-size:12px;padding:5px 10px">Word (.docx)</button>
-            <button class="btn btn-ghost" data-generator-action="print" style="font-size:12px;padding:5px 10px">Print</button>
-            <a href="/aria/documents" class="btn btn-ghost" style="font-size:12px;padding:5px 10px;text-decoration:none">Library →</a>
+          <div class="output-actions" id="outputActions" data-sd="none">
+            <button class="btn btn-ghost" data-generator-action="generate" data-s="s301a157" title="Regenerate this document">↻ Regenerate</button>
+            <button class="btn btn-ghost" data-generator-action="copy" data-s="s301a157">Copy</button>
+            <button class="btn btn-ghost" data-generator-action="download-md" data-s="s301a157">Markdown</button>
+            <button class="btn btn-primary" data-generator-action="download-word" data-s="s301a157">Word (.docx)</button>
+            <button class="btn btn-ghost" data-generator-action="print" data-s="s301a157">Print</button>
+            <a href="/aria/documents" class="btn btn-ghost" data-s="s20233a1">Library →</a>
           </div>
         </div>
 
         {# Empty state #}
         <div class="gen-empty" id="emptyState">
           <div class="gen-empty-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:26px;height:26px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" data-s="s617185c"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           </div>
           <div class="gen-empty-text">
             Select a <strong>framework</strong> and <strong>control</strong> on the left, then click
@@ -426,28 +426,28 @@
             Optionally override the document type before generating.<br>
             Generated documents are automatically saved to the Document Library.
           </div>
-          <div style="font-size:11px;color:var(--dim);margin-top:4px;letter-spacing:.3px">
+          <div data-s="s714acb7">
             Powered by {{ ai_provider_label }}
           </div>
         </div>
 
         {# Loading state #}
         <div class="typing-indicator" id="loadingState">
-          <div id="loadingTraceMount" style="width:100%;max-width:420px;margin:0 auto"></div>
+          <div id="loadingTraceMount" data-s="s1edfb6b"></div>
         </div>
 
         {# PLAN-35 T10: draft status line -- scope/owner/reserved reference,
            version and a My Drafts resume link (section 11 point 1). Shown
            once a draft exists, whether just generated or resumed via
            ?draft=. #}
-        <div id="draftStatusBar" class="aria-draft-status" style="display:none"></div>
+        <div id="draftStatusBar" class="aria-draft-status" data-sd="none"></div>
 
         {# Document output: an edit/preview toggle over the same draft body.
            Editing is a plain textarea (never localStorage/sessionStorage --
            unsaved text lives only in memory, per section 11 point 2) with
            an explicit Save button and unsaved-change indicator; Preview
            renders the sanitized markdown read-only. #}
-        <div class="output-body" id="outputBody" style="display:none">
+        <div class="output-body" id="outputBody" data-sd="none">
           <div class="aria-editor-toolbar">
             <div class="aria-editor-tabs" role="tablist" aria-label="Draft view">
               <button type="button" class="aria-editor-tab active" id="editorTabEdit"
@@ -456,29 +456,29 @@
                       role="tab" aria-selected="false" data-editor-view="preview">Reading preview</button>
             </div>
             <div class="aria-editor-status">
-              <span id="draftUnsavedIndicator" class="aria-unsaved-dot" style="display:none" title="Unsaved changes">● Unsaved changes</span>
-              <span id="draftSavedIndicator" class="aria-saved-text" style="display:none">Saved</span>
-              <button type="button" class="btn btn-primary" id="draftSaveBtn" style="font-size:12px;padding:5px 12px"
+              <span id="draftUnsavedIndicator" class="aria-unsaved-dot" data-sd="none" title="Unsaved changes">● Unsaved changes</span>
+              <span id="draftSavedIndicator" class="aria-saved-text" data-sd="none">Saved</span>
+              <button type="button" class="btn btn-primary" id="draftSaveBtn" data-s="s4ccfc2c"
                       data-generator-action="save-draft">Save</button>
             </div>
           </div>
           <textarea id="draftEditor" class="aria-draft-editor" spellcheck="true"
                     aria-label="Policy document markdown source"></textarea>
-          <div class="policy-output" id="policyContent" style="display:none"></div>
+          <div class="policy-output" id="policyContent" data-sd="none"></div>
         </div>
 
         {# Meta bar #}
-        <div class="meta-bar" id="metaBar" style="display:none">
-          <span id="metaModel" style="font-weight:600;color:var(--text-mid)">—</span>
+        <div class="meta-bar" id="metaBar" data-sd="none">
+          <span id="metaModel" data-s="s4cada13">—</span>
           <span><span id="metaIn">—</span> tokens in</span>
           <span><span id="metaOut">—</span> tokens out</span>
           <span id="metaTime">—</span>
-          <span id="metaSaved" style="margin-left:auto;color:var(--good);font-weight:600"></span>
+          <span id="metaSaved" data-s="s53dbff6"></span>
         </div>
 
         {# PLAN-35 T10: template selection, build/PDF preview, confirm and
            submit-for-approval. Hidden until a draft is active. #}
-        <div id="workflowPanel" class="aria-workflow-panel" style="display:none">
+        <div id="workflowPanel" class="aria-workflow-panel" data-sd="none">
 
           <details id="workflowDiagrams">
             <summary>Diagrams for this policy</summary>
@@ -498,28 +498,28 @@
           </template>
 
           <div id="workflowBuildRow" class="aria-workflow-row">
-            <div class="form-group" style="flex:1;min-width:200px;margin:0">
+            <div class="form-group" data-s="s8d1725f">
               <label class="form-label" for="workflowTemplateSelect">Branding template</label>
               <select id="workflowTemplateSelect"></select>
             </div>
-            <button type="button" class="btn btn-primary" id="workflowBuildBtn" style="white-space:nowrap"
+            <button type="button" class="btn btn-primary" id="workflowBuildBtn" data-s="s86abdab"
                     data-generator-action="build-draft">Apply template and preview</button>
           </div>
-          <div id="workflowBuildProgress" class="aria-workflow-progress" style="display:none" aria-live="polite">
+          <div id="workflowBuildProgress" class="aria-workflow-progress" data-sd="none" aria-live="polite">
             Building preview…
           </div>
 
-          <div id="workflowPreviewSection" style="display:none">
-            <div class="aria-workflow-row" style="justify-content:space-between">
-              <span style="font-size:12px;color:var(--muted)">
+          <div id="workflowPreviewSection" data-sd="none">
+            <div class="aria-workflow-row" data-s="sa562f4f">
+              <span data-s="s7fc448e">
                 Template <strong id="workflowPreviewTemplate">—</strong> ·
                 Version <strong id="workflowPreviewVersion">—</strong>
               </span>
-              <button type="button" class="btn btn-ghost" style="font-size:12px;padding:5px 10px"
+              <button type="button" class="btn btn-ghost" data-s="s301a157"
                       data-generator-action="back-edit">← Back to editing</button>
             </div>
             <div id="workflowPdfContainer" class="aria-pdf-container"></div>
-            <div class="aria-workflow-row" style="justify-content:flex-end">
+            <div class="aria-workflow-row" data-s="s455f8cc">
               <button type="button" class="btn btn-primary" id="workflowConfirmBtn" disabled
                       data-generator-action="confirm-draft">Confirm version</button>
             </div>
@@ -535,11 +535,11 @@
       {# ── Gap Analysis tab ── #}
       <div class="tab-content" id="tab-gap">
         <div class="gap-form-area">
-          <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          <p data-s="s529ac7d">
             Generate an AI gap analysis for an entire framework based on your current control statuses.
             Produces an executive summary, key findings, recommendations, and a 30/60/90-day roadmap.
           </p>
-          <div class="form-group" style="margin-bottom:12px">
+          <div class="form-group" data-s="sda12f28">
             <label class="form-label">Framework</label>
             <select id="gapFwSelect">
               <option value="">Select Framework...</option>
@@ -548,17 +548,17 @@
               {% endfor %}
             </select>
           </div>
-          <button class="btn btn-primary" style="gap:7px;display:inline-flex;align-items:center" data-generator-action="gap-analysis">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <button class="btn btn-primary" data-s="s2f9be41" data-sd="inline-flex" data-generator-action="gap-analysis">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             <span id="gapBtnText">Run Gap Analysis</span>
           </button>
         </div>
         <div class="gap-output-area" id="gapOutputArea">
-          <div id="gapLoading" style="display:none;padding:40px">
-            <div id="gapTraceMount" style="width:100%;max-width:420px;margin:0 auto"></div>
+          <div id="gapLoading" data-s="sa19bf61" data-sd="none">
+            <div id="gapTraceMount" data-s="s1edfb6b"></div>
           </div>
-          <div class="policy-output" id="gapContent" style="display:none"></div>
-          <div style="color:var(--muted);font-size:13px;line-height:1.7" id="gapEmpty">
+          <div class="policy-output" id="gapContent" data-sd="none"></div>
+          <div data-s="s74e3e1d" id="gapEmpty">
             Select a framework above and click <strong>Run Gap Analysis</strong>.
           </div>
         </div>
@@ -568,7 +568,7 @@
   </div>
 </div>
 
-<div id="rawContent" style="display:none"></div>
+<div id="rawContent" data-sd="none"></div>
 <div id="generatorPageData" hidden
      data-doc-ctrl-refs="{{ doc_ctrl_refs_json|e }}"
      data-controls-by-fw="{{ controls_by_fw_json|e }}"></div>

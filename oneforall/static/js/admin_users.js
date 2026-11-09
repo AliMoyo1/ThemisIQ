@@ -203,11 +203,11 @@ async function loadTransferPreview() {
       ? impactKeys.map(function(k) { return impact[k] + ' ' + k; }).join(', ')
       : 'No linked responsibilities found';
     previewEl.innerHTML =
-      '<div><strong style="color:var(--text)">' + _esc(p.current_business_unit.name) +
-      '</strong> &rarr; <strong style="color:var(--accent)">' +
+      '<div><strong data-s="sf045bbe">' + _esc(p.current_business_unit.name) +
+      '</strong> &rarr; <strong data-s="sa805525">' +
       _esc(p.destination_business_unit.name) + '</strong></div>' +
-      '<div style="margin-top:7px"><strong>Roles:</strong> ' + _esc(roles) + '</div>' +
-      '<div style="margin-top:4px"><strong>Responsibility impact:</strong> ' +
+      '<div data-s="s62838f5"><strong>Roles:</strong> ' + _esc(roles) + '</div>' +
+      '<div data-s="s96ad609"><strong>Responsibility impact:</strong> ' +
       _esc(impactText) + '</div>';
   } catch (err) {
     previewEl.style.display = 'none';
@@ -315,14 +315,14 @@ async function importUsersExcel(input) {
   if (!file) return;
   var res = document.getElementById('userImportResult');
   res.style.display = 'block';
-  res.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">Parsing Excel file…</div>';
+  res.innerHTML = '<div data-s="s54ff9b6">Parsing Excel file…</div>';
   var fd = new FormData();
   fd.append('file', file);
   try {
     var r = await fetch('/admin/api/users/import-preview', { method: 'POST', body: fd });
     var d = await r.json();
     if (!r.ok || d.error) {
-      res.innerHTML = '<div style="padding:14px;color:var(--bad);font-size:13px;">' + _esc(d.error || 'Upload failed') + '</div>';
+      res.innerHTML = '<div data-s="sd21ec66">' + _esc(d.error || 'Upload failed') + '</div>';
       input.value = '';
       return;
     }
@@ -330,7 +330,7 @@ async function importUsersExcel(input) {
     res.style.display = 'none';
     showUserImportPreview(d);
   } catch (err) {
-    res.innerHTML = '<div style="padding:14px;color:var(--bad);font-size:13px;">Import failed: ' + _esc(err.message) + '</div>';
+    res.innerHTML = '<div data-s="sd21ec66">Import failed: ' + _esc(err.message) + '</div>';
   }
   input.value = '';
 }
@@ -343,7 +343,7 @@ function showUserImportPreview(d) {
 
   function confBadge(c) {
     var colors = { exact: 'var(--good)', fuzzy: 'var(--amber)', unmapped: 'var(--bad)', empty: 'var(--muted)' };
-    return '<span style="display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:700; color:#fff; background:' + (colors[c] || '#999') + ';">' + _esc(c) + '</span>';
+    return '<span data-sv="display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:700; color:#fff; background:' + (colors[c] || '#999') + ';">' + _esc(c) + '</span>';
   }
 
   var buRows = '';
@@ -356,10 +356,10 @@ function showUserImportPreview(d) {
       if (!Number.isSafeInteger(buId) || buId <= 0) continue;
       opts += '<option value="' + buId + '"' + (bm.bu_id === bus[j].id ? ' selected' : '') + '>' + _esc(bus[j].name) + '</option>';
     }
-    buRows += '<tr><td style="font-size:12px; padding:4px;">' + _esc(bk) + '</td>' +
-      '<td style="padding:4px;"><select class="import-bu-sel" data-raw="' + _esc(bk) + '" ' +
-      'style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:var(--surface2); color:var(--text);">' + opts + '</select></td>' +
-      '<td style="padding:4px;">' + confBadge(bm.confidence) + '</td></tr>';
+    buRows += '<tr><td data-s="s4025540">' + _esc(bk) + '</td>' +
+      '<td data-s="s2f0ad35"><select class="import-bu-sel" data-raw="' + _esc(bk) + '" ' +
+      'data-s="sbeb841c">' + opts + '</select></td>' +
+      '<td data-s="s2f0ad35">' + confBadge(bm.confidence) + '</td></tr>';
   }
 
   var sampleRows = '';
@@ -367,56 +367,56 @@ function showUserImportPreview(d) {
   var limit = Math.min(rows.length, 10);
   for (var i = 0; i < limit; i++) {
     var row = rows[i];
-    var status = row.error ? '<span style="color:var(--bad);">invalid</span>'
-      : (row.duplicate_email ? '<span style="color:var(--amber);">duplicate</span>' : '<span style="color:var(--good);">ok</span>');
-    sampleRows += '<tr><td style="font-size:11px; padding:4px;">' + _esc(row.full_name) + '</td>' +
-      '<td style="font-size:11px; padding:4px;">' + _esc(row.email) + '</td>' +
-      '<td style="font-size:11px; padding:4px;">' + _esc((row.roles || []).join(', ')) + '</td>' +
-      '<td style="font-size:11px; padding:4px;">' + _esc(row.business_unit_raw || '—') + '</td>' +
-      '<td style="font-size:11px; padding:4px;">' + status + '</td></tr>';
+    var status = row.error ? '<span data-s="s83ef854">invalid</span>'
+      : (row.duplicate_email ? '<span data-s="s08935a7">duplicate</span>' : '<span data-s="s544e76c">ok</span>');
+    sampleRows += '<tr><td data-s="s289b2a6">' + _esc(row.full_name) + '</td>' +
+      '<td data-s="s289b2a6">' + _esc(row.email) + '</td>' +
+      '<td data-s="s289b2a6">' + _esc((row.roles || []).join(', ')) + '</td>' +
+      '<td data-s="s289b2a6">' + _esc(row.business_unit_raw || '—') + '</td>' +
+      '<td data-s="s289b2a6">' + status + '</td></tr>';
   }
 
   var warnHtml = '';
   if (warns.length) {
     var showWarns = warns.slice(0, 5);
-    warnHtml = '<div style="margin-bottom:14px; padding:10px 12px; border:1px solid var(--amber); border-radius:6px; background:var(--warn-soft); font-size:12px;">' +
-      '<strong style="color:var(--amber);">' + warns.length + ' warning(s)</strong><ul style="margin:6px 0 0 16px; padding:0;">';
-    for (var i = 0; i < showWarns.length; i++) warnHtml += '<li style="color:var(--muted);">' + _esc(showWarns[i]) + '</li>';
-    if (warns.length > 5) warnHtml += '<li style="color:var(--muted);">…and ' + (warns.length - 5) + ' more</li>';
+    warnHtml = '<div data-s="s3b04896">' +
+      '<strong data-s="s08935a7">' + warns.length + ' warning(s)</strong><ul data-s="sa1fb5df">';
+    for (var i = 0; i < showWarns.length; i++) warnHtml += '<li data-s="s57f9e31">' + _esc(showWarns[i]) + '</li>';
+    if (warns.length > 5) warnHtml += '<li data-s="s57f9e31">…and ' + (warns.length - 5) + ' more</li>';
     warnHtml += '</ul></div>';
   }
 
   var statCard = function(val, label, color) {
-    return '<div style="text-align:center; padding:10px; border:1px solid var(--border); border-radius:8px;">' +
-      '<div style="font-size:20px; font-weight:700; color:' + color + ';">' + _esc(val) + '</div>' +
-      '<div style="font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.3px;">' + label + '</div></div>';
+    return '<div data-s="s19dcd4b">' +
+      '<div data-sv="font-size:20px; font-weight:700; color:' + color + ';">' + _esc(val) + '</div>' +
+      '<div data-s="s56bfd0f">' + label + '</div></div>';
   };
 
   var html = '<div class="modal-overlay show" id="userImportModal">' +
-    '<div class="modal" style="max-width:820px; width:94vw; max-height:90vh; overflow-y:auto;">' +
+    '<div class="modal" data-s="s5d9a4e9">' +
     '<div class="modal-header"><div class="modal-title">Import Users</div>' +
     '<button type="button" class="modal-close" data-users-action="close-import">' +
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
     '</button></div>' +
     '<div class="modal-body">' +
-    '<div style="font-size:12px; color:var(--muted); margin-bottom:14px;">Sheet: ' + _esc(d.sheet_name || 'Sheet1') + '</div>' +
-    '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px;">' +
+    '<div data-s="sd489e5b">Sheet: ' + _esc(d.sheet_name || 'Sheet1') + '</div>' +
+    '<div data-s="s7bd035a" data-sd="grid">' +
     statCard(s.total, 'Total Rows', 'var(--accent)') +
     statCard(s.valid, 'Will Import', 'var(--good)') +
     statCard(s.duplicates, 'Duplicates', 'var(--amber)') +
     statCard(s.invalid, 'Invalid', 'var(--bad)') +
     '</div>' +
     warnHtml +
-    (buKeys.length ? '<div style="margin-bottom:16px;"><div style="font-size:13px; font-weight:700; margin-bottom:6px;">Business Unit Mapping</div>' +
-      '<table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">' +
-      '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">In sheet</th>' +
-      '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Map to</th>' +
-      '<th style="font-size:11px; padding:4px; color:var(--muted);">Match</th></tr></thead><tbody>' + buRows + '</tbody></table></div>' : '') +
-    '<div style="margin-bottom:6px; font-size:13px; font-weight:700;">Preview (first ' + limit + ' of ' + rows.length + ')</div>' +
-    '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="border-bottom:1px solid var(--border);">' +
-    '<th style="text-align:left; padding:4px;">Name</th><th style="text-align:left; padding:4px;">Email</th>' +
-    '<th style="text-align:left; padding:4px;">Roles</th><th style="text-align:left; padding:4px;">Business Unit</th>' +
-    '<th style="text-align:left; padding:4px;">Status</th></tr></thead><tbody>' + sampleRows + '</tbody></table></div>' +
+    (buKeys.length ? '<div data-s="s87c136d"><div data-s="s617c71f">Business Unit Mapping</div>' +
+      '<table data-s="sa55f31d"><thead><tr data-s="s1008415">' +
+      '<th data-s="saf13840">In sheet</th>' +
+      '<th data-s="saf13840">Map to</th>' +
+      '<th data-s="sf1cc8ae">Match</th></tr></thead><tbody>' + buRows + '</tbody></table></div>' : '') +
+    '<div data-s="sa3af230">Preview (first ' + limit + ' of ' + rows.length + ')</div>' +
+    '<div data-s="s0ddf068"><table data-s="s6b26614"><thead><tr data-s="s1008415">' +
+    '<th data-s="sc637739">Name</th><th data-s="sc637739">Email</th>' +
+    '<th data-s="sc637739">Roles</th><th data-s="sc637739">Business Unit</th>' +
+    '<th data-s="sc637739">Status</th></tr></thead><tbody>' + sampleRows + '</tbody></table></div>' +
     '</div>' +
     '<div class="modal-footer">' +
     '<button type="button" class="btn btn-ghost" data-users-action="close-import">Cancel</button>' +
@@ -449,34 +449,34 @@ async function commitUserImport() {
     var res = document.getElementById('userImportResult');
     res.style.display = 'block';
     if (!resp.ok || r.error) {
-      res.innerHTML = '<div style="padding:14px; color:var(--bad); font-size:13px;">' + _esc(r.error || 'Import failed') + '</div>';
+      res.innerHTML = '<div data-s="sd21ec66">' + _esc(r.error || 'Import failed') + '</div>';
       return;
     }
 
     var credRows = '';
     (r.credentials || []).forEach(function(c) {
-      credRows += '<tr><td style="font-size:12px; padding:4px;">' + _esc(c.full_name) + '</td>' +
-        '<td style="font-size:12px; padding:4px; font-family:var(--mono);">' + _esc(c.username) + '</td>' +
-        '<td style="font-size:12px; padding:4px; font-family:var(--mono); font-weight:700; color:var(--accent);">' + _esc(c.temp_password) + '</td></tr>';
+      credRows += '<tr><td data-s="s4025540">' + _esc(c.full_name) + '</td>' +
+        '<td data-s="s29c827f">' + _esc(c.username) + '</td>' +
+        '<td data-s="s2861b56">' + _esc(c.temp_password) + '</td></tr>';
     });
     var errHtml = '';
     if (r.errors && r.errors.length) {
-      errHtml = '<div style="margin-top:10px; font-size:12px; color:var(--muted);">' + r.errors.length + ' row(s) failed: ';
+      errHtml = '<div data-s="s5a218b3">' + r.errors.length + ' row(s) failed: ';
       for (var i = 0; i < Math.min(r.errors.length, 3); i++) {
         errHtml += _esc(r.errors[i].full_name || 'Row ' + r.errors[i].row) + ' — ' + _esc(r.errors[i].error) + '; ';
       }
       errHtml += '</div>';
     }
-    res.innerHTML = '<div style="padding:16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);">' +
-      '<div style="font-size:14px; font-weight:700; color:var(--good); margin-bottom:4px;">Import Complete</div>' +
-      '<div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">' + _esc(r.created) + ' created, ' + _esc(r.skipped) + ' skipped. ' +
+    res.innerHTML = '<div data-s="s66977a2">' +
+      '<div data-s="s07c6944">Import Complete</div>' +
+      '<div data-s="scd480be">' + _esc(r.created) + ' created, ' + _esc(r.skipped) + ' skipped. ' +
       'Temporary passwords are shown once below — share them securely; each user must change theirs at first login.</div>' +
-      (credRows ? '<div style="overflow-x:auto; max-height:260px; overflow-y:auto;"><table style="width:100%; border-collapse:collapse;">' +
-        '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Name</th>' +
-        '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Username</th>' +
-        '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Temp Password</th></tr></thead><tbody>' + credRows + '</tbody></table></div>' : '') +
+      (credRows ? '<div data-s="s12ce91d"><table data-s="sa55f31d">' +
+        '<thead><tr data-s="s1008415"><th data-s="saf13840">Name</th>' +
+        '<th data-s="saf13840">Username</th>' +
+        '<th data-s="saf13840">Temp Password</th></tr></thead><tbody>' + credRows + '</tbody></table></div>' : '') +
       errHtml +
-      '<button class="btn btn-ghost" style="margin-top:10px; font-size:12px; padding:5px 10px;" data-users-action="refresh">Done — Refresh List</button>' +
+      '<button class="btn btn-ghost" data-s="s4931371" data-users-action="refresh">Done — Refresh List</button>' +
       '</div>';
     _userImportPreviewData = null;
     if (typeof showToast === 'function') showToast('Imported ' + r.created + ' users');

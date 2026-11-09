@@ -13,7 +13,7 @@
     box.innerHTML = '<h4>Controls that may already cover this</h4>' +
       '<p>Suggestions are unverified until a specialist accepts them. Review the control before relying on it.</p>' +
       items.map(function (item) {
-        return '<div class="sn-control-suggestion" style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+        return '<div class="sn-control-suggestion" data-s="se60425b">' +
           '<a href="' + escapeText(item.url) + '" target="_blank" rel="noopener">' + escapeText(item.ref) +
           ' · ' + escapeText(item.title) + '</a>' +
           '<div>' + escapeText(item.reason) + ' · Control status: ' + escapeText(item.control_status || 'Not recorded') + '</div>' +

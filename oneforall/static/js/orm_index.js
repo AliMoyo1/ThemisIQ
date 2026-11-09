@@ -231,8 +231,8 @@ function sevBadge(s){var m={critical:'badge-critical',high:'badge-high',medium:'
 function statusBadge(s){var m={open:'badge-high',investigating:'badge-progress',resolved:'badge-complete',closed:'badge-draft',recurring:'badge-critical'};var lbl=(s||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});return'<span class="badge '+(m[s]||'badge-draft')+'">'+esc(lbl)+'</span>';}
 var typeIcons={process_failure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-settings></use></svg>',fraud:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg>',system_failure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-laptop></use></svg>',human_error:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg>',outage:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-plug></use></svg>',vendor_failure:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-package></use></svg>',customer_impact:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-users></use></svg>'};
 function typeIcon(t){return typeIcons[t]||'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>';}
-function spinner(cols){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
-function emptyRow(cols,msg){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
+function spinner(cols){return'<tr><td colspan="'+cols+'" data-s="s2e587c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';}
+function emptyRow(cols,msg){return'<tr><td colspan="'+cols+'" data-s="s2e587c2">'+esc(msg||'No records found')+'</td></tr>';}
 async function apiFetch(url,opts){
   // PLAN-36 T06 (findings.md F08): delegates to the shared ApiClient --
   // see modules/erm/templates/index.html's identical migration.
@@ -242,10 +242,10 @@ async function apiFetch(url,opts){
 function populateStatCards(elId,cards){
   var el=document.getElementById(elId);if(!el)return;
   el.innerHTML=cards.map(function(c){
-    return'<div class="stat-card" style="padding:14px 16px;cursor:default">'+
-      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">'+esc(c.label)+'</div>'+
-      '<div style="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+
-      (c.sub?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(c.sub)+'</div>':'')+
+    return'<div class="stat-card" data-s="sab42f28">'+
+      '<div data-s="s5ba562e">'+esc(c.label)+'</div>'+
+      '<div data-sv="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+
+      (c.sub?'<div data-s="s8a05498">'+esc(c.sub)+'</div>':'')+
     '</div>';
   }).join('');
   el.querySelectorAll('.stat-card').forEach(function(card){
@@ -256,12 +256,12 @@ function populateStatCards(elId,cards){
 
 /* Trend arrow — invertColor=true means upward delta is bad (more events = worse) */
 function trendArrow(n,invertColor){
-  if(n===0||n===null||n===undefined)return'<span style="color:var(--muted)">— 0 vs 30d</span>';
+  if(n===0||n===null||n===undefined)return'<span data-s="s57f9e31">— 0 vs 30d</span>';
   var isUp=n>0;
   var isBad=invertColor?isUp:!isUp;
   var col=isBad?'var(--red)':'var(--good,#16a34a)';
   var sym=isUp?'▲':'▼';
-  return'<span style="color:'+col+';font-weight:700">'+sym+' '+Math.abs(n)+' vs 30d</span>';
+  return'<span data-sv="color:'+col+';font-weight:700">'+sym+' '+Math.abs(n)+' vs 30d</span>';
 }
 
 /* KRI tri-zone gauge */
@@ -271,9 +271,9 @@ function ormKriGauge(val,warn,crit){
   var critPct=crit?(crit/maxVal*100).toFixed(1):100;
   var curPct=Math.min(100,(val/maxVal*100)).toFixed(1);
   var fillColor=crit&&val>=crit?'var(--red,#dc2626)':warn&&val>=warn?'var(--amber,#d97706)':'var(--good,#16a34a)';
-  return'<div style="height:10px;border-radius:100px;background:var(--surface3);overflow:hidden;margin:8px 0;position:relative">'+
-    '<div style="position:absolute;inset:0;background:linear-gradient(to right,var(--good,#16a34a) '+warnPct+'%,var(--amber,#d97706) '+warnPct+'% '+critPct+'%,var(--red,#dc2626) '+critPct+'% 100%);opacity:.2"></div>'+
-    '<div class="kri-gauge-fill" style="position:absolute;top:0;left:0;height:100%;width:'+curPct+'%;background:'+fillColor+';border-radius:100px;transition:width .6s ease"></div>'+
+  return'<div data-s="sab3f02b">'+
+    '<div data-sv="position:absolute;inset:0;background:linear-gradient(to right,var(--good,#16a34a) '+warnPct+'%,var(--amber,#d97706) '+warnPct+'% '+critPct+'%,var(--red,#dc2626) '+critPct+'% 100%);opacity:.2"></div>'+
+    '<div class="kri-gauge-fill" data-sv="position:absolute;top:0;left:0;height:100%;width:'+curPct+'%;background:'+fillColor+';border-radius:100px;transition:width .6s ease"></div>'+
   '</div>';
 }
 
@@ -295,19 +295,19 @@ function ormDrawRing(wrapperId,legendId,segments){
       'transform="rotate('+rotDeg.toFixed(1)+' 60 60)"><title>'+esc(seg.label)+': '+esc(String(seg.count))+'</title></circle>';
   }).join('');
   wrap.innerHTML=
-    '<div style="position:relative;display:inline-flex;align-items:center;justify-content:center">'+
-    '<svg class="orm-ring-chart" viewBox="0 0 120 120" style="width:126px;height:126px">'+
+    '<div data-s="sf01cea7" data-sd="inline-flex">'+
+    '<svg class="orm-ring-chart" viewBox="0 0 120 120" data-s="s4c4fcf9">'+
     '<circle cx="60" cy="60" r="50" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="11"/>'+arcs+'</svg>'+
-    '<div style="position:absolute;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--text)">'+total+'</div><div style="font-size:9px;color:var(--muted)">Total</div></div>'+
+    '<div data-s="s78fecfb"><div data-s="se1004b5">'+total+'</div><div data-s="s1c1097e">Total</div></div>'+
     '</div>';
   if(leg){
     leg.innerHTML=segments.map(function(s){
       var pct=total>0?Math.round((s.count/total)*100):0;
-      return'<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:5px">'+
-        '<div style="width:9px;height:9px;border-radius:50%;background:'+s.color+';flex-shrink:0"></div>'+
-        '<span style="flex:1;color:var(--text)">'+esc(s.label)+'</span>'+
-        '<span style="font-weight:700;color:var(--text)">'+s.count+'</span>'+
-        '<span style="color:var(--muted);font-size:11px;min-width:32px;text-align:right">'+pct+'%</span>'+
+      return'<div data-s="s970774d" data-sd="flex">'+
+        '<div data-sv="width:9px;height:9px;border-radius:50%;background:'+s.color+';flex-shrink:0"></div>'+
+        '<span data-s="sc6fddc1">'+esc(s.label)+'</span>'+
+        '<span data-s="sbed9cea">'+s.count+'</span>'+
+        '<span data-s="sf572c93">'+pct+'%</span>'+
       '</div>';
     }).join('');
   }
@@ -321,8 +321,8 @@ window.ormOpenDocViewer=function(title,content){
     '<div class="orm-doc-overlay" data-orm-static-click="s33">'+
     '<div class="orm-doc-panel">'+
       '<div class="orm-doc-head">'+
-        '<div style="font-size:14px;font-weight:700;flex:1">'+esc(title)+'</div>'+
-        '<div style="display:flex;gap:6px">'+
+        '<div data-s="sf3960c7">'+esc(title)+'</div>'+
+        '<div data-s="sf0abc1d" data-sd="flex">'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s34">Copy</button>'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s35">&#10005;</button>'+
         '</div>'+
@@ -410,10 +410,10 @@ async function ormLoadDashboard(){
     if(kBanner){
       if(d.kri_alerts&&d.kri_alerts.length){
         kBanner.style.display='';
-        kBanner.innerHTML='<div style="background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px">'+
-          '<span style="font-size:16px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>'+
+        kBanner.innerHTML='<div data-s="s25d9341" data-sd="flex">'+
+          '<span data-s="s1444c6e"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></span>'+
           '<span><strong>Organization-wide KRI Alerts:</strong> '+d.kri_alerts.map(function(k){return esc(k.name)+' ('+k.value+') is <strong>'+k.level+'</strong>';}).join(', ')+'</span>'+
-          '<a href="/orm/indicators" data-spa="/orm/indicators" style="margin-left:auto;cursor:pointer;color:var(--accent);font-weight:700;font-size:12px">View KRIs →</a>'+
+          '<a href="/orm/indicators" data-spa="/orm/indicators" data-s="sf817d4b">View KRIs →</a>'+
         '</div>';
       }else{kBanner.style.display='none';}
     }
@@ -426,8 +426,8 @@ async function ormLoadDashboard(){
       // Show all KRI alerts as colored dots
       kDots.innerHTML=d.kri_alerts.map(function(k){
         var col=k.level==='critical'?'var(--red)':k.level==='warning'?'var(--amber,#d97706)':'var(--good,#16a34a)';
-        return'<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;background:var(--surface3);font-size:11px;font-weight:600">'+
-          '<span style="width:7px;height:7px;border-radius:50%;background:'+col+'"></span>'+esc(k.name)+'</span>';
+        return'<span data-s="scd918fa" data-sd="inline-flex">'+
+          '<span data-sv="width:7px;height:7px;border-radius:50%;background:'+col+'"></span>'+esc(k.name)+'</span>';
       }).join('');
       // Show badge on sidebar
       var sideAlert=document.getElementById('ormNavKriAlert');
@@ -467,7 +467,7 @@ async function ormLoadDashboard(){
     var resolved=byType.reduce(function(s,t){return s+(t.cnt||0);},0);
     if(d.kri_alerts&&d.kri_alerts.length>0)insights.push('<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> <strong>'+d.kri_alerts.length+'</strong> KRI'+( d.kri_alerts.length>1?'s':'')+' breaching thresholds');
     var insEl=document.getElementById('ormInsights');
-    if(insEl)insEl.innerHTML=insights.length?insights.map(function(i){return'<div style="padding:3px 0">'+i+'</div>';}).join(''):'<div style="color:var(--muted)">No significant insights this period.</div>';
+    if(insEl)insEl.innerHTML=insights.length?insights.map(function(i){return'<div data-s="s4673a44">'+i+'</div>';}).join(''):'<div data-s="s57f9e31">No significant insights this period.</div>';
 
     // Events by type chart
     ormRenderTypeChart('ormTypeChart',d.by_type||[]);
@@ -475,16 +475,16 @@ async function ormLoadDashboard(){
     // Top 5
     var top5El=document.getElementById('ormTop5');
     if(top5El){
-      if(!d.top5_by_impact||!d.top5_by_impact.length){top5El.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px">No financial impact recorded</div>';}
+      if(!d.top5_by_impact||!d.top5_by_impact.length){top5El.innerHTML='<div data-s="s84c452e">No financial impact recorded</div>';}
       else{top5El.innerHTML=d.top5_by_impact.map(function(e,i){
-        return'<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer" data-orm-call="ormOpenEventDrawer" data-orm-id="'+ormAttrId(e.id)+'">'+
-          '<div style="font-size:12px;min-width:16px;color:var(--muted);font-weight:700">'+(i+1)+'.</div>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted)">'+typeIcon(e.event_type)+' '+esc((e.event_type||'').replace(/_/g,' '))+'</div>'+
+        return'<div data-s="s151932e" data-sd="flex" data-orm-call="ormOpenEventDrawer" data-orm-id="'+ormAttrId(e.id)+'">'+
+          '<div data-s="sdd1819a">'+(i+1)+'.</div>'+
+          '<div data-s="s59eddc6">'+
+            '<div data-s="sab15306">'+esc(e.title)+'</div>'+
+            '<div data-s="s1fd8c81">'+typeIcon(e.event_type)+' '+esc((e.event_type||'').replace(/_/g,' '))+'</div>'+
           '</div>'+
           sevBadge(e.severity)+
-          '<div style="font-size:13px;font-weight:700;color:var(--red);flex-shrink:0">'+fmtCurrency(e.financial_impact)+'</div>'+
+          '<div data-s="sb987f87">'+fmtCurrency(e.financial_impact)+'</div>'+
         '</div>';
       }).join('');}
     }
@@ -496,12 +496,12 @@ async function ormLoadDashboard(){
       if(!recent.length){rBody.innerHTML=emptyRow(6,'No events yet');}
       else{rBody.innerHTML=recent.map(function(e){
         return'<tr>'+
-          '<td style="cursor:pointer;color:var(--accent);font-weight:600" data-orm-call="ormOpenEventDrawer" data-orm-id="'+ormAttrId(e.id)+'">'+esc(e.title||'')+'</td>'+
-          '<td>'+typeIcon(e.event_type)+' <span style="font-size:11px;color:var(--muted)">'+esc((e.event_type||'').replace(/_/g,' '))+'</span></td>'+
+          '<td data-s="s49b2015" data-orm-call="ormOpenEventDrawer" data-orm-id="'+ormAttrId(e.id)+'">'+esc(e.title||'')+'</td>'+
+          '<td>'+typeIcon(e.event_type)+' <span data-s="s1fd8c81">'+esc((e.event_type||'').replace(/_/g,' '))+'</span></td>'+
           '<td>'+sevBadge(e.severity)+'</td>'+
-          '<td style="font-weight:700;color:'+(e.financial_impact>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(e.financial_impact||0)+'</td>'+
+          '<td data-sv="font-weight:700;color:'+(e.financial_impact>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(e.financial_impact||0)+'</td>'+
           '<td>'+statusBadge(e.status)+'</td>'+
-          '<td style="font-size:12px;color:var(--muted)">'+timeAgo(e.created_at)+'</td>'+
+          '<td data-s="s7fc448e">'+timeAgo(e.created_at)+'</td>'+
         '</tr>';
       }).join('');}
     }
@@ -510,13 +510,13 @@ async function ormLoadDashboard(){
     if(ob&&!localStorage.getItem('hide_orm_onboard')){ob.style.display=(d.total_events||0)===0?'':'none';}
     // Quick-add link on zero-count stat card
     var qa=document.getElementById('dTotalEvts');
-    if(qa&&(d.total_events||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-orm-static-click="s36" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Log your first</a>');}
+    if(qa&&(d.total_events||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" data-orm-static-click="s36" data-s="s61d2d1c" data-sd="block">+ Log your first</a>');}
   }catch(e){console.error('ORM dashboard error',e);}
 }
 
 function ormRenderTypeChart(elId,byType){
   var el=document.getElementById(elId);if(!el)return;
-  if(!byType||!byType.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">No events recorded</div>';return;}
+  if(!byType||!byType.length){el.innerHTML='<div data-s="s686c270">No events recorded</div>';return;}
   var max=Math.max.apply(null,byType.map(function(t){return t.cnt;}));
   var total=byType.reduce(function(s,t){return s+(t.cnt||0);},0);
   var typeColors={process_failure:'#f59e0b',fraud:'#ef4444',system_failure:'#6366f1',human_error:'#ec4899',outage:'#8b5cf6',vendor_failure:'#14b8a6',customer_impact:'#f97316'};
@@ -524,12 +524,12 @@ function ormRenderTypeChart(elId,byType){
     var pct=max>0?Math.round((t.cnt/max)*100):0;
     var col=typeColors[t.event_type]||'var(--accent)';
     var sharePct=total>0?Math.round((t.cnt/total)*100):0;
-    return'<div style="margin-bottom:10px">'+
-      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'+
+    return'<div data-s="s761d3ad">'+
+      '<div data-s="sc76ac38" data-sd="flex">'+
         '<span>'+typeIcon(t.event_type)+' '+esc((t.event_type||'').replace(/_/g,' '))+'</span>'+
-        '<span style="color:var(--muted)">'+t.cnt+' ('+sharePct+'%)</span>'+
+        '<span data-s="s57f9e31">'+t.cnt+' ('+sharePct+'%)</span>'+
       '</div>'+
-      '<div style="height:8px;background:var(--chart-track,var(--surface3));border-radius:100px" title="'+escChartAttr((t.event_type||'').replace(/_/g,' '))+': '+esc(String(t.cnt))+' events"><div class="premium-chart-bar" style="height:100%;width:'+pct+'%;background:'+col+';border-radius:100px;transition:width .6s ease"></div></div>'+
+      '<div data-s="s54c335c" title="'+escChartAttr((t.event_type||'').replace(/_/g,' '))+': '+esc(String(t.cnt))+' events"><div class="premium-chart-bar" data-sv="height:100%;width:'+pct+'%;background:'+col+';border-radius:100px;transition:width .6s ease"></div></div>'+
     '</div>';
   }).join('');
 }
@@ -602,13 +602,13 @@ function ormRenderEvents(){
   if(!filtered.length){body.innerHTML=emptyRow(10,'No events match the current filters');return;}
   var now=Date.now();
   body.innerHTML=filtered.map(function(e){
-    var recurBadge=e.is_recurring?'<span class="badge badge-critical" style="font-size:9px;padding:1px 5px;margin-right:4px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg></span>':'';
+    var recurBadge=e.is_recurring?'<span class="badge badge-critical" data-s="s4668d02"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg></span>':'';
     var elevateBtn=!e.erm_risk_id&&(e.severity==='critical'||e.severity==='high'||(parseFloat(e.financial_impact)||0)>=10000)?
-      '<button class="btn btn-sm btn-secondary" data-orm-call="ormElevateToErm" data-orm-id="'+ormAttrId(e.id)+'" style="font-size:11px;color:var(--accent)">&#8593; ERM</button>':'';
+      '<button class="btn btn-sm btn-secondary" data-orm-call="ormElevateToErm" data-orm-id="'+ormAttrId(e.id)+'" data-s="s53d0ffa">&#8593; ERM</button>':'';
     var aiBtn='<button class="btn-orm-ai" data-orm-call="ormAiAnalyze" data-orm-id="'+ormAttrId(e.id)+'" data-orm-this="1" title="AI root cause"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg></button>';
     var detDate=e.detected_at||e.created_at;
     // SLA chip
-    var slaHtml='<span style="color:var(--muted);font-size:11px">—</span>';
+    var slaHtml='<span data-s="s6d034cc">—</span>';
     var isClosed=e.status==='closed'||e.status==='resolved';
     if(!isClosed){
       var respDue=e.response_due_at?new Date(e.response_due_at.includes('T')?e.response_due_at:e.response_due_at+'Z').getTime():null;
@@ -624,18 +624,18 @@ function ormRenderEvents(){
     }else{slaHtml='<span class="sla-ok">&#10003;</span>';}
     return'<tr id="evtRow-'+e.id+'">'+
       '<td><input type="checkbox" data-id="'+e.id+'" data-orm-select-id="'+ormAttrId(e.id)+'"></td>'+
-      '<td style="cursor:pointer" data-orm-call="ormOpenEventDrawer" data-orm-id="'+ormAttrId(e.id)+'">'+recurBadge+'<span style="color:var(--accent);font-weight:600">'+esc(e.title||'')+'</span></td>'+
-      '<td><span style="font-size:14px">'+typeIcon(e.event_type)+'</span> <span style="font-size:11px;color:var(--muted)">'+esc((e.event_type||'').replace(/_/g,' '))+'</span></td>'+
+      '<td data-s="s3b6a3a6" data-orm-call="ormOpenEventDrawer" data-orm-id="'+ormAttrId(e.id)+'">'+recurBadge+'<span data-s="s64ac89c">'+esc(e.title||'')+'</span></td>'+
+      '<td><span data-s="s433de30">'+typeIcon(e.event_type)+'</span> <span data-s="s1fd8c81">'+esc((e.event_type||'').replace(/_/g,' '))+'</span></td>'+
       '<td>'+sevBadge(e.severity)+'</td>'+
-      '<td style="font-size:12px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.department||'—')+'</td>'+
-      '<td style="font-weight:700;color:'+(parseFloat(e.financial_impact)>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(e.financial_impact||0)+'</td>'+
+      '<td data-s="s4212bf3">'+esc(e.department||'—')+'</td>'+
+      '<td data-sv="font-weight:700;color:'+(parseFloat(e.financial_impact)>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(e.financial_impact||0)+'</td>'+
       '<td>'+statusBadge(e.status)+'</td>'+
       '<td>'+slaHtml+'</td>'+
-      '<td style="font-size:12px;color:var(--muted)">'+fmtDate(detDate)+'</td>'+
-      '<td><div style="display:flex;gap:4px;align-items:center">'+aiBtn+elevateBtn+
-        '<button class="btn btn-sm btn-secondary" data-orm-cache-call="ormOpenEventModal" data-orm-id="'+ormAttrId(e.id)+'" style="padding:4px 8px" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
-        '<button class="btn btn-sm btn-secondary" data-orm-call="ormDuplicateEvt" data-orm-id="'+ormAttrId(e.id)+'" style="padding:4px 8px" title="Duplicate"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></button>'+
-        '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteEvt" data-orm-id="'+ormAttrId(e.id)+'" style="padding:4px 8px;color:var(--red)" title="Delete">&#10005;</button>'+
+      '<td data-s="s7fc448e">'+fmtDate(detDate)+'</td>'+
+      '<td><div data-s="s577c5fb" data-sd="flex">'+aiBtn+elevateBtn+
+        '<button class="btn btn-sm btn-secondary" data-orm-cache-call="ormOpenEventModal" data-orm-id="'+ormAttrId(e.id)+'" data-s="sf261655" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+        '<button class="btn btn-sm btn-secondary" data-orm-call="ormDuplicateEvt" data-orm-id="'+ormAttrId(e.id)+'" data-s="sf261655" title="Duplicate"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></button>'+
+        '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteEvt" data-orm-id="'+ormAttrId(e.id)+'" data-s="sc304996" title="Delete">&#10005;</button>'+
       '</div></td>'+
     '</tr>';
   }).join('');
@@ -663,17 +663,17 @@ window.ormBulkStatus=function(){
   if(!evtSelectedIds.size)return;
   var cnt=evtSelectedIds.size;
   var html='<div class="orm-modal-overlay" id="ormBulkStatusModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:380px">'+
+    '<div class="modal-box" data-s="sb4a851b">'+
       '<div class="modal-title">Change Status — '+cnt+' Event(s)</div>'+
       '<div class="form-group"><label>New Status</label>'+
-        '<select id="bulkStatusSel" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px">'+
+        '<select id="bulkStatusSel" data-s="s3c8f9ee">'+
           '<option value="open">Open</option>'+
           '<option value="investigating" selected>Investigating</option>'+
           '<option value="resolved">Resolved</option>'+
           '<option value="closed">Closed</option>'+
         '</select>'+
       '</div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s38">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-static-click="s39">Apply</button>'+
       '</div>'+
@@ -721,16 +721,16 @@ window.ormAiAnalyze=async function(id,btn){
     btn.disabled=false;btn.innerHTML=orig;
     document.body.insertAdjacentHTML('beforeend',
       '<div class="orm-modal-overlay" data-orm-static-click="s37">'+
-      '<div class="modal-box" style="max-width:560px">'+
+      '<div class="modal-box" data-s="s765d57b">'+
         '<div class="modal-title"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Root Cause Analysis</div>'+
-        '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px">'+
-          '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Root Cause Category</div>'+
-          '<div style="font-size:15px;font-weight:700;color:var(--text);text-transform:capitalize">'+esc(res.root_cause_category||'—')+'</div>'+
+        '<div data-s="s3a10379">'+
+          '<div data-s="s5150672">Root Cause Category</div>'+
+          '<div data-s="sa6c5f9b">'+esc(res.root_cause_category||'—')+'</div>'+
         '</div>'+
-        (res.root_cause_analysis?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Analysis</div><div style="font-size:13px;line-height:1.6">'+esc(res.root_cause_analysis)+'</div></div>':'')+
-        '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--good,#16a34a);text-transform:uppercase;margin-bottom:4px">Corrective Action</div><div style="font-size:13px;line-height:1.6">'+esc(res.corrective_action||'—')+'</div></div>'+
-        '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:4px">Preventive Action</div><div style="font-size:13px;line-height:1.6">'+esc(res.preventive_action||'—')+'</div></div>'+
-        '<div style="display:flex;justify-content:flex-end"><button class="btn btn-secondary" data-orm-static-click="s40">Close</button></div>'+
+        (res.root_cause_analysis?'<div data-s="sda12f28"><div data-s="s5150672">Analysis</div><div data-s="s6bcb8fe">'+esc(res.root_cause_analysis)+'</div></div>':'')+
+        '<div data-s="sda12f28"><div data-s="sf7d7e96">Corrective Action</div><div data-s="s6bcb8fe">'+esc(res.corrective_action||'—')+'</div></div>'+
+        '<div data-s="s87c136d"><div data-s="s2bd2920">Preventive Action</div><div data-s="s6bcb8fe">'+esc(res.preventive_action||'—')+'</div></div>'+
+        '<div data-s="s455f8cc" data-sd="flex"><button class="btn btn-secondary" data-orm-static-click="s40">Close</button></div>'+
       '</div></div>'
     );
     ormLoadEvents();
@@ -740,7 +740,7 @@ window.ormAiAnalyze=async function(id,btn){
 /* ─────────────────────────── EVENT DRAWER ─────────────────────────── */
 window.ormOpenEventDrawer=async function(id){
   var drawer=document.getElementById('ormDrawerRoot');
-  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" data-s="sa3fa223"><div class="spinner"></div></div></div>';
   try{
     var e=await apiFetch('/orm/api/events/'+id);
     window._ormDrawerEvt = e;
@@ -750,25 +750,25 @@ window.ormOpenEventDrawer=async function(id){
     drawer.innerHTML='<div class="orm-drawer-overlay" data-orm-static-click="s41">'+
     '<div class="orm-drawer-panel">'+
       '<div class="orm-drawer-head">'+
-        '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px">'+
+        '<div data-s="sb5ca335" data-sd="flex">'+
           '<div>'+
-            '<div style="font-size:16px;font-weight:800;color:var(--text)">'+typeIcon(e.event_type)+' '+esc(e.title||'')+'</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+esc((e.event_type||'').replace(/_/g,' '))+' &bull; '+fmtDate(e.created_at)+'</div>'+
+            '<div data-s="s57e146b">'+typeIcon(e.event_type)+' '+esc(e.title||'')+'</div>'+
+            '<div data-s="sd14d7bf">'+esc((e.event_type||'').replace(/_/g,' '))+' &bull; '+fmtDate(e.created_at)+'</div>'+
           '</div>'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s42">&#10005;</button>'+
         '</div>'+
-        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
+        '<div data-s="sfa88970" data-sd="flex">'+
           sevBadge(e.severity)+statusBadge(e.status)+
-          (e.is_recurring?'<span class="badge badge-critical" style="font-size:10px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring</span>':'')+
+          (e.is_recurring?'<span class="badge badge-critical" data-s="s0d5be05"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring</span>':'')+
           (e.erm_risk_id?'<span class="badge badge-complete" title="ERM Risk #'+e.erm_risk_id+'">&#8593; ERM #'+e.erm_risk_id+'</span>':'')+
         '</div>'+
       '</div>'+
       '<div class="orm-drawer-body">'+
         '<!-- Metrics grid -->'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">'+
-          '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Financial Impact</div><div style="font-size:18px;font-weight:800;color:var(--red)">'+fmtCurrency(e.financial_impact||0)+'</div></div>'+
-          '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Customers</div><div style="font-size:18px;font-weight:800">'+(e.customers_affected||0).toLocaleString()+'</div></div>'+
-          '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Downtime</div><div style="font-size:18px;font-weight:800">'+(e.downtime_minutes?Math.round(e.downtime_minutes/60*10)/10+'h':'—')+'</div></div>'+
+        '<div data-s="s6f6bd81" data-sd="grid">'+
+          '<div data-s="s0ff1122"><div data-s="s0de5e1b">Financial Impact</div><div data-s="sbf41355">'+fmtCurrency(e.financial_impact||0)+'</div></div>'+
+          '<div data-s="s0ff1122"><div data-s="s0de5e1b">Customers</div><div data-s="s80b90e3">'+(e.customers_affected||0).toLocaleString()+'</div></div>'+
+          '<div data-s="s0ff1122"><div data-s="s0de5e1b">Downtime</div><div data-s="s80b90e3">'+(e.downtime_minutes?Math.round(e.downtime_minutes/60*10)/10+'h':'—')+'</div></div>'+
         '</div>'+
         '<!-- Details section -->'+
         '<div class="orm-drawer-section">'+
@@ -780,42 +780,42 @@ window.ormOpenEventDrawer=async function(id){
           '<div class="orm-drawer-row"><span class="orm-drawer-label">Owner</span><span class="orm-drawer-val">'+esc(e.owner_name||'Unassigned')+'</span></div>'+
           (e.resolved_at?'<div class="orm-drawer-row"><span class="orm-drawer-label">Resolved At</span><span class="orm-drawer-val">'+fmtDate(e.resolved_at)+'</span></div>':'')+
         '</div>'+
-        (e.description?'<div class="orm-drawer-section"><div class="orm-drawer-section-title">Description</div><div style="font-size:13px;line-height:1.6;color:var(--text)">'+esc(e.description)+'</div></div>':'')+
+        (e.description?'<div class="orm-drawer-section"><div class="orm-drawer-section-title">Description</div><div data-s="s01643be">'+esc(e.description)+'</div></div>':'')+
         '<!-- Root cause section -->'+
         '<div class="orm-drawer-section">'+
           '<div class="orm-drawer-section-title">Root Cause</div>'+
-          '<div class="orm-drawer-row"><span class="orm-drawer-label">Category</span><span class="orm-drawer-val" style="text-transform:capitalize">'+esc(e.root_cause_category||'—')+'</span></div>'+
-          (e.root_cause?'<div style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--text)">'+esc(e.root_cause)+'</div>':'')+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Category</span><span class="orm-drawer-val" data-s="s6fedee3">'+esc(e.root_cause_category||'—')+'</span></div>'+
+          (e.root_cause?'<div data-s="s1516108">'+esc(e.root_cause)+'</div>':'')+
         '</div>'+
         (e.corrective_action||e.preventive_action?
           '<div class="orm-drawer-section">'+
             '<div class="orm-drawer-section-title">Actions</div>'+
-            (e.corrective_action?'<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--good,#16a34a);text-transform:uppercase;margin-bottom:2px">Corrective</div><div style="font-size:13px;line-height:1.5">'+esc(e.corrective_action)+'</div></div>':'')+
-            (e.preventive_action?'<div><div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:2px">Preventive</div><div style="font-size:13px;line-height:1.5">'+esc(e.preventive_action)+'</div></div>':'')+
+            (e.corrective_action?'<div data-s="sfdf33f2"><div data-s="sb2d4914">Corrective</div><div data-s="s0b422b6">'+esc(e.corrective_action)+'</div></div>':'')+
+            (e.preventive_action?'<div><div data-s="s95ad82e">Preventive</div><div data-s="s0b422b6">'+esc(e.preventive_action)+'</div></div>':'')+
           '</div>':'')+
         /* Sentinel cross-module link for fraud/customer impact */
-        (isFraud?'<div style="background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.2);border-radius:var(--radius);padding:10px 12px;margin-top:4px;font-size:12px"><span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span> <strong>Data exposure risk</strong> — If personal data was affected, consider raising a Sentinel incident. <a href="/sentinel/" style="color:var(--accent);font-weight:700">Open Sentinel &#8594;</a></div>':'')+
+        (isFraud?'<div data-s="sb82a216"><span data-s="s433de30"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg></span> <strong>Data exposure risk</strong> — If personal data was affected, consider raising a Sentinel incident. <a href="/sentinel/" data-s="s456fefd">Open Sentinel &#8594;</a></div>':'')+
         /* BCM link for system failures with significant downtime */
-        (isSystem&&(e.downtime_minutes||0)>=120?'<div style="background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius);padding:10px 12px;margin-top:8px;font-size:12px"><span style="font-size:14px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg></span> <strong>Significant downtime detected</strong> — Consider creating a BCM incident if business continuity is at risk. <a href="/bcm/" style="color:var(--accent);font-weight:700">Open BCM &#8594;</a></div>':'')+
+        (isSystem&&(e.downtime_minutes||0)>=120?'<div data-s="s26e6b37"><span data-s="s433de30"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-zap></use></svg></span> <strong>Significant downtime detected</strong> — Consider creating a BCM incident if business continuity is at risk. <a href="/bcm/" data-s="s456fefd">Open BCM &#8594;</a></div>':'')+
         /* Workflow stepper */
-        '<div class="orm-drawer-section" style="margin-top:16px">'+
+        '<div class="orm-drawer-section" data-s="s1b0f499">'+
           '<div class="orm-drawer-section-title">Investigation Workflow</div>'+
           ormWorkflowStepper(e)+
-          '<div id="wfHistory-'+e.id+'" style="margin-top:10px;display:none"></div>'+
-          '<button style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;margin-top:2px" data-orm-call="ormToggleWfHistory" data-orm-id="'+ormAttrId(e.id)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-clock></use></svg> Show history</button>'+
+          '<div id="wfHistory-'+e.id+'" data-s="sd2c171b" data-sd="none"></div>'+
+          '<button data-s="sba45a76" data-orm-call="ormToggleWfHistory" data-orm-id="'+ormAttrId(e.id)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-file-clock></use></svg> Show history</button>'+
         '</div>'+
         /* Related events — parent + children from evtCache */
         (function(){
           var parentEvt=e.parent_event_id?evtCache.find(function(x){return x.id===e.parent_event_id;}):null;
           var children=evtCache.filter(function(x){return x.parent_event_id===e.id;});
           if(!parentEvt&&!children.length)return'';
-          return'<div class="orm-drawer-section" style="margin-top:12px">'+
+          return'<div class="orm-drawer-section" data-s="s56f4356">'+
             '<div class="orm-drawer-section-title">Related Events</div>'+
-            (parentEvt?'<div style="margin-bottom:6px"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Parent</span>'+
-              '<div style="margin-top:4px"><a href="#" data-orm-special="open-event-close" data-orm-id="'+ormAttrId(parentEvt.id)+'" style="font-size:12px;font-weight:600;color:var(--accent)">'+typeIcon(parentEvt.event_type)+' '+esc(parentEvt.title)+'</a></div></div>':'')+
-            (children.length?'<div><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Children ('+children.length+')</span>'+
-              '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'+
-              children.map(function(c){return'<a href="#" data-orm-special="open-event-close" data-orm-id="'+ormAttrId(c.id)+'" style="font-size:11px;font-weight:600;color:var(--accent);background:var(--surface3);padding:3px 8px;border-radius:100px">'+typeIcon(c.event_type)+' '+esc(c.title)+'</a>';}).join('')+
+            (parentEvt?'<div data-s="s4e420af"><span data-s="s0de5e1b">Parent</span>'+
+              '<div data-s="s96ad609"><a href="#" data-orm-special="open-event-close" data-orm-id="'+ormAttrId(parentEvt.id)+'" data-s="s0f569d7">'+typeIcon(parentEvt.event_type)+' '+esc(parentEvt.title)+'</a></div></div>':'')+
+            (children.length?'<div><span data-s="s0de5e1b">Children ('+children.length+')</span>'+
+              '<div data-s="s5f79c69" data-sd="flex">'+
+              children.map(function(c){return'<a href="#" data-orm-special="open-event-close" data-orm-id="'+ormAttrId(c.id)+'" data-s="sc78de4b">'+typeIcon(c.event_type)+' '+esc(c.title)+'</a>';}).join('')+
               '</div></div>':'')+
           '</div>';
         })()+
@@ -825,7 +825,7 @@ window.ormOpenEventDrawer=async function(id){
         '<button class="btn-orm-ai" data-orm-call="ormAiAnalyzeFromDrawer" data-orm-id="'+ormAttrId(e.id)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-brain></use></svg> AI Analyze</button>'+
         (canElevate?'<button class="btn btn-secondary" data-orm-special="elevate-close" data-orm-id="'+ormAttrId(e.id)+'">&#8593; Elevate to ERM</button>':'')+
         '<button class="btn btn-sm btn-secondary" data-orm-special="toggle-recurring" data-orm-id="'+ormAttrId(e.id)+'" data-orm-toggle="'+(e.is_recurring?'0':'1')+'">'+(e.is_recurring?'&#10003; Recurring':'Mark <svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-refresh-cw></use></svg> Recurring')+'</button>'+
-        '<button class="btn btn-primary" data-orm-static-click="s43" style="margin-left:auto">Edit</button>'+
+        '<button class="btn btn-primary" data-orm-static-click="s43" data-s="s6d00061">Edit</button>'+
       '</div>'+
     '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
@@ -870,7 +870,7 @@ window.ormOpenEventModal=async function(existing){
         '<div class="form-group"><label>Event Type *</label><select id="oe_type">'+types.map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
         '<div class="form-group"><label>Severity</label><select id="oe_sev">'+['low','medium','high','critical'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.severity===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
       '</div>'+
-      '<div class="form-group"><label>Description</label><textarea id="oe_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Description</label><textarea id="oe_desc" rows="3" data-s="sa57b154">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Financial Impact ($)</label><input type="number" id="oe_fin" min="0" value="'+(isEdit?(existing.financial_impact||0):0)+'"></div>'+
         '<div class="form-group"><label>Customers Affected</label><input type="number" id="oe_cust" min="0" value="'+(isEdit?(existing.customers_affected||0):0)+'"></div>'+
@@ -892,11 +892,11 @@ window.ormOpenEventModal=async function(existing){
       '</div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Status</label><select id="oe_status" data-orm-static-change="s45">'+['open','investigating','resolved','closed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
-        '<div class="form-group" id="oe_resolved_row" style="display:'+(showResolvedAt?'block':'none')+'"><label>Resolved At</label><input type="datetime-local" id="oe_resolved" value="'+(isEdit&&existing.resolved_at?existing.resolved_at.replace(' ','T').slice(0,16):'')+'"></div>'+
+        '<div class="form-group" id="oe_resolved_row" data-sv="display:'+(showResolvedAt?'block':'none')+'"><label>Resolved At</label><input type="datetime-local" id="oe_resolved" value="'+(isEdit&&existing.resolved_at?existing.resolved_at.replace(' ','T').slice(0,16):'')+'"></div>'+
       '</div>'+
-      '<div class="form-group"><label>Corrective Action</label><textarea id="oe_corrective" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
-      '<div class="form-group"><label>Preventive Action</label><textarea id="oe_preventive" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
-      '<div class="form-group"><label>Basel III Category <span style="font-size:10px;color:var(--muted);font-weight:400">(optional — financial services)</span></label>'+
+      '<div class="form-group"><label>Corrective Action</label><textarea id="oe_corrective" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Preventive Action</label><textarea id="oe_preventive" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Basel III Category <span data-s="s8e93b13">(optional — financial services)</span></label>'+
         '<select id="oe_basel">'+
           '<option value="">— Not specified —</option>'+
           ['internal_fraud','external_fraud','employment_practices','clients_products','physical_assets','business_disruption','execution_delivery'].map(function(c){
@@ -905,7 +905,7 @@ window.ormOpenEventModal=async function(existing){
           }).join('')+
         '</select>'+
       '</div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s44">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-save-call="ormSaveEvent" data-orm-save-id="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-save-edit="'+(isEdit?'1':'0')+'">Save Event</button>'+
       '</div>'+
@@ -993,7 +993,7 @@ function ormKriSparkline(points){
 var kriCache=[], kriHistoryCache={};
 window.ormLoadKris=async function(){
   var grid=document.getElementById('ormKriGrid');
-  if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+  if(grid)grid.innerHTML='<div data-s="se3e8e97"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     var data=await apiFetch('/orm/api/kris');
     kriCache=Array.isArray(data)?data:[];
@@ -1024,12 +1024,12 @@ window.ormLoadKris=async function(){
     if(bb){
       if(breaching.length){
         bb.style.display='';
-        bb.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">'+
-          '<span style="font-size:20px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg></span>'+
-          '<div style="flex:1"><strong style="color:var(--red)">'+breaching.length+' KRI'+(breaching.length>1?'s':'')+' at Critical Level</strong>: '+
+        bb.innerHTML='<div data-s="sf9990f4" data-sd="flex">'+
+          '<span data-s="sb9199e2"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-siren></use></svg></span>'+
+          '<div data-s="s97445a8"><strong data-s="s45e7ae4">'+breaching.length+' KRI'+(breaching.length>1?'s':'')+' at Critical Level</strong>: '+
           breaching.map(function(k){
             var sentinelLink=(k.name||'').toLowerCase().includes('breach')||(k.name||'').toLowerCase().includes('data')?
-              ' <a href="/sentinel/" style="color:var(--accent);font-size:11px">(Review in Sentinel)</a>':'';
+              ' <a href="/sentinel/" data-s="sa715fab">(Review in Sentinel)</a>':'';
             return esc(k.name)+' <strong>'+k.current_value+' '+esc(k.unit||'')+'</strong>'+sentinelLink;
           }).join(', ')+'</div>'+
         '</div>';
@@ -1046,10 +1046,10 @@ window.ormLoadKris=async function(){
     if(sb){
       if(stale.length){
         sb.style.display='';
-        sb.innerHTML='<div style="background:rgba(217,119,6,.07);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px">'+
-          '<span style="font-size:18px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg></span>'+
-          '<div style="flex:1;font-size:13px"><strong style="color:var(--amber,#d97706)">'+stale.length+' KRI'+(stale.length>1?'s':'')+' haven\'t been updated in over 30 days</strong>: '+
-          stale.map(function(k){return'<a href="#" style="color:var(--accent)" data-orm-special="kri-update" data-orm-id="'+ormAttrId(k.id)+'">'+esc(k.name)+'</a>';}).join(', ')+
+        sb.innerHTML='<div data-s="s6e073d1" data-sd="flex">'+
+          '<span data-s="s4ff818f"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg></span>'+
+          '<div data-s="s7829123"><strong data-s="sd0ca9f2">'+stale.length+' KRI'+(stale.length>1?'s':'')+' haven\'t been updated in over 30 days</strong>: '+
+          stale.map(function(k){return'<a href="#" data-s="sa805525" data-orm-special="kri-update" data-orm-id="'+ormAttrId(k.id)+'">'+esc(k.name)+'</a>';}).join(', ')+
           ' — update them to keep your risk picture accurate.</div>'+
         '</div>';
       }else{sb.style.display='none';}
@@ -1067,17 +1067,17 @@ window.ormLoadKris=async function(){
       ];
       fb.innerHTML=chips.map(function(c){
         var active=window._kriFilter===c.filter||(!window._kriFilter&&c.filter==='all');
-        return'<button data-orm-special="kri-filter" data-orm-filter="'+esc(c.filter)+'" style="padding:4px 12px;border-radius:100px;border:1px solid var(--border);background:'+(active?'var(--accent)':'var(--surface2)')+';color:'+(active?'white':'var(--text)')+';font-size:12px;font-weight:600;cursor:pointer">'+c.label+'</button>';
+        return'<button data-orm-special="kri-filter" data-orm-filter="'+esc(c.filter)+'" data-sv="padding:4px 12px;border-radius:100px;border:1px solid var(--border);background:'+(active?'var(--accent)':'var(--surface2)')+';color:'+(active?'white':'var(--text)')+';font-size:12px;font-weight:600;cursor:pointer">'+c.label+'</button>';
       }).join('');
     }
 
     if(!kriCache.length){
-      if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No KRIs defined. Click "+ Add KRI" to create your first indicator.</div>';
+      if(grid)grid.innerHTML='<div data-s="se3e8e97">No KRIs defined. Click "+ Add KRI" to create your first indicator.</div>';
       return;
     }
     var displayKris=ormGetFilteredKris(kriCache);
     if(!displayKris.length){
-      if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No KRIs match the selected filter.</div>';
+      if(grid)grid.innerHTML='<div data-s="se3e8e97">No KRIs match the selected filter.</div>';
       return;
     }
     if(grid)grid.innerHTML=displayKris.map(function(k){
@@ -1089,38 +1089,38 @@ window.ormLoadKris=async function(){
       var sentinelHint=(k.name||'').toLowerCase().includes('breach')||(k.name||'').toLowerCase().includes('data');
       var criticalKri=crit&&val>=crit;
       return'<div class="kri-card">'+
-        '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
-          '<div style="font-size:14px;font-weight:700;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(k.name)+'</div>'+
-          '<span style="font-size:10px;font-weight:700;color:'+ragColor+';flex-shrink:0;margin-left:8px">'+status+'</span>'+
+        '<div data-s="s3ae5ff5" data-sd="flex">'+
+          '<div data-s="s381a5ca">'+esc(k.name)+'</div>'+
+          '<span data-sv="font-size:10px;font-weight:700;color:'+ragColor+';flex-shrink:0;margin-left:8px">'+status+'</span>'+
         '</div>'+
-        (k.description?'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">'+esc(k.description)+'</div>':'')+
-        '<div style="font-size:28px;font-weight:900;color:'+ragColor+';line-height:1;cursor:pointer" data-orm-call="ormInlineKriEdit" data-orm-id="'+ormAttrId(k.id)+'" data-orm-this="1" title="Click to update value" id="kriVal-'+k.id+'">'+val+'<span style="font-size:13px;font-weight:400;color:var(--muted)"> '+esc(k.unit||'')+'</span></div>'+
+        (k.description?'<div data-s="s641c5f4">'+esc(k.description)+'</div>':'')+
+        '<div data-sv="font-size:28px;font-weight:900;color:'+ragColor+';line-height:1;cursor:pointer" data-orm-call="ormInlineKriEdit" data-orm-id="'+ormAttrId(k.id)+'" data-orm-this="1" title="Click to update value" id="kriVal-'+k.id+'">'+val+'<span data-s="s1636f8d"> '+esc(k.unit||'')+'</span></div>'+
         ormKriGauge(val,warn,crit)+
-        '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:8px">'+
+        '<div data-s="s1a1f200" data-sd="flex">'+
           (warn?'<span><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg> Warn: '+warn+'</span>':'<span></span>')+
           (crit?'<span><svg class=ic-red aria-hidden=true><use href=/static/icons/sprite.svg#ic-dot></use></svg> Crit: '+crit+'</span>':'<span></span>')+
         '</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+
-          (k.frequency?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> '+esc(k.frequency)+'</span>':'')+
-          (k.owner_name?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg> '+esc(k.owner_name)+'</span>':'')+
-          (k.last_updated?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">Updated '+timeAgo(k.last_updated)+'</span>':'')+
-          (k.trend==='worsening'?'<span style="font-size:10px;color:var(--red);background:rgba(220,38,38,.08);padding:2px 7px;border-radius:100px;font-weight:700">&#8593; Worsening</span>':
-           k.trend==='improving'?'<span style="font-size:10px;color:var(--good,#16a34a);background:rgba(22,163,74,.08);padding:2px 7px;border-radius:100px;font-weight:700">&#8595; Improving</span>':'')+
+        '<div data-s="s4b67c47" data-sd="flex">'+
+          (k.frequency?'<span data-s="sfaae1d0"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-alarm-clock></use></svg> '+esc(k.frequency)+'</span>':'')+
+          (k.owner_name?'<span data-s="sfaae1d0"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-user></use></svg> '+esc(k.owner_name)+'</span>':'')+
+          (k.last_updated?'<span data-s="sfaae1d0">Updated '+timeAgo(k.last_updated)+'</span>':'')+
+          (k.trend==='worsening'?'<span data-s="s55dfec5">&#8593; Worsening</span>':
+           k.trend==='improving'?'<span data-s="s3c48ee1">&#8595; Improving</span>':'')+
         '</div>'+
         /* Sparkline */
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
-          '<span style="font-size:10px;color:var(--muted);font-weight:600">7-day trend</span>'+
+        '<div data-s="s7357596" data-sd="flex">'+
+          '<span data-s="s89bea07">7-day trend</span>'+
           '<span id="kriSpark-'+k.id+'">'+ormKriSparkline(kriHistoryCache[k.id]||[])+'</span>'+
         '</div>'+
-        (criticalKri&&sentinelHint?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Breach indicator — <a href="/sentinel/" style="color:var(--accent)">Review in Sentinel</a></div>':'')+
-        '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+
+        (criticalKri&&sentinelHint?'<div data-s="s621f2cc"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-shield></use></svg> Breach indicator — <a href="/sentinel/" data-s="sa805525">Review in Sentinel</a></div>':'')+
+        '<div data-s="s59d05aa" data-sd="flex">'+
           '<button class="btn btn-sm btn-secondary" data-orm-cache-call="ormOpenKriUpdateModal" data-orm-id="'+ormAttrId(k.id)+'">Update Value</button>'+
           '<button class="btn btn-sm btn-secondary" data-orm-cache-call="ormOpenKriModal" data-orm-id="'+ormAttrId(k.id)+'">Edit</button>'+
-          '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteKri" data-orm-id="'+ormAttrId(k.id)+'" style="color:var(--red)">Delete</button>'+
+          '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteKri" data-orm-id="'+ormAttrId(k.id)+'" data-s="s45e7ae4">Delete</button>'+
         '</div>'+
       '</div>';
     }).join('');
-  }catch(e){if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Failed to load KRIs</div>';}
+  }catch(e){if(grid)grid.innerHTML='<div data-s="se3e8e97">Failed to load KRIs</div>';}
 };
 window.ormUpdateKriValue=function(id,currentVal,unit){
   var newVal=prompt('Update KRI value\nCurrent: '+currentVal+' '+unit+'\n\nEnter new value:');
@@ -1138,7 +1138,7 @@ window.ormOpenKriModal=async function(existing){
   var preset=existing||{};
   var users=await ormLoadUsers();
   var html='<div class="orm-modal-overlay" id="kriModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:520px">'+
+    '<div class="modal-box" data-s="s04391f0">'+
       '<button class="modal-close" data-orm-static-click="s46">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Key Risk Indicator</div>'+
       '<div class="form-group"><label>Name *</label><input id="kr_name" value="'+esc(preset.name||'')+'"></div>'+
@@ -1155,7 +1155,7 @@ window.ormOpenKriModal=async function(existing){
         '<div class="form-group"><label>Current Value</label><input type="number" id="kr_val" value="'+(isEdit?(existing.current_value||0):0)+'"></div>'+
         '<div class="form-group"><label>Frequency</label><select id="kr_freq">'+['daily','weekly','monthly','quarterly'].map(function(f){return'<option value="'+f+'"'+(preset.frequency===f?' selected':'')+'>'+f+'</option>';}).join('')+'</select></div>'+
       '</div>'+
-      '<div class="form-group"><label>Auto-update when event type is logged <span style="font-size:10px;color:var(--muted)">(optional)</span></label>'+
+      '<div class="form-group"><label>Auto-update when event type is logged <span data-s="sb569cab">(optional)</span></label>'+
         '<select id="kr_auto_type">'+
           '<option value="">— Manual updates only —</option>'+
           ['process_failure','fraud','system_failure','human_error','outage','vendor_failure','customer_impact'].map(function(t){
@@ -1163,12 +1163,12 @@ window.ormOpenKriModal=async function(existing){
           }).join('')+
         '</select>'+
       '</div>'+
-      '<div class="form-group"><label>Auto-update notes <span style="font-size:10px;color:var(--muted)">(optional)</span></label><input id="kr_auto_notes" placeholder="e.g. increments by 1 per matching event" value="'+esc(preset.auto_update_notes||'')+'"></div>'+
+      '<div class="form-group"><label>Auto-update notes <span data-s="sb569cab">(optional)</span></label><input id="kr_auto_notes" placeholder="e.g. increments by 1 per matching event" value="'+esc(preset.auto_update_notes||'')+'"></div>'+
       '<div class="form-group"><label>Owner</label><select id="kr_owner">'+
         '<option value="">— Unassigned —</option>'+
         users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
       '</select></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s46">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-save-call="ormSaveKri" data-orm-save-id="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-save-edit="'+(isEdit?'1':'0')+'">Save KRI</button>'+
       '</div>'+
@@ -1238,26 +1238,26 @@ function ormRenderDeptHeat(events){
     if(!dMap[d])dMap[d]={};dMap[d][s]=(dMap[d][s]||0)+1;
   });
   var depts=Object.keys(dMap).sort();
-  if(!depts.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">No department data — add departments when logging events</div>';return;}
+  if(!depts.length){el.innerHTML='<div data-s="s686c270">No department data — add departments when logging events</div>';return;}
   var maxCnt=1;
   depts.forEach(function(d){sevs.forEach(function(s){if((dMap[d][s]||0)>maxCnt)maxCnt=dMap[d][s];});});
   var sevRgb={critical:'220,38,38',high:'245,158,11',medium:'99,102,241',low:'22,163,74'};
-  el.innerHTML='<table style="width:100%;border-collapse:separate;border-spacing:4px 2px">'+
-    '<thead><tr><th style="padding:4px 8px;font-size:11px;color:var(--muted);text-align:left;font-weight:600">Dept</th>'+
-    sevs.map(function(s){return'<th style="padding:4px 8px;font-size:11px;color:var(--muted);text-align:center;text-transform:capitalize;font-weight:600">'+s+'</th>';}).join('')+
-    '<th style="padding:4px 8px;font-size:11px;color:var(--muted);text-align:center;font-weight:600">Total</th></tr></thead>'+
+  el.innerHTML='<table data-s="sa125070">'+
+    '<thead><tr><th data-s="s003efe6">Dept</th>'+
+    sevs.map(function(s){return'<th data-s="s506b5f8">'+s+'</th>';}).join('')+
+    '<th data-s="sa04a661">Total</th></tr></thead>'+
     '<tbody>'+depts.map(function(d){
       var rowTotal=sevs.reduce(function(s,sv){return s+(dMap[d][sv]||0);},0);
-      return'<tr><td style="padding:5px 8px;font-size:12px;font-weight:600;white-space:nowrap">'+esc(d)+'</td>'+
+      return'<tr><td data-s="s6df6768">'+esc(d)+'</td>'+
         sevs.map(function(s){
           var cnt=dMap[d][s]||0;
           var op=cnt>0?(0.12+(cnt/maxCnt)*0.65).toFixed(2):'0';
           var rgb=sevRgb[s]||'99,102,241';
-          return'<td style="padding:5px 8px;text-align:center">'+
-            (cnt>0?'<span class="orm-heat-cell" title="'+escChartAttr(d)+': '+escChartAttr(s)+' severity, '+cnt+' events" style="display:inline-block;min-width:26px;padding:2px 6px;border-radius:8px;font-size:12px;font-weight:700;background:rgba('+rgb+','+op+');color:rgba('+rgb+',.95)">'+cnt+'</span>':'<span style="color:var(--surface3);font-size:12px">—</span>')+
+          return'<td data-s="s42cd250">'+
+            (cnt>0?'<span class="orm-heat-cell" title="'+escChartAttr(d)+': '+escChartAttr(s)+' severity, '+cnt+' events" data-sv="display:inline-block;min-width:26px;padding:2px 6px;border-radius:8px;font-size:12px;font-weight:700;background:rgba('+rgb+','+op+');color:rgba('+rgb+',.95)">'+cnt+'</span>':'<span data-s="sae9318f">—</span>')+
           '</td>';
         }).join('')+
-        '<td style="padding:5px 8px;text-align:center;font-size:12px;font-weight:700">'+rowTotal+'</td></tr>';
+        '<td data-s="s56edc85">'+rowTotal+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
 
@@ -1279,13 +1279,13 @@ function ormRenderLossTrend(events){
   var maxL=Math.max.apply(null,months.map(function(m){return m.loss;}).concat([1]));
   el.innerHTML=months.map(function(m){
     var pct=(m.loss/maxL*100).toFixed(1);
-    return'<div style="margin-bottom:10px">'+
-      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'+
-        '<span style="color:var(--text)">'+esc(m.label)+'</span>'+
-        '<span style="color:'+(m.loss>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(m.loss)+'</span>'+
+    return'<div data-s="s761d3ad">'+
+      '<div data-s="sc76ac38" data-sd="flex">'+
+        '<span data-s="sf045bbe">'+esc(m.label)+'</span>'+
+        '<span data-sv="color:'+(m.loss>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(m.loss)+'</span>'+
       '</div>'+
-      '<div style="height:7px;background:var(--surface3);border-radius:100px">'+
-        '<div class="premium-chart-bar" style="height:100%;width:'+pct+'%;background:var(--red,#dc2626);border-radius:100px;transition:width .6s ease" title="'+escChartAttr(m.label)+': '+escChartAttr(fmtCurrency(m.loss))+'"></div>'+
+      '<div data-s="sac3dcd9">'+
+        '<div class="premium-chart-bar" data-sv="height:100%;width:'+pct+'%;background:var(--red,#dc2626);border-radius:100px;transition:width .6s ease" title="'+escChartAttr(m.label)+': '+escChartAttr(fmtCurrency(m.loss))+'"></div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1336,7 +1336,7 @@ window.ormSendChat=async function(){
   var tid='t-'+Date.now();
   var ad=document.createElement('div');ad.id=tid;
   ad.style.cssText='align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';
-  ad.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px"></div>';
+  ad.innerHTML='<div class="spinner" data-s="se29191c"></div>';
   container.appendChild(ad);container.scrollTop=container.scrollHeight;
   try{
     var d=await apiFetch('/orm/api/chat',{method:'POST',body:{message:msg}});
@@ -1387,14 +1387,14 @@ window.ormOpenTemplates=async function(){
     '<div class="orm-tmpl-overlay" id="ormTmplOverlay" data-orm-static-click="s47">'+
       '<div class="orm-tmpl-panel" data-orm-static-click="s48">'+
         '<div class="orm-tmpl-head">'+
-          '<div style="font-size:20px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>'+
-          '<div style="flex:1">'+
-            '<div style="font-size:16px;font-weight:800;color:var(--text)">Event Templates</div>'+
-            '<div style="font-size:12px;color:var(--muted)">Select a template to activate instantly or customise before logging</div>'+
+          '<div data-s="sb9199e2"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>'+
+          '<div data-s="s97445a8">'+
+            '<div data-s="s57e146b">Event Templates</div>'+
+            '<div data-s="s7fc448e">Select a template to activate instantly or customise before logging</div>'+
           '</div>'+
-          '<input id="tmplSearch" class="orm-search" placeholder="Search templates…" style="max-width:240px" data-orm-static-input="s49">'+
+          '<input id="tmplSearch" class="orm-search" placeholder="Search templates…" data-s="sa5d7a03" data-orm-static-input="s49">'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s50" title="Create custom template">+ Custom</button>'+
-          '<button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:4px 8px" data-orm-static-click="s51">&#10005;</button>'+
+          '<button data-s="sd92e39d" data-orm-static-click="s51">&#10005;</button>'+
         '</div>'+
         '<div class="orm-tmpl-body">'+
           '<div class="orm-tmpl-filter-bar" id="tmplCatBar">'+
@@ -1402,19 +1402,19 @@ window.ormOpenTemplates=async function(){
               return'<button class="orm-tmpl-chip'+(c.key===''?' active':'')+'" data-cat="'+esc(c.key)+'" data-orm-special="tmpl-cat">'+c.icon+' '+esc(c.label)+'</button>';
             }).join('')+
           '</div>'+
-          '<div id="tmplGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px"></div>'+
+          '<div id="tmplGrid" data-s="s10d6b93" data-sd="grid"></div>'+
         '</div>'+
       '</div>'+
     '</div>'
   );
   var grid=document.getElementById('tmplGrid');
-  if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  if(grid)grid.innerHTML='<div data-s="s6ffcb09"><div class="spinner" data-s="s266e9b0"></div></div>';
   try{
     var data=await apiFetch('/orm/api/event-templates');
     tmplCache=Array.isArray(data)?data:[];
     tmplCatFilter='';tmplSearch='';
     ormRenderTemplates();
-  }catch(e){var g=document.getElementById('tmplGrid');if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--red)">Failed to load templates</div>';}
+  }catch(e){var g=document.getElementById('tmplGrid');if(g)g.innerHTML='<div data-s="s1eb2c51">Failed to load templates</div>';}
 };
 
 window.ormCloseTemplates=function(){
@@ -1440,10 +1440,10 @@ function ormRenderTemplates(){
     return t.is_active!==0;
   });
   if(!filtered.length){
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">'+
-      '<div style="font-size:32px;margin-bottom:12px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>'+
-      '<div style="font-size:14px;font-weight:600">No templates match your search</div>'+
-      '<button class="btn btn-secondary" style="margin-top:12px" data-orm-static-click="s50">+ Create Custom Template</button>'+
+    grid.innerHTML='<div data-s="s5da5b59">'+
+      '<div data-s="s30de678"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>'+
+      '<div data-s="sfe496b8">No templates match your search</div>'+
+      '<button class="btn btn-secondary" data-s="s56f4356" data-orm-static-click="s50">+ Create Custom Template</button>'+
     '</div>';
     return;
   }
@@ -1452,24 +1452,24 @@ function ormRenderTemplates(){
     var catBg=TMPL_CAT_COLORS[t.category]||'rgba(99,102,241,.1)';
     var catObj=TMPL_CATEGORIES.find(function(c){return c.key===t.category;})||{icon:'<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg>'};
     var tags=(t.tags||'').split(',').filter(Boolean).slice(0,3);
-    var usageHint=t.usage_count>0?'<span style="font-size:10px;color:var(--muted);margin-left:auto">Used '+t.usage_count+'&#215;</span>':'';
+    var usageHint=t.usage_count>0?'<span data-s="s54aee87">Used '+t.usage_count+'&#215;</span>':'';
     return'<div class="orm-tmpl-card">'+
       '<div class="orm-tmpl-card-top">'+
         '<div>'+
-          '<span class="orm-cat-chip" style="background:'+catBg+';color:'+catColor+';margin-bottom:6px;display:inline-block">'+catObj.icon+' '+esc(t.category)+'</span>'+
+          '<span class="orm-cat-chip" data-sv="background:'+catBg+';color:'+catColor+';margin-bottom:6px;display:inline-block">'+catObj.icon+' '+esc(t.category)+'</span>'+
           '<div class="orm-tmpl-card-title">'+esc(t.title)+'</div>'+
         '</div>'+
         sevBadge(t.severity)+
       '</div>'+
       '<div class="orm-tmpl-card-desc">'+esc(t.description||'')+'</div>'+
       '<div class="orm-tmpl-card-footer">'+
-        '<span style="font-size:11px"><span style="font-size:13px">'+typeIcon(t.event_type)+'</span> '+esc((t.event_type||'').replace(/_/g,' '))+'</span>'+
-        (tags.length?tags.map(function(tag){return'<span style="font-size:10px;background:var(--surface3);color:var(--muted);padding:2px 6px;border-radius:100px">'+esc(tag.trim())+'</span>';}).join(''):'')+
+        '<span data-s="s11a5081"><span data-s="s5e0faad">'+typeIcon(t.event_type)+'</span> '+esc((t.event_type||'').replace(/_/g,' '))+'</span>'+
+        (tags.length?tags.map(function(tag){return'<span data-s="sc16e5c0">'+esc(tag.trim())+'</span>';}).join(''):'')+
         usageHint+
       '</div>'+
-      '<div style="display:flex;gap:8px;margin-top:6px">'+
-        '<button class="btn btn-primary js-activate-orm-template" data-template-id="'+Number(t.id)+'" data-template-title="'+esc(t.title)+'" style="flex:1;font-size:12px" title="Create event immediately with template defaults">&#9658; Activate</button>'+
-        '<button class="btn btn-secondary" style="flex:1;font-size:12px" data-orm-call="ormCustomiseTemplate" data-orm-id="'+ormAttrId(t.id)+'" title="Pre-fill Log Event form for review before saving"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Customise</button>'+
+      '<div data-s="s23e32a9" data-sd="flex">'+
+        '<button class="btn btn-primary js-activate-orm-template" data-template-id="'+Number(t.id)+'" data-template-title="'+esc(t.title)+'" data-s="s5a95af4" title="Create event immediately with template defaults">&#9658; Activate</button>'+
+        '<button class="btn btn-secondary" data-s="s5a95af4" data-orm-call="ormCustomiseTemplate" data-orm-id="'+ormAttrId(t.id)+'" title="Pre-fill Log Event form for review before saving"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Customise</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1509,7 +1509,7 @@ window.ormOpenTemplateModal=async function(existing){
   ormCloseTemplates();
   var isEdit=!!(existing&&existing.id);
   var html='<div class="orm-modal-overlay" id="ormTmplEditModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:640px">'+
+    '<div class="modal-box" data-s="se2b01b0">'+
       '<button class="modal-close" data-orm-static-click="s52">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Create Custom')+' Event Template</div>'+
       '<div class="form-row">'+
@@ -1518,7 +1518,7 @@ window.ormOpenTemplateModal=async function(existing){
           TMPL_CATEGORIES.slice(1).map(function(c){return'<option value="'+c.key+'"'+(isEdit&&existing.category===c.key?' selected':'')+'>'+esc(c.label)+'</option>';}).join('')+
         '</select></div>'+
       '</div>'+
-      '<div class="form-group"><label>Description</label><textarea id="tm_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Description</label><textarea id="tm_desc" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Event Type</label><select id="tm_type">'+['process_failure','fraud','system_failure','human_error','outage','vendor_failure','customer_impact'].map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
         '<div class="form-group"><label>Severity</label><select id="tm_sev">'+['low','medium','high','critical'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.severity===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
@@ -1531,7 +1531,7 @@ window.ormOpenTemplateModal=async function(existing){
         '<div class="form-group"><label>Root Cause Category</label><select id="tm_rcc">'+['','people','process','system','external'].map(function(c){return'<option value="'+c+'"'+(isEdit&&existing.root_cause_category===c?' selected':'')+'>'+esc(c||'— Select —')+'</option>';}).join('')+'</select></div>'+
         '<div class="form-group"><label>Tags (comma-separated)</label><input id="tm_tags" placeholder="e.g. fraud,cyber,payment" value="'+esc(isEdit?(existing.tags||''):'')+'"></div>'+
       '</div>'+
-      '<div class="form-group"><label>Basel III Category <span style="font-size:10px;color:var(--muted);font-weight:400">(optional — financial services)</span></label>'+
+      '<div class="form-group"><label>Basel III Category <span data-s="s8e93b13">(optional — financial services)</span></label>'+
         '<select id="tm_basel">'+
           '<option value="">— Not specified —</option>'+
           ['internal_fraud','external_fraud','employment_practices','clients_products','physical_assets','business_disruption','execution_delivery'].map(function(c){
@@ -1540,9 +1540,9 @@ window.ormOpenTemplateModal=async function(existing){
           }).join('')+
         '</select>'+
       '</div>'+
-      '<div class="form-group"><label>Corrective Action Template</label><textarea id="tm_corr" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
-      '<div class="form-group"><label>Preventive Action Template</label><textarea id="tm_prev" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div class="form-group"><label>Corrective Action Template</label><textarea id="tm_corr" rows="3" data-s="sa57b154">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Preventive Action Template</label><textarea id="tm_prev" rows="3" data-s="sa57b154">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s52">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-save-call="ormSaveTemplate" data-orm-save-id="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-save-edit="'+(isEdit?'1':'0')+'">Save Template</button>'+
       '</div>'+
@@ -1579,7 +1579,7 @@ function ormWorkflowStepper(e){
     var canAdvance=i===curIdx+1;
     return'<div class="orm-step '+(i<=curIdx?'done':'')+'">'+
       '<div class="orm-step-dot '+cls+'" '+
-        (canAdvance?'data-orm-special="advance-workflow" data-orm-id="'+ormAttrId(e.id)+'" data-orm-step="'+esc(s.key)+'" title="Advance to '+s.label+'" style="cursor:pointer"':'title="'+s.label+'"')+
+        (canAdvance?'data-orm-special="advance-workflow" data-orm-id="'+ormAttrId(e.id)+'" data-orm-step="'+esc(s.key)+'" title="Advance to '+s.label+'" data-s="s3b6a3a6"':'title="'+s.label+'"')+
         '>'+
         (i<curIdx?'&#10003;':(i===curIdx?'&#8226;':(i+1).toString()))+
       '</div>'+
@@ -1600,29 +1600,29 @@ window.ormToggleWfHistory=async function(eventId){
   var el=document.getElementById('wfHistory-'+eventId);if(!el)return;
   if(el.style.display==='block'){el.style.display='none';return;}
   el.style.display='block';
-  el.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:8px auto"></div>';
+  el.innerHTML='<div class="spinner" data-s="s4bb51cc"></div>';
   try{
     var hist=await apiFetch('/orm/api/events/'+eventId+'/workflow');
-    if(!hist||!hist.length){el.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">No history yet</div>';return;}
-    el.innerHTML='<div style="border-left:2px solid var(--border);padding-left:12px;margin-top:6px">'+
+    if(!hist||!hist.length){el.innerHTML='<div data-s="s303c838">No history yet</div>';return;}
+    el.innerHTML='<div data-s="seb9e601">'+
       hist.map(function(h){
-        return'<div style="position:relative;padding:4px 0;font-size:12px">'+
-          '<div style="position:absolute;left:-17px;top:8px;width:8px;height:8px;border-radius:50%;background:var(--accent)"></div>'+
-          '<span style="font-weight:600">'+esc((h.to_step||'').replace(/_/g,' '))+'</span>'+
-          '<span style="color:var(--muted);margin-left:6px">'+fmtDate(h.changed_at)+'</span>'+
-          (h.changed_by_name?'<span style="color:var(--muted);margin-left:6px">by '+esc(h.changed_by_name)+'</span>':'')+
-          (h.notes?'<div style="color:var(--muted);font-size:11px">'+esc(h.notes)+'</div>':'')+
+        return'<div data-s="sf30f404">'+
+          '<div data-s="s929d193"></div>'+
+          '<span data-s="seed0f8f">'+esc((h.to_step||'').replace(/_/g,' '))+'</span>'+
+          '<span data-s="s9c02f94">'+fmtDate(h.changed_at)+'</span>'+
+          (h.changed_by_name?'<span data-s="s9c02f94">by '+esc(h.changed_by_name)+'</span>':'')+
+          (h.notes?'<div data-s="s6d034cc">'+esc(h.notes)+'</div>':'')+
         '</div>';
       }).join('')+
     '</div>';
-  }catch(ex){el.innerHTML='<div style="font-size:12px;color:var(--red)">Failed to load history</div>';}
+  }catch(ex){el.innerHTML='<div data-s="sadbd53f">Failed to load history</div>';}
 };
 
 /* ─────────────────────────── RCSA ─────────────────────────── */
 var rcsaCache=[];
 window.ormLoadRcsa=async function(){
   var body=document.getElementById('rcsaBody');
-  if(body)body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  if(body)body.innerHTML='<tr><td colspan="9" data-s="s453f6c2"><div class="spinner" data-s="s266e9b0"></div></td></tr>';
   try{
     var data=await apiFetch('/orm/api/rcsa');
     rcsaCache=Array.isArray(data)?data:[];
@@ -1639,7 +1639,7 @@ window.ormLoadRcsa=async function(){
     var navBadge=document.getElementById('ormNavRcsa');
     if(navBadge)navBadge.textContent=total||'';
     if(!rcsaCache.length){
-      if(body)body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">No RCSA campaigns yet. Click "+ New Assessment" to start.</td></tr>';
+      if(body)body.innerHTML='<tr><td colspan="9" data-s="s810afb2">No RCSA campaigns yet. Click "+ New Assessment" to start.</td></tr>';
       return;
     }
     if(body)body.innerHTML=rcsaCache.map(function(a){
@@ -1647,29 +1647,29 @@ window.ormLoadRcsa=async function(){
       var sc=statusColors[a.status]||'badge-draft';
       var periodStr=(a.period_start?fmtDate(a.period_start):'—')+(a.period_end?' – '+fmtDate(a.period_end):'');
       return'<tr>'+
-        '<td style="cursor:pointer;color:var(--accent);font-weight:600" data-orm-call="ormOpenRcsaDetail" data-orm-id="'+ormAttrId(a.id)+'">'+esc(a.title)+'</td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+esc(a.scope||'—')+'</td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+esc(periodStr)+'</td>'+
+        '<td data-s="s49b2015" data-orm-call="ormOpenRcsaDetail" data-orm-id="'+ormAttrId(a.id)+'">'+esc(a.title)+'</td>'+
+        '<td data-s="s7fc448e">'+esc(a.scope||'—')+'</td>'+
+        '<td data-s="s7fc448e">'+esc(periodStr)+'</td>'+
         '<td><span class="badge '+sc+'">'+esc((a.status||'draft').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span></td>'+
-        '<td style="font-size:12px">'+esc(a.owner_name||'—')+'</td>'+
-        '<td style="font-size:12px;color:var(--muted)">'+fmtDate(a.due_date)+'</td>'+
-        '<td style="text-align:center"><span class="badge badge-draft">'+esc(a.risk_count||0)+'</span></td>'+
-        '<td style="text-align:center"><span class="badge '+(a.open_actions>0?'badge-high':'badge-draft')+'">'+esc(a.open_actions||0)+'</span></td>'+
-        '<td><div style="display:flex;gap:4px">'+
+        '<td data-s="s6cb285c">'+esc(a.owner_name||'—')+'</td>'+
+        '<td data-s="s7fc448e">'+fmtDate(a.due_date)+'</td>'+
+        '<td data-s="s91a8701"><span class="badge badge-draft">'+esc(a.risk_count||0)+'</span></td>'+
+        '<td data-s="s91a8701"><span class="badge '+(a.open_actions>0?'badge-high':'badge-draft')+'">'+esc(a.open_actions||0)+'</span></td>'+
+        '<td><div data-s="sd767683" data-sd="flex">'+
           '<button class="btn btn-sm btn-secondary" data-orm-call="ormOpenRcsaDetail" data-orm-id="'+ormAttrId(a.id)+'" title="Open"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg></button>'+
           '<button class="btn btn-sm btn-secondary" data-orm-cache-call="ormOpenRcsaModal" data-orm-id="'+ormAttrId(a.id)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
-          '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteRcsa" data-orm-id="'+ormAttrId(a.id)+'" style="color:var(--red)">&#10005;</button>'+
+          '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteRcsa" data-orm-id="'+ormAttrId(a.id)+'" data-s="s45e7ae4">&#10005;</button>'+
         '</div></td>'+
       '</tr>';
     }).join('');
-  }catch(e){if(body)body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--red)">Failed to load</td></tr>';}
+  }catch(e){if(body)body.innerHTML='<tr><td colspan="9" data-s="saab7d13">Failed to load</td></tr>';}
 };
 
 window.ormOpenRcsaModal=async function(existing){
   var isEdit=!!(existing&&existing.id);
   var users=await ormLoadUsers();
   var html='<div class="orm-modal-overlay" id="rcsaModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:580px">'+
+    '<div class="modal-box" data-s="sf98945b">'+
       '<button class="modal-close" data-orm-static-click="s53">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'New')+' RCSA Campaign</div>'+
       '<div class="form-group"><label>Title *</label><input id="rc_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
@@ -1685,8 +1685,8 @@ window.ormOpenRcsaModal=async function(existing){
       '<div class="form-group"><label>Owner</label><select id="rc_owner">'+
         '<option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
       '</select></div>'+
-      '<div class="form-group"><label>Notes</label><textarea id="rc_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div class="form-group"><label>Notes</label><textarea id="rc_notes" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s53">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-save-call="ormSaveRcsa" data-orm-save-id="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-save-edit="'+(isEdit?'1':'0')+'">Save</button>'+
       '</div>'+
@@ -1728,7 +1728,7 @@ window.ormDeleteRcsa=async function(id){
 /* ── RCSA Detail Drawer ── */
 window.ormOpenRcsaDetail=async function(assessId){
   var drawer=document.getElementById('ormDrawerRoot');
-  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" data-s="sa3fa223"><div class="spinner"></div></div></div>';
   try{
     var a=await apiFetch('/orm/api/rcsa/'+assessId);
     var risks=await apiFetch('/orm/api/rcsa/'+assessId+'/risks');
@@ -1738,12 +1738,12 @@ window.ormOpenRcsaDetail=async function(assessId){
     risks.forEach(function(r){(r.controls||[]).forEach(function(c){window._rcsaControlsCache[c.id]=c;});});
     actions.forEach(function(ac){window._rcsaActionsCache[ac.id]=ac;});
     drawer.innerHTML='<div class="orm-drawer-overlay" data-orm-static-click="s41">'+
-    '<div class="orm-drawer-panel" style="width:min(720px,100%)">'+
+    '<div class="orm-drawer-panel" data-s="s0f5efc8">'+
       '<div class="orm-drawer-head">'+
-        '<div style="display:flex;justify-content:space-between;align-items:start">'+
+        '<div data-s="sf0bc6e2" data-sd="flex">'+
           '<div>'+
-            '<div style="font-size:16px;font-weight:800">'+esc(a.title)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+(a.scope?esc(a.scope)+' &bull; ':'')+fmtDate(a.period_start)+' – '+fmtDate(a.period_end)+'</div>'+
+            '<div data-s="s266e2f3">'+esc(a.title)+'</div>'+
+            '<div data-s="sfc85ba5">'+(a.scope?esc(a.scope)+' &bull; ':'')+fmtDate(a.period_start)+' – '+fmtDate(a.period_end)+'</div>'+
           '</div>'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s42">&#10005;</button>'+
         '</div>'+
@@ -1754,22 +1754,22 @@ window.ormOpenRcsaDetail=async function(assessId){
           var avgResidual=risks.length?risks.reduce(function(s,r){return s+(r.residual_score||0);},0)/risks.length:0;
           var healthScore=risks.length?Math.max(0,Math.round((1-avgResidual/25)*100)):null;
           var hColor=healthScore===null?'var(--muted)':healthScore>=70?'var(--good,#16a34a)':healthScore>=40?'var(--amber,#d97706)':'var(--red)';
-          return'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">'+
-            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Risks</div><div style="font-size:22px;font-weight:800">'+risks.length+'</div></div>'+
-            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Open Actions</div><div style="font-size:22px;font-weight:800;color:var(--amber,#d97706)">'+(actions.filter(function(x){return x.status==='open';}).length)+'</div></div>'+
-            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Avg Residual</div><div style="font-size:22px;font-weight:800;">'+(risks.length?Math.round(avgResidual*10)/10:'—')+'</div></div>'+
-            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Health Score</div>'+
+          return'<div data-s="s1036f8a" data-sd="grid">'+
+            '<div data-s="s0ff1122"><div data-s="s0de5e1b">Risks</div><div data-s="s238e820">'+risks.length+'</div></div>'+
+            '<div data-s="s0ff1122"><div data-s="s0de5e1b">Open Actions</div><div data-s="s1e77d68">'+(actions.filter(function(x){return x.status==='open';}).length)+'</div></div>'+
+            '<div data-s="s0ff1122"><div data-s="s0de5e1b">Avg Residual</div><div data-s="s238e820">'+(risks.length?Math.round(avgResidual*10)/10:'—')+'</div></div>'+
+            '<div data-s="s0ff1122"><div data-s="s0de5e1b">Health Score</div>'+
               (healthScore!==null?
-                '<div style="font-size:22px;font-weight:800;color:'+hColor+'">'+healthScore+'%</div>'+
-                '<div style="height:4px;background:var(--surface3);border-radius:100px;margin-top:4px"><div style="height:100%;width:'+healthScore+'%;background:'+hColor+';border-radius:100px;transition:width .8s ease"></div></div>'
-                :'<div style="font-size:22px;font-weight:800;color:var(--muted)">—</div>')+
+                '<div data-sv="font-size:22px;font-weight:800;color:'+hColor+'">'+healthScore+'%</div>'+
+                '<div data-s="sf59187f"><div data-sv="height:100%;width:'+healthScore+'%;background:'+hColor+';border-radius:100px;transition:width .8s ease"></div></div>'
+                :'<div data-s="s4b4fbcd">—</div>')+
             '</div>'+
           '</div>';
         })()+
         /* Risks */
         '<div class="orm-drawer-section">'+
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-            '<div class="orm-drawer-section-title" style="margin-bottom:0">Assessed Risks</div>'+
+          '<div data-s="s91ebbdc" data-sd="flex">'+
+            '<div class="orm-drawer-section-title" data-s="sef0b7a1">Assessed Risks</div>'+
             '<button class="btn btn-sm btn-primary" data-orm-call="ormAddRcsaRisk" data-orm-id="'+ormAttrId(assessId)+'">+ Add Risk</button>'+
           '</div>'+
           (risks.length?risks.map(function(r){
@@ -1777,55 +1777,55 @@ window.ormOpenRcsaDetail=async function(assessId){
             var effPct=((r.control_effectiveness||3)/5*100).toFixed(0);
             var effColor=r.control_effectiveness>=4?'var(--good,#16a34a)':r.control_effectiveness>=3?'var(--amber,#d97706)':'var(--red,#dc2626)';
             return'<div class="rcsa-risk-row">'+
-              '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
-                '<span style="font-weight:600;font-size:13px">'+esc(r.title)+'</span>'+
-                '<div style="display:flex;gap:6px;align-items:center">'+
-                  '<span style="font-size:11px;color:var(--muted)">Inherent: <strong>'+inherent+'</strong></span>'+
-                  '<span style="font-size:11px;color:var(--red)">Residual: <strong>'+((r.residual_score||0).toFixed(1))+'</strong></span>'+
+              '<div data-s="s3ae5ff5" data-sd="flex">'+
+                '<span data-s="s160b067">'+esc(r.title)+'</span>'+
+                '<div data-s="saebb47c" data-sd="flex">'+
+                  '<span data-s="s1fd8c81">Inherent: <strong>'+inherent+'</strong></span>'+
+                  '<span data-s="sc086e5f">Residual: <strong>'+((r.residual_score||0).toFixed(1))+'</strong></span>'+
                 '</div>'+
               '</div>'+
-              '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)">'+
+              '<div data-s="s24a3220" data-sd="flex">'+
                 '<span>Control Effectiveness:</span>'+
-                '<div style="flex:1;height:6px;background:var(--surface3);border-radius:100px;overflow:hidden">'+
-                  '<div style="height:100%;width:'+effPct+'%;background:'+effColor+';border-radius:100px"></div>'+
+                '<div data-s="s7a91738">'+
+                  '<div data-sv="height:100%;width:'+effPct+'%;background:'+effColor+';border-radius:100px"></div>'+
                 '</div>'+
-                '<span style="color:'+effColor+';font-weight:700">'+effPct+'%</span>'+
+                '<span data-sv="color:'+effColor+';font-weight:700">'+effPct+'%</span>'+
               '</div>'+
               (r.notes&&r.notes.includes(';')?
-                '<div style="margin-top:8px;padding:8px;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.15);border-radius:var(--radius)">'+
-                  '<div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:5px">&#10003; Suggested Controls</div>'+
+                '<div data-s="sbd3348d">'+
+                  '<div data-s="sec6d1fe">&#10003; Suggested Controls</div>'+
                   r.notes.split(';').map(function(ctrl){
-                    return ctrl.trim()?'<div style="font-size:11px;color:var(--muted);padding:2px 0">&#8226; '+esc(ctrl.trim())+'</div>':'';
+                    return ctrl.trim()?'<div data-s="scf50eba">&#8226; '+esc(ctrl.trim())+'</div>':'';
                   }).join('')+
                 '</div>':'')+
-              '<div style="margin-top:10px">'+
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'+
-                  '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Controls ('+((r.controls||[]).length)+')</span>'+
-                  '<button class="btn btn-sm btn-secondary" style="font-size:10px;padding:2px 8px" data-orm-complex="rcsa-control-add" data-orm-id="'+ormAttrId(r.id)+'" data-orm-id2="'+ormAttrId(assessId)+'">+ Control</button>'+
+              '<div data-s="sd2c171b">'+
+                '<div data-s="s0e487c0" data-sd="flex">'+
+                  '<span data-s="s0de5e1b">Controls ('+((r.controls||[]).length)+')</span>'+
+                  '<button class="btn btn-sm btn-secondary" data-s="sba6396e" data-orm-complex="rcsa-control-add" data-orm-id="'+ormAttrId(r.id)+'" data-orm-id2="'+ormAttrId(assessId)+'">+ Control</button>'+
                 '</div>'+
                 ((r.controls&&r.controls.length)?r.controls.map(function(c){
                   var cActs=actions.filter(function(ac){return ac.control_id===c.id;});
                   var deColor=c.design_effectiveness==='adequate'?'var(--good,#16a34a)':c.design_effectiveness==='inadequate'?'var(--red,#dc2626)':'var(--muted)';
                   var oeColor=c.operating_effectiveness==='effective'?'var(--good,#16a34a)':c.operating_effectiveness==='ineffective'?'var(--red,#dc2626)':'var(--muted)';
-                  return'<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;margin-bottom:6px">'+
-                    '<div style="display:flex;justify-content:space-between;align-items:center">'+
-                      '<span style="font-size:12px;font-weight:600">'+esc(c.name)+'</span>'+
-                      '<div style="display:flex;gap:4px">'+
-                        '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" data-orm-complex="rcsa-control-edit" data-orm-id="'+ormAttrId(r.id)+'" data-orm-id2="'+ormAttrId(c.id)+'" data-orm-id3="'+ormAttrId(assessId)+'" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
-                        '<button class="btn btn-sm btn-secondary" style="padding:1px 6px;color:var(--red)" data-orm-call="ormDeleteRcsaControl" data-orm-id="'+ormAttrId(c.id)+'" data-orm-id2="'+ormAttrId(assessId)+'" title="Delete">&#10005;</button>'+
+                  return'<div data-s="s003eab3">'+
+                    '<div data-s="s2d7d272" data-sd="flex">'+
+                      '<span data-s="seb5cb58">'+esc(c.name)+'</span>'+
+                      '<div data-s="sd767683" data-sd="flex">'+
+                        '<button class="btn btn-sm btn-secondary" data-s="sf2d6bd2" data-orm-complex="rcsa-control-edit" data-orm-id="'+ormAttrId(r.id)+'" data-orm-id2="'+ormAttrId(c.id)+'" data-orm-id3="'+ormAttrId(assessId)+'" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+                        '<button class="btn btn-sm btn-secondary" data-s="s940537e" data-orm-call="ormDeleteRcsaControl" data-orm-id="'+ormAttrId(c.id)+'" data-orm-id2="'+ormAttrId(assessId)+'" title="Delete">&#10005;</button>'+
                       '</div>'+
                     '</div>'+
-                    '<div style="font-size:10px;color:var(--muted);margin-top:2px">Design: <span style="color:'+deColor+';font-weight:600">'+(c.design_effectiveness||'—').replace(/_/g,' ')+'</span>&nbsp;&bull;&nbsp;Operating: <span style="color:'+oeColor+';font-weight:600">'+(c.operating_effectiveness||'—').replace(/_/g,' ')+'</span></div>'+
-                    (c.gap_description?'<div style="font-size:11px;color:var(--red,#dc2626);margin-top:3px">Gap: '+esc(c.gap_description)+'</div>':'')+
-                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">'+
-                      '<span style="font-size:10px;color:var(--muted)">'+cActs.length+' action(s)'+(cActs.length?': '+cActs.map(function(ac){return esc(ac.title);}).join(', '):'')+'</span>'+
-                      '<button class="btn btn-sm btn-secondary" style="font-size:10px;padding:1px 6px" data-orm-complex="rcsa-action-add" data-orm-id="'+ormAttrId(c.id)+'" data-orm-id2="'+ormAttrId(assessId)+'">+ Action</button>'+
+                    '<div data-s="s54c41d6">Design: <span data-sv="color:'+deColor+';font-weight:600">'+(c.design_effectiveness||'—').replace(/_/g,' ')+'</span>&nbsp;&bull;&nbsp;Operating: <span data-sv="color:'+oeColor+';font-weight:600">'+(c.operating_effectiveness||'—').replace(/_/g,' ')+'</span></div>'+
+                    (c.gap_description?'<div data-s="s57a8188">Gap: '+esc(c.gap_description)+'</div>':'')+
+                    '<div data-s="s249a6af" data-sd="flex">'+
+                      '<span data-s="sb569cab">'+cActs.length+' action(s)'+(cActs.length?': '+cActs.map(function(ac){return esc(ac.title);}).join(', '):'')+'</span>'+
+                      '<button class="btn btn-sm btn-secondary" data-s="s688d260" data-orm-complex="rcsa-action-add" data-orm-id="'+ormAttrId(c.id)+'" data-orm-id2="'+ormAttrId(assessId)+'">+ Action</button>'+
                     '</div>'+
                   '</div>';
-                }).join(''):'<div style="font-size:11px;color:var(--muted);padding:4px 0">No controls recorded</div>')+
+                }).join(''):'<div data-s="s8fa4d6c">No controls recorded</div>')+
               '</div>'+
             '</div>';
-          }).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No risks assessed yet</div>')+
+          }).join(''):'<div data-s="sa316e87">No risks assessed yet</div>')+
         '</div>'+
         /* Actions */
         (actions.length?
@@ -1833,15 +1833,15 @@ window.ormOpenRcsaDetail=async function(assessId){
             '<div class="orm-drawer-section-title">Remediation Actions</div>'+
             actions.map(function(ac){
               var s={open:'badge-high',in_progress:'badge-progress',completed:'badge-complete',overdue:'badge-critical'}[ac.status]||'badge-draft';
-              return'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--surface3)">'+
+              return'<div data-s="s1485576" data-sd="flex">'+
                 '<div>'+
-                  '<div style="font-size:13px;font-weight:600">'+esc(ac.title)+'</div>'+
-                  '<div style="font-size:11px;color:var(--muted)">'+esc(ac.control_name||'')+(ac.due_date?' &bull; Due '+fmtDate(ac.due_date):'')+'</div>'+
+                  '<div data-s="seb673ec">'+esc(ac.title)+'</div>'+
+                  '<div data-s="s1fd8c81">'+esc(ac.control_name||'')+(ac.due_date?' &bull; Due '+fmtDate(ac.due_date):'')+'</div>'+
                 '</div>'+
-                '<div style="display:flex;gap:6px;align-items:center">'+
+                '<div data-s="saebb47c" data-sd="flex">'+
                   '<span class="badge '+s+'">'+esc((ac.status||'open').replace(/_/g,' '))+'</span>'+
-                  '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" data-orm-complex="rcsa-action-edit" data-orm-id="'+ormAttrId(ac.control_id)+'" data-orm-id2="'+ormAttrId(ac.id)+'" data-orm-id3="'+ormAttrId(assessId)+'" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
-                  '<button class="btn btn-sm btn-secondary" style="padding:1px 6px;color:var(--red)" data-orm-call="ormDeleteRcsaAction" data-orm-id="'+ormAttrId(ac.id)+'" data-orm-id2="'+ormAttrId(assessId)+'" title="Delete">&#10005;</button>'+
+                  '<button class="btn btn-sm btn-secondary" data-s="sf2d6bd2" data-orm-complex="rcsa-action-edit" data-orm-id="'+ormAttrId(ac.control_id)+'" data-orm-id2="'+ormAttrId(ac.id)+'" data-orm-id3="'+ormAttrId(assessId)+'" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
+                  '<button class="btn btn-sm btn-secondary" data-s="s940537e" data-orm-call="ormDeleteRcsaAction" data-orm-id="'+ormAttrId(ac.id)+'" data-orm-id2="'+ormAttrId(assessId)+'" title="Delete">&#10005;</button>'+
                 '</div>'+
               '</div>';
             }).join('')+
@@ -1858,7 +1858,7 @@ window.ormOpenRcsaDetail=async function(assessId){
 window.ormAddRcsaRisk=async function(assessId){
   var users=await ormLoadUsers();
   var html='<div class="orm-modal-overlay" id="rcsaRiskModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:560px">'+
+    '<div class="modal-box" data-s="s765d57b">'+
       '<button class="modal-close" data-orm-static-click="s55">&#10005;</button>'+
       '<div class="modal-title">Add Assessed Risk</div>'+
       '<div class="form-group"><label>Risk Title *</label><input id="rr_title" placeholder="e.g. Unauthorised access to customer data"></div>'+
@@ -1867,12 +1867,12 @@ window.ormAddRcsaRisk=async function(assessId){
         '<div class="form-group"><label>Inherent Impact (1-5)</label><input type="number" id="rr_ii" min="1" max="5" value="3"></div>'+
       '</div>'+
       '<div class="form-group"><label>Control Effectiveness (1=Low, 5=High)</label>'+
-        '<input type="range" id="rr_ce" min="1" max="5" value="3" style="width:100%" data-orm-static-input="s56">'+
-        '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>1 Ineffective</span><span id="rr_ce_val" style="font-weight:700;color:var(--accent)">3</span><span>5 Effective</span></div>'+
+        '<input type="range" id="rr_ce" min="1" max="5" value="3" data-s="s0466783" data-orm-static-input="s56">'+
+        '<div data-s="s360d374" data-sd="flex"><span>1 Ineffective</span><span id="rr_ce_val" data-s="s4af5888">3</span><span>5 Effective</span></div>'+
       '</div>'+
       '<div class="form-group"><label>Owner</label><select id="rr_owner"><option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'">'+esc(u.full_name)+'</option>';}).join('')+'</select></div>'+
-      '<div class="form-group"><label>Notes</label><textarea id="rr_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box"></textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div class="form-group"><label>Notes</label><textarea id="rr_notes" rows="2" data-s="sa57b154"></textarea></div>'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s55">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-call="ormSaveRcsaRisk" data-orm-id="'+ormAttrId(assessId)+'">Add Risk</button>'+
       '</div>'+
@@ -1897,7 +1897,7 @@ window.ormOpenRcsaControlModal=async function(riskId,existing,assessId){
   var isEdit=!!(existing&&existing.id);
   var users=await ormLoadUsers();
   var html='<div class="orm-modal-overlay" id="rcsaControlModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:560px">'+
+    '<div class="modal-box" data-s="s765d57b">'+
       '<button class="modal-close" data-orm-static-click="s57">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Control</div>'+
       '<div class="form-group"><label>Control Name *</label><input id="rc_name" placeholder="e.g. Dual approval for payments over $10k" value="'+esc(isEdit?(existing.name||''):'')+'"></div>'+
@@ -1909,9 +1909,9 @@ window.ormOpenRcsaControlModal=async function(riskId,existing,assessId){
         '<div class="form-group"><label>Test Date</label><input type="date" id="rc_test_date" value="'+(isEdit&&existing.test_date?existing.test_date.slice(0,10):'')+'"></div>'+
         '<div class="form-group"><label>Tested By</label><select id="rc_tested_by"><option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.tested_by==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+'</select></div>'+
       '</div>'+
-      '<div class="form-group"><label>Evidence Notes</label><textarea id="rc_evidence" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.evidence_notes||''):'')+'</textarea></div>'+
-      '<div class="form-group"><label>Gap Description <span style="font-size:10px;color:var(--muted)">(if any)</span></label><textarea id="rc_gap" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.gap_description||''):'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div class="form-group"><label>Evidence Notes</label><textarea id="rc_evidence" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.evidence_notes||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Gap Description <span data-s="sb569cab">(if any)</span></label><textarea id="rc_gap" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.gap_description||''):'')+'</textarea></div>'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s57">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-complex="rcsa-control-save" data-orm-id="'+ormAttrId(riskId)+'" data-orm-id2="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-id3="'+ormAttrId(assessId)+'" data-orm-edit="'+(isEdit?'1':'0')+'">Save Control</button>'+
       '</div>'+
@@ -1945,18 +1945,18 @@ window.ormOpenRcsaActionModal=async function(controlId,existing,assessId){
   var isEdit=!!(existing&&existing.id);
   var users=await ormLoadUsers();
   var html='<div class="orm-modal-overlay" id="rcsaActionModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:520px">'+
+    '<div class="modal-box" data-s="s04391f0">'+
       '<button class="modal-close" data-orm-static-click="s58">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Remediation Action</div>'+
       '<div class="form-group"><label>Title *</label><input id="ra_title" placeholder="e.g. Implement quarterly access review" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
-      '<div class="form-group"><label>Description</label><textarea id="ra_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Description</label><textarea id="ra_desc" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Owner</label><select id="ra_owner"><option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+'</select></div>'+
         '<div class="form-group"><label>Due Date</label><input type="date" id="ra_due" value="'+(isEdit&&existing.due_date?existing.due_date.slice(0,10):'')+'"></div>'+
       '</div>'+
       '<div class="form-group"><label>Status</label><select id="ra_status">'+['open','in_progress','completed','overdue'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
-      '<div class="form-group"><label>Notes</label><textarea id="ra_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div class="form-group"><label>Notes</label><textarea id="ra_notes" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s58">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-complex="rcsa-action-save" data-orm-id="'+ormAttrId(controlId)+'" data-orm-id2="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-id3="'+ormAttrId(assessId)+'" data-orm-edit="'+(isEdit?'1':'0')+'">Save Action</button>'+
       '</div>'+
@@ -2000,7 +2000,7 @@ window.ormLoadAiControls=async function(){
   try{
     await ormEnsureAicCache(true);
     ormRenderAicRows();
-  }catch(e){if(body)body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--red)">Failed to load</td></tr>';}
+  }catch(e){if(body)body.innerHTML='<tr><td colspan="7" data-s="saab7d13">Failed to load</td></tr>';}
 };
 window.ormChipAicPillar=function(el){
   document.querySelectorAll('#aicPillarBar .orm-chip').forEach(function(c){c.classList.remove('active');});
@@ -2024,16 +2024,16 @@ window.ormRenderAicRows=function(){
     var statBadge=c.is_active?'<span class="badge badge-complete">Active</span>':'<span class="badge badge-critical">Inactive</span>';
     var canDelete=c.source!=='built_in'&&!(c.link_count>0);
     return'<tr>'+
-      '<td style="font-weight:700;font-size:12px">'+esc(c.ref)+'</td>'+
-      '<td style="max-width:340px"><div style="font-weight:600;font-size:13px">'+esc(c.title)+'</div>'+(c.description&&c.description!==c.title?'<div style="font-size:11px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(c.description)+'</div>':'')+'</td>'+
-      '<td><span class="orm-cat-chip" style="background:var(--surface3);color:var(--text)">'+esc(c.pillar)+'</span></td>'+
+      '<td data-s="se81a2ba">'+esc(c.ref)+'</td>'+
+      '<td data-s="sb86dc23"><div data-s="s160b067">'+esc(c.title)+'</div>'+(c.description&&c.description!==c.title?'<div data-s="s3f436e2">'+esc(c.description)+'</div>':'')+'</td>'+
+      '<td><span class="orm-cat-chip" data-s="sd81fde2">'+esc(c.pillar)+'</span></td>'+
       '<td>'+srcBadge+'</td>'+
-      '<td style="text-align:center">'+(c.link_count>0?'<span class="badge badge-draft">'+c.link_count+'</span>':'<span style="color:var(--muted);font-size:12px">—</span>')+'</td>'+
+      '<td data-s="s91a8701">'+(c.link_count>0?'<span class="badge badge-draft">'+c.link_count+'</span>':'<span data-s="sbf8965d">—</span>')+'</td>'+
       '<td>'+statBadge+'</td>'+
-      '<td><div style="display:flex;gap:4px">'+
+      '<td><div data-s="sd767683" data-sd="flex">'+
         (ormCanManageAiControls?'<button class="btn btn-sm btn-secondary" data-orm-call="ormEditAiControl" data-orm-id="'+ormAttrId(c.id)+'" title="Edit" aria-label="Edit '+escChartAttr(c.ref)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
         '<button class="btn btn-sm btn-secondary" data-orm-special="toggle-ai-control" data-orm-id="'+ormAttrId(c.id)+'" data-orm-toggle="'+(c.is_active?'0':'1')+'" title="'+(c.is_active?'Deactivate':'Activate')+'">'+(c.is_active?'&#8863;':'&#10003;')+'</button>'+
-        (canDelete?'<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteAiControl" data-orm-id="'+ormAttrId(c.id)+'" style="color:var(--red)" title="Delete">&#10005;</button>':''):'')+
+        (canDelete?'<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteAiControl" data-orm-id="'+ormAttrId(c.id)+'" data-s="s45e7ae4" title="Delete">&#10005;</button>':''):'')+
       '</div></td>'+
     '</tr>';
   }).join('');
@@ -2046,17 +2046,17 @@ window.ormOpenAiControlModal=function(existing){
   var isEdit=!!(existing&&existing.id);
   var pillars=['People','Process','Systems','Technology','Tools'];
   var html='<div class="orm-modal-overlay" id="aicModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:560px">'+
+    '<div class="modal-box" data-s="s765d57b">'+
       '<button class="modal-close" data-orm-static-click="s59">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit Control':'Add Control')+'</div>'+
-      (isEdit&&existing.source==='built_in'?'<div style="font-size:11px;color:var(--muted);margin-bottom:12px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius)">This is a built-in control. It can be reworded but not deleted &mdash; deactivate instead.</div>':'')+
+      (isEdit&&existing.source==='built_in'?'<div data-s="s5313683">This is a built-in control. It can be reworded but not deleted &mdash; deactivate instead.</div>':'')+
       '<div class="form-row">'+
-        '<div class="form-group"><label>Ref</label><input id="aic_ref" '+(isEdit?'readonly style="opacity:.6"':'')+' value="'+escChartAttr(isEdit?(existing.ref||''):'')+'" placeholder="Auto-generated if blank"></div>'+
+        '<div class="form-group"><label>Ref</label><input id="aic_ref" '+(isEdit?'readonly data-s="s6109bb5"':'')+' value="'+escChartAttr(isEdit?(existing.ref||''):'')+'" placeholder="Auto-generated if blank"></div>'+
         '<div class="form-group"><label>Pillar *</label><select id="aic_pillar">'+pillars.map(function(p){return'<option value="'+p+'"'+(isEdit&&existing.pillar===p?' selected':'')+'>'+p+'</option>';}).join('')+'</select></div>'+
       '</div>'+
       '<div class="form-group"><label>Title *</label><input id="aic_title" value="'+escChartAttr(isEdit?(existing.title||''):'')+'"></div>'+
-      '<div class="form-group"><label>Description</label><textarea id="aic_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div class="form-group"><label>Description</label><textarea id="aic_desc" rows="3" data-s="sa57b154">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s59">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-save-call="ormSaveAiControl" data-orm-save-id="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-save-edit="'+(isEdit?'1':'0')+'">Save</button>'+
       '</div>'+
@@ -2102,14 +2102,14 @@ window._aimsRiskDetailCache={};
 
 /* Colored residual chip vs target/appetite/tolerance thresholds. Falls back to a plain value when no thresholds are set. */
 function ormResidualChip(val,risk){
-  if(val==null)return'<span style="color:var(--muted);font-size:11px">—</span>';
+  if(val==null)return'<span data-s="s6d034cc">—</span>';
   var target=risk.rr_target,appetite=risk.rr_appetite,tolerance=risk.rr_tolerance;
   var color='var(--text)',label='Residual';
   if(target!=null&&val<=target){color='var(--good,#16a34a)';label='Within Target';}
   else if(appetite!=null&&val<=appetite){color='var(--good,#16a34a)';label='Within Appetite';}
   else if(tolerance!=null&&val<=tolerance){color='var(--amber,#d97706)';label='Within Tolerance';}
   else if(tolerance!=null){color='var(--red,#dc2626)';label='Breach';}
-  return'<span style="font-size:11px;color:'+color+';font-weight:700" title="'+label+'">R: '+val+'</span>';
+  return'<span data-sv="font-size:11px;color:'+color+';font-weight:700" title="'+label+'">R: '+val+'</span>';
 }
 
 window.ormLoadAims=async function(){
@@ -2139,25 +2139,25 @@ window.ormLoadAims=async function(){
       var sc=statusColors[a.status]||'badge-draft';
       var modeBadge=a.mode==='oraat'?'<span class="badge badge-progress">ORAAT</span>':'<span class="badge badge-draft">AIMS</span>';
       return'<tr>'+
-        '<td style="font-weight:700;font-size:12px">'+esc(a.ref||'')+'</td>'+
-        '<td style="cursor:pointer;color:var(--accent);font-weight:600" data-orm-call="ormOpenAimsDetail" data-orm-id="'+ormAttrId(a.id)+'">'+esc(a.title)+'</td>'+
+        '<td data-s="se81a2ba">'+esc(a.ref||'')+'</td>'+
+        '<td data-s="s49b2015" data-orm-call="ormOpenAimsDetail" data-orm-id="'+ormAttrId(a.id)+'">'+esc(a.title)+'</td>'+
         '<td>'+modeBadge+'</td>'+
         '<td><span class="badge '+sc+'">'+esc((a.status||'draft').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span></td>'+
-        '<td style="font-size:12px">'+esc(a.owner_name||'—')+'</td>'+
-        '<td style="text-align:center"><span class="badge badge-draft">'+(a.risk_count||0)+'</span></td>'+
-        '<td><div style="display:flex;gap:4px">'+
+        '<td data-s="s6cb285c">'+esc(a.owner_name||'—')+'</td>'+
+        '<td data-s="s91a8701"><span class="badge badge-draft">'+(a.risk_count||0)+'</span></td>'+
+        '<td><div data-s="sd767683" data-sd="flex">'+
           '<button class="btn btn-sm btn-secondary" data-orm-call="ormOpenAimsDetail" data-orm-id="'+ormAttrId(a.id)+'" title="Open"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-search></use></svg></button>'+
           '<button class="btn btn-sm btn-secondary" data-orm-cache-call="ormOpenAimsModal" data-orm-id="'+ormAttrId(a.id)+'" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
-          '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteAims" data-orm-id="'+ormAttrId(a.id)+'" style="color:var(--red)" title="Delete">&#10005;</button>'+
+          '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteAims" data-orm-id="'+ormAttrId(a.id)+'" data-s="s45e7ae4" title="Delete">&#10005;</button>'+
         '</div></td>'+
       '</tr>';
     }).join('');
-  }catch(e){if(body)body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--red)">Failed to load</td></tr>';}
+  }catch(e){if(body)body.innerHTML='<tr><td colspan="7" data-s="saab7d13">Failed to load</td></tr>';}
 };
 window.ormOpenAimsModal=function(existing){
   var isEdit=!!(existing&&existing.id);
   var html='<div class="orm-modal-overlay" id="aimsModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:520px">'+
+    '<div class="modal-box" data-s="s04391f0">'+
       '<button class="modal-close" data-orm-static-click="s60">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'New')+' AI Risk Assessment</div>'+
       '<div class="form-group"><label>Title *</label><input id="am_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
@@ -2169,7 +2169,7 @@ window.ormOpenAimsModal=function(existing){
         '<div class="form-group"><label>Status</label><select id="am_status">'+['draft','active','under_review','completed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
       '</div>'+
       '<div class="form-group"><label>Evaluation Date</label><input type="date" id="am_date" value="'+(isEdit&&existing.eval_date?existing.eval_date.slice(0,10):'')+'"></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s60">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-save-call="ormSaveAims" data-orm-save-id="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-save-edit="'+(isEdit?'1':'0')+'">Save</button>'+
       '</div>'+
@@ -2203,47 +2203,47 @@ function ormAimsRiskRowHtml(r,assessId){
   var irr=computed.irr!=null?computed.irr:(r.likelihood*r.impact);
   var chip=ormResidualChip(computed.residual_rating,r);
   return'<div class="rcsa-risk-row" data-orm-call="ormOpenAimsRiskDetail" data-orm-id="'+ormAttrId(r.id)+'" data-orm-id2="'+ormAttrId(assessId)+'">'+
-    '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
-      '<span style="font-weight:600;font-size:13px;max-width:60%">'+esc((r.ref?r.ref+' — ':'')+(r.risk_description||'').slice(0,90))+'</span>'+
-      '<div style="display:flex;gap:8px;align-items:center">'+
-        '<span style="font-size:11px;color:var(--muted)">IRR: <strong>'+irr+'</strong></span>'+
+    '<div data-s="s3ae5ff5" data-sd="flex">'+
+      '<span data-s="s5b1ab39">'+esc((r.ref?r.ref+' — ':'')+(r.risk_description||'').slice(0,90))+'</span>'+
+      '<div data-s="sc58a824" data-sd="flex">'+
+        '<span data-s="s1fd8c81">IRR: <strong>'+irr+'</strong></span>'+
         chip+
       '</div>'+
     '</div>'+
-    '<div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)">'+
-      (r.impacted_pillar?'<span class="orm-cat-chip" style="background:var(--surface3);color:var(--text)">'+esc(r.impacted_pillar)+'</span>':'')+
+    '<div data-s="s4bef715" data-sd="flex">'+
+      (r.impacted_pillar?'<span class="orm-cat-chip" data-s="sd81fde2">'+esc(r.impacted_pillar)+'</span>':'')+
       '<span>'+(r.control_count||0)+' control(s) linked</span>'+
-      '<span style="margin-left:auto">'+esc((r.status||'open').replace(/_/g,' '))+'</span>'+
+      '<span data-s="s6d00061">'+esc((r.status||'open').replace(/_/g,' '))+'</span>'+
     '</div>'+
   '</div>';
 }
 window.ormOpenAimsDetail=async function(assessId){
   window._aimsCurrentAssessment=assessId;
   var drawer=document.getElementById('ormDrawerRoot');
-  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" data-s="sa3fa223"><div class="spinner"></div></div></div>';
   try{
     var a=await apiFetch('/orm/api/aims/'+assessId);
     var risks=await apiFetch('/orm/api/aims/'+assessId+'/risks');
     drawer.innerHTML='<div class="orm-drawer-overlay" data-orm-static-click="s41">'+
-    '<div class="orm-drawer-panel" style="width:min(760px,100%)">'+
+    '<div class="orm-drawer-panel" data-s="s7d83361">'+
       '<div class="orm-drawer-head">'+
-        '<div style="display:flex;justify-content:space-between;align-items:start">'+
+        '<div data-s="sf0bc6e2" data-sd="flex">'+
           '<div>'+
-            '<div style="font-size:16px;font-weight:800">'+esc(a.title)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+esc(a.ref||'')+' &bull; '+(a.mode==='oraat'?'ORAAT':'AIMS')+' &bull; '+esc((a.status||'draft').replace(/_/g,' '))+'</div>'+
+            '<div data-s="s266e2f3">'+esc(a.title)+'</div>'+
+            '<div data-s="sfc85ba5">'+esc(a.ref||'')+' &bull; '+(a.mode==='oraat'?'ORAAT':'AIMS')+' &bull; '+esc((a.status||'draft').replace(/_/g,' '))+'</div>'+
           '</div>'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s42">&#10005;</button>'+
         '</div>'+
       '</div>'+
       '<div class="orm-drawer-body">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-          '<div class="orm-drawer-section-title" style="margin-bottom:0;border-bottom:none">Risk Register ('+risks.length+')</div>'+
-          '<div style="display:flex;gap:6px">'+
+        '<div data-s="s91ebbdc" data-sd="flex">'+
+          '<div class="orm-drawer-section-title" data-s="s9167253">Risk Register ('+risks.length+')</div>'+
+          '<div data-s="sf0abc1d" data-sd="flex">'+
             '<a href="/orm/api/aims/'+assessId+'/aggregation/csv" class="btn btn-sm btn-secondary" download>&#8595; CSV</a>'+
             '<button class="btn btn-sm btn-primary" data-orm-call="ormAddAimsRisk" data-orm-id="'+ormAttrId(assessId)+'">+ Add Risk</button>'+
           '</div>'+
         '</div>'+
-        (risks.length?risks.map(function(r){return ormAimsRiskRowHtml(r,assessId);}).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No risks yet. Click "+ Add Risk" to start.</div>')+
+        (risks.length?risks.map(function(r){return ormAimsRiskRowHtml(r,assessId);}).join(''):'<div data-s="sa316e87">No risks yet. Click "+ Add Risk" to start.</div>')+
       '</div>'+
       '<div class="orm-drawer-footer">'+
         '<button class="btn btn-secondary" data-orm-complex="aims-edit-close" data-orm-id="'+ormAttrId(assessId)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Edit Assessment</button>'+
@@ -2260,10 +2260,10 @@ window.ormOpenAimsRiskModal=function(assessId,existing){
   var isEdit=!!(existing&&existing.id);
   var pillars=['People','Process','Systems','Technology','Tools'];
   var html='<div class="orm-modal-overlay" id="aimsRiskModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:640px">'+
+    '<div class="modal-box" data-s="se2b01b0">'+
       '<button class="modal-close" data-orm-static-click="s61">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Add')+' AI Risk</div>'+
-      '<div class="form-group"><label>Risk Description *</label><textarea id="ar_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.risk_description||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Risk Description *</label><textarea id="ar_desc" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.risk_description||''):'')+'</textarea></div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Strategic Objective</label><input id="ar_strat" value="'+esc(isEdit?(existing.strategic_objective||''):'')+'"></div>'+
         '<div class="form-group"><label>AI Objective</label><input id="ar_aiobj" value="'+esc(isEdit?(existing.ai_objective||''):'')+'"></div>'+
@@ -2287,9 +2287,9 @@ window.ormOpenAimsRiskModal=function(assessId,existing){
         '<div class="form-group"><label>In Scope</label><select id="ar_scope" data-orm-static-change="s62"><option value="1"'+((!isEdit||existing.in_scope)?' selected':'')+'>Yes</option><option value="0"'+(isEdit&&!existing.in_scope?' selected':'')+'>No</option></select></div>'+
         '<div class="form-group"><label>Implemented</label><select id="ar_impl"><option value="0"'+(!isEdit||!existing.implemented?' selected':'')+'>No</option><option value="1"'+(isEdit&&existing.implemented?' selected':'')+'>Yes</option></select></div>'+
       '</div>'+
-      '<div class="form-group" id="ar_just_row" style="display:'+(isEdit&&!existing.in_scope?'block':'none')+'"><label>Scope Justification <span style="font-size:10px;color:var(--muted)">(why is this out of scope?)</span></label><input id="ar_just" value="'+esc(isEdit?(existing.scope_justification||''):'')+'"></div>'+
+      '<div class="form-group" id="ar_just_row" data-sv="display:'+(isEdit&&!existing.in_scope?'block':'none')+'"><label>Scope Justification <span data-s="sb569cab">(why is this out of scope?)</span></label><input id="ar_just" value="'+esc(isEdit?(existing.scope_justification||''):'')+'"></div>'+
       '<div class="form-group"><label>Status</label><select id="ar_status">'+['open','mitigating','closed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s61">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-complex="aims-risk-save" data-orm-id="'+ormAttrId(assessId)+'" data-orm-id2="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-edit="'+(isEdit?'1':'0')+'">Save</button>'+
       '</div>'+
@@ -2339,11 +2339,11 @@ window.ormDeleteAimsRisk=async function(riskId,assessId){
 function ormAimsComputedPanelHtml(r,computed){
   var chip=ormResidualChip(computed.residual_rating,r);
   var meanPct=computed.mean_factor!=null?Math.round(computed.mean_factor*100):null;
-  return'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">'+
-    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">IRR (L&times;I)</div><div style="font-size:20px;font-weight:800">'+(computed.irr!=null?computed.irr:'—')+'</div></div>'+
-    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Mean Factor</div><div style="font-size:20px;font-weight:800">'+(meanPct!=null?meanPct+'%':'—')+'</div></div>'+
-    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Residual Rating</div><div style="font-size:20px;font-weight:800">'+(computed.residual_rating!=null?computed.residual_rating:'—')+'</div>'+chip+'</div>'+
-    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Residual EMV</div><div style="font-size:18px;font-weight:800">'+(computed.residual_emv!=null?fmtCurrency(computed.residual_emv):'—')+'</div></div>'+
+  return'<div data-s="s7bd035a" data-sd="grid">'+
+    '<div data-s="s0ff1122"><div data-s="s0de5e1b">IRR (L&times;I)</div><div data-s="s028ee8c">'+(computed.irr!=null?computed.irr:'—')+'</div></div>'+
+    '<div data-s="s0ff1122"><div data-s="s0de5e1b">Mean Factor</div><div data-s="s028ee8c">'+(meanPct!=null?meanPct+'%':'—')+'</div></div>'+
+    '<div data-s="s0ff1122"><div data-s="s0de5e1b">Residual Rating</div><div data-s="s028ee8c">'+(computed.residual_rating!=null?computed.residual_rating:'—')+'</div>'+chip+'</div>'+
+    '<div data-s="s0ff1122"><div data-s="s0de5e1b">Residual EMV</div><div data-s="s80b90e3">'+(computed.residual_emv!=null?fmtCurrency(computed.residual_emv):'—')+'</div></div>'+
   '</div>';
 }
 function ormAimsPillarBarsHtml(perPillar){
@@ -2357,12 +2357,12 @@ function ormAimsPillarBarsHtml(perPillar){
       var d=perPillar[p]||{count:0,mean_factor:null};
       var pct=d.mean_factor!=null?Math.round((1-d.mean_factor)*100):0;
       var barColor=pct>=70?'var(--good,#16a34a)':pct>=40?'var(--amber,#d97706)':'var(--red,#dc2626)';
-      return'<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px">'+
-        '<span style="width:80px;flex-shrink:0">'+p+'</span>'+
-        '<div style="flex:1;height:6px;background:var(--surface3);border-radius:100px;overflow:hidden">'+
-          (d.count>0?'<div style="height:100%;width:'+pct+'%;background:'+barColor+';border-radius:100px"></div>':'')+
+      return'<div data-s="s5948d98" data-sd="flex">'+
+        '<span data-s="sd0193f5">'+p+'</span>'+
+        '<div data-s="s7a91738">'+
+          (d.count>0?'<div data-sv="height:100%;width:'+pct+'%;background:'+barColor+';border-radius:100px"></div>':'')+
         '</div>'+
-        '<span style="width:100px;text-align:right;flex-shrink:0">'+(d.count>0?d.count+' ctrl, '+pct+'%':'none')+'</span>'+
+        '<span data-s="s94e48c1">'+(d.count>0?d.count+' ctrl, '+pct+'%':'none')+'</span>'+
       '</div>';
     }).join('')+
   '</div>';
@@ -2371,22 +2371,22 @@ function ormAimsControlRowHtml(c,riskId){
   var iceColor=c.ice_score>=70?'var(--good,#16a34a)':c.ice_score>=40?'var(--amber,#d97706)':'var(--red,#dc2626)';
   var title=c.catalogue_ref?(c.catalogue_ref+' — '+c.catalogue_title):(c.control_detail||'Custom control');
   var statBadge={open:'badge-high',in_progress:'badge-progress',completed:'badge-complete'}[c.status]||'badge-draft';
-  return'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--surface3)">'+
-    '<div style="flex:1;min-width:0">'+
-      '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(title)+'</div>'+
-      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc((c.treatment||'mitigate').replace(/\b\w/g,function(x){return x.toUpperCase();}))+(c.control_owner?' &bull; '+esc(c.control_owner):'')+(c.catalogue_pillar?' &bull; '+esc(c.catalogue_pillar):'')+' &bull; <span class="badge '+statBadge+'" style="font-size:9px">'+esc((c.status||'open').replace(/_/g,' '))+'</span></div>'+
+  return'<div data-s="seeda921" data-sd="flex">'+
+    '<div data-s="s59eddc6">'+
+      '<div data-s="sab15306">'+esc(title)+'</div>'+
+      '<div data-s="s3823a5b">'+esc((c.treatment||'mitigate').replace(/\b\w/g,function(x){return x.toUpperCase();}))+(c.control_owner?' &bull; '+esc(c.control_owner):'')+(c.catalogue_pillar?' &bull; '+esc(c.catalogue_pillar):'')+' &bull; <span class="badge '+statBadge+'" data-s="sfb2957a">'+esc((c.status||'open').replace(/_/g,' '))+'</span></div>'+
     '</div>'+
-    '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
-      '<span style="font-size:11px;color:'+iceColor+';font-weight:700" title="ICE score (higher = stronger)">ICE '+(c.ice_score||0)+'%</span>'+
+    '<div data-s="s6f085fb" data-sd="flex">'+
+      '<span data-sv="font-size:11px;color:'+iceColor+';font-weight:700" title="ICE score (higher = stronger)">ICE '+(c.ice_score||0)+'%</span>'+
       '<button class="btn btn-sm btn-secondary" data-orm-complex="aims-control-edit" data-orm-id="'+ormAttrId(riskId)+'" data-orm-id2="'+ormAttrId(c.id)+'" title="Edit"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg></button>'+
-      '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteAimsRiskControl" data-orm-id="'+ormAttrId(c.id)+'" data-orm-id2="'+ormAttrId(riskId)+'" style="color:var(--red)" title="Remove">&#10005;</button>'+
+      '<button class="btn btn-sm btn-secondary" data-orm-call="ormDeleteAimsRiskControl" data-orm-id="'+ormAttrId(c.id)+'" data-orm-id2="'+ormAttrId(riskId)+'" data-s="s45e7ae4" title="Remove">&#10005;</button>'+
     '</div>'+
   '</div>';
 }
 window.ormOpenAimsRiskDetail=async function(riskId,assessId){
   if(assessId)window._aimsCurrentAssessment=assessId;
   var drawer=document.getElementById('ormDrawerRoot');
-  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" data-s="sa3fa223"><div class="spinner"></div></div></div>';
   try{
     var r=await apiFetch('/orm/api/aims/risks/'+riskId);
     window._aimsRiskDetailCache[riskId]=r;
@@ -2395,12 +2395,12 @@ window.ormOpenAimsRiskDetail=async function(riskId,assessId){
     var controls=r.controls||[];
     var backAssessId=window._aimsCurrentAssessment;
     drawer.innerHTML='<div class="orm-drawer-overlay" data-orm-static-click="s41">'+
-    '<div class="orm-drawer-panel" style="width:min(720px,100%)">'+
+    '<div class="orm-drawer-panel" data-s="s0f5efc8">'+
       '<div class="orm-drawer-head">'+
-        '<div style="display:flex;justify-content:space-between;align-items:start">'+
+        '<div data-s="sf0bc6e2" data-sd="flex">'+
           '<div>'+
-            '<button class="btn btn-sm btn-secondary" data-orm-call="ormOpenAimsDetail" data-orm-id="'+ormAttrId(backAssessId)+'" style="margin-bottom:8px">&#8592; Back to Risk Register</button>'+
-            '<div style="font-size:15px;font-weight:800;margin-top:4px">'+esc(r.ref||'')+' — '+esc((r.risk_description||'').slice(0,80))+'</div>'+
+            '<button class="btn btn-sm btn-secondary" data-orm-call="ormOpenAimsDetail" data-orm-id="'+ormAttrId(backAssessId)+'" data-s="sfdf33f2">&#8592; Back to Risk Register</button>'+
+            '<div data-s="s13ce2a4">'+esc(r.ref||'')+' — '+esc((r.risk_description||'').slice(0,80))+'</div>'+
           '</div>'+
           '<button class="btn btn-sm btn-secondary" data-orm-static-click="s42">&#10005;</button>'+
         '</div>'+
@@ -2409,16 +2409,16 @@ window.ormOpenAimsRiskDetail=async function(riskId,assessId){
         ormAimsComputedPanelHtml(r,computed)+
         ormAimsPillarBarsHtml(computed.per_pillar)+
         '<div class="orm-drawer-section">'+
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-            '<div class="orm-drawer-section-title" style="margin-bottom:0">Linked Controls ('+controls.length+')</div>'+
+          '<div data-s="s91ebbdc" data-sd="flex">'+
+            '<div class="orm-drawer-section-title" data-s="sef0b7a1">Linked Controls ('+controls.length+')</div>'+
             '<button class="btn btn-sm btn-primary" data-orm-complex="aims-control-add" data-orm-id="'+ormAttrId(riskId)+'">+ Link Control</button>'+
           '</div>'+
-          (controls.length?controls.map(function(c){return ormAimsControlRowHtml(c,riskId);}).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No controls linked yet.</div>')+
+          (controls.length?controls.map(function(c){return ormAimsControlRowHtml(c,riskId);}).join(''):'<div data-s="sa316e87">No controls linked yet.</div>')+
         '</div>'+
       '</div>'+
       '<div class="orm-drawer-footer">'+
         '<button class="btn btn-secondary" data-orm-complex="aims-risk-edit-close" data-orm-id="'+ormAttrId(backAssessId)+'" data-orm-id2="'+ormAttrId(riskId)+'"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-pencil></use></svg> Edit Risk</button>'+
-        '<button class="btn btn-secondary" data-orm-complex="aims-risk-delete-close" data-orm-id="'+ormAttrId(riskId)+'" data-orm-id2="'+ormAttrId(backAssessId)+'" style="color:var(--red)">Delete Risk</button>'+
+        '<button class="btn btn-secondary" data-orm-complex="aims-risk-delete-close" data-orm-id="'+ormAttrId(riskId)+'" data-orm-id2="'+ormAttrId(backAssessId)+'" data-s="s45e7ae4">Delete Risk</button>'+
       '</div>'+
     '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
@@ -2439,12 +2439,12 @@ window.ormOpenAimsRiskControlModal=function(riskId,existing){
     }).join('');
   var treatments=['accept','mitigate','share','avoid','exploit'];
   var html='<div class="orm-modal-overlay" id="aimsRcModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:560px">'+
+    '<div class="modal-box" data-s="s765d57b">'+
       '<button class="modal-close" data-orm-static-click="s63">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Link')+' Control</div>'+
       '<div class="form-group"><label>Catalogue Control</label><select id="arc_cat">'+options+'</select></div>'+
-      '<div class="form-group"><label>Control Detail (if custom / additional notes)</label><textarea id="arc_detail" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.control_detail||''):'')+'</textarea></div>'+
-      '<div class="form-group"><label>Action Steps</label><textarea id="arc_steps" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.action_steps||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Control Detail (if custom / additional notes)</label><textarea id="arc_detail" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.control_detail||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Action Steps</label><textarea id="arc_steps" rows="2" data-s="sa57b154">'+esc(isEdit?(existing.action_steps||''):'')+'</textarea></div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Responsible</label><input id="arc_responsible" value="'+esc(isEdit?(existing.responsible||''):'')+'"></div>'+
         '<div class="form-group"><label>Interdependency</label><input id="arc_interdep" placeholder="e.g. depends on Control X" value="'+esc(isEdit?(existing.interdependency||''):'')+'"></div>'+
@@ -2465,7 +2465,7 @@ window.ormOpenAimsRiskControlModal=function(riskId,existing){
         '<div class="form-group"><label>Evidence</label><input id="arc_evidence" value="'+esc(isEdit?(existing.evidence||''):'')+'"></div>'+
         '<div class="form-group"><label>Status</label><select id="arc_status">'+['open','in_progress','completed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
       '</div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s63">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-complex="aims-control-save" data-orm-id="'+ormAttrId(riskId)+'" data-orm-id2="'+(isEdit?ormAttrId(existing.id):'')+'" data-orm-edit="'+(isEdit?'1':'0')+'">Save</button>'+
       '</div>'+
@@ -2540,7 +2540,7 @@ window.ormDuplicateEvt=function(id){
 /* ─────────────────────────── KRI INLINE EDIT ─────────────────────────── */
 window.ormInlineKriEdit=function(id,el){
   var cur=parseFloat(el.textContent)||0;
-  el.innerHTML='<input type="number" value="'+cur+'" style="width:80px;font-size:24px;font-weight:900;background:var(--surface);border:2px solid var(--accent);border-radius:var(--radius);padding:2px 6px;color:var(--text)" data-orm-inline-id="'+ormAttrId(id)+'" data-orm-static-keydown="s64">';
+  el.innerHTML='<input type="number" value="'+cur+'" data-s="sfbd79f6" data-orm-inline-id="'+ormAttrId(id)+'" data-orm-static-keydown="s64">';
   var inp=el.querySelector('input');
   if(inp){inp.focus();inp.select();}
 };
@@ -2560,26 +2560,26 @@ window.ormOpenKriUpdateModal=function(kri){
   var cur=parseFloat(kri.current_value)||0;
   var hist=kriHistoryCache[kri.id]||[];
   var html='<div class="orm-modal-overlay" id="kriUpdateModal" data-orm-static-click="s37">'+
-    '<div class="modal-box" style="max-width:420px">'+
+    '<div class="modal-box" data-s="s0fd8744">'+
       '<button class="modal-close" data-orm-static-click="s65">&#10005;</button>'+
       '<div class="modal-title">Update: '+esc(kri.name)+'</div>'+
-      '<div style="text-align:center;margin-bottom:16px">'+
-        '<div style="font-size:42px;font-weight:900;color:var(--accent);line-height:1" id="kumDisplay">'+cur+'</div>'+
-        '<div style="font-size:13px;color:var(--muted)">'+esc(kri.unit||'')+'</div>'+
-        (hist.length>1?'<div style="margin-top:8px">'+ormKriSparkline(hist)+'</div>':'')+
+      '<div data-s="sfb93d3a">'+
+        '<div data-s="s3b60326" id="kumDisplay">'+cur+'</div>'+
+        '<div data-s="s17d902b">'+esc(kri.unit||'')+'</div>'+
+        (hist.length>1?'<div data-s="s8a77e5a">'+ormKriSparkline(hist)+'</div>':'')+
       '</div>'+
-      '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px">'+
+      '<div data-s="s2813e62" data-sd="flex">'+
         ['+1','+5','+10','Reset'].map(function(c){
           return'<button class="btn btn-sm btn-secondary" data-orm-adjust="'+esc(c)+'">'+c+'</button>';
         }).join('')+
       '</div>'+
       '<div class="form-group"><label>New Value</label>'+
-        '<input type="number" id="kum_val" value="'+cur+'" data-orm-static-input="s66" style="font-size:20px;font-weight:700;text-align:center">'+
+        '<input type="number" id="kum_val" value="'+cur+'" data-orm-static-input="s66" data-s="s8624e1b">'+
       '</div>'+
-      '<div class="form-group"><label>Notes <span style="font-size:10px;color:var(--muted)">(optional)</span></label>'+
-        '<textarea id="kum_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box"></textarea>'+
+      '<div class="form-group"><label>Notes <span data-s="sb569cab">(optional)</span></label>'+
+        '<textarea id="kum_notes" rows="2" data-s="sa57b154"></textarea>'+
       '</div>'+
-      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<div data-s="sd28ceac" data-sd="flex">'+
         '<button class="btn btn-secondary" data-orm-static-click="s65">Cancel</button>'+
         '<button class="btn btn-primary" data-orm-call="ormSaveKriUpdate" data-orm-id="'+ormAttrId(kri.id)+'">Save</button>'+
       '</div>'+

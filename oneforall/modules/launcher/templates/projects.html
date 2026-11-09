@@ -219,7 +219,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<a href="/" style="color:var(--accent);font-weight:700;text-decoration:none">Command Centre</a>
+<a href="/" data-s="s59fe22c">Command Centre</a>
 <span class="breadcrumb-sep">›</span>
 <span class="breadcrumb-current">Compliance Projects</span>
 {% endblock %}
@@ -261,7 +261,7 @@
   </div>
   <div class="proj-summary-divider"></div>
   <div class="proj-summary-item">
-    <div class="proj-summary-val" style="color:{% if avg_pct >= 80 %}var(--green-status){% elif avg_pct >= 60 %}var(--amber){% else %}var(--red){% endif %}">{{ avg_pct }}%</div>
+    <div class="proj-summary-val" data-sv="color:{% if avg_pct >= 80 %}var(--green-status){% elif avg_pct >= 60 %}var(--amber){% else %}var(--red){% endif %}">{{ avg_pct }}%</div>
     <div class="proj-summary-lbl">Avg Compliance</div>
   </div>
   <div class="proj-summary-divider"></div>
@@ -284,7 +284,7 @@
   {% set fw_color = fw.color or '#1e293b' %}
 
   <a href="/aria/" class="proj-card"
-       style="--proj-color:{{ fw_color }}"
+       data-sv="--proj-color:{{ fw_color }}"
        aria-label="Open {{ fw.name }} in ARIA">
 
     <!-- Arrow icon (appears on hover) -->
@@ -298,7 +298,7 @@
 
     <!-- Header: colour dot + name + description -->
     <div class="proj-header">
-      <div class="proj-dot" style="background:{{ fw_color }}"></div>
+      <div class="proj-dot" data-sv="background:{{ fw_color }}"></div>
       <div>
         <div class="proj-name">{{ fw.name }}</div>
         <div class="proj-desc">{{ fw.description or 'No description available.' }}</div>
@@ -308,10 +308,10 @@
     <!-- Compliance % + progress bar -->
     <div class="proj-pct-row">
       <span class="proj-pct-label">Compliance Coverage</span>
-      <span class="proj-pct-value" style="color:{{ pct_color }}">{{ pct }}%</span>
+      <span class="proj-pct-value" data-sv="color:{{ pct_color }}">{{ pct }}%</span>
     </div>
     <div class="pbar">
-      <div class="pbar-fill" style="width:{{ pct }}%;background:{{ fw_color }}"></div>
+      <div class="pbar-fill" data-sv="width:{{ pct }}%;background:{{ fw_color }}"></div>
     </div>
     <div class="proj-controls-sub">
       {{ fw.compliant_controls }} / {{ fw.total_controls_actual }} controls compliant
@@ -349,7 +349,7 @@
   <div class="empty-state-title">No Active Compliance Frameworks</div>
   <div class="empty-state-text">Activate frameworks to track them as compliance projects here.</div>
   {% if is_admin %}
-  <a href="/admin/frameworks" class="btn btn-primary" style="margin-top:8px">Activate Frameworks</a>
+  <a href="/admin/frameworks" class="btn btn-primary" data-s="s8a77e5a">Activate Frameworks</a>
   {% endif %}
 </div>
 {% endif %}

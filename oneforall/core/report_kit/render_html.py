@@ -79,6 +79,8 @@ p.intro{{margin:2mm 0 4mm;color:var(--slate);font-size:9pt;break-after:avoid;pag
 .kpi .v.good{{color:var(--good)}}.kpi .v.warn{{color:var(--warn)}}.kpi .v.bad{{color:var(--bad)}}
 .kpi .n{{font-size:7.5pt;color:var(--slate)}}
 .chart{{margin:4mm 0;break-inside:avoid;page-break-inside:avoid}}
+.chart svg{{max-width:100%;height:auto;display:block}}
+.page-break{{break-after:page;page-break-after:always}}
 .chart h3{{font-size:10pt;margin:0;color:var(--graphite)}}
 .chart p{{margin:0 0 1.5mm;font-size:8.5pt;font-style:italic;color:var(--slate)}}
 .pair{{display:grid;grid-template-columns:1fr 1fr;gap:6mm;break-inside:avoid}}
@@ -125,7 +127,7 @@ def _kpis(block: Kpis) -> str:
 def _chart(block: Chart, width_pt: float) -> str:
     drawing = charts.build_drawing(block, width_pt)
     svg = charts.drawing_to_svg(drawing, label=charts.alt_text(block))
-    return (f'<figure class="chart" style="margin:4mm 0"><h3>{esc(block.title)}</h3><p>{esc(charts.takeaway(block))}</p>{svg}</figure>')
+    return (f'<figure class="chart"><h3>{esc(block.title)}</h3><p>{esc(charts.takeaway(block))}</p>{svg}</figure>')
 
 
 def _cell(row, col) -> str:
@@ -176,7 +178,7 @@ def _blocks(report: Report) -> str:
             items = "".join(f"<li>{esc(item)}</li>" for item in block.items)
             out.append(f'<div class="callout"><h3>{esc(block.title)}</h3><ul>{items}</ul></div>')
         elif isinstance(block, PageBreak):
-            out.append('<div style="break-after:page;page-break-after:always"></div>')
+            out.append('<div class="page-break"></div>')
         i += 1
     return "".join(out)
 

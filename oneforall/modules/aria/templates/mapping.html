@@ -2,7 +2,7 @@
 {% block title %}Governance: IMS Control Mapping{% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">Governance</span>
+<span data-s="s456fefd">Governance</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">IMS Control Mapping</span>
 {% endblock %}
@@ -34,137 +34,137 @@
 </div>
 
 <!-- ── Framework Selector + Auto-Generate ── -->
-<div class="card" style="margin-bottom:20px;padding:22px 24px;">
-  <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;">Framework Selection</div>
-  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+<div class="card" data-s="s0d6f9be">
+  <div data-s="s58e8972">Framework Selection</div>
+  <div data-s="sd6f4abd" data-sd="flex">
     <!-- Multi-select -->
-    <div style="flex:1;min-width:260px;">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Select 2 or more active frameworks</div>
-      <select id="fwSelector" multiple size="6" style="width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);padding:6px;font-size:13px;line-height:1.8;">
+    <div data-s="sa58e8b2">
+      <div data-s="s55c9272">Select 2 or more active frameworks</div>
+      <select id="fwSelector" multiple size="6" data-s="s1555a7d">
         {% for fw in frameworks %}
-        <option value="{{ fw.id }}" style="padding:4px 8px;">{{ fw.name }}</option>
+        <option value="{{ fw.id }}" data-s="sf261655">{{ fw.name }}</option>
         {% endfor %}
       </select>
-      <div style="font-size:11px;color:var(--muted);margin-top:5px;">Hold Ctrl/Cmd to select multiple.</div>
+      <div data-s="s66c5e81">Hold Ctrl/Cmd to select multiple.</div>
     </div>
     <!-- Options + button -->
-    <div style="display:flex;flex-direction:column;gap:12px;padding-top:22px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-        <input type="checkbox" id="useAiToggle" checked style="width:13px;height:13px;">
+    <div data-s="s3970596" data-sd="flex">
+      <label data-s="s3adc344" data-sd="flex">
+        <input type="checkbox" id="useAiToggle" checked data-s="s723ec8d">
         AI semantic analysis (for ambiguous pairs)
-        <span style="font-size:11px;color:var(--muted);">(slower but more accurate)</span>
+        <span data-s="s1fd8c81">(slower but more accurate)</span>
       </label>
       {% if can_review_mapping %}<button id="autoGenBtn" class="btn btn-primary" disabled>
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.3 5.3l1.4 1.4M13.3 13.3l1.4 1.4M5.3 14.7l1.4-1.4M13.3 6.7l1.4-1.4"/></svg>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.3 5.3l1.4 1.4M13.3 13.3l1.4 1.4M5.3 14.7l1.4-1.4M13.3 6.7l1.4-1.4"/></svg>
         Auto-Map Selected Frameworks
       </button>{% endif %}
-      <button class="btn btn-secondary" id="viewExistingMappings" style="font-size:12px;">View existing mappings only</button>
+      <button class="btn btn-secondary" id="viewExistingMappings" data-s="s6cb285c">View existing mappings only</button>
     </div>
   </div>
 </div>
 
 {% if can_review_mapping %}
-<section class="card" aria-label="Mapping proposals" style="margin-bottom:20px;padding:20px 24px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-    <div><strong>Proposed control matches</strong><div style="font-size:12px;color:var(--muted);margin-top:4px;">A second specialist reviews each suggestion. Pending matches do not affect IMS status.</div></div>
+<section class="card" aria-label="Mapping proposals" data-s="s4f491be">
+  <div data-s="s463dba8" data-sd="flex">
+    <div><strong>Proposed control matches</strong><div data-s="sd14d7bf">A second specialist reviews each suggestion. Pending matches do not affect IMS status.</div></div>
     <button type="button" class="btn btn-secondary" id="refreshMappingProposals">Refresh</button>
   </div>
-  <div id="mappingProposalList" data-current-user-id="{{ user.id | int }}" style="margin-top:14px;font-size:12px;">Loading proposals...</div>
+  <div id="mappingProposalList" data-current-user-id="{{ user.id | int }}" data-s="s6517bd7">Loading proposals...</div>
 </section>
 {% endif %}
 
 <!-- ── Status / Progress bar ── -->
-<div id="progressWrap" style="display:none;margin-bottom:20px;">
-  <div class="card" style="padding:20px 24px;">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-      <div class="spinner" style="width:18px;height:18px;border-width:2px;"></div>
-      <div id="progressMsg" style="font-size:13px;font-weight:600;color:var(--text);">Running text matching…</div>
+<div id="progressWrap" data-s="s49f14f8" data-sd="none">
+  <div class="card" data-s="s969a912">
+    <div data-s="sd3b86a9" data-sd="flex">
+      <div class="spinner" data-s="sbdf9236"></div>
+      <div id="progressMsg" data-s="s3da0680">Running text matching…</div>
     </div>
-    <div style="font-size:12px;color:var(--muted);">This may take a moment if AI semantic analysis is enabled.</div>
+    <div data-s="s7fc448e">This may take a moment if AI semantic analysis is enabled.</div>
   </div>
 </div>
 
 <!-- ── Stats strip ── -->
-<div id="statsStrip" style="display:none;margin-bottom:20px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-    <div style="font-size:14px;font-weight:700;color:var(--text);">Mapping Results</div>
-    <button class="btn btn-secondary" id="clearMappingResults" style="font-size:11px;padding:5px 14px;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+<div id="statsStrip" data-s="s49f14f8" data-sd="none">
+  <div data-s="sf0637ef" data-sd="flex">
+    <div data-s="s8a79397">Mapping Results</div>
+    <button class="btn btn-secondary" id="clearMappingResults" data-s="sfa3a878">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s8bd3941"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       Clear Results
     </button>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+  <div data-s="se825a62" data-sd="grid">
     <div class="stat-card"><div class="stat-label">Total Controls</div><div class="stat-value" id="sTotal">—</div></div>
-    <div class="stat-card"><div class="stat-label">Integrated</div><div class="stat-value" id="sInt" style="color:var(--green-status);">—</div></div>
-    <div class="stat-card"><div class="stat-label">Partial</div><div class="stat-value" id="sPart" style="color:var(--amber);">—</div></div>
-    <div class="stat-card"><div class="stat-label">Unique</div><div class="stat-value" id="sUniq" style="color:var(--red);">—</div></div>
-    <div class="stat-card"><div class="stat-label">Effort Saved</div><div class="stat-value" id="sEffort" style="color:var(--accent);">—</div></div>
+    <div class="stat-card"><div class="stat-label">Integrated</div><div class="stat-value" id="sInt" data-s="sf941d6e">—</div></div>
+    <div class="stat-card"><div class="stat-label">Partial</div><div class="stat-value" id="sPart" data-s="s08935a7">—</div></div>
+    <div class="stat-card"><div class="stat-label">Unique</div><div class="stat-value" id="sUniq" data-s="s45e7ae4">—</div></div>
+    <div class="stat-card"><div class="stat-label">Effort Saved</div><div class="stat-value" id="sEffort" data-s="sa805525">—</div></div>
   </div>
 </div>
 
 <!-- ── Fully Integrated Controls ── -->
-<div id="intSection" style="display:none;margin-bottom:20px;">
+<div id="intSection" data-s="s49f14f8" data-sd="none">
   <div class="ims-section-header">
-    <div class="ims-section-icon" style="background:rgba(var(--green-rgb,34,197,94),0.15);border:1px solid rgba(34,197,94,.3);">✓</div>
+    <div class="ims-section-icon" data-s="s00cb519">✓</div>
     <div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);">Integrated Controls</div>
-      <div style="font-size:12px;color:var(--muted);">Present across ALL selected frameworks: one test, one document, one evidence upload.</div>
+      <div data-s="s6aab51f">Integrated Controls</div>
+      <div data-s="s7fc448e">Present across ALL selected frameworks: one test, one document, one evidence upload.</div>
     </div>
     <span class="ims-int" id="intCount">0</span>
   </div>
-  <div id="intList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;"></div>
+  <div id="intList" data-s="s2258fc8" data-sd="grid"></div>
 </div>
 
 <!-- ── Partial Matches ── -->
-<div id="partSection" style="display:none;margin-bottom:20px;">
+<div id="partSection" data-s="s49f14f8" data-sd="none">
   <div class="ims-section-header">
-    <div class="ims-section-icon" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,.3);"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></div>
+    <div class="ims-section-icon" data-s="s6725f48"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg></div>
     <div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);">Partial Matches</div>
-      <div style="font-size:12px;color:var(--muted);">Present in some but not all selected frameworks.</div>
+      <div data-s="s6aab51f">Partial Matches</div>
+      <div data-s="s7fc448e">Present in some but not all selected frameworks.</div>
     </div>
     <span class="ims-partial" id="partCount">0</span>
   </div>
-  <div id="partList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;"></div>
+  <div id="partList" data-s="s2258fc8" data-sd="grid"></div>
 </div>
 
 <!-- ── Unique Controls ── -->
-<div id="uniqSection" style="display:none;margin-bottom:20px;">
+<div id="uniqSection" data-s="s49f14f8" data-sd="none">
   <div class="ims-section-header">
-    <div class="ims-section-icon" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,.25);">✕</div>
+    <div class="ims-section-icon" data-s="sa5f1058">✕</div>
     <div>
-      <div style="font-size:15px;font-weight:700;color:var(--text);">Unique Controls</div>
-      <div style="font-size:12px;color:var(--muted);">Unique to a single framework, must be tested and documented separately.</div>
+      <div data-s="s6aab51f">Unique Controls</div>
+      <div data-s="s7fc448e">Unique to a single framework, must be tested and documented separately.</div>
     </div>
     <span class="ims-unique" id="uniqCount">0</span>
   </div>
-  <div id="uniqList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;"></div>
+  <div id="uniqList" data-s="s2258fc8" data-sd="grid"></div>
 </div>
 
 <!-- ── Manual Link Panel (collapsed) ── -->
-{% if can_review_mapping %}<details style="margin-bottom:20px;">
-  <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-mid);padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);">
+{% if can_review_mapping %}<details data-s="s49f14f8">
+  <summary data-s="s1a4f438">
     Manual Control Linking (advanced)
   </summary>
-  <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:20px 24px;">
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Create a reviewed manual link when a proposed match is insufficient.</div>
-    <div style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:12px;align-items:end;">
+  <div class="card" data-s="s626b30d">
+    <div data-s="sd489e5b">Create a reviewed manual link when a proposed match is insufficient.</div>
+    <div data-s="s7b8b70b" data-sd="grid">
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">Framework A</div>
-        <select id="fwA" class="form-select" style="width:100%;margin-bottom:8px;"><option value="">Select framework...</option>{% for fw in frameworks %}<option value="{{ fw.id }}">{{ fw.name }}</option>{% endfor %}</select>
-        <select id="ctrlA" class="form-select" style="width:100%;" disabled><option value="">Select control...</option></select>
+        <div data-s="sa9d0c54">Framework A</div>
+        <select id="fwA" class="form-select" data-s="sfb9e1f5"><option value="">Select framework...</option>{% for fw in frameworks %}<option value="{{ fw.id }}">{{ fw.name }}</option>{% endfor %}</select>
+        <select id="ctrlA" class="form-select" data-s="s0466783" disabled><option value="">Select control...</option></select>
       </div>
-      <div style="padding-bottom:8px;color:var(--muted);font-size:22px;">⇄</div>
+      <div data-s="s6250f18">⇄</div>
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">Framework B</div>
-        <select id="fwB" class="form-select" style="width:100%;margin-bottom:8px;"><option value="">Select framework...</option>{% for fw in frameworks %}<option value="{{ fw.id }}">{{ fw.name }}</option>{% endfor %}</select>
-        <select id="ctrlB" class="form-select" style="width:100%;" disabled><option value="">Select control...</option></select>
+        <div data-s="sa9d0c54">Framework B</div>
+        <select id="fwB" class="form-select" data-s="sfb9e1f5"><option value="">Select framework...</option>{% for fw in frameworks %}<option value="{{ fw.id }}">{{ fw.name }}</option>{% endfor %}</select>
+        <select id="ctrlB" class="form-select" data-s="s0466783" disabled><option value="">Select control...</option></select>
       </div>
-      <div style="padding-bottom:8px;"><button class="btn btn-secondary" id="createManualMapping">Link</button></div>
+      <div data-s="sa5ca015"><button class="btn btn-secondary" id="createManualMapping">Link</button></div>
     </div>
-    <div style="display:flex;gap:12px;margin-top:10px;align-items:center;">
-      <select id="mappingType" class="form-select" style="width:150px;"><option value="equivalent">Equivalent</option><option value="related">Related</option><option value="covers">Covers</option><option value="partial">Partial</option></select>
-      <input type="text" id="mappingNotes" class="form-input" placeholder="Notes (optional)" style="flex:1;">
+    <div data-s="seee5740" data-sd="flex">
+      <select id="mappingType" class="form-select" data-s="s7c07cdf"><option value="equivalent">Equivalent</option><option value="related">Related</option><option value="covers">Covers</option><option value="partial">Partial</option></select>
+      <input type="text" id="mappingNotes" class="form-input" placeholder="Notes (optional)" data-s="s97445a8">
     </div>
   </div>
 </details>

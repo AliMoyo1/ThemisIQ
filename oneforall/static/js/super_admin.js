@@ -146,7 +146,7 @@ function renderOrgs(){
 
   var body = document.getElementById('orgsBody');
   if (!list.length){
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No organisations match this filter.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" data-s="sa1e3045">No organisations match this filter.</td></tr>';
     return;
   }
   body.innerHTML = list.map(function(o){
@@ -174,25 +174,25 @@ function renderOrgs(){
       else if (d !== null && d <= 30)renewalCell = '<span class="expiry-warn">'+dateStr+' &middot; '+d+'d</span>';
       else                           renewalCell = dateStr;
     } else {
-      renewalCell = '<span style="color:var(--muted)">Perpetual</span>';
+      renewalCell = '<span data-s="s57f9e31">Perpetual</span>';
     }
 
     return '<tr>'+
       '<td>'+
-        '<div style="font-weight:700;color:var(--text)">'+esc(o.name)+
-          (o.slug==='public'?'<span class="badge badge-gray" style="margin-left:6px">default</span>':'')+
+        '<div data-s="sbed9cea">'+esc(o.name)+
+          (o.slug==='public'?'<span class="badge badge-gray" data-s="s391ef12">default</span>':'')+
         '</div>'+
-        '<div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:2px">'+esc(o.slug)+'</div>'+
+        '<div data-s="sa86d764">'+esc(o.slug)+'</div>'+
       '</td>'+
-      '<td><span class="badge '+planClass+'" style="text-transform:capitalize">'+esc(o.plan)+'</span></td>'+
+      '<td><span class="badge '+planClass+'" data-s="s6fedee3">'+esc(o.plan)+'</span></td>'+
       '<td title="'+esc(modList)+'">'+modCount+' of 6</td>'+
       '<td>'+
-        '<div style="font-size:12px;font-weight:600">'+userCount+' / '+seats+'</div>'+
-        '<div class="seats-bar"><div class="seats-bar-fill '+seatClass+'" style="width:'+seatPct+'%"></div></div>'+
+        '<div data-s="seb5cb58">'+userCount+' / '+seats+'</div>'+
+        '<div class="seats-bar"><div class="seats-bar-fill '+seatClass+'" data-sv="width:'+seatPct+'%"></div></div>'+
       '</td>'+
       '<td>'+renewalCell+'</td>'+
       '<td>'+statusBadge+'</td>'+
-      '<td style="text-align:right"><button class="sa-btn sa-btn-secondary" data-sa-org-id="'+(safeId(o.id)||'')+'">Manage</button></td>'+
+      '<td data-s="s54c2afb"><button class="sa-btn sa-btn-secondary" data-sa-org-id="'+(safeId(o.id)||'')+'">Manage</button></td>'+
     '</tr>';
   }).join('');
 }
@@ -292,17 +292,17 @@ async function deleteOrg(){
 async function loadUsersForPanel(orgId){
   var users = await apiFetch('/super-admin/api/orgs/'+orgId+'/users');
   document.getElementById('usersList').innerHTML = users.length
-    ? '<table class="sa-table" style="table-layout:fixed;width:100%"><thead><tr><th>Name</th><th>Status</th><th style="width:60px"></th></tr></thead><tbody>'+
+    ? '<table class="sa-table" data-s="sb996390"><thead><tr><th>Name</th><th>Status</th><th data-s="sbd09c41"></th></tr></thead><tbody>'+
         users.map(function(u){
-          return '<tr><td style="overflow:hidden"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.full_name)+
-            (u.is_super_admin?'<span class="badge badge-violet" style="margin-left:6px">super</span>':'')+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.email)+'</div></td>'+
+          return '<tr><td data-s="s6982440"><div data-s="s270d6c0">'+esc(u.full_name)+
+            (u.is_super_admin?'<span class="badge badge-violet" data-s="s391ef12">super</span>':'')+'</div>'+
+            '<div data-s="s8c150de">'+esc(u.email)+'</div></td>'+
             '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td>'+
-            '<td style="text-align:right"><button class="sa-btn sa-btn-danger js-remove-org-user" type="button" data-org-id="'+(safeId(orgId)||'')+'" data-user-id="'+(safeId(u.id)||'')+'" data-username="'+esc(u.username)+'" style="font-size:11px;padding:4px 10px">Remove</button></td>'+
+            '<td data-s="s54c2afb"><button class="sa-btn sa-btn-danger js-remove-org-user" type="button" data-org-id="'+(safeId(orgId)||'')+'" data-user-id="'+(safeId(u.id)||'')+'" data-username="'+esc(u.username)+'" data-s="s562fe77">Remove</button></td>'+
             '</tr>';
         }).join('')+
         '</tbody></table>'
-    : '<div style="text-align:center;color:var(--muted);padding:24px">No users yet.</div>';
+    : '<div data-s="sa1e3045">No users yet.</div>';
 }
 
 async function deleteOrgUser(orgId, userId, username){
@@ -322,7 +322,7 @@ function openCreateOrgModal(){
   // Build module checkbox picker
   var picker = document.getElementById('newOrgModulesPicker');
   picker.innerHTML = MODULES.map(function(m){
-    return '<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:12px;cursor:pointer">'+
+    return '<label data-s="s1e80305" data-sd="flex">'+
       '<input type="checkbox" value="'+m.key+'" checked/>'+m.name+
     '</label>';
   }).join('');
@@ -405,7 +405,7 @@ async function loadDemoRequests() {
     renderDemoRequests();
   } catch(e) {
     document.getElementById('drBody').innerHTML =
-      '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Failed to load requests.</td></tr>';
+      '<tr><td colspan="7" data-s="sa1e3045">Failed to load requests.</td></tr>';
   }
 }
 
@@ -440,14 +440,14 @@ function renderDemoChart() {
   chartEl.innerHTML = buckets.map(function(b) {
     var h = b.count === 0 ? 4 : Math.max(8, Math.round((b.count / maxCount) * 72));
     var color = b.contacted === b.count && b.count > 0 ? '#16a34a' : b.count > 0 ? '#f59e0b' : 'var(--border)';
-    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end" title="' + b.label + ': ' + b.count + ' request(s)">' +
-           '<div class="premium-chart-column" style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:7px 7px 2px 2px;transition:height .2s"></div>' +
+    return '<div data-s="s047cfe6" data-sd="flex" title="' + b.label + ': ' + b.count + ' request(s)">' +
+           '<div class="premium-chart-column" data-sv="width:100%;height:' + h + 'px;background:' + color + ';border-radius:7px 7px 2px 2px;transition:height .2s"></div>' +
            '</div>';
   }).join('');
 
   labelEl.innerHTML = buckets.map(function(b, i) {
     var show = (i === 0 || i === 6 || i === 13);
-    return '<div style="flex:1;text-align:center;font-size:10px;color:var(--muted);font-family:monospace;white-space:nowrap;overflow:hidden">' +
+    return '<div data-s="s7fb579b">' +
            (show ? b.label : '') + '</div>';
   }).join('');
 }
@@ -473,7 +473,7 @@ function renderDemoRequests() {
 
   if (!rows.length) {
     document.getElementById('drBody').innerHTML =
-      '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">No requests found.</td></tr>';
+      '<tr><td colspan="7" data-s="s9d0813a">No requests found.</td></tr>';
     return;
   }
 
@@ -484,16 +484,16 @@ function renderDemoRequests() {
       ? '<span class="badge badge-green">Contacted</span>'
       : '<span class="badge badge-amber">Pending</span>';
     var contactBtn = r.contacted ? '' :
-      '<button class="sa-btn sa-btn-primary" data-sa-demo-contact="' + (requestId||'') + '" style="margin-right:6px;font-size:11px;padding:4px 10px">Mark Contacted</button>';
+      '<button class="sa-btn sa-btn-primary" data-sa-demo-contact="' + (requestId||'') + '" data-s="sb73c9e5">Mark Contacted</button>';
     return '<tr>' +
-      '<td style="font-weight:600">' + esc(r.name) + '</td>' +
-      '<td><a href="mailto:' + esc(r.email) + '" style="color:var(--accent)">' + esc(r.email) + '</a></td>' +
+      '<td data-s="seed0f8f">' + esc(r.name) + '</td>' +
+      '<td><a href="mailto:' + esc(r.email) + '" data-s="sa805525">' + esc(r.email) + '</a></td>' +
       '<td>' + esc(r.company || '-') + '</td>' +
-      '<td>' + (r.plan ? '<span class="badge badge-violet">' + esc(r.plan) + '</span>' : '<span style="color:var(--muted)">-</span>') + '</td>' +
-      '<td style="color:var(--muted);font-size:12px;font-family:monospace">' + date + '</td>' +
+      '<td>' + (r.plan ? '<span class="badge badge-violet">' + esc(r.plan) + '</span>' : '<span data-s="s57f9e31">-</span>') + '</td>' +
+      '<td data-s="s5bd7b34">' + date + '</td>' +
       '<td>' + status + '</td>' +
-      '<td style="text-align:right">' + contactBtn +
-        '<button class="sa-btn sa-btn-danger" data-sa-demo-delete="' + (requestId||'') + '" style="font-size:11px;padding:4px 10px">Delete</button>' +
+      '<td data-s="s54c2afb">' + contactBtn +
+        '<button class="sa-btn sa-btn-danger" data-sa-demo-delete="' + (requestId||'') + '" data-s="s562fe77">Delete</button>' +
       '</td>' +
     '</tr>';
   }).join('');

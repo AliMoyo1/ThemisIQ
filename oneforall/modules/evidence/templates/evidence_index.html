@@ -2,7 +2,7 @@
 {% block title %}Evidence Vault | ThemisIQ{% endblock %}
 
 {% block breadcrumb %}
-<span style="font-weight:700">ThemisIQ</span>
+<span data-s="se3ec02a">ThemisIQ</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Evidence Vault</span>
 {% endblock %}
@@ -20,15 +20,15 @@
   </a>
   <a href="#" class="nav-item" id="nav-expiring" data-ev-click="switchView('expiring',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    Expiring Soon <span id="badge-expiring" class="nav-badge" style="background:var(--warn-soft,#fef3c7);color:var(--warn,#d97706)"></span>
+    Expiring Soon <span id="badge-expiring" class="nav-badge" data-s="s91aa15d"></span>
   </a>
   <a href="#" class="nav-item" id="nav-unlinked" data-ev-click="switchView('needs_filing',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-    Needs filing <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--badge-red,#b91c1c)"></span>
+    Needs filing <span id="badge-unlinked" class="nav-badge" data-s="sdd08e1d"></span>
   </a>
-  <a href="#" class="nav-item" id="nav-archived" data-ev-click="switchView('archived',this)" style="display:none">
+  <a href="#" class="nav-item" id="nav-archived" data-ev-click="switchView('archived',this)" data-sd="none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-    Archive <span id="badge-archived" class="nav-badge" style="background:var(--surface2);color:var(--muted)"></span>
+    Archive <span id="badge-archived" class="nav-badge" data-s="s1323217"></span>
   </a>
 </div>
 <div class="sidebar-section">
@@ -186,11 +186,11 @@
   <span class="page-title">Evidence Vault</span>
   <div class="topbar-actions">
     <!-- List / Cards toggle -->
-    <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-      <button id="btnCards" data-ev-click="setViewMode('cards')" title="Card view" aria-label="Card view" style="padding:7px 10px;border:none;background:var(--surface2);color:var(--muted);cursor:pointer">
+    <div data-s="se7108f5" data-sd="flex">
+      <button id="btnCards" data-ev-click="setViewMode('cards')" title="Card view" aria-label="Card view" data-s="sa84ade7">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       </button>
-      <button id="btnTable" data-ev-click="setViewMode('table')" title="List view" aria-label="List view" style="padding:7px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">
+      <button id="btnTable" data-ev-click="setViewMode('table')" title="List view" aria-label="List view" data-s="s96732a8">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       </button>
     </div>
@@ -206,36 +206,36 @@
 </div>
 
 {% if can_manage_legacy %}
-<section id="evLegacyPanel" hidden aria-label="Historical file reconciliation" style="margin:14px 0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-    <h2 style="font-size:17px;margin:0">Historical file reconciliation</h2>
+<section id="evLegacyPanel" hidden aria-label="Historical file reconciliation" data-s="sbf0432c">
+  <div data-s="sff22850" data-sd="flex">
+    <h2 data-s="s90eac3a">Historical file reconciliation</h2>
     <button class="btn btn-secondary" type="button" data-ev-click="document.getElementById('evLegacyPanel').hidden=true">Close</button>
   </div>
-  <p style="font-size:12px;color:var(--muted)">Review one source at a time. GRID bytes are copied into the Vault and checked; BCM references need a human to identify the matching existing Vault artifact. Historical source files and module review decisions are retained.</p>
+  <p data-s="s7fc448e">Review one source at a time. GRID bytes are copied into the Vault and checked; BCM references need a human to identify the matching existing Vault artifact. Historical source files and module review decisions are retained.</p>
   <div id="evLegacyStatus" role="status" aria-live="polite"></div>
   <div id="evLegacyRows"></div>
 </section>
 {% endif %}
 
 <!-- Full-page drag-drop zone (catches drops anywhere) -->
-<div id="pageDropZone" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);align-items:center;justify-content:center;pointer-events:none">
-  <div style="background:var(--surface);border:3px dashed var(--accent);border-radius:20px;padding:40px 60px;text-align:center">
-    <div style="font-size:36px;margin-bottom:8px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-paperclip></use></svg></div>
-    <div style="font-size:16px;font-weight:700;color:var(--accent)">Drop to upload evidence</div>
+<div id="pageDropZone" data-s="s4a29612" data-sd="none">
+  <div data-s="s4b385e5">
+    <div data-s="s9df186e"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-paperclip></use></svg></div>
+    <div data-s="s2d724c3">Drop to upload evidence</div>
   </div>
 </div>
 
-<div class="content" style="padding:20px">
+<div class="content" data-s="s769fed3">
   <!-- Search first, so the results start at the top of the page -->
   <label for="searchInput" class="sr-only">Search the Vault by name, tag, description or indexed file text</label>
   <input type="search" id="searchInput" class="ev-search" placeholder="Search names, tags and file text" data-ev-keyup="debounceSearch()" autocomplete="off">
 
-  <section aria-labelledby="evCompanyHeading" style="margin-top:20px">
+  <section aria-labelledby="evCompanyHeading" data-s="sa26bda7">
     <div class="ev-folders-heading"><h2 id="evCompanyHeading">By filing scope</h2><p>Only documents you may open</p></div>
     <div id="evCompanyViews" class="ev-company-grid" role="group" aria-label="Accessible filing scopes"></div>
   </section>
 
-  <section aria-labelledby="evEntityHeading" style="margin-top:20px">
+  <section aria-labelledby="evEntityHeading" data-s="sa26bda7">
     <div class="ev-folders-heading"><h2 id="evEntityHeading">By reviewed company</h2>
       {% if can_manage_company %}<a class="btn btn-secondary" href="/evidence/companies/">Review company labels</a>{% endif %}
     </div>
@@ -249,10 +249,10 @@
     <div id="evGroupViews" class="ev-company-grid" role="group" aria-label="Companies with named group access"></div>
     <div id="evGroupBrowse" hidden><h3 id="evGroupBrowseName"></h3><div id="evGroupItems" class="ev-company-grid" role="group" aria-label="Approved group documents"></div></div>
     <div id="evGroupDetail" class="ev-record-folders" hidden aria-live="polite"></div>
-    <div id="evGroupPager" style="display:flex;gap:10px;align-items:center;margin:12px 0"></div>
-    <form id="evGroupAsk" style="display:grid;gap:8px;max-width:760px;margin:12px 0">
+    <div id="evGroupPager" data-s="s8cc7bad" data-sd="flex"></div>
+    <form id="evGroupAsk" data-s="se7850d6" data-sd="grid">
       <label for="evGroupQuestion"><strong>Ask the released documents</strong> <small>Searches only versions you can open. An answer cites the passages it used; check them before relying on it.</small></label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="evGroupQuestion" maxlength="500" required style="flex:1;min-width:220px" placeholder="For example: what is the recovery time objective for payments?"><button type="submit" class="btn btn-secondary">Ask</button></div>
+      <div data-s="s4725bb7" data-sd="flex"><input id="evGroupQuestion" maxlength="500" required data-s="s6c0d09d" placeholder="For example: what is the recovery time objective for payments?"><button type="submit" class="btn btn-secondary">Ask</button></div>
       <div id="evGroupAnswer" aria-live="polite"></div>
     </form>
   </section>
@@ -266,7 +266,7 @@
     <label class="sr-only" for="evRecordFolderSearch">Find an audit, incident or record</label>
     <input type="search" id="evRecordFolderSearch" class="ev-search" placeholder="Find a record in this folder" data-ev-input="evSearchRecordFolders()">
     <div id="evRecordFolderList" class="ev-record-folder-list"></div>
-    <div id="evRecordFolderPager" style="display:flex;align-items:center;gap:10px"></div>
+    <div id="evRecordFolderPager" data-s="sd57ae4c" data-sd="flex"></div>
   </section>
 
   <!-- Work views. Each count is the length of the list it opens. -->
@@ -285,29 +285,29 @@
   <details class="ev-insights" id="evInsights">
     <summary>Insights: totals, recently added and coverage</summary>
     <div class="ev-insights-body">
-      <div id="statsBar" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:12px 0 16px"></div>
-      <div id="recentSection" style="margin-bottom:16px;display:none">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px">Recently Added</div>
+      <div id="statsBar" data-s="s3962584" data-sd="grid"></div>
+      <div id="recentSection" data-s="s87c136d" data-sd="none">
+        <div data-s="sc164865">Recently Added</div>
         <div class="ev-recent-strip" id="recentItems"></div>
       </div>
       <div id="coverageBar"></div>
-      <div id="evChecks" style="margin-top:16px"></div>
+      <div id="evChecks" data-s="s1b0f499"></div>
     </div>
   </details>
 
   {% if can_bulk_archive %}
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+  <div data-s="s5849d79" data-sd="flex">
     <button type="button" class="btn btn-secondary" id="evSelectModeBtn" data-ev-click="evToggleSelection()">Select evidence</button>
-    <div id="evBulkBar" style="display:none;align-items:center;gap:8px" role="group" aria-label="Evidence bulk actions">
+    <div id="evBulkBar" data-s="s250fc4e" data-sd="none" role="group" aria-label="Evidence bulk actions">
       <span id="evSelectedCount" role="status" aria-live="polite">0 selected</span>
       <button type="button" class="btn btn-primary" id="evBulkArchiveBtn" data-ev-click="evBulkArchive()" disabled>Archive selected</button>
       <button type="button" class="btn btn-secondary" data-ev-click="evToggleSelection()">Cancel selection</button>
     </div>
   </div>
-  <div id="evBulkResult" role="status" aria-live="polite" style="font-size:12px;margin-bottom:10px"></div>
+  <div id="evBulkResult" role="status" aria-live="polite" data-s="s195de0c"></div>
   {% endif %}
 
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+  <div data-s="s118e40d" data-sd="flex">
     <label for="evSavedViews">Saved views</label>
     <select id="evSavedViews" class="form-input" data-ev-change="evApplySavedView(this.value)">
       <option value="">Choose a saved view</option>
@@ -315,16 +315,16 @@
     <button type="button" class="btn btn-secondary" data-ev-click="evSaveCurrentView()">Save current filters</button>
     <button type="button" class="btn btn-secondary" id="evDeleteViewBtn" data-ev-click="evDeleteSavedView()" disabled>Delete my view</button>
   </div>
-  <div id="evSavedViewStatus" role="status" aria-live="polite" style="font-size:12px;margin-bottom:10px"></div>
+  <div id="evSavedViewStatus" role="status" aria-live="polite" data-s="s195de0c"></div>
 
   <!-- Evidence Grid (cards) -->
-  <div id="evidenceGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
+  <div id="evidenceGrid" data-s="s61a9ac7" data-sd="grid"></div>
 
   <!-- Evidence Table (list view) -->
-  <div id="evidenceTable" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow-x:auto;position:relative">
+  <div id="evidenceTable" data-s="s192df24" data-sd="none">
     <table class="ev-table">
       <thead><tr>
-        {% if can_bulk_archive %}<th id="evSelectHeading" style="display:none"><input type="checkbox" id="evSelectAll" aria-label="Select all visible evidence"></th>{% endif %}
+        {% if can_bulk_archive %}<th id="evSelectHeading" data-sd="none"><input type="checkbox" id="evSelectAll" aria-label="Select all visible evidence"></th>{% endif %}
         <th scope="col">Name and source</th><th scope="col">Linked claims</th><th scope="col">Owner</th><th scope="col">Review due</th><th scope="col">State</th><th scope="col">Updated</th><th scope="col"><span class="sr-only">Download</span></th>
       </tr></thead>
       <tbody id="evidenceTableBody"></tbody>
@@ -332,19 +332,19 @@
   </div>
 
   <!-- Pager -->
-  <nav id="evPager" aria-label="Evidence pages" style="display:none;align-items:center;justify-content:flex-start;gap:16px;flex-wrap:wrap;margin-top:14px;margin-bottom:84px">
-    <span id="evPagerStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--muted)"></span>
-    <div id="evPagerButtons" style="display:flex;gap:8px">
+  <nav id="evPager" aria-label="Evidence pages" data-s="s843a87f" data-sd="none">
+    <span id="evPagerStatus" role="status" aria-live="polite" data-s="s7fc448e"></span>
+    <div id="evPagerButtons" data-s="s33fcd4c" data-sd="flex">
       <button type="button" class="btn btn-secondary" id="evPrevPage" data-ev-click="evGoToPage(evPage-1)">Previous</button>
       <button type="button" class="btn btn-secondary" id="evNextPage" data-ev-click="evGoToPage(evPage+1)">Next</button>
     </div>
   </nav>
 
   <!-- Empty State -->
-  <div id="emptyState" style="display:none;text-align:center;padding:60px 20px;color:var(--muted)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:.4"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-    <div style="font-size:15px;font-weight:500" id="emptyTitle">No evidence items found</div>
-    <div style="font-size:13px;margin-top:6px" id="emptySub">Upload files to build your evidence repository</div>
+  <div id="emptyState" data-s="scbbf91d" data-sd="none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" data-s="scea62df"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    <div data-s="s4d8313a" id="emptyTitle">No evidence items found</div>
+    <div data-s="s4a4c71a" id="emptySub">Upload files to build your evidence repository</div>
   </div>
 </div>
 
@@ -356,29 +356,29 @@
 
 <!-- Upload Modal -->
 <div class="modal-overlay" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="uploadModal-title">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" data-s="s4294bfa">
     <div class="modal-header">
-      <h3 id="uploadModal-title" style="margin:0;font-size:16px">Upload Evidence</h3>
+      <h3 id="uploadModal-title" data-s="s4499790">Upload Evidence</h3>
       <button class="modal-close" data-ev-click="ModalManager.close('uploadModal')" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <form id="uploadForm" data-ev-submit="handleUpload(event)">
-        <div style="margin-bottom:14px">
-          <label for="uploadFilingScope" style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">File for</label>
-          <select id="uploadFilingScope" required class="form-input" style="width:100%"><option value="">Choose an authorized filing scope</option></select>
-          <p id="uploadFilingNote" style="font-size:11px;color:var(--muted);margin:6px 0 0">A linked record must use the same scope. Organization-wide files are visible throughout your tenant.</p>
+        <div data-s="s2b583d7">
+          <label for="uploadFilingScope" data-s="sbf00562" data-sd="block">File for</label>
+          <select id="uploadFilingScope" required class="form-input" data-s="s0466783"><option value="">Choose an authorized filing scope</option></select>
+          <p id="uploadFilingNote" data-s="s3ffcd28">A linked record must use the same scope. Organization-wide files are visible throughout your tenant.</p>
         </div>
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">File</label>
-          <input type="file" id="uploadFile" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        <div data-s="s2b583d7">
+          <label data-s="s7029041" data-sd="block">File</label>
+          <input type="file" id="uploadFile" required data-s="s709a116">
         </div>
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Title</label>
-          <input type="text" id="uploadTitle" placeholder="Evidence title..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        <div data-s="s2b583d7">
+          <label data-s="s7029041" data-sd="block">Title</label>
+          <input type="text" id="uploadTitle" placeholder="Evidence title..." data-s="se4b4634">
         </div>
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Category</label>
-          <select id="uploadCategory" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        <div data-s="s2b583d7">
+          <label data-s="s7029041" data-sd="block">Category</label>
+          <select id="uploadCategory" data-s="se4b4634">
             <option value="general">General</option><option value="policy">Policy</option>
             <option value="certificate">Certificate</option><option value="screenshot">Screenshot</option>
             <optgroup label="Reports">
@@ -393,12 +393,12 @@
             <option value="training">Training Record</option>
           </select>
         </div>
-        <fieldset style="border:1px solid var(--border);border-radius:8px;padding:12px;margin:0 0 14px">
-          <legend style="font-size:12px;font-weight:600;padding:0 4px">What does this support? <span style="font-weight:400;color:var(--muted)">(optional)</span></legend>
-          <p style="font-size:11px;color:var(--muted);margin:0 0 10px">Choose a claim now to file this evidence with it. The link will wait for an independent review.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <label style="font-size:11px">Module
-              <select id="uploadLinkModule" data-ev-change="uploadTargetModuleChanged()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
+        <fieldset data-s="sf43f16c">
+          <legend data-s="s4effe08">What does this support? <span data-s="s2af378a">(optional)</span></legend>
+          <p data-s="s5887e97">Choose a claim now to file this evidence with it. The link will wait for an independent review.</p>
+          <div data-s="s6570617" data-sd="grid">
+            <label data-s="s11a5081">Module
+              <select id="uploadLinkModule" data-ev-change="uploadTargetModuleChanged()" data-s="sdf8b38f">
                 <option value="">Choose module</option>
                 {% if 'aria' in user_modules %}<option value="aria">Governance</option>{% endif %}
                 {% if 'grid' in user_modules %}<option value="grid">Audit</option>{% endif %}
@@ -408,46 +408,46 @@
                 {% if can_ai_use %}<option value="governance">AI Governance</option>{% endif %}
               </select>
             </label>
-            <label style="font-size:11px">Record type
-              <select id="uploadLinkType" data-ev-change="uploadTargetTypeChanged()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)"><option value="">Choose type</option></select>
+            <label data-s="s11a5081">Record type
+              <select id="uploadLinkType" data-ev-change="uploadTargetTypeChanged()" data-s="sdf8b38f"><option value="">Choose type</option></select>
             </label>
           </div>
-          <label for="uploadLinkSearch" style="font-size:11px">Find a record</label>
-          <input id="uploadLinkSearch" type="search" maxlength="100" placeholder="Search by name" data-ev-input="debounceUploadTargetSearch()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
-          <div id="uploadLinkResults" role="status" style="max-height:145px;overflow-y:auto;margin-top:6px;font-size:12px;color:var(--muted)"></div>
-          <div id="uploadLinkSelected" style="display:none;align-items:center;gap:8px;margin-top:8px;padding:8px;border-radius:6px;background:var(--surface2);font-size:12px">
-            <span style="flex:1"></span><button type="button" class="btn btn-secondary" data-ev-click="clearUploadTarget()" aria-label="Remove selected claim">Remove</button>
+          <label for="uploadLinkSearch" data-s="s11a5081">Find a record</label>
+          <input id="uploadLinkSearch" type="search" maxlength="100" placeholder="Search by name" data-ev-input="debounceUploadTargetSearch()" data-s="sdf8b38f">
+          <div id="uploadLinkResults" role="status" data-s="s78740ac"></div>
+          <div id="uploadLinkSelected" data-s="s87472f2" data-sd="none">
+            <span data-s="s97445a8"></span><button type="button" class="btn btn-secondary" data-ev-click="clearUploadTarget()" aria-label="Remove selected claim">Remove</button>
           </div>
         </fieldset>
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Tags (comma-separated)</label>
-          <input type="text" id="uploadTags" placeholder="iso27001, access-control, ..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        <div data-s="s2b583d7">
+          <label data-s="s7029041" data-sd="block">Tags (comma-separated)</label>
+          <input type="text" id="uploadTags" placeholder="iso27001, access-control, ..." data-s="se4b4634">
         </div>
-        <div style="margin-bottom:14px">
-          <label for="uploadExpiry" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Expires on <span style="font-weight:400;opacity:.7">(optional: after this date it no longer counts as current proof)</span></label>
-          <input type="date" id="uploadExpiry" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        <div data-s="s2b583d7">
+          <label for="uploadExpiry" data-s="s7029041" data-sd="block">Expires on <span data-s="s328beb8">(optional: after this date it no longer counts as current proof)</span></label>
+          <input type="date" id="uploadExpiry" data-s="se4b4634">
         </div>
-        <div style="margin-bottom:14px">
-          <label for="uploadReviewDue" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Look at it again by <span style="font-weight:400;opacity:.7">(optional)</span></label>
-          <input type="date" id="uploadReviewDue" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        <div data-s="s2b583d7">
+          <label for="uploadReviewDue" data-s="s7029041" data-sd="block">Look at it again by <span data-s="s328beb8">(optional)</span></label>
+          <input type="date" id="uploadReviewDue" data-s="se4b4634">
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div data-s="s237876e" data-sd="grid">
           <div>
-            <label for="uploadPeriodStart" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Period it covers: from</label>
-            <input type="date" id="uploadPeriodStart" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+            <label for="uploadPeriodStart" data-s="s7029041" data-sd="block">Period it covers: from</label>
+            <input type="date" id="uploadPeriodStart" data-s="se4b4634">
           </div>
           <div>
-            <label for="uploadPeriodEnd" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">to</label>
-            <input type="date" id="uploadPeriodEnd" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+            <label for="uploadPeriodEnd" data-s="s7029041" data-sd="block">to</label>
+            <input type="date" id="uploadPeriodEnd" data-s="se4b4634">
           </div>
         </div>
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Description</label>
-          <textarea id="uploadDesc" rows="3" placeholder="Brief description..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical"></textarea>
+        <div data-s="s2b583d7">
+          <label data-s="s7029041" data-sd="block">Description</label>
+          <textarea id="uploadDesc" rows="3" placeholder="Brief description..." data-s="scf39ab8"></textarea>
         </div>
         <!-- Duplicate warning (shown on 409) -->
-        <div id="uploadDupeWarning" style="display:none;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px"></div>
-        <button type="submit" class="btn btn-primary" id="uploadSubmit" style="width:100%">Upload Evidence</button>
+        <div id="uploadDupeWarning" data-s="s0b586e9" data-sd="none"></div>
+        <button type="submit" class="btn btn-primary" id="uploadSubmit" data-s="s0466783">Upload Evidence</button>
       </form>
     </div>
   </div>
@@ -455,80 +455,80 @@
 
 <!-- Find evidence -->
 <div class="modal-overlay" id="findModal" role="dialog" aria-modal="true" aria-labelledby="findModal-title">
-  <div class="modal" style="max-width:680px">
+  <div class="modal" data-s="s48a0d2f">
     <div class="modal-header">
-      <h3 id="findModal-title" style="margin:0;font-size:16px">Find evidence</h3>
+      <h3 id="findModal-title" data-s="s4499790">Find evidence</h3>
       <button class="modal-close" data-ev-click="ModalManager.close('findModal')" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <form id="findForm" data-ev-submit="evFindRun(event,false)">
-        <label for="findQuestion" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Ask in your own words</label>
-        <div style="display:flex;gap:8px">
+        <label for="findQuestion" data-s="s7029041" data-sd="block">Ask in your own words</label>
+        <div data-s="s33fcd4c" data-sd="flex">
           <input type="text" id="findQuestion" class="ev-search" maxlength="300" autocomplete="off" placeholder="For example: expired test reports that are mine">
           <button type="submit" class="btn btn-primary">Find</button>
         </div>
-        <p style="font-size:11px;color:var(--muted);margin:8px 0 0">It becomes filters you can change below. Only files you may open are searched, and nothing is linked or accepted from here.</p>
+        <p data-s="sf965e87">It becomes filters you can change below. Only files you may open are searched, and nothing is linked or accepted from here.</p>
       </form>
-      <div id="findStatus" role="status" style="font-size:12px;margin:12px 0 8px;min-height:16px"></div>
-      <form id="findFilters" data-ev-submit="evFindRun(event,true)" style="display:none;margin-bottom:12px">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end">
-          <div><label for="findWords" style="font-size:11px;color:var(--muted);display:block">Words (all must match)</label>
-            <input type="text" id="findWords" maxlength="120" class="ev-search" style="padding:7px 10px;font-size:13px"></div>
-          <div><label for="findState" style="font-size:11px;color:var(--muted);display:block">State</label><select id="findState" class="ev-search" style="padding:7px 10px;font-size:13px"></select></div>
-          <div><label for="findModule" style="font-size:11px;color:var(--muted);display:block">Supports a record in</label><select id="findModule" class="ev-search" style="padding:7px 10px;font-size:13px"></select></div>
-          <div><label style="font-size:12px"><input type="checkbox" id="findMine"> Only mine</label></div>
+      <div id="findStatus" role="status" data-s="sbf22126"></div>
+      <form id="findFilters" data-ev-submit="evFindRun(event,true)" data-s="sda12f28" data-sd="none">
+        <div data-s="sca1cf51" data-sd="grid">
+          <div><label for="findWords" data-s="s1fd8c81" data-sd="block">Words (all must match)</label>
+            <input type="text" id="findWords" maxlength="120" class="ev-search" data-s="s3d1e50a"></div>
+          <div><label for="findState" data-s="s1fd8c81" data-sd="block">State</label><select id="findState" class="ev-search" data-s="s3d1e50a"></select></div>
+          <div><label for="findModule" data-s="s1fd8c81" data-sd="block">Supports a record in</label><select id="findModule" class="ev-search" data-s="s3d1e50a"></select></div>
+          <div><label data-s="s6cb285c"><input type="checkbox" id="findMine"> Only mine</label></div>
         </div>
-        <button type="submit" class="btn btn-secondary" style="margin-top:10px">Update the results</button>
+        <button type="submit" class="btn btn-secondary" data-s="sd2c171b">Update the results</button>
       </form>
-      <ul id="findResults" style="list-style:none;margin:0;padding:0"></ul>
-      <div id="findMore" style="display:none;margin-top:12px"><button type="button" class="btn btn-secondary" data-ev-click="evFindApply()">Show all of them in the list</button></div>
+      <ul id="findResults" data-s="s99409a7"></ul>
+      <div id="findMore" data-s="s56f4356" data-sd="none"><button type="button" class="btn btn-secondary" data-ev-click="evFindApply()">Show all of them in the list</button></div>
     </div>
   </div>
 </div>
 
 <!-- Review one link -->
 <div class="modal-overlay" id="reviewModal" role="dialog" aria-modal="true" aria-labelledby="reviewModal-title">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" data-s="sd2a2635">
     <div class="modal-header">
-      <h3 id="reviewModal-title" style="margin:0;font-size:16px">Review this link</h3>
+      <h3 id="reviewModal-title" data-s="s4499790">Review this link</h3>
       <button class="modal-close" data-ev-click="ModalManager.close('reviewModal')" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <form id="reviewForm" data-ev-submit="evSubmitReview(event)">
         <input type="hidden" id="rvLinkId"><input type="hidden" id="rvEvidenceId"><input type="hidden" id="rvExpected">
-        <p style="margin:0 0 12px;font-size:13px">Does this version of the evidence support <strong id="rvTarget">this record</strong>?</p>
-        <fieldset style="border:none;padding:0;margin:0 0 12px">
+        <p data-s="se2d4e4f">Does this version of the evidence support <strong id="rvTarget">this record</strong>?</p>
+        <fieldset data-s="s2e70b8a">
           <legend class="sr-only">Your conclusion</legend>
-          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="accepted"> Accept it</label>
-          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="returned"> Return it for changes</label>
-          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="rejected"> Reject it</label>
-          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="out_of_scope"> It does not apply to this record</label>
-          <label style="display:block;margin-bottom:6px"><input type="radio" name="rvOutcome" value="pending"> Put it back to waiting</label>
+          <label data-s="s4e420af" data-sd="block"><input type="radio" name="rvOutcome" value="accepted"> Accept it</label>
+          <label data-s="s4e420af" data-sd="block"><input type="radio" name="rvOutcome" value="returned"> Return it for changes</label>
+          <label data-s="s4e420af" data-sd="block"><input type="radio" name="rvOutcome" value="rejected"> Reject it</label>
+          <label data-s="s4e420af" data-sd="block"><input type="radio" name="rvOutcome" value="out_of_scope"> It does not apply to this record</label>
+          <label data-s="s4e420af" data-sd="block"><input type="radio" name="rvOutcome" value="pending"> Put it back to waiting</label>
         </fieldset>
-        <label for="rvNote" style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Why (required unless you accept)</label>
-        <textarea id="rvNote" rows="3" maxlength="500" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical"></textarea>
-        <p style="font-size:11px;color:var(--muted);margin:8px 0 12px">Only you and the people who can open this record see your reasoning. The person who attached the file cannot review it.</p>
-        <div id="rvStatus" role="alert" style="font-size:12px;color:var(--bad,#dc2626);min-height:16px;margin-bottom:8px"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%">Save the review</button>
+        <label for="rvNote" data-s="s7029041" data-sd="block">Why (required unless you accept)</label>
+        <textarea id="rvNote" rows="3" maxlength="500" data-s="scf39ab8"></textarea>
+        <p data-s="s3166319">Only you and the people who can open this record see your reasoning. The person who attached the file cannot review it.</p>
+        <div id="rvStatus" role="alert" data-s="s101f633"></div>
+        <button type="submit" class="btn btn-primary" data-s="s0466783">Save the review</button>
       </form>
     </div>
   </div>
 </div>
-<input type="file" id="evVersionFile" style="display:none" aria-hidden="true" tabindex="-1">
+<input type="file" id="evVersionFile" data-sd="none" aria-hidden="true" tabindex="-1">
 
 <!-- Link-to Modal -->
 <div class="modal-overlay" id="linkToModal" role="dialog" aria-modal="true" aria-labelledby="linkToModal-title">
-  <div class="modal" style="max-width:500px">
+  <div class="modal" data-s="s4294bfa">
     <div class="modal-header">
-      <h3 id="linkToModal-title" style="margin:0;font-size:16px">Link Evidence to Entity</h3>
+      <h3 id="linkToModal-title" data-s="s4499790">Link Evidence to Entity</h3>
       <button class="modal-close" data-ev-click="ModalManager.close('linkToModal')" aria-label="Close">&times;</button>
     </div>
-    <div class="modal-body" style="padding:20px">
+    <div class="modal-body" data-s="s769fed3">
       <input type="hidden" id="linkEvidenceId">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div data-s="s237876e" data-sd="grid">
         <div>
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Module</label>
-          <select id="linkModule" data-ev-change="loadEntityTypes()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+          <label data-s="s7029041" data-sd="block">Module</label>
+          <select id="linkModule" data-ev-change="loadEntityTypes()" data-s="se4b4634">
             <option value="">Select module</option>
             {% if 'aria' in user_modules %}<option value="aria">Governance</option>{% endif %}
             {% if 'grid' in user_modules %}<option value="grid">Audit</option>{% endif %}
@@ -539,18 +539,18 @@
           </select>
         </div>
         <div>
-          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Entity Type</label>
-          <select id="linkEntityType" data-ev-change="searchEntities()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+          <label data-s="s7029041" data-sd="block">Entity Type</label>
+          <select id="linkEntityType" data-ev-change="searchEntities()" data-s="se4b4634">
             <option value="">Select type</option>
           </select>
         </div>
       </div>
-      <div style="margin-bottom:14px">
-        <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Search</label>
-        <input type="text" id="linkSearch" placeholder="Search entities..." data-ev-keyup="debounceEntitySearch()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+      <div data-s="s2b583d7">
+        <label data-s="s7029041" data-sd="block">Search</label>
+        <input type="text" id="linkSearch" placeholder="Search entities..." data-ev-keyup="debounceEntitySearch()" data-s="se4b4634">
       </div>
-      <div id="linkEntityList" style="max-height:250px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
-        <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type to search</div>
+      <div id="linkEntityList" data-s="sb1d528c">
+        <div data-s="sbbd9f32">Select a module and entity type to search</div>
       </div>
     </div>
   </div>

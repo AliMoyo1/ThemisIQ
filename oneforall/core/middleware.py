@@ -417,12 +417,6 @@ async def request_id_middleware(request: Request, call_next):
 
 # ── Security Headers ─────────────────────────────────────────────────────────
 
-# Pages whose markup, the shared shell included, carries no style="..." attribute: the browser refuses any such
-# attribute there, injected or not. A module joins once its templates and the scripts they load are converted
-# (plans/2026-11-zoom-and-style-policy.md, part 3); tests/ui/test_style_policy_browser.py opens each one.
-STRICT_STYLE_PREFIXES = ("/ai-governance",)
-
-
 async def security_headers_middleware(request: Request, call_next):
     # A fresh nonce per response: every <style> element a page renders carries it (templates read
     # request.state.csp_nonce), so a <style> injected into a page is refused (plans/2026-11-zoom-and-style-policy.md).
@@ -455,13 +449,13 @@ async def security_headers_middleware(request: Request, call_next):
     strict_scripts = not (settings.DEBUG and request.url.path == "/docs")
     if not strict_scripts:
         script_sources = "'unsafe-inline' https://cdn.jsdelivr.net " + script_sources
-    # Styles: <style> elements need this response's nonce; style="..." attributes are still allowed until the pages
-    # stop building them. The plain style-src line is the fallback for browsers without the -elem/-attr directives,
-    # so it must not name the nonce (a nonce would make its 'unsafe-inline' ignored and drop every style attribute).
+    # Styles: <style> elements need this response's nonce, and no page may write a style="..." attribute (pages use
+    # classes and data-s tokens; run-time values go through element.style, which the policy allows; see
+    # plans/2026-11-zoom-and-style-policy.md, part 4). The plain style-src line is the fallback for browsers without
+    # the -elem/-attr directives, so it must not name the nonce (a nonce would make its 'unsafe-inline' ignored).
     style_policy = "style-src 'self' 'unsafe-inline'; "
     if strict_scripts:
-        attrs = "'none'" if request.url.path.startswith(STRICT_STYLE_PREFIXES) else "'unsafe-inline'"
-        style_policy += f"style-src-elem 'self' 'nonce-{nonce}'; style-src-attr {attrs}; "
+        style_policy += f"style-src-elem 'self' 'nonce-{nonce}'; style-src-attr 'none'; "
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         f"script-src {script_sources}; " +

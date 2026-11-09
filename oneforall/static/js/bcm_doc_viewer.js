@@ -24,8 +24,8 @@
       '<div class="bcm-doc-overlay">' +
         '<div class="bcm-doc-panel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="bcmDocTitle">' +
           '<div class="bcm-doc-head">' +
-            '<div style="font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="bcmDocTitle"></div>' +
-            '<div style="display:flex;gap:6px;flex-shrink:0" id="bcmDocHeadBtns">' +
+            '<div data-s="s1acb06e" id="bcmDocTitle"></div>' +
+            '<div data-s="s81979b4" data-sd="flex" id="bcmDocHeadBtns">' +
               '<button type="button" class="btn btn-sm btn-secondary" data-bcm-doc-action="copy">Copy</button>' +
               '<button type="button" class="btn btn-sm btn-secondary" data-bcm-doc-action="download">Download</button>' +
               '<button type="button" class="btn btn-sm btn-secondary" data-bcm-doc-action="close" aria-label="Close document viewer">&#10005;</button>' +

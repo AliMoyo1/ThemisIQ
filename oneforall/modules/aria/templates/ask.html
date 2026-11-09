@@ -175,7 +175,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<a href="/aria/" style="color:var(--muted);text-decoration:none;font-weight:500">ARIA</a>
+<a href="/aria/" data-s="s436d52e">ARIA</a>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Ask ARIA</span>
 {% endblock %}
@@ -190,7 +190,7 @@
   <div class="page-actions">
     {% if is_admin %}
     <button class="btn btn-ghost" id="rebuildBtn" title="Rebuild search index">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s723ec8d"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
       Rebuild Index
     </button>
     {% endif %}
@@ -211,14 +211,14 @@
   </div>
   <div class="ask-stat stat-card">
     <div class="ask-stat-lbl">Answered Rate</div>
-    <div class="ask-stat-val" style="color:{% if covered_pct >= 80 %}var(--good){% else %}var(--amber){% endif %}">
+    <div class="ask-stat-val" data-sv="color:{% if covered_pct >= 80 %}var(--good){% else %}var(--amber){% endif %}">
       {{ covered_pct }}%
     </div>
     <div class="ask-stat-sub">covered by policy</div>
   </div>
   <div class="ask-stat stat-card">
     <div class="ask-stat-lbl">AI Provider</div>
-    <div class="ask-stat-val" style="font-size:16px;font-weight:700">{{ ai_provider_label }}</div>
+    <div class="ask-stat-val" data-s="see5749f">{{ ai_provider_label }}</div>
     <div class="ask-stat-sub">
       {% if helpful_pct is not none %}{{ helpful_pct }}% rated helpful{% else %}no ratings yet{% endif %}
     </div>
@@ -229,7 +229,7 @@
   {# ── Sidebar ── #}
   <aside class="ask-side">
     <button class="side-btn-new" id="newChatBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s723ec8d"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Chat
     </button>
 
@@ -241,7 +241,7 @@
       {% endfor %}
     </select>
 
-    <div class="side-section-lbl" style="margin-top:14px">Recent Questions</div>
+    <div class="side-section-lbl" data-s="sd6f2af6">Recent Questions</div>
     <div id="historyList">
       {% if recent %}
         {% set ns = namespace(last_date='') %}
@@ -260,7 +260,7 @@
           </button>
         {% endfor %}
       {% else %}
-        <div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 6px">
+        <div data-s="s7bc02c3">
           Nothing yet. Ask your first question.
         </div>
       {% endif %}
@@ -278,8 +278,8 @@
         <p>Answers are grounded in published policies only. If there's no policy, I'll say so and suggest who to ask.</p>
       </div>
       <div class="chat-header-actions">
-        <button type="button" class="btn btn-ghost" id="exportChatBtn" title="Export conversation as Markdown" style="font-size:12px;padding:5px 10px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:3px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <button type="button" class="btn btn-ghost" id="exportChatBtn" title="Export conversation as Markdown" data-s="s301a157">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s37cb6aa"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
         </button>
       </div>
@@ -288,7 +288,7 @@
     <div class="chat-body" id="chatBody">
       <div class="chat-empty" id="chatEmpty">
         <div class="chat-empty-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:24px;height:24px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" data-s="s8fd988a"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         </div>
         <h3>Ask me anything about our policies</h3>
         <p>Try one of these, or type your own question below.</p>
@@ -335,7 +335,7 @@
           <div class="chat-input-footer">
             <span class="char-counter" id="charCounter">0 / 2000</span>
             <button type="button" class="chat-send" id="chatSend">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s723ec8d"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               Ask
             </button>
           </div>

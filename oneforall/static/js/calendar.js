@@ -226,7 +226,7 @@ function renderMonth(){
       const id = Number(e.id);
       if (!Number.isSafeInteger(id) || id <= 0) return '';
       return `<div class="cal-pill ${spanCls}" role="button" tabindex="0" data-event-id="${id}"
-                   style="background:${color}22;color:${color}"
+                   data-sv="background:${color}22;color:${color}"
                    title="${esc(e.title)}">${esc(e.title)}</div>`;
     }).join('');
 
@@ -254,7 +254,7 @@ function renderList(){
   const filtered = getFiltered(allEvents);
   const el = document.getElementById('evList');
   if(!filtered.length){
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">No events this month</div>';
+    el.innerHTML = '<div data-s="sc0add8c">No events this month</div>';
     return;
   }
 
@@ -269,20 +269,20 @@ function renderList(){
   let html = '';
   Object.keys(grouped).sort().forEach(date=>{
     const isPast = date<t;
-    html += `<div class="ev-list-date" style="${isPast?'opacity:.55':''}">${shortDate(date)}</div>`;
+    html += `<div class="ev-list-date" data-sv="${isPast?'opacity:.55':''}">${shortDate(date)}</div>`;
     grouped[date].forEach(e=>{
       const color = TYPE_COLOR[e.event_type]||'#64748b';
       const statusColor = e.status==='completed'?'var(--green-status)':e.status==='cancelled'?'var(--muted)':'';
       const id = Number(e.id);
       if (!Number.isSafeInteger(id) || id <= 0) return;
-      html += `<div class="ev-list-row" role="button" tabindex="0" data-event-id="${id}" style="${isPast?'opacity:.6':''}">
-        <div class="ev-list-dot" style="background:${color}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="ev-list-title" style="${statusColor?'color:'+statusColor:''}${e.status==='completed'?';text-decoration:line-through':''}">${esc(e.title)}</div>
+      html += `<div class="ev-list-row" role="button" tabindex="0" data-event-id="${id}" data-sv="${isPast?'opacity:.6':''}">
+        <div class="ev-list-dot" data-sv="background:${color}"></div>
+        <div data-s="s59eddc6">
+          <div class="ev-list-title" data-sv="${statusColor?'color:'+statusColor:''}${e.status==='completed'?';text-decoration:line-through':''}">${esc(e.title)}</div>
           <div class="ev-list-meta">${esc(TYPE_LABEL[e.event_type]||e.event_type)}${e.module?' · '+esc(e.module.toUpperCase()):''}${e.assigned_name?' · '+esc(e.assigned_name):''}</div>
         </div>
-        ${e.end_date&&e.end_date!==e.start_date?`<div class="ev-list-meta" style="flex-shrink:0">→ ${esc(fmtDate(e.end_date))}</div>`:''}
-        <span class="ev-list-badge" style="background:${color}18;color:${color};flex-shrink:0">${esc(TYPE_LABEL[e.event_type]||e.event_type)}</span>
+        ${e.end_date&&e.end_date!==e.start_date?`<div class="ev-list-meta" data-s="s6ee0661">→ ${esc(fmtDate(e.end_date))}</div>`:''}
+        <span class="ev-list-badge" data-sv="background:${color}18;color:${color};flex-shrink:0">${esc(TYPE_LABEL[e.event_type]||e.event_type)}</span>
       </div>`;
     });
   });
@@ -316,7 +316,7 @@ function renderUpcoming(){
       const id = Number(e.id);
       if (!Number.isSafeInteger(id) || id <= 0) return;
       html += `<div class="upcoming-row" role="button" tabindex="0" data-event-id="${id}">
-        <div class="upcoming-bar" style="background:${color}"></div>
+        <div class="upcoming-bar" data-sv="background:${color}"></div>
         <div>
           <div class="upcoming-title">${esc(e.title)}</div>
           <div class="upcoming-meta">${esc(TYPE_LABEL[e.event_type]||'')}${e.module?' · '+esc(e.module.toUpperCase()):''}${e.assigned_name?' · '+esc(e.assigned_name):''}</div>
@@ -339,9 +339,9 @@ function openEventDrawer(id){
 
   document.getElementById('drawerHdrTitle').textContent = e.title;
   document.getElementById('drawerBody').innerHTML = `
-    <div style="margin-bottom:16px">
-      <span class="ev-type-badge" style="background:${color}18;color:${color}">${esc(TYPE_LABEL[e.event_type]||e.event_type)}</span>
-      ${isOverdue?'<span class="ev-type-badge" style="background:rgba(220,38,38,.1);color:var(--red);margin-left:6px">Overdue</span>':''}
+    <div data-s="s87c136d">
+      <span class="ev-type-badge" data-sv="background:${color}18;color:${color}">${esc(TYPE_LABEL[e.event_type]||e.event_type)}</span>
+      ${isOverdue?'<span class="ev-type-badge" data-s="scb4a41a">Overdue</span>':''}
     </div>
     <div class="ev-field">
       <div class="ev-field-lbl">Date</div>
@@ -349,7 +349,7 @@ function openEventDrawer(id){
     </div>
     ${e.module?`<div class="ev-field">
       <div class="ev-field-lbl">Module</div>
-      <div class="ev-field-val"><span style="color:${MOD_COLOR[e.module]||'var(--accent)'}">● </span>${esc(e.module.toUpperCase())}</div>
+      <div class="ev-field-val"><span data-sv="color:${MOD_COLOR[e.module]||'var(--accent)'}">● </span>${esc(e.module.toUpperCase())}</div>
     </div>`:''}
     ${e.assigned_name?`<div class="ev-field">
       <div class="ev-field-lbl">Assigned To</div>
@@ -357,19 +357,19 @@ function openEventDrawer(id){
     </div>`:''}
     <div class="ev-field">
       <div class="ev-field-lbl">Status</div>
-      <div class="ev-field-val" style="text-transform:capitalize">${esc((e.status||'scheduled').replace('_',' '))}</div>
+      <div class="ev-field-val" data-s="s6fedee3">${esc((e.status||'scheduled').replace('_',' '))}</div>
     </div>
     ${e.description?`<div class="ev-field">
       <div class="ev-field-lbl">Description</div>
-      <div class="ev-field-val" style="white-space:pre-wrap;line-height:1.5">${esc(e.description)}</div>
+      <div class="ev-field-val" data-s="s167f222">${esc(e.description)}</div>
     </div>`:''}
     ${e.entity_type?`<div class="ev-field">
       <div class="ev-field-lbl">Linked Entity</div>
       <div class="ev-field-val">${esc(e.entity_type.replace(/_/g,' '))}${e.entity_id?' #'+esc(e.entity_id):''}</div>
     </div>`:''}
-    <div class="ev-field" style="padding-top:12px;border-top:1px solid var(--border)">
+    <div class="ev-field" data-s="s26422cf">
       <div class="ev-field-lbl">Created</div>
-      <div class="ev-field-val" style="font-size:11px;color:var(--muted)">${esc(fmtDate((e.created_at||'').slice(0,10)))}</div>
+      <div class="ev-field-val" data-s="s1fd8c81">${esc(fmtDate((e.created_at||'').slice(0,10)))}</div>
     </div>
   `;
 

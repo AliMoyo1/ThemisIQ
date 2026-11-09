@@ -2,17 +2,17 @@ async function loadKeys() {
   const resp = await fetch('/api/admin/api-keys');
   const keys = await resp.json();
   const tbody = document.getElementById('keysBody');
-  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" style="padding:40px;text-align:center;color:var(--muted);">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
+  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" data-s="sc0add8c">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
   tbody.innerHTML = keys.map(k => `
-    <tr style="border-bottom:1px solid var(--border-soft);">
-      <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(k.name)}</td>
-      <td style="padding:10px 14px;font-size:12px;">${esc(k.org_name||'Legacy key')}</td>
-      <td style="padding:10px 14px;font-family:monospace;font-size:12px;color:var(--muted);">${esc(k.key_prefix)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.scopes)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.last_used_at||'Never')}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.expires_at||'No expiry (rotate)')}</td>
-      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${k.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${k.is_active?'var(--good)':'var(--bad)'};">${k.is_active?'Active':'Revoked'}</span></td>
-      <td style="padding:10px 14px;text-align:center;">${k.is_active && Number.isSafeInteger(Number(k.id)) && Number(k.id) > 0 ? `<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:var(--bad);" data-revoke-id="${Number(k.id)}">Revoke</button>` : '—'}</td>
+    <tr data-s="sc91b18f">
+      <td data-s="s26c9a4e">${esc(k.name)}</td>
+      <td data-s="s9388ed6">${esc(k.org_name||'Legacy key')}</td>
+      <td data-s="s4abde30">${esc(k.key_prefix)}</td>
+      <td data-s="s40dee16">${esc(k.scopes)}</td>
+      <td data-s="s40dee16">${esc(k.last_used_at||'Never')}</td>
+      <td data-s="s40dee16">${esc(k.expires_at||'No expiry (rotate)')}</td>
+      <td data-s="s9c0b302"><span data-sv="padding:2px 8px;border-radius:4px;font-size:11px;background:${k.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${k.is_active?'var(--good)':'var(--bad)'};">${k.is_active?'Active':'Revoked'}</span></td>
+      <td data-s="s9c0b302">${k.is_active && Number.isSafeInteger(Number(k.id)) && Number(k.id) > 0 ? `<button class="btn btn-secondary" data-s="s6868a33" data-revoke-id="${Number(k.id)}">Revoke</button>` : '—'}</td>
     </tr>
   `).join('');
 }

@@ -43,7 +43,7 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<span style="color:var(--accent);font-weight:700">ARIA</span>
+<span data-s="s456fefd">ARIA</span>
 <span class="breadcrumb-sep">&#8250;</span>
 <span class="breadcrumb-current">Frameworks</span>
 {% endblock %}
@@ -66,7 +66,7 @@
 {% if ims_summary and ims_summary.framework_count >= 2 %}
 <div class="ims-panel animate-fade-up anim-1">
   <div class="ims-panel-title">
-    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" data-s="s5304332"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
     Integrated Management System (IMS)
   </div>
   <div class="ims-panel-sub">
@@ -82,7 +82,7 @@
       <div class="ims-stat-lbl">Total Controls</div>
     </div>
     <div class="ims-stat">
-      <div class="ims-stat-val" style="color:var(--green-status)">{{ ims_summary.mapped_controls }}</div>
+      <div class="ims-stat-val" data-s="sf941d6e">{{ ims_summary.mapped_controls }}</div>
       <div class="ims-stat-lbl">Mapped Controls</div>
     </div>
     <div class="ims-stat">
@@ -90,17 +90,17 @@
       <div class="ims-stat-lbl">Cross-Mappings</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <div data-s="sa6754e4" data-sd="flex">
     <div class="ims-fw-chips">
       {% for fw in fw_list %}
       <span class="ims-fw-chip">
-        <span class="ims-fw-dot" style="background:{{ fw.color }}"></span>
+        <span class="ims-fw-dot" data-sv="background:{{ fw.color }}"></span>
         {{ fw.name }}
-        <span style="font-size:10px;color:var(--muted);font-weight:400">{{ fw.mapped_controls }} mapped</span>
+        <span data-s="s8e93b13">{{ fw.mapped_controls }} mapped</span>
       </span>
       {% endfor %}
     </div>
-    <a href="/aria/mapping" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;">
+    <a href="/aria/mapping" data-s="s225dec0">
       View Control Mapping &#8250;
     </a>
   </div>
@@ -109,10 +109,10 @@
 
 <div class="fw-grid animate-fade-up anim-{% if ims_summary %}2{% else %}1{% endif %}">
   {% for fw in fw_list %}
-  <div class="fw-card" style="cursor:default;">
-    <a href="/aria/framework/{{ fw.id }}" style="text-decoration:none;color:inherit;display:block;">
+  <div class="fw-card" data-s="s2a9295c">
+    <a href="/aria/framework/{{ fw.id }}" data-s="s7ed833a" data-sd="block">
       <div class="fw-card-top">
-        <div class="fw-color-dot" style="background:{{ fw.color }}"></div>
+        <div class="fw-color-dot" data-sv="background:{{ fw.color }}"></div>
         <div>
           <div class="fw-card-name">{{ fw.name }}</div>
           <div class="fw-card-desc">{{ fw.description }}</div>
@@ -124,19 +124,19 @@
           <div class="fw-mini-lbl">Controls</div>
         </div>
         <div class="fw-mini">
-          <div class="fw-mini-val" style="color:var(--green-status)">{{ fw.implemented }}</div>
+          <div class="fw-mini-val" data-s="sf941d6e">{{ fw.implemented }}</div>
           <div class="fw-mini-lbl">Implemented</div>
         </div>
         <div class="fw-mini">
-          <div class="fw-mini-val" style="color:var(--amber)">{{ fw.in_progress }}</div>
+          <div class="fw-mini-val" data-s="s08935a7">{{ fw.in_progress }}</div>
           <div class="fw-mini-lbl">In Progress</div>
         </div>
         <div class="fw-mini">
-          <div class="fw-mini-val" style="color:var(--accent)">{{ fw.doc_total }}</div>
+          <div class="fw-mini-val" data-s="sa805525">{{ fw.doc_total }}</div>
           <div class="fw-mini-lbl">Documents</div>
         </div>
         <div class="fw-mini">
-          <div class="fw-mini-val" style="color:var(--text-mid)">{{ fw.evidence_count }}</div>
+          <div class="fw-mini-val" data-s="s70e9741">{{ fw.evidence_count }}</div>
           <div class="fw-mini-lbl">Evidence</div>
         </div>
       </div>
@@ -146,25 +146,25 @@
         <div class="fw-bar-item">
           <div class="fw-bar-label">Implementation</div>
           <div class="fw-bar-track">
-            <div class="fw-bar-fill" style="width:{{ fw.pct }}%;background:{{ fw.color }}"></div>
+            <div class="fw-bar-fill" data-sv="width:{{ fw.pct }}%;background:{{ fw.color }}"></div>
           </div>
-          <div class="fw-bar-val" style="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}%</div>
+          <div class="fw-bar-val" data-sv="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}%</div>
         </div>
         <div class="fw-bar-item">
           <div class="fw-bar-label">Doc Coverage</div>
           <div class="fw-bar-track">
-            <div class="fw-bar-fill" style="width:{{ fw.doc_pct }}%;background:var(--accent)"></div>
+            <div class="fw-bar-fill" data-sv="width:{{ fw.doc_pct }}%;background:var(--accent)"></div>
           </div>
-          <div class="fw-bar-val" style="color:{% if fw.doc_pct >= 80 %}var(--green-status){% elif fw.doc_pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.doc_pct }}%</div>
+          <div class="fw-bar-val" data-sv="color:{% if fw.doc_pct >= 80 %}var(--green-status){% elif fw.doc_pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.doc_pct }}%</div>
         </div>
         {% if fw.mapped_controls > 0 %}
         <div class="fw-bar-item">
           <div class="fw-bar-label">IMS Mapped</div>
           <div class="fw-bar-track">
             {% set map_pct = ((fw.mapped_controls / fw.total * 100) | round) if fw.total > 0 else 0 %}
-            <div class="fw-bar-fill" style="width:{{ map_pct }}%;background:var(--green-status)"></div>
+            <div class="fw-bar-fill" data-sv="width:{{ map_pct }}%;background:var(--green-status)"></div>
           </div>
-          <div class="fw-bar-val" style="color:var(--green-status)">{{ map_pct | int }}%</div>
+          <div class="fw-bar-val" data-s="sf941d6e">{{ map_pct | int }}%</div>
         </div>
         {% endif %}
       </div>
@@ -196,10 +196,10 @@
   </div>
   {% endfor %}
   {% if not fw_list %}
-  <div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)">
-    <div style="font-size:48px;margin-bottom:12px"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:4px">No frameworks activated</div>
-    <div style="font-size:13px">Go to the main dashboard to activate compliance frameworks</div>
+  <div data-s="s3587a74">
+    <div data-s="s5c38309"><svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-clipboard-list></use></svg></div>
+    <div data-s="s56ee2ae">No frameworks activated</div>
+    <div data-s="s5e0faad">Go to the main dashboard to activate compliance frameworks</div>
   </div>
   {% endif %}
 </div>

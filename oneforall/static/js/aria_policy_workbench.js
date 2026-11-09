@@ -33,7 +33,7 @@
     var d = state.draft;
     if (!d) {
       if (state.can_start_revision) {
-        el.innerHTML = '<button type="button" class="btn btn-primary" style="font-size:12px;padding:7px 14px" id="wbStartRevisionBtn">Start a revision</button>';
+        el.innerHTML = '<button type="button" class="btn btn-primary" data-s="s1561182" id="wbStartRevisionBtn">Start a revision</button>';
         document.getElementById('wbStartRevisionBtn').onclick = function () {
           window.AriaPolicyWorkflow.ui.startRevision(doc);
         };
@@ -153,10 +153,10 @@
         encodeURIComponent(DOC_ID) + '/compare?left=' + left + '&right=' + right);
       result.innerHTML =
         '<div class="wb-grid">' +
-        '<div><h3>Earlier version</h3><pre data-compare-left style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>' +
-        '<div><h3>Later version</h3><pre data-compare-right style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>' +
+        '<div><h3>Earlier version</h3><pre data-compare-left data-s="s8d2e5f3"></pre></div>' +
+        '<div><h3>Later version</h3><pre data-compare-right data-s="s8d2e5f3"></pre></div>' +
         '</div><h3>Normalized text changes</h3>' +
-        '<pre data-compare-diff style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:480px;overflow:auto"></pre>';
+        '<pre data-compare-diff data-s="s60a5286"></pre>';
       function summary(side) {
         return JSON.stringify({
           version: side.version.version, state: side.version.state,

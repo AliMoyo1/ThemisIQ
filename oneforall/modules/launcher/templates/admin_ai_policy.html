@@ -6,105 +6,105 @@
   <span class="page-title">AI Policy</span>
 </div>
 
-<div class="content" style="max-width:920px;">
+<div class="content" data-s="s53b50a8">
 
-  <p style="font-size:13px; color:var(--muted); margin:0 0 16px;">
+  <p data-s="s0b21c3a">
     Choose which AI provider and which kinds of data ThemisIQ's AI features may use for your organization.
     A change applies to the next AI request. Every task stays possible to do by hand.
   </p>
 
   {% if is_super_admin %}
-  <div class="card" style="padding:14px 16px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-    <label for="orgPick" style="font-size:12px; font-weight:600; display:block; margin-bottom:6px;">Organization</label>
-    <select id="orgPick" style="min-width:260px;"><option value="">Choose an organization</option></select>
+  <div class="card" data-s="s0eda01a">
+    <label for="orgPick" data-s="s1e5e75e" data-sd="block">Organization</label>
+    <select id="orgPick" data-s="sbec7b1d"><option value="">Choose an organization</option></select>
   </div>
   {% endif %}
 
-  <div id="loadError" role="alert" hidden style="padding:10px 12px; border-radius:6px; background:var(--bad-soft); color:var(--bad); font-size:13px; margin-bottom:16px;"></div>
+  <div id="loadError" role="alert" hidden data-s="sa7894c4"></div>
 
   <div id="panel" hidden>
 
-    <div class="card" style="padding:18px 20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">AI features</div>
-      <div id="policyState" style="font-size:12px; color:var(--muted); margin-bottom:12px;"></div>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+    <div class="card" data-s="s4415b81">
+      <div data-s="s0d9aa87">AI features</div>
+      <div id="policyState" data-s="s3066b2e"></div>
+      <label data-s="s141169a" data-sd="flex">
         <input type="checkbox" id="enabled">
         <span>AI features are on for this organization</span>
       </label>
     </div>
 
-    <div class="card" style="padding:18px 20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">AI Governance</div>
-      <div id="rolloutState" style="font-size:12px; color:var(--muted); margin-bottom:12px;"></div>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+    <div class="card" data-s="s4415b81">
+      <div data-s="s0d9aa87">AI Governance</div>
+      <div id="rolloutState" data-s="s3066b2e"></div>
+      <label data-s="s141169a" data-sd="flex">
         <input type="checkbox" id="rolloutOn">
         <span>Show AI Governance to this organization's people</span>
       </label>
-      <div style="display:flex; align-items:center; gap:12px; margin-top:12px;">
+      <div data-s="s73aa353" data-sd="flex">
         <button id="rolloutSave" class="btn btn-secondary btn-sm" type="button" hidden>Save</button>
-        <span id="rolloutStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--muted);"></span>
+        <span id="rolloutStatus" role="status" aria-live="polite" data-s="s7fc448e"></span>
       </div>
-      <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
-      <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; cursor:pointer;">
-        <input type="checkbox" id="separationOn" style="margin-top:3px;">
+      <hr data-s="s45f00e6">
+      <label data-s="s0c6db3d" data-sd="flex">
+        <input type="checkbox" id="separationOn" data-s="sc00d391">
         <span>A decision on an AI use needs someone other than the person who asked and the system's owner
-          <span style="display:block; font-size:12px; color:var(--muted);">Turn this off only when one person is the whole compliance function. Every decision made while it is off says so.</span></span>
+          <span data-s="s7fc448e" data-sd="block">Turn this off only when one person is the whole compliance function. Every decision made while it is off says so.</span></span>
       </label>
-      <div style="display:flex; align-items:center; gap:12px; margin-top:12px;">
+      <div data-s="s73aa353" data-sd="flex">
         <button id="separationSave" class="btn btn-secondary btn-sm" type="button">Save</button>
-        <span id="separationStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--muted);"></span>
+        <span id="separationStatus" role="status" aria-live="polite" data-s="s7fc448e"></span>
       </div>
     </div>
 
-    <div class="card" style="padding:18px 20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Provider</div>
-      <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+    <div class="card" data-s="s4415b81">
+      <div data-s="s0d9aa87">Provider</div>
+      <div data-s="s3066b2e">
         The platform currently sends requests to <strong id="activeProvider"></strong>. If you name providers below and it is
         not one of them, AI features stay off for you until the platform uses one you allow.
       </div>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:8px; cursor:pointer;">
+      <label data-s="sf6b1e0c" data-sd="flex">
         <input type="radio" name="providerMode" value="any"> <span>Whichever provider the platform uses</span>
       </label>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:8px; cursor:pointer;">
+      <label data-s="sf6b1e0c" data-sd="flex">
         <input type="radio" name="providerMode" value="only"> <span>Only these providers</span>
       </label>
-      <div id="providerList" style="display:flex; flex-wrap:wrap; gap:14px; padding-left:24px;"></div>
+      <div id="providerList" data-s="s4942355" data-sd="flex"></div>
     </div>
 
-    <div class="card" style="padding:18px 20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Kinds of data AI may receive</div>
-      <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+    <div class="card" data-s="s4415b81">
+      <div data-s="s0d9aa87">Kinds of data AI may receive</div>
+      <div data-s="s3066b2e">
         A feature that sends a kind you leave off is switched off for you. What each feature sends is listed below.
       </div>
-      <div id="categoryList" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <div id="categoryList" data-s="scfa7b80" data-sd="flex"></div>
     </div>
 
-    <div class="card" style="padding:18px 20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
-      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Monthly allowance</div>
-      <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+    <div class="card" data-s="s4415b81">
+      <div data-s="s0d9aa87">Monthly allowance</div>
+      <div data-s="s3066b2e">
         An estimated maximum is reserved before each provider request. Unused capacity is returned when the provider reports usage. Failed or unmetered calls keep the reservation. Leave a field empty only if you approve no limit.
       </div>
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <label for="budget" style="font-size:13px;">Organization tokens per month</label>
-        <input type="number" id="budget" min="1" step="1" inputmode="numeric" style="width:160px;">
-        <label for="userBudget" style="font-size:13px;">Per-person tokens per month</label>
-        <input type="number" id="userBudget" min="1" step="1" inputmode="numeric" style="width:160px;">
-        <span id="budgetUsed" style="font-size:12px; color:var(--muted);"></span>
+      <div data-s="sa6754e4" data-sd="flex">
+        <label for="budget" data-s="s5e0faad">Organization tokens per month</label>
+        <input type="number" id="budget" min="1" step="1" inputmode="numeric" data-s="s28c0f6e">
+        <label for="userBudget" data-s="s5e0faad">Per-person tokens per month</label>
+        <input type="number" id="userBudget" min="1" step="1" inputmode="numeric" data-s="s28c0f6e">
+        <span id="budgetUsed" data-s="s7fc448e"></span>
       </div>
     </div>
 
-    <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;">
-      <div style="padding:14px 16px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); border-bottom:1px solid var(--border);">
+    <div class="card" data-s="s5808b91">
+      <div data-s="s9c08428">
         Features
       </div>
-      <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse;">
+      <div data-s="s0ddf068">
+        <table data-s="sa55f31d">
           <thead>
-            <tr style="border-bottom:1px solid var(--border);">
-              <th scope="col" style="padding:10px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Allowed</th>
-              <th scope="col" style="padding:10px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Feature</th>
-              <th scope="col" style="padding:10px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Sends</th>
-              <th scope="col" style="padding:10px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Effect</th>
+            <tr data-s="s1008415">
+              <th scope="col" data-s="saff432a">Allowed</th>
+              <th scope="col" data-s="saff432a">Feature</th>
+              <th scope="col" data-s="saff432a">Sends</th>
+              <th scope="col" data-s="saff432a">Effect</th>
             </tr>
           </thead>
           <tbody id="featureRows"></tbody>
@@ -112,35 +112,35 @@
       </div>
     </div>
 
-    <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; margin-bottom:14px;">
-      <input id="approvePolicy" type="checkbox" style="margin-top:3px;">
+    <label data-s="s42ec147" data-sd="flex">
+      <input id="approvePolicy" type="checkbox" data-s="sc00d391">
       <span>I have reviewed the providers, data categories, features and allowances before enabling AI for this organization.</span>
     </label>
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:28px;">
+    <div data-s="sad277e1" data-sd="flex">
       <button id="saveBtn" class="btn btn-primary" type="button">Save policy</button>
-      <span id="saveStatus" role="status" aria-live="polite" style="font-size:12px; color:var(--muted);"></span>
+      <span id="saveStatus" role="status" aria-live="polite" data-s="s7fc448e"></span>
     </div>
 
-    <div class="card" style="padding:0; overflow:hidden; margin-bottom:16px;">
-      <div style="padding:14px 16px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); border-bottom:1px solid var(--border);">
+    <div class="card" data-s="s5808b91">
+      <div data-s="s9c08428">
         This month
       </div>
-      <div id="usageTotals" style="padding:12px 16px; font-size:13px;"></div>
-      <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse;">
+      <div id="usageTotals" data-s="se53ab37"></div>
+      <div data-s="s0ddf068">
+        <table data-s="sa55f31d">
           <thead>
-            <tr style="border-bottom:1px solid var(--border);">
-              <th scope="col" style="padding:10px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Feature</th>
-              <th scope="col" style="padding:10px 14px; text-align:right; font-size:11px; text-transform:uppercase; color:var(--muted);">Requests</th>
-              <th scope="col" style="padding:10px 14px; text-align:right; font-size:11px; text-transform:uppercase; color:var(--muted);">Refused</th>
-              <th scope="col" style="padding:10px 14px; text-align:right; font-size:11px; text-transform:uppercase; color:var(--muted);">Failed</th>
-              <th scope="col" style="padding:10px 14px; text-align:right; font-size:11px; text-transform:uppercase; color:var(--muted);">Tokens</th>
+            <tr data-s="s1008415">
+              <th scope="col" data-s="saff432a">Feature</th>
+              <th scope="col" data-s="s68dc826">Requests</th>
+              <th scope="col" data-s="s68dc826">Refused</th>
+              <th scope="col" data-s="s68dc826">Failed</th>
+              <th scope="col" data-s="s68dc826">Tokens</th>
             </tr>
           </thead>
           <tbody id="usageRows"></tbody>
         </table>
       </div>
-      <div id="usageEmpty" style="padding:14px 16px; font-size:12px; color:var(--muted);" hidden>No AI requests have been made this month.</div>
+      <div id="usageEmpty" data-s="sac20cd7" hidden>No AI requests have been made this month.</div>
     </div>
 
   </div>
