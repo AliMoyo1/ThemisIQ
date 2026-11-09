@@ -208,6 +208,12 @@ def _expiry_check_in(org_id: int) -> None:
                 "JOIN evidence_items ei ON ei.id = el.evidence_id "
                 "WHERE el.entity_type = 'canonical_control' "
                 "AND ei.status = 'current' "
+                f"AND ei.expiry_date <= {sql_date_offset('+30 days')} "
+                # proof on a GRID audit control counts for the canonical control it is mapped to
+                "UNION SELECT DISTINCT gc.canonical_control_id FROM evidence_links el "
+                "JOIN evidence_items ei ON ei.id = el.evidence_id JOIN grid_controls gc ON gc.id = el.entity_id "
+                "WHERE el.module = 'grid' AND el.entity_type = 'control' AND gc.canonical_control_id IS NOT NULL "
+                "AND ei.status = 'current' "
                 f"AND ei.expiry_date <= {sql_date_offset('+30 days')}"
             ).fetchall()
             if ctrl_rows:

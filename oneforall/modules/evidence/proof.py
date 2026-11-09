@@ -180,7 +180,7 @@ def review_link(db, user: dict, link_id: int, outcome, note=None, expected_statu
     return {"link": {"id": link_id, "evidence_id": row["evidence_id"], "review_status": outcome,
                      "label": OUTCOME_LABELS[outcome], "reviewed_at": None if outcome == "pending" else now,
                      "review_note": None if outcome == "pending" else note},
-            "entity_type": row["entity_type"], "entity_id": row["entity_id"],
+            "module": row["module"], "entity_type": row["entity_type"], "entity_id": row["entity_id"],
             "audit": ("Reviewed an evidence link: " + OUTCOME_LABELS[outcome].lower(), "evidence", row["evidence_id"],
                       f"{row['module']}/{row['entity_type']} {row['entity_id']}")}
 

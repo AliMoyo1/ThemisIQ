@@ -1908,10 +1908,24 @@ def _canonical_controls_linked_to(db, evidence_ids):
     marks = ",".join(["%s"] * len(evidence_ids))
     rows = db.execute(
         "SELECT DISTINCT entity_id FROM evidence_links WHERE entity_type = 'canonical_control' "
-        f"AND deleted_at IS NULL AND evidence_id IN ({marks})",
-        list(evidence_ids),
+        f"AND deleted_at IS NULL AND evidence_id IN ({marks}) "
+        # proof on a GRID audit control counts for the canonical control it is mapped to (effectiveness.py)
+        "UNION SELECT DISTINCT gc.canonical_control_id FROM evidence_links el JOIN grid_controls gc ON gc.id = el.entity_id "
+        "WHERE el.module = 'grid' AND el.entity_type = 'control' AND el.deleted_at IS NULL "
+        f"AND gc.canonical_control_id IS NOT NULL AND el.evidence_id IN ({marks})",
+        [*evidence_ids, *evidence_ids],
     ).fetchall()
     return [r[0] for r in rows]
+
+
+def _controls_scored_by_link(db, module, entity_type, entity_id):
+    """The canonical controls whose score a link to this record feeds."""
+    if entity_type == "canonical_control":
+        return [entity_id]
+    if (module, entity_type) == ("grid", "control"):
+        row = db.execute("SELECT canonical_control_id FROM grid_controls WHERE id = %s", (entity_id,)).fetchone()
+        return [row[0]] if row and row[0] else []
+    return []
 
 
 def _rescore_controls(control_ids):
@@ -2627,8 +2641,10 @@ async def api_evidence_link_create(request: Request, eid: int):
             db.commit()
         recompute_confidence(db, eid)
         db.commit()
+        scored = _canonical_controls_linked_to(db, [eid])
     finally:
         db.close()
+    _rescore_controls(scored)
     return JSONResponse({"id": lid}, status_code=201)
 
 
@@ -2642,13 +2658,13 @@ async def api_evidence_link_review(request: Request, lid: int):
     try:
         done = proof.review_link(db, user, lid, data.get("outcome"), data.get("note"), data.get("expected_status"))
         db.commit()
+        scored = _controls_scored_by_link(db, done["module"], done["entity_type"], done["entity_id"])
     except proof.ReviewError as exc:
         db.rollback()
         return JSONResponse({"error": exc.message, **exc.extra}, status_code=exc.status)
     finally:
         db.close()
-    if done["entity_type"] == "canonical_control":
-        _rescore_controls([done["entity_id"]])
+    _rescore_controls(scored)
     from core.middleware import log_audit
     action, entity, entity_id, detail = done["audit"]
     log_audit(user, "evidence", action, entity, entity_id, details=detail)
@@ -2697,10 +2713,10 @@ async def api_evidence_link_delete(request: Request, lid: int):
         db.commit()
         recompute_confidence(db, link_row["evidence_id"])
         db.commit()
+        scored = _controls_scored_by_link(db, link_row["module"], link_row["entity_type"], link_row["entity_id"])
     finally:
         db.close()
-    if link_row["entity_type"] == "canonical_control":
-        _rescore_controls([link_row["entity_id"]])
+    _rescore_controls(scored)
     return JSONResponse({"success": True})
 
 

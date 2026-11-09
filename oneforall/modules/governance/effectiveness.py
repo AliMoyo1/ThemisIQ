@@ -34,6 +34,16 @@ _WEIGHTS = {
 }
 
 
+# Proof for a canonical control: a file linked to it directly, or to a GRID audit control mapped to it. GRID uploads,
+# assignments and reuse attach proof to the GRID control, and nothing in the product links a file to the canonical
+# control itself, so without the second half the two evidence factors (35 of 100) could never be earned.
+def proof_for_control_sql(control: str = "%s") -> str:
+    """WHERE fragment over evidence_links aliased el. `control` is a fixed SQL expression for the canonical control id
+    ("%s" takes it as a parameter, twice), never caller input."""
+    return (f"((el.entity_type = 'canonical_control' AND el.entity_id = {control}) OR (el.module = 'grid' AND "
+            f"el.entity_type = 'control' AND el.entity_id IN (SELECT id FROM grid_controls WHERE canonical_control_id = {control})))")
+
+
 def _score_one_control(db, cid: int) -> dict:
     """
     Evaluate all 7 factors for canonical control `cid` against the open `db`.
@@ -62,12 +72,12 @@ def _score_one_control(db, cid: int) -> dict:
             ev_count = db.execute(
                 "SELECT COUNT(*) FROM evidence_links el "
                 "JOIN evidence_items ei ON ei.id = el.evidence_id "
-                "WHERE el.entity_type = 'canonical_control' AND el.entity_id = %s "
+                f"WHERE {proof_for_control_sql()} "
                 "AND el.deleted_at IS NULL "
                 "AND ei.status = 'current' "
                 "AND COALESCE(el.review_status, 'pending') NOT IN ('returned', 'rejected', 'out_of_scope') "
                 "AND (ei.expiry_date IS NULL OR ei.expiry_date > %s)",
-                (cid, today_str),
+                (cid, cid, today_str),
             ).fetchone()[0]
             factors["evidence_uploaded"] = 1 if ev_count > 0 else 0
         except Exception:
@@ -79,12 +89,12 @@ def _score_one_control(db, cid: int) -> dict:
                 expiring_soon = db.execute(
                     "SELECT COUNT(*) FROM evidence_links el "
                     "JOIN evidence_items ei ON ei.id = el.evidence_id "
-                    "WHERE el.entity_type = 'canonical_control' AND el.entity_id = %s "
+                    f"WHERE {proof_for_control_sql()} "
                     "AND el.deleted_at IS NULL "
                     "AND ei.status = 'current' "
                     "AND COALESCE(el.review_status, 'pending') NOT IN ('returned', 'rejected', 'out_of_scope') "
                     "AND ei.expiry_date IS NOT NULL AND ei.expiry_date <= %s",
-                    (cid, cutoff_7d),
+                    (cid, cid, cutoff_7d),
                 ).fetchone()[0]
                 factors["evidence_valid"] = 1 if expiring_soon == 0 else 0
             except Exception:

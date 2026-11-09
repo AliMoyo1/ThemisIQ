@@ -17,7 +17,7 @@ import logging
 
 from config import settings
 from core import ai_rollout
-from core.rbac import user_modules as _user_modules, has_capability
+from core.rbac import user_modules as _user_modules, has_capability, is_read_only
 
 _log = logging.getLogger("oneforall.shell_ctx")
 
@@ -88,6 +88,7 @@ def shell_ctx(request, active_module: str = "platform",
         "show_sidebar": show_sidebar,
         "is_admin": has_capability(user, "platform.manage_users"),
         "is_super_admin": bool(user.get("is_super_admin")),
+        "read_only": is_read_only(user),
         "can_manage_ai_policy": has_capability(user, "ai_governance.policy.manage"),
         "can_ai_use": has_capability(user, "ai_use.view") and ai_rollout.is_enabled(user.get("org_id")),
         "can_ai_request_history": has_capability(user, "ai_use.submit"),
