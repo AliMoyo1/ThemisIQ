@@ -18,7 +18,7 @@ reported healthy on 2026-10-14. EU rule content still requires recorded legal ap
 **The specialist rework programme** in [`plans/2026-10-governance-rework/`](../2026-10-governance-rework/README.md)
 (planning documents 01 to 06, written 2026-10-14) followed this ledger and has been built (status 2026-10-15): plans 01 to 03
 merged to `master` as pull request 10; plans 04 to 06 and follow-ups 11 to 13 (email delivery, the predictive trace and team
-view, BCM escalation, the hardening pack) committed and pushed on `claude/plan-04-platform-truth`, awaiting a pull request.
+view, BCM escalation, the hardening pack) and the connected governance build that followed, merged to `master` as pull request 11 (`790ce1c`, 2026-10-20).
 Its implementation record, with what was not done and the open owner decisions, is
 [07-implementation-ledger.md](../2026-10-governance-rework/07-implementation-ledger.md). This ledger keeps the history of G1 to
 G7 and is not rewritten for that work; the rework links back here.
