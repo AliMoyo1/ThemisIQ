@@ -11,7 +11,7 @@
 <meta name="ph-host" content="{{ posthog_host }}">
 {% if user %}<meta name="ph-uid" content="{{ user.id }}" data-email="{{ user.email or '' }}" data-name="{{ user.full_name or user.username or '' }}" data-role="{{ user.role or '' }}">{% endif %}
 <script src="/static/js/shell_telemetry.js?v=1"></script>
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 *{box-sizing:border-box;margin:0;padding:0}
 
 /* ══════════════════════════════════════════════════════════════════
@@ -381,14 +381,15 @@ input,select,textarea{font-family:var(--font)}
 .main-wrap{display:flex;flex-direction:column;flex:1;overflow:hidden}
 
 /* ── TOPBAR ── */
+/* The bar grows and wraps rather than letting its buttons spill over the page below (200% zoom, narrow windows). */
 .topbar{
-  height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
-  padding:0 24px;background:var(--glass-bg);
+  min-height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px 16px;padding:8px 24px;background:var(--glass-bg);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-bottom:1px solid var(--glass-border);
   flex-shrink:0;box-shadow:var(--shadow-sm);z-index:100;
 }
-.topbar-left{display:flex;align-items:center;gap:16px}
+.topbar-left{display:flex;align-items:center;gap:16px;flex:1 1 0;min-width:140px}
 .sidebar-toggle{
   width:32px;height:32px;border-radius:8px;border:none;background:transparent;
   color:var(--muted);display:flex;align-items:center;justify-content:center;
@@ -399,6 +400,7 @@ input,select,textarea{font-family:var(--font)}
 .breadcrumb-sep{color:var(--dim);font-size:11px}
 .breadcrumb-current{color:var(--text);font-weight:600}
 .topbar-right{display:flex;align-items:center;gap:10px}
+.topbar-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;flex:1 1 0;min-width:260px}
 .topbar-search{
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
   padding:8px 14px 8px 36px;border-radius:var(--radius);font-size:12px;width:220px;
@@ -687,8 +689,106 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }
+/* Subscription banner: shown by shell_license.js (element.style.display), red when expired or 7 days or fewer */
+.sh-license{display:none;align-items:center!important;gap:12px!important;padding:10px 16px!important;margin:0 0 16px!important;border-radius:10px!important;font-size:13px!important}
+.sh-license-critical{border:1px solid #fca5a5!important;background:#fef2f2!important;color:#991b1b!important}
+.sh-license-warn{border:1px solid #fcd34d!important;background:#fffbeb!important;color:#92400e!important}
+/* Formerly inline styles (plans/2026-11-zoom-and-style-policy.md): !important keeps an inline style's priority; display stays switchable from scripts */
+.sh-logo-crop{width:44px!important;height:44px!important;overflow:hidden!important;display:flex;align-items:flex-start!important;justify-content:center!important;border-radius:12px!important}
+.sh-logo-img{width:105px!important;margin-top:-3px!important;margin-left:-2px!important;flex-shrink:0!important;display:block}
+.sh-dot-aria{background:#7d6527!important}
+.sh-dot-grid{background:#059669!important}
+.sh-dot-bcm{background:#3d4660!important}
+.sh-dot-sentinel{background:#3b5bdb!important}
+.sh-dot-erm{background:#881337!important}
+.sh-dot-orm{background:#7c3a0a!important}
+.sh-dot-ai{background:#798a93!important}
+.sh-rail-pin{background:none!important;border:none!important;font:inherit!important}
+.sh-rail-super{color:#a78bfa!important}
+.sh-rail-admin{color:#94a3b8!important}
+.sh-rail-org{color:#d97706!important}
+.sh-user-head{padding:12px 14px!important;border-bottom:1px solid var(--border)!important}
+.sh-user-name{font-size:13px!important;font-weight:700!important;color:var(--text)!important}
+.sh-user-email{font-size:11px!important;color:var(--muted)!important}
+.sh-accent{color:var(--accent)!important}
+.sh-signout{color:var(--red)!important}
+.sh-hidden{display:none}
+.sh-brand{font-weight:700!important}
+.sh-brand-gold{color:#C9A84C!important}
+.sh-search-results{display:none;position:absolute!important;top:100%!important;left:0!important;right:0!important;background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:8px!important;margin-top:4px!important;max-height:360px!important;overflow-y:auto!important;box-shadow:0 8px 24px rgba(0,0,0,0.4)!important;z-index:999!important}
+.sh-notif-wrap{position:relative!important}
+.sh-pad-24{padding:24px!important}
+.sh-theme-sun{display:none}
+.sh-license-icon{font-size:16px!important;line-height:1!important}
+.sh-license-text{flex:1!important}
+.sh-license-link{color:inherit!important;text-decoration:underline!important}
+.sh-license-dismiss{background:none!important;border:none!important;color:inherit!important;font-size:18px!important;line-height:1!important;cursor:pointer!important;padding:2px 6px!important;opacity:.7!important}
+.sh-rem-overlay{display:none;position:fixed!important;inset:0!important;z-index:10000!important;align-items:center!important;justify-content:center!important}
+.sh-rem-backdrop{position:absolute!important;inset:0!important;background:rgba(0,0,0,0.4)!important;backdrop-filter:blur(2px)!important}
+.sh-rem-card{position:relative!important;background:var(--surface)!important;border-radius:16px!important;padding:24px!important;width:400px!important;max-width:90vw!important;box-shadow:var(--shadow-lg)!important}
+.sh-rem-head{display:flex;align-items:center!important;justify-content:space-between!important;margin-bottom:16px!important}
+.sh-rem-title{font-size:16px!important;font-weight:700!important;color:var(--text)!important;margin:0!important}
+.sh-rem-close{background:none!important;border:none!important;font-size:20px!important;color:var(--muted)!important;cursor:pointer!important}
+.sh-rem-field{margin-bottom:12px!important}
+.sh-rem-label{font-size:12px!important;color:var(--muted)!important;display:block;margin-bottom:4px!important}
+.sh-rem-input{width:100%!important;padding:8px 10px!important;border:1px solid var(--border2)!important;border-radius:8px!important;background:var(--surface2)!important;color:var(--text)!important;font-size:13px!important}
+.sh-rem-textarea{width:100%!important;padding:8px 10px!important;border:1px solid var(--border2)!important;border-radius:8px!important;background:var(--surface2)!important;color:var(--text)!important;font-size:13px!important;resize:vertical!important}
+.sh-rem-row{display:grid;grid-template-columns:1fr 1fr!important;gap:12px!important;margin-bottom:12px!important}
+.sh-rem-field-last{margin-bottom:14px!important}
+.sh-rem-submit{width:100%!important;padding:10px!important;border:none!important;border-radius:8px!important;background:var(--accent)!important;color:#fff!important;font-weight:600!important;font-size:14px!important;cursor:pointer!important}
+/* Markup built by shell_core.js (notifications, search results, keyboard shortcuts), formerly inline styles */
+.sh-notif-item{padding:10px 14px!important;border-bottom:1px solid var(--border-soft)!important;cursor:pointer!important;background:transparent!important}
+.sh-notif-item.is-unread{background:var(--surface2)!important}
+.sh-notif-title{font-size:12.5px!important;font-weight:400!important;color:var(--text)!important}
+.sh-notif-title.is-unread{font-weight:600!important}
+.sh-notif-msg{font-size:11px!important;color:var(--muted)!important;margin-top:2px!important}
+.sh-notif-meta{font-size:10px!important;color:var(--muted)!important;margin-top:4px!important}
+.sh-search-none{padding:16px!important;text-align:center!important;color:var(--muted)!important;font-size:13px!important}
+.sh-search-hit{display:flex;align-items:center!important;gap:10px!important;padding:10px 14px!important;border-bottom:1px solid var(--border-soft)!important;text-decoration:none!important;color:var(--text)!important}
+.sh-search-dot{width:8px!important;height:8px!important;border-radius:50%!important;background:var(--muted)!important;flex-shrink:0!important}
+.sh-search-dot-aria{background:#6c63ff!important}
+.sh-search-dot-sentinel{background:#10b981!important}
+.sh-search-dot-grid{background:#f59e0b!important}
+.sh-search-dot-bcm{background:#ef4444!important}
+.sh-search-dot-platform{background:#94a3b8!important}
+.sh-search-body{flex:1!important;min-width:0!important}
+.sh-search-title{font-size:13px!important;font-weight:500!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.sh-search-sub{font-size:11px!important;color:var(--muted)!important}
+.sh-search-snippet{font-size:11px!important;color:var(--muted)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.sh-sc-backdrop{position:absolute!important;inset:0!important;background:rgba(0,0,0,.45)!important;backdrop-filter:blur(2px)!important}
+.sh-sc-card{position:relative!important;background:var(--surface)!important;border-radius:16px!important;padding:28px!important;width:440px!important;max-width:92vw!important;box-shadow:var(--shadow-lg)!important}
+.sh-sc-head{display:flex;justify-content:space-between!important;align-items:center!important;margin-bottom:20px!important}
+.sh-sc-title{font-size:16px!important;font-weight:800!important;color:var(--text)!important;margin:0!important}
+.sh-sc-close{background:none!important;border:none!important;font-size:20px!important;color:var(--muted)!important;cursor:pointer!important}
+.sh-sc-list{display:grid;gap:8px!important;font-size:13px!important}
+.sh-sc-row{display:flex;justify-content:space-between!important;align-items:center!important;padding:6px 0!important;border-bottom:1px solid var(--border-soft)!important}
+.sh-sc-row.sh-sc-row-last{border-bottom:none!important}
+.sh-sc-label{color:var(--text)!important}
+.sh-sc-key{padding:3px 8px!important;border-radius:4px!important;background:var(--surface2)!important;border:1px solid var(--border)!important;font-size:12px!important;font-family:var(--mono)!important;color:var(--muted)!important}
+/* Related Items panel and its link picker (related_items.js), formerly inline styles */
+.ri-panel{margin-top:16px!important;padding-top:12px!important;border-top:1px solid var(--border)!important}
+.ri-heading{font-size:12px!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:.5px!important;color:var(--muted)!important;margin-bottom:8px!important}
+.ri-list{font-size:13px!important;color:var(--muted)!important}
+.ri-empty{color:var(--muted)!important;padding:4px 0!important;font-size:12px!important}
+.ri-empty-plain{color:var(--muted)!important;font-size:12px!important}
+.ri-rel-chip{font-size:10px!important;color:var(--accent)!important;background:var(--surface2)!important;padding:1px 6px!important;border-radius:100px!important}
+.ri-unlink{padding:2px 6px!important;font-size:10px!important;background:none!important;border:1px solid var(--border)!important;border-radius:4px!important;cursor:pointer!important;color:var(--muted)!important}
+.ri-row{display:flex;align-items:center!important;justify-content:space-between!important;padding:4px 0!important;border-bottom:1px solid var(--border)!important}
+.ri-title{font-size:12px!important;font-weight:600!important;color:var(--text)!important}
+.ri-kind{font-size:10px!important;color:var(--muted)!important}
+.ri-picker{background:var(--surface)!important;border-radius:12px!important;padding:24px!important;width:420px!important;max-width:90vw!important;box-shadow:0 8px 40px rgba(0,0,0,.3)!important}
+.ri-picker-title{font-size:16px!important;font-weight:700!important;margin-bottom:12px!important;color:var(--text)!important}
+.ri-picker-label{display:block;font-size:12px!important;margin-bottom:6px!important;color:var(--muted)!important}
+.ri-picker-input{width:100%!important;padding:10px!important;border:1px solid var(--border)!important;border-radius:var(--radius,7px)!important;font-size:14px!important;box-sizing:border-box!important;background:var(--surface2)!important;color:var(--text)!important}
+.ri-picker-results{margin-top:8px!important;max-height:240px!important;overflow-y:auto!important}
+.ri-picker-status{font-size:12px!important;color:var(--danger)!important;margin-top:8px!important}
+.ri-cancel{margin-top:12px!important;padding:6px 16px!important;border-radius:6px!important;border:1px solid var(--border)!important;background:var(--surface)!important;color:var(--muted)!important;cursor:pointer!important;font-size:12px!important}
+.ri-picker-none{color:var(--muted)!important;padding:8px!important;font-size:13px!important}
+.ri-hit{display:flex;align-items:center!important;justify-content:space-between!important;padding:8px!important;cursor:pointer!important;border-bottom:1px solid var(--border)!important}
+.ri-hit-title{font-size:13px!important;color:var(--text)!important}
+.ri-hit-kind{font-size:11px!important;color:var(--muted)!important}
+.ri-hit-link{padding:4px 10px!important;border-radius:6px!important;border:none!important;background:var(--accent)!important;color:#fff!important;cursor:pointer!important;font-size:12px!important;font-weight:600!important}
 {% block extra_styles %}{% endblock %}
-
 </style>
 <link rel="stylesheet" href="/static/css/icons.css?v=1">
 <link rel="stylesheet" href="/static/css/premium_theme.css?v=4">
@@ -718,12 +818,12 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 <div class="icon-sidebar">
   <a href="/" class="icon-sidebar-logo" title="ThemisIQ — Home">
     <!-- ThemisIQ logo mark: crop to show just the circular head/emblem -->
-    <div style="width:44px;height:44px;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;border-radius:12px">
+    <div class="sh-logo-crop">
       <picture>
         <source srcset="/static/img/themisiq-logo-clear.webp" type="image/webp">
         <img src="/static/img/themisiq-logo-clear.png"
              alt="ThemisIQ"
-             style="width:105px;margin-top:-3px;margin-left:-2px;flex-shrink:0;display:block">
+             class="sh-logo-img">
       </picture>
     </div>
   </a>
@@ -745,7 +845,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span class="icon-nav-tooltip">Governance — Policy &amp; Compliance</span>
       <span class="nav-label">Governance</span>
-      <span class="mod-dot" style="background:#7d6527"></span>
+      <span class="mod-dot sh-dot-aria"></span>
     </a>
     {% endif %}
 
@@ -754,7 +854,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
       <span class="icon-nav-tooltip">Audit — Audit Management</span>
       <span class="nav-label">Audit</span>
-      <span class="mod-dot" style="background:#059669"></span>
+      <span class="mod-dot sh-dot-grid"></span>
     </a>
     {% endif %}
 
@@ -763,7 +863,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       <span class="icon-nav-tooltip">Resilience — Business Continuity</span>
       <span class="nav-label">Resilience</span>
-      <span class="mod-dot" style="background:#3d4660"></span>
+      <span class="mod-dot sh-dot-bcm"></span>
     </a>
     {% endif %}
 
@@ -772,7 +872,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
       <span class="icon-nav-tooltip">Privacy — Data Protection</span>
       <span class="nav-label">Privacy</span>
-      <span class="mod-dot" style="background:#3b5bdb"></span>
+      <span class="mod-dot sh-dot-sentinel"></span>
     </a>
     {% endif %}
 
@@ -781,7 +881,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
       <span class="icon-nav-tooltip">Enterprise Risk</span>
       <span class="nav-label">Enterprise Risk</span>
-      <span class="mod-dot" style="background:#881337"></span>
+      <span class="mod-dot sh-dot-erm"></span>
     </a>
     {% endif %}
 
@@ -790,7 +890,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <span class="icon-nav-tooltip">Operations Risk</span>
       <span class="nav-label">Operations Risk</span>
-      <span class="mod-dot" style="background:#7c3a0a"></span>
+      <span class="mod-dot sh-dot-orm"></span>
     </a>
     {% endif %}
 
@@ -799,14 +899,14 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
       <span class="icon-nav-tooltip">AI Governance</span>
       <span class="nav-label">AI Governance</span>
-      <span class="mod-dot" style="background:#798a93"></span>
+      <span class="mod-dot sh-dot-ai"></span>
     </a>
     {% endif %}
 
   </div>
 
   <div class="icon-sidebar-bottom">
-    <button class="icon-nav-item" id="railPin" aria-label="Pin navigation labels" title="Pin navigation labels" style="background:none;border:none;font:inherit">
+    <button class="icon-nav-item sh-rail-pin" id="railPin" aria-label="Pin navigation labels" title="Pin navigation labels">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
       <span class="nav-label">Collapse</span>
     </button>
@@ -814,21 +914,21 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <div class="nav-section-label">Platform</div>
     {% endif %}
     {% if is_super_admin %}
-    <a href="/super-admin/" class="icon-nav-item{% if active_section == 'super_admin' %} active{% endif %}" title="Super Admin" style="color:#a78bfa">
+    <a href="/super-admin/" class="icon-nav-item{% if active_section == 'super_admin' %} active{% endif %} sh-rail-super" title="Super Admin">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       <span class="icon-nav-tooltip">Super Admin</span>
       <span class="nav-label">Super Admin</span>
     </a>
     {% endif %}
     {% if is_admin %}
-    <a href="/admin/users" class="icon-nav-item{% if active_section == 'admin' %} active{% endif %}" title="Admin" style="color:#94a3b8">
+    <a href="/admin/users" class="icon-nav-item{% if active_section == 'admin' %} active{% endif %} sh-rail-admin" title="Admin">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       <span class="icon-nav-tooltip">Admin Settings</span>
       <span class="nav-label">Admin Settings</span>
     </a>
     {% endif %}
     {% if can_org_admin %}
-    <a href="/admin/users" class="icon-nav-item{% if active_section in ('admin','users') %} active{% endif %}" title="Org Admin" style="color:#d97706">
+    <a href="/admin/users" class="icon-nav-item{% if active_section in ('admin','users') %} active{% endif %} sh-rail-org" title="Org Admin">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       <span class="icon-nav-tooltip">Org Admin — your organisation's users</span>
       <span class="nav-label">Org Admin</span>
@@ -844,14 +944,14 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <div class="icon-sidebar-user" id="sidebarUserMenu" title="{{ user.full_name }}">
       {{ user.avatar_initials | default('??') }}
       <div class="user-dropdown" id="userDropdown">
-        <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:700;color:var(--text)">{{ user.full_name }}</div>
-          <div style="font-size:11px;color:var(--muted)">{{ user.email }}</div>
+        <div class="sh-user-head">
+          <div class="sh-user-name">{{ user.full_name }}</div>
+          <div class="sh-user-email">{{ user.email }}</div>
         </div>
         <a href="/profile">My Profile</a>
         <a href="/change-password">Change Password</a>
         <a href="/mfa/setup">Two-Factor Authentication</a>
-        {% if is_super_admin %}<a href="/super-admin/" style="color:var(--accent)">Super Admin</a>{% endif %}
+        {% if is_super_admin %}<a href="/super-admin/" class="sh-accent">Super Admin</a>{% endif %}
         {% if is_admin %}<a href="/admin/users">User Management</a>{% endif %}
         {% if is_admin %}<a href="/admin/frameworks">Framework Activation</a>{% endif %}
         {% if is_admin or can_view_audit_log %}<a href="/admin/logs">Audit Log</a>{% endif %}
@@ -859,8 +959,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         {% if is_admin %}<a href="/admin/webhooks">Webhooks</a>{% endif %}
         {% if is_admin %}<a href="/admin/email">Email Settings</a>{% endif %}
         <div class="sep"></div>
-        <a href="#" id="sidebarSignOut" style="color:var(--red)">Sign Out</a>
-        <form id="logoutForm" method="POST" action="/logout" style="display:none"></form>
+        <a href="#" id="sidebarSignOut" class="sh-signout">Sign Out</a>
+        <form id="logoutForm" method="POST" action="/logout" class="sh-hidden"></form>
       </div>
     </div>
   </div>
@@ -962,9 +1062,12 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       </button>
       <div class="breadcrumb">
         {% block breadcrumb %}
-        <span style="font-weight:700"><span style="color:var(--accent)">Themis</span><span style="color:#C9A84C">IQ</span></span>
+        <span class="sh-brand"><span class="sh-accent">Themis</span><span class="sh-brand-gold">IQ</span></span>
         <span class="breadcrumb-sep">›</span>
-        <span class="breadcrumb-current">Command Centre</span>
+        {#- A page without its own breadcrumb is named by its title, before the product name ("Risk Register — ThemisIQ"). -#}
+        {%- set crumb = namespace(text=self.title()) -%}
+        {%- for sep in [' — ', ' | ', ' · ', ' - ', ': ThemisIQ'] -%}{%- set crumb.text = crumb.text.split(sep)[0] -%}{%- endfor %}
+        <span class="breadcrumb-current">{{ crumb.text if crumb.text.strip() not in ('', 'ThemisIQ') else 'Command Centre' }}</span>
         {% endblock %}
       </div>
     </div>
@@ -972,9 +1075,9 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input class="topbar-search" placeholder="Search across all modules… (Ctrl+K)" type="text" id="globalSearch" autocomplete="off">
-        <div id="searchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:360px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:999;"></div>
+        <div id="searchResults" class="sh-search-results"></div>
       </div>
-      <div style="position:relative">
+      <div class="sh-notif-wrap">
         <button class="topbar-icon-btn" id="notifBtn"
                 aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -986,7 +1089,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
             <button type="button" class="notif-mark-read" id="markAllReadBtn">Mark all read</button>
           </div>
           <div class="notif-list" id="notifList" role="region" aria-label="Notifications" tabindex="0">
-            <div class="empty-state" style="padding:24px">
+            <div class="empty-state sh-pad-24">
               <p>No new notifications</p>
             </div>
           </div>
@@ -998,7 +1101,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       </button>
       <!-- Theme Toggle -->
       <button class="topbar-icon-btn" id="themeToggle" title="Toggle dark/light mode">
-        <svg id="themeSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg id="themeSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sh-theme-sun"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         <svg id="themeMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
       {% block topbar_extra %}{% endblock %}
@@ -1010,24 +1113,23 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     {% if license_status and license_status.days_remaining is defined %}
     {% set ls_days = license_status.days_remaining %}
     {% set ls_critical = license_status.expired or ls_days <= 7 %}
-    <div id="licenseBanner"
-         data-expiry="{{ license_status.valid_until }}"
-         style="display:none;align-items:center;gap:12px;padding:10px 16px;margin:0 0 16px;border-radius:10px;border:1px solid {% if ls_critical %}#fca5a5{% else %}#fcd34d{% endif %};background:{% if ls_critical %}#fef2f2{% else %}#fffbeb{% endif %};color:{% if ls_critical %}#991b1b{% else %}#92400e{% endif %};font-size:13px">
-      <span style="font-size:16px;line-height:1">{% if ls_critical %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>{% else %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bell></use></svg>{% endif %}</span>
-      <div style="flex:1">
+    <div id="licenseBanner" class="sh-license {{ 'sh-license-critical' if ls_critical else 'sh-license-warn' }}"
+         data-expiry="{{ license_status.valid_until }}">
+      <span class="sh-license-icon">{% if ls_critical %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-triangle-alert></use></svg>{% else %}<svg class=ic aria-hidden=true><use href=/static/icons/sprite.svg#ic-bell></use></svg>{% endif %}</span>
+      <div class="sh-license-text">
         {% if license_status.expired %}
           <strong>Subscription expired</strong> on {{ license_status.valid_until }} ({{ -ls_days }} day{{ '' if ls_days == -1 else 's' }} ago).
-          Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to renew.
+          Contact <a href="mailto:hello@themisiq.net" class="sh-license-link">hello@themisiq.net</a> to renew.
         {% elif ls_days == 0 %}
           <strong>Subscription renews today</strong> ({{ license_status.valid_until }}).
-          Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to confirm renewal.
+          Contact <a href="mailto:hello@themisiq.net" class="sh-license-link">hello@themisiq.net</a> to confirm renewal.
         {% else %}
           <strong>Subscription renews in {{ ls_days }} day{{ '' if ls_days == 1 else 's' }}</strong> on {{ license_status.valid_until }}.
-          Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to renew.
+          Contact <a href="mailto:hello@themisiq.net" class="sh-license-link">hello@themisiq.net</a> to renew.
         {% endif %}
       </div>
       <button id="dismissLicenseBannerBtn" aria-label="Dismiss"
-              style="background:none;border:none;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;opacity:.7">&times;</button>
+              class="sh-license-dismiss">&times;</button>
     </div>
     <script src="/static/js/shell_license.js?v=1"></script>
     {% endif %}
@@ -1050,30 +1152,30 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 {% block extra_scripts %}{% endblock %}
 
 <!-- Reminder Modal -->
-<div class="reminder-overlay" id="reminderModal" role="dialog" aria-modal="true" aria-labelledby="reminderTitle" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
-  <div data-reminder-close style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);"></div>
-  <div class="reminder-card" style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h3 id="reminderTitle" style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
-      <button type="button" data-reminder-close aria-label="Close reminder" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
+<div class="reminder-overlay sh-rem-overlay" id="reminderModal" role="dialog" aria-modal="true" aria-labelledby="reminderTitle">
+  <div data-reminder-close class="sh-rem-backdrop"></div>
+  <div class="reminder-card sh-rem-card">
+    <div class="sh-rem-head">
+      <h3 id="reminderTitle" class="sh-rem-title">Set Email Reminder</h3>
+      <button type="button" data-reminder-close aria-label="Close reminder" class="sh-rem-close">&times;</button>
     </div>
     <form id="reminderForm">
-      <div style="margin-bottom:12px;">
-        <label for="remTitle" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
-        <input type="text" id="remTitle" required placeholder="e.g. Review audit findings" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+      <div class="sh-rem-field">
+        <label for="remTitle" class="sh-rem-label">Title</label>
+        <input type="text" id="remTitle" required placeholder="e.g. Review audit findings" class="sh-rem-input">
       </div>
-      <div style="margin-bottom:12px;">
-        <label for="remMessage" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Message (optional)</label>
-        <textarea id="remMessage" rows="2" placeholder="Additional details..." style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;"></textarea>
+      <div class="sh-rem-field">
+        <label for="remMessage" class="sh-rem-label">Message (optional)</label>
+        <textarea id="remMessage" rows="2" placeholder="Additional details..." class="sh-rem-textarea"></textarea>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="sh-rem-row">
         <div>
-          <label for="remAt" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Date & Time</label>
-          <input type="datetime-local" id="remAt" required style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+          <label for="remAt" class="sh-rem-label">Date & Time</label>
+          <input type="datetime-local" id="remAt" required class="sh-rem-input">
         </div>
         <div>
-          <label for="remRepeat" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Repeat</label>
-          <select id="remRepeat" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+          <label for="remRepeat" class="sh-rem-label">Repeat</label>
+          <select id="remRepeat" class="sh-rem-input">
             <option value="none">No repeat</option>
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -1081,9 +1183,9 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
           </select>
         </div>
       </div>
-      <div style="margin-bottom:14px;">
-        <label for="remModule" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Module</label>
-        <select id="remModule" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+      <div class="sh-rem-field-last">
+        <label for="remModule" class="sh-rem-label">Module</label>
+        <select id="remModule" class="sh-rem-input">
           <option value="platform">Platform (General)</option>
           <option value="aria">Governance</option>
           <option value="grid">Audit</option>
@@ -1091,7 +1193,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
           <option value="sentinel">Privacy</option>
         </select>
       </div>
-      <button type="submit" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;cursor:pointer;">Create Reminder</button>
+      <button type="submit" class="sh-rem-submit">Create Reminder</button>
     </form>
   </div>
 </div>

@@ -36,6 +36,8 @@
     if (document.getElementById(STYLE_ID)) return;
     var style = document.createElement('style');
     style.id = STYLE_ID;
+    var nonced = document.querySelector('style[nonce]');  // the page's own nonce; a style element without it is refused
+    if (nonced) style.nonce = nonced.nonce;
     style.textContent =
       '@keyframes tt-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}' +
       '@keyframes tt-spin{to{transform:rotate(360deg)}}' +

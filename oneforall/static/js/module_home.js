@@ -15,6 +15,8 @@
   if (dashboard) dashboard.insertBefore(root, dashboard.firstChild);
   else ariaHeader.parentNode.insertBefore(root, ariaHeader.nextSibling);
   var style = document.createElement('style');
+  var nonced = document.querySelector('style[nonce]');  // the page's own nonce; a style element without it is refused
+  if (nonced) style.nonce = nonced.nonce;
   style.textContent = '.connected-module-home{margin:0 0 18px;padding:16px;border:1px solid var(--border);' +
     'background:var(--surface);border-radius:18px}.connected-module-head{display:flex;justify-content:space-between;' +
     'gap:12px;align-items:center;margin-bottom:12px}.connected-module-head span{font-size:12px;color:var(--muted)}' +

@@ -19,7 +19,7 @@
 <script type="module" src="/static/js/aria_pdf_bootstrap.mjs"></script>
 <script src="/static/js/aria_pdf_viewer.js?v=1"></script>
 <script src="/static/js/aria_policy_workflow.js?v=4"></script>
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .ag-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
 @media(max-width:800px){.ag-stats{grid-template-columns:repeat(2,1fr)}}

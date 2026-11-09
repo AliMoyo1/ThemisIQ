@@ -8,7 +8,7 @@
 </div>
 {% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .eb-page{padding:24px;max-width:1320px;margin:auto;color:var(--text)}
 .eb-hero{padding:30px 34px;border-radius:23px;background:linear-gradient(125deg,rgba(255,255,255,.92),rgba(217,227,229,.7));box-shadow:0 14px 30px rgba(25,44,51,.1),inset 0 1px rgba(255,255,255,.94)}
 .eb-hero h1{font:600 36px/1.1 Georgia,serif;margin:0 0 8px}.eb-hero p{max-width:720px;line-height:1.55;color:var(--muted);margin:0}

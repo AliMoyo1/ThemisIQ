@@ -40,6 +40,11 @@ ROUTES = [
     ("/metrics", "super_admin"),
     ("/my-work", "super_admin"),
     ("/profile", "super_admin"),
+    # Pages with their own page bar (plans/2026-11-zoom-and-style-policy.md)
+    ("/admin/ai-policy", "super_admin"),
+    ("/admin/frameworks", "super_admin"),
+    ("/admin/logs", "super_admin"),
+    ("/admin/security", "super_admin"),
 ]
 
 # route -> reason. Same discipline as test_axe_acceptance_routes.py's own
@@ -61,3 +66,33 @@ def test_route_has_no_horizontal_overflow_at_200_percent_zoom(
     if overflow and route in KNOWN_FAILURES:
         pytest.xfail(KNOWN_FAILURES[route])
     assert not overflow, f"{route}: horizontal body overflow at 640x800 (200% zoom equivalent)"
+
+
+_BAR_SPILL = """() => {
+  const spilled = [];
+  for (const bar of document.querySelectorAll('.topbar')) {
+    if (bar.offsetParent === null) continue;
+    const r = bar.getBoundingClientRect();
+    for (const el of bar.querySelectorAll('button, a, input, select, .breadcrumb')) {
+      if (el.offsetParent === null) continue;
+      const e = el.getBoundingClientRect();
+      if (e.width === 0) continue;
+      if (e.top < r.top - 1 || e.bottom > r.bottom + 1 || e.left < r.left - 1 || e.right > r.right + 1)
+        spilled.push((el.id || el.textContent || el.tagName).trim().slice(0, 30));
+    }
+  }
+  return spilled;
+}"""
+
+
+@pytest.mark.parametrize("route,persona", ROUTES)
+def test_page_bars_hold_their_controls_and_name_the_page_at_200_percent_zoom(login_as, live_app, route, persona):
+    """A page bar grows and wraps instead of letting buttons spill over the page below, and the breadcrumb names the
+    page rather than falling back to Command Centre."""
+    page = login_as(persona)
+    page.set_viewport_size({"width": 640, "height": 400})  # a 1280 by 800 window at 200% zoom
+    page.goto(f"{live_app}{route}")
+    page.wait_for_load_state("networkidle", timeout=10000)
+    assert page.evaluate(_BAR_SPILL) == [], f"{route}: controls spill out of the page bar"
+    if route != "/":
+        assert "Command Centre" not in page.locator(".breadcrumb").first.inner_text(), f"{route}: breadcrumb names the wrong page"

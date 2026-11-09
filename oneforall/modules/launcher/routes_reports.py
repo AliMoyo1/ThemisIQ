@@ -1185,7 +1185,7 @@ async def report_run_print(request: Request, run_id: int):
         return refusal
     log_audit(user, "platform", "report_run_export", entity_type="report_run", entity_id=run_id,
               details=f"format=print; tier={report.meta.tier}; sha256={row['snapshot_hash'][:16]}", ip=_ip(request))
-    return HTMLResponse(render_html(report), headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex"})
+    return HTMLResponse(render_html(report, nonce=getattr(request.state, "csp_nonce", "")), headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex"})
 
 
 @router.post("/api/reports/runs/{run_id}/rerun")

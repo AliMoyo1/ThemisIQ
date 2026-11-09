@@ -43,7 +43,8 @@ async def import_workspace(request: Request):
     db = get_db()
     try:
         entries = intake.list_imports(db, actor)
-        register_claims = register_intake.claims(db, actor)
+        # A platform super administrator outside any organization has no register claims (claims() refuses them).
+        register_claims = register_intake.claims(db, actor) if actor.get("org_id") else []
     finally:
         db.close()
     return _aria_render(request, "policy_imports.html", {"imports": entries, "register_claims": register_claims, "user": actor},

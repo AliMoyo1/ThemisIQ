@@ -273,3 +273,17 @@ PR 48 merged as 53fe8351 (not deployed). The owner asked to build item 1 of the 
 | Only the Vault's page bar grows and wraps at 200% zoom. | The shared bar is used by 11 other module pages, each needing its own check. | Other crowded module bars may still overflow at 200% zoom. | Move the rule into `templates/base_shell.html` `.topbar`. |
 
 Also fixed: the breadcrumb and browser tab now say Evidence Vault; Clear filters now clears a company view and a status filter, and both show a chip. Evidence: Vault browser tests 73 passed (two new), backend Vault and CSP tests 259 passed, 6 skipped. With this, the Vault's Phase 1b is no longer open; the remaining Phase 0 product copy is a wording review for the owner.
+
+## Page bars at 200% zoom and the style policy, 2026-11-09 (chat confirmation, not sign-off)
+
+The owner asked to build items 1 and 2 of the next list. Plan and evidence: [2026-11-zoom-and-style-policy.md](2026-11-zoom-and-style-policy.md).
+
+| Decision | Why | Cost | How to change |
+| --- | --- | --- | --- |
+| The shared page bar grows and wraps on every page (the Vault rule above moved into `templates/base_shell.html`). A page without its own breadcrumb is named by its title. | A probe of 33 pages at 200% zoom found the Risk Register's buttons below its bar, and 16 templates said "Command Centre" in the breadcrumb. | None seen: at 1280 wide only the breadcrumb text changed. | `.topbar`, `.topbar-left`, `.topbar-actions` and the default breadcrumb block in `templates/base_shell.html`. |
+| `<style>` elements need the response's nonce (`style-src-elem 'self' 'nonce-...'`). | An injected `<style>` is the strong CSS attack (selectors read attributes, `@import` loads a stylesheet). | None for users; a new `<style>` must carry `request.state.csp_nonce` or the browser refuses it, and a test fails. | `security_headers_middleware` in `core/middleware.py`. |
+| `style="..."` attributes stay allowed (`style-src-attr 'unsafe-inline'`), with `style-src 'self' 'unsafe-inline'` as the older-browser fallback. | About 5,800 places build them, nearly all at run time; the earlier chat estimate (2,400) missed about 3,400 built by scripts. The attribute route to send data out is closed by `img-src`, `font-src` and `connect-src`. | An injected `style=` attribute can still restyle or cover parts of a page, which needs an HTML injection bug first. | Convert module by module, then set `style-src-attr 'none'`. |
+
+Also fixed: ARIA Policy Imports crashed with a server error for a platform super administrator outside any organization (found by the new browser test).
+
+Then the owner said to start removing style attributes with the smallest module. Slice 1 converted AI Governance (one attribute) and the shared shell every page sits in (about 130), and AI Governance pages now refuse every style attribute (`STRICT_STYLE_PREFIXES` in `core/middleware.py`). The AI Registers page's card grid works again: a nested style tag had been dropping it. Next by size: Data Readiness (4), Evidence campaigns (9), Governance (40), then the large modules.

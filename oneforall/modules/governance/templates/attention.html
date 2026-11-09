@@ -1,7 +1,7 @@
 {% extends "base_shell.html" %}
 {% block title %}Needs attention · ThemisIQ{% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .na-page{max-width:1180px;padding:24px;margin:auto;color:var(--text)}
 .na-hero,.na-panel{padding:26px 30px;border-radius:22px;background:var(--surface);box-shadow:0 12px 28px rgba(28,44,50,.08)}
 .na-hero h1{font:600 34px/1.1 Georgia,serif;margin:0 0 8px}.na-hero p{max-width:780px;color:var(--muted);line-height:1.55;margin:0}

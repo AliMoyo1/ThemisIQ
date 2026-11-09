@@ -33,7 +33,7 @@ function sendTrainerMsg() {
   var typingDiv = document.createElement('div');
   typingDiv.className = 'trainer-msg bot';
   typingDiv.id = 'trainerTyping';
-  typingDiv.innerHTML = '<div class="trainer-msg-content"><em style="opacity:0.6;">Thinking...</em></div>';
+  typingDiv.innerHTML = '<div class="trainer-msg-content"><em class="tr-thinking">Thinking...</em></div>';
   document.getElementById('trainerMessages').appendChild(typingDiv);
   document.getElementById('trainerMessages').scrollTop = document.getElementById('trainerMessages').scrollHeight;
 

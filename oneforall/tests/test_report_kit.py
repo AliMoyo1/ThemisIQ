@@ -376,6 +376,14 @@ def test_the_print_view_has_print_css_the_footer_and_escapes_every_dynamic_value
     assert css_string("a<b\\c") == "a\\3c b\\5c c" and css_string("plain, safe text (1)") == "plain, safe text (1)"
 
 
+def test_the_print_view_style_carries_the_response_nonce_when_served_to_a_browser():
+    """The page's security policy refuses a <style> without the response's nonce (plans/2026-11-zoom-and-style-policy.md)."""
+    report = _report(theme.BOARD)
+    assert '<style nonce="abc_123-XY">' in render_html(report, nonce="abc_123-XY")
+    assert '<style nonce="&quot;&gt;">' in render_html(report, nonce='">')
+    assert "<style>" in render_html(report), "PDF and file renders have no policy and need no nonce"
+
+
 def test_a_report_with_nothing_in_it_still_renders_in_every_format_and_says_so():
     report = Report(Meta(title="Empty", module="erm", generated_at=WHEN, generated_by=Actor(name="Jane Doe", username="jdoe")))
     report.add(Heading("Nothing"), Kpis([Kpi("Risks", "n/a")]), Chart("bar", "Empty chart", [], empty_text="No risk is recorded. There is nothing to chart."),

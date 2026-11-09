@@ -11,7 +11,7 @@
 </div>
 {% endblock %}
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .ga-page{max-width:1180px;margin:auto;padding:24px;color:var(--text)}
 .ga-hero,.ga-panel{background:var(--surface);border-radius:22px;padding:28px;box-shadow:0 12px 28px rgba(25,44,51,.08),inset 0 1px rgba(255,255,255,.8)}
 .ga-hero{background:linear-gradient(125deg,rgba(255,255,255,.9),rgba(219,228,230,.7))}

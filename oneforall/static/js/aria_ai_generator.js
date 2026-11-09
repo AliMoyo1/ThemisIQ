@@ -476,8 +476,11 @@ function downloadMd() {
 function printPolicy() {
   var content = document.getElementById('outputBody').innerHTML;
   var w = window.open('', '_blank');
+  // The blank window inherits this page's security policy, so its <style> needs this page's nonce.
+  var nonced = document.querySelector('style[nonce]');
+  var nonce = nonced ? String(nonced.nonce).replace(/[^A-Za-z0-9_-]/g, '') : '';
   w.document.write('<html><head><title>Policy Document</title>' +
-    '<style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a1a2e;line-height:1.7}' +
+    '<style nonce="' + nonce + '">body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a1a2e;line-height:1.7}' +
     'h1{font-size:22px}h2{font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px;color:#1E3A5F}' +
     'p{margin-bottom:10px}ul,ol{margin:8px 0 12px 20px}li{margin-bottom:4px}' +
     'code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:12px}' +

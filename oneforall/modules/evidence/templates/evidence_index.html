@@ -63,7 +63,7 @@
 {% endblock %}
 
 {% block content %}
-<style>
+<style nonce="{{ request.state.csp_nonce }}">
 .nav-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:auto}
 .ev-detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;opacity:0;pointer-events:none;transition:opacity .2s}
 .ev-detail-overlay.open{opacity:1;pointer-events:auto}
@@ -108,8 +108,6 @@
 .ev-tab.active{color:var(--accent);border-color:var(--accent)}
 #evidenceGrid,#evidenceTable{scroll-margin-top:72px}
 /* The page bar grows and wraps instead of overflowing at narrow widths and 200% zoom */
-.topbar.ev-topbar{height:auto;min-height:var(--topbar-h);flex-wrap:wrap;gap:10px;padding-top:10px;padding-bottom:10px}
-.ev-topbar .topbar-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;flex:1 1 0;min-width:260px}
 /* ── Work views, state and review chips ── */
 .ev-search{width:100%;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px}
 .ev-work{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
