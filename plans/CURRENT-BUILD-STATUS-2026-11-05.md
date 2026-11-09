@@ -261,3 +261,15 @@ Owner asked in chat to go with the recommendations and build items 1 and 2. Deta
 Security fix found on the way: four ERM risk-control routes (list, link, unlink, suggest ICE) did not check the risk's business unit, so a unit-scoped user could read or change another unit's risk controls by ID. They now refuse with 404.
 
 Still open from these plans: the Vault redesign's library layout (Phase 1b) and the remaining Phase 0 product copy; a rendered page-by-page comparison of policy candidates stays a human step on the PDF preview and in the customer pilot.
+
+## Vault library acceptance, 2026-11-09 (chat confirmation, not sign-off)
+
+PR 48 merged as 53fe8351 (not deployed). The owner asked to build item 1 of the next list: the Evidence Vault Phase 1b gate. The library layout itself was already built; the gate (keyboard and zoom review, every metric drills into its filtered list) was run in a real browser. Plan and evidence: [2026-11-vault-library-acceptance.md](2026-11-vault-library-acceptance.md).
+
+| Decision | Why | Cost | How to change |
+| --- | --- | --- | --- |
+| An Insights number clears every other filter before opening its list; work view counts are hidden while a filter narrows the list. | A number must be the length of the list it opens. | While filtering, only the pager's total is shown. | Return per-view counts for the current filters from `/evidence/api/items`. |
+| The Links figure and the coverage figures open no list. | They count links and other modules' records, not Vault files. | Three figures without a drill-down. | Add lists for them if wanted. |
+| Only the Vault's page bar grows and wraps at 200% zoom. | The shared bar is used by 11 other module pages, each needing its own check. | Other crowded module bars may still overflow at 200% zoom. | Move the rule into `templates/base_shell.html` `.topbar`. |
+
+Also fixed: the breadcrumb and browser tab now say Evidence Vault; Clear filters now clears a company view and a status filter, and both show a chip. Evidence: Vault browser tests 73 passed (two new), backend Vault and CSP tests 259 passed, 6 skipped. With this, the Vault's Phase 1b is no longer open; the remaining Phase 0 product copy is a wording review for the owner.

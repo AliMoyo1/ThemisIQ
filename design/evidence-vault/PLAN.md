@@ -2,6 +2,8 @@
 
 Status update, 2026-11-08: the Phase 0 data questions (current proof, version links, the module permission rule, expiry reminders) are now settled in code; see [plans/2026-11-vault-current-proof-policy-layout.md](../../plans/2026-11-vault-current-proof-policy-layout.md). GRID's own evidence files stay out of scope. Product copy and the library layout (Phase 1b) remain open.
 
+Status update, 2026-11-09: Phase 1b is built, and its gate (keyboard and zoom review, metrics drill into filtered lists) was run in a real browser; the fixes and the three figures that deliberately open no list are in [plans/2026-11-vault-library-acceptance.md](../../plans/2026-11-vault-library-acceptance.md). Phases 2 to 4 (guided upload, text index, Find evidence) are also built; see the governance rework ledger.
+
 Status: draft product and implementation plan. No application behavior is changed by this document. Reviewed against the code on 2026-10-07 (see Appendix A). Phase 1a is split out, implemented in the working tree (not yet committed), and tracked in [PHASE-1A.md](PHASE-1A.md); the Phase 0 decisions it deliberately did not make are listed in section 9.
 
 ## 1. Product decision
