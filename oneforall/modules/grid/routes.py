@@ -1150,7 +1150,7 @@ async def api_evidence_items_delete(request: Request, item_id: int):
 # ═════════════════════════════════════════════════════════════════════════════
 
 @router.post("/api/controls/{cid}/comments")
-@require_capability("grid.control.update_own")
+@require_capability("grid.control.comment")
 async def api_comments_add(request: Request, cid: int):
     body = await _json_body(request)
     content = body.get("content", "").strip()

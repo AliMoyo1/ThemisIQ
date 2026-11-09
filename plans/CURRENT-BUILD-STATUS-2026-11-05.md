@@ -309,3 +309,12 @@ PR 51 merged as 78ddafb4 (not deployed). The owner said "build 1 and 2" (PLAN-37
 - `core/links.py`, the Evidence Vault and Related Items now read one registry. The platform no longer stores a link to a kind nobody could see.
 - Security: the Vault's own link, unlink and upload-claim routes now need the right to change the file or the record, like Related Items. A read-only External Auditor could link and unlink evidence there before.
 - Reported, not changed (F5): the Vault's other writes (upload, edit, confidence verification) have no capability check, so an External Auditor can file and edit evidence, and anyone can mark their own file `auditor_signed`. Needs an owner decision.
+
+## External auditor reads and comments only, 2026-11-09 (chat confirmation, not sign-off)
+
+PR 52 merged as b26c9536 (not deployed). The owner said an external auditor should only be able to put comments and not file anything. Plan and evidence: [2026-11-read-only-auditor.md](2026-11-read-only-auditor.md).
+
+- One check in `require_auth` and `require_capability` refuses every write from a person whose only role is External Auditor, except their own sign-in and settings, reading forms (guide, Ask ARIA, Vault search) and comments (auditor room questions, GRID control comments). About 240 write routes were reachable before.
+- External auditors may now comment on GRID controls in their scope (`grid.control.comment`).
+- The Vault hides Upload, Batch upload and the drawer's edit controls for them. Other modules still show buttons that now answer with the read-only message.
+- Still open: staff can mark their own file `auditor_signed`.

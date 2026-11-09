@@ -980,6 +980,12 @@ async function openDetail(eid){
   '</div>';
 
   document.getElementById('evDetailContent').innerHTML=html;
+  if(!item.can_change){
+    /* A read-only role (an outside auditor) reads the file but changes nothing: drop every control that would. */
+    document.getElementById('evDetailContent').querySelectorAll('.ev-edit-btn,[data-ev-dynamic^="doSetVerification"],'+
+      '[data-ev-dynamic^="doRemoveVerification"],[data-ev-dynamic^="aiSuggestLinks"],[data-ev-dynamic^="evAddVersion"]')
+      .forEach(function(el){el.remove();});
+  }
   document.getElementById('evDetailOverlay').classList.add('open');
   document.getElementById('evDetailPanel').classList.add('open');
   document.body.style.overflow='hidden';

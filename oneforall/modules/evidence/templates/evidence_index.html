@@ -195,13 +195,13 @@
       </button>
     </div>
     <button class="btn btn-secondary" data-ev-click="evFindOpen()">Find evidence</button>
-    <a class="btn btn-secondary" href="/evidence/batch/">Batch upload</a>
+    {% if can_file %}<a class="btn btn-secondary" href="/evidence/batch/">Batch upload</a>{% endif %}
     {% if can_manage_group %}<a class="btn btn-secondary" href="/evidence/group/">Group sharing</a>{% endif %}
     {% if can_group_requests %}<a class="btn btn-secondary" href="/evidence/group/requests/">Proof requests</a>{% endif %}
     {% if can_group_cases %}<a class="btn btn-secondary" href="/evidence/group/cases/">Group cases</a>{% endif %}
     {% if can_group_adoption %}<a class="btn btn-secondary" href="/evidence/group/adoption/">Policy adoption</a>{% endif %}
     {% if can_manage_legacy %}<button class="btn btn-secondary" type="button" data-ev-click="evOpenLegacy()">Review legacy files</button>{% endif %}
-    <button class="btn btn-primary" data-ev-click="ModalManager.open('uploadModal')">+ Upload</button>
+    {% if can_file %}<button class="btn btn-primary" data-ev-click="ModalManager.open('uploadModal')">+ Upload</button>{% endif %}
   </div>
 </div>
 

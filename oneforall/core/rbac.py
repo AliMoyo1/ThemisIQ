@@ -5,6 +5,7 @@ Capability-based permission system.  Users hold roles; roles grant
 capabilities.  Route guards check capabilities, never role strings directly.
 """
 from __future__ import annotations
+import re
 from typing import Iterable
 
 # ── Platform Role Keys ───────────────────────────────────────────────────────
@@ -185,6 +186,8 @@ CAPABILITIES: dict[str, set[str]] = {
     "grid.audit.delete":            {SUPER_ADMIN},
     "grid.control.assign":        {SUPER_ADMIN, AUDIT_LEAD},
     "grid.control.update_own":    {SUPER_ADMIN, AUDIT_LEAD, AUDITOR},
+    # An outside auditor comments on the controls they review; it is the one GRID write they may make.
+    "grid.control.comment":       {SUPER_ADMIN, AUDIT_LEAD, AUDITOR, EXTERNAL_AUDITOR},
     "grid.control.update_any":    {SUPER_ADMIN, AUDIT_LEAD},
     "grid.evidence.upload":       {SUPER_ADMIN, AUDIT_LEAD, AUDITOR},
     "grid.evidence.approve":      {SUPER_ADMIN, AUDIT_LEAD},
@@ -388,6 +391,39 @@ def has_capability(user: dict | None, capability: str) -> bool:
     if allowed is None:
         return False  # Unknown capability — deny
     return bool(_role_set(user) & allowed)
+
+
+# Roles that read and comment but never file or change a record (owner, 2026-11-09: "an external auditor should only be
+# able to put comments and not file anything"). Someone who also holds another role writes as that role allows.
+READ_ONLY_ROLES = frozenset({EXTERNAL_AUDITOR})
+
+# What a read-only person may still send: their own sign-in and settings, reading through a form, and comments.
+# (method, path pattern); the pattern must match the whole path.
+_READ_ONLY_WRITES = tuple((method, re.compile(pattern)) for method, pattern in (
+    ("POST", r"/logout"), ("POST", r"/change-password"), ("POST", r"/mfa/(enable|disable)"),
+    ("PUT", r"/api/my-email-preferences"), ("PUT", r"/api/my-dashboard/preferences"),
+    ("PUT", r"/api/command-centre/layout"),
+    ("POST", r"/api/notifications/(\d+/read|read-all)"), ("DELETE", r"/api/notifications/\d+"),
+    # reading: the platform guide, Ask ARIA and its rating, and the Vault's question search
+    ("POST", r"/api/trainer/ask"), ("POST", r"/aria/api/ask"), ("POST", r"/aria/api/ask/feedback"),
+    ("POST", r"/evidence/api/find"),
+    # comments: questions in an auditor room, comments on an audit control
+    ("POST", r"/governance/api/group/rooms/\d+/messages"), ("POST", r"/grid/api/controls/\d+/comments"),
+))
+
+
+def is_read_only(user: dict | None) -> bool:
+    """True for a person whose every role is read-only."""
+    roles = _role_set(user)
+    return bool(roles) and roles <= READ_ONLY_ROLES and not (user or {}).get("is_super_admin")
+
+
+def read_only_may_send(method: str, path: str) -> bool:
+    """True when a read-only person may send this request: a read, or one of the few writes listed above."""
+    method = method.upper()
+    if method in ("GET", "HEAD", "OPTIONS"):
+        return True
+    return any(method == m and pattern.fullmatch(path) for m, pattern in _READ_ONLY_WRITES)
 
 
 def any_capability(user: dict | None, caps: Iterable[str]) -> bool:
