@@ -15,8 +15,8 @@
   </div>
   <div class="page-actions">
     {% if user.role != 'viewer' %}
-    {% if policy_intake_enabled %}<a class="btn btn-primary" href="/aria/policy-imports">Import existing policies</a>{% endif %}
-    <button class="btn btn-primary" data-doc-action="open-add">
+    {% if policy_intake_enabled %}<a class="btn btn-primary write-action" href="/aria/policy-imports">Import existing policies</a>{% endif %}
+    <button class="btn btn-primary write-action" data-doc-action="open-add">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" data-s="s53d332d"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Document
     </button>
@@ -421,7 +421,7 @@
     </div>
 
     <!-- Upload Revision Section (legacy documents only) -->
-    <div id="edit-legacy-upload-section" data-s="s8af93de">
+    <div id="edit-legacy-upload-section" class="write-action" data-s="s8af93de">
       <div data-s="sa7ab6b7">Upload Revised Document</div>
       <div data-s="sc58a824" data-sd="flex">
         <input type="file" id="edit-revision-file" accept=".docx,.doc,.pdf,.odt" data-s="s5fd72b5">

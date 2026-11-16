@@ -103,6 +103,9 @@ def _init_test_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, status TEXT DEFAULT 'current',
             expiry_date TEXT, org_id INTEGER, business_unit_id INTEGER, uploaded_by INTEGER
         );
+        CREATE TABLE IF NOT EXISTS grid_controls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, audit_id INTEGER, name TEXT, canonical_control_id INTEGER
+        );
         CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             control_id INTEGER NOT NULL,
