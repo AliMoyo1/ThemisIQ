@@ -73,7 +73,7 @@ systemctl status themisiq-policy-extract.socket --no-pager
 stat -c '%U %a %F' /run/themisiq-policy-extract.sock
 ```
 
-11. Check the memory headroom. The socket accepts at most 4 parses at once and each may use up to 1 GB:
+11. Check the memory headroom. The socket accepts one parse at a time (lowered from 4 on 2026-11-16, see the session log) and each may use up to 1 GB:
 
 ```bash
 free -m
@@ -139,7 +139,7 @@ systemctl status themisiq-policy-extract.socket --no-pager
 free -m
 ```
 
-Record the number of documents, the largest file size, the time per document, and any 503 or timeout (each request is capped at 45 seconds). If imports queue behind the limit of 4 at once, raising `MaxConnections` is a unit change: it goes through the repo and a release, never a hand edit on the host.
+Record the number of documents, the largest file size, the time per document, and any 503 or timeout (each request is capped at 45 seconds). If imports are refused behind the limit of one at a time, raising `MaxConnections` is a unit change: it goes through the repo and a release, never a hand edit on the host.
 
 ## Rollback
 
@@ -149,4 +149,9 @@ If the new code is rolled back, the socket can stay installed; the old app does 
 
 | Time (CAT) | Step | Result |
 | --- | --- | --- |
-| | | |
+| 2026-11-16 | Pre-checks | Session as `themisadmin` with sudo; `/project` is root owned, so git runs as `sudo git -C /project`. App runs as `themisiq` (uid 995) from `/project/oneforall`; live code fb2d0aa (PR 39). |
+| 2026-11-16 | Fetch | `origin/master` c595abb (PR 54). Unit copies use `sudo sh -c "git ... > file"` because a redirect does not inherit sudo. |
+| 2026-11-16 10:15 | Steps 3 to 10 | Socket active (listening), `themisiq 600 socket`. |
+| 2026-11-16 | Step 11 | 3814 MB total, about 1915 MB available, no swap. Four parses of up to 1 GB could exhaust memory. Owner approved one parse at a time in chat (chat confirmation, not sign-off): `MaxConnections=1` through the repo; the socket unit is reinstalled from the new release commit. |
+| 2026-11-16 10:21 | Release backup | `production_backup.sh` from the release: backup=PASS, 1180 tables, 82 MB, 0 invalid indexes, `/project/backups/themisiq_20261116T082103Z_verified.dump`. |
+| 2026-11-16 | Pre-release record | Health ok and ready; role `themisiq`, not superuser, no BYPASSRLS; no RLS bypass default; ARIA authoring enabled for org 1 (pilot path: preflight and apply need the org list, the acceptance flag and the private Docker daemon). `pypdf` 6.21.2 to 6.21.4 installed in the venv (the only requirements change since PR 39). Preview container healthy. |
