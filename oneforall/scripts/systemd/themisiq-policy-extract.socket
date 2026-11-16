@@ -7,7 +7,9 @@ SocketUser=themisiq
 SocketGroup=themisiq
 SocketMode=0600
 Accept=yes
-MaxConnections=4
+# One parse at a time (owner, 2026-11-16): each may use up to 1 GB and the 4 GB host has about 1.9 GB free and no swap.
+# A second import meanwhile gets a 503 and parses nothing. Raise only after measuring the licensed import pilot.
+MaxConnections=1
 
 [Install]
 WantedBy=sockets.target
