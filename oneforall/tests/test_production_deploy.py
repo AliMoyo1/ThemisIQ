@@ -215,6 +215,129 @@ def test_restore_unit_removes_new_install_when_no_previous_unit(tmp_path):
     assert not dropin.exists()
 
 
+class _Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def _fake_systemd(monkeypatch, statuses, calls):
+    """statuses: (ActiveState, NRestarts) per status read; the last one repeats."""
+    statuses = list(statuses)
+    def fake_run(args, **_kwargs):
+        calls.append(args[1:])
+        if args[1] == "show" and "ActiveState" in args:
+            state, restarts = statuses.pop(0) if len(statuses) > 1 else statuses[0]
+            return deploy.subprocess.CompletedProcess(
+                args, 0, f"NRestarts={restarts}\nActiveState={state}\n", "")
+        if args[1] == "show":
+            return deploy.subprocess.CompletedProcess(args, 0, "themisiq\n", "")
+        return deploy.subprocess.CompletedProcess(args, 0, "", "")
+    monkeypatch.setattr(deploy, "_run", fake_run)
+
+
+def _refuse_then_answer(monkeypatch, refusals):
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *_exc):
+            return False
+        def read(self):
+            return b'{"status":"ok","status":"ready"}'
+    remaining = [refusals]
+    def fake_urlopen(url, timeout):
+        if remaining[0] > 0:
+            remaining[0] -= 1
+            raise deploy.urllib.error.URLError("[Errno 111] Connection refused")
+        return Response()
+    monkeypatch.setattr(deploy.urllib.request, "urlopen", fake_urlopen)
+
+
+def test_probe_waits_through_a_slow_schema_start(monkeypatch, capsys):
+    clock = _Clock()
+    monkeypatch.setattr(deploy, "time", clock)
+    # About two minutes of refusals, as in the 2026-11-16 release.
+    _refuse_then_answer(monkeypatch, 60)
+    _fake_systemd(monkeypatch, [("activating", 0)], [])
+    deploy.probe("http://127.0.0.1:8080/health", b'"status":"ok"', clock.now + 600)
+    assert "Waiting for http://127.0.0.1:8080/health" in capsys.readouterr().out
+
+
+def test_probe_stops_at_the_deadline(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(deploy, "time", clock)
+    _refuse_then_answer(monkeypatch, 10_000)
+    _fake_systemd(monkeypatch, [("active", 0)], [])
+    with pytest.raises(RuntimeError, match="probe failed .* after 30s"):
+        deploy.probe("http://127.0.0.1:8080/health", b'"status":"ok"', clock.now + 30)
+
+
+def test_probe_fails_fast_when_the_service_dies(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(deploy, "time", clock)
+    _refuse_then_answer(monkeypatch, 10_000)
+    _fake_systemd(monkeypatch, [("activating", 0), ("failed", 0)], [])
+    with pytest.raises(RuntimeError, match="stopped while starting \\(failed\\)"):
+        deploy.probe("http://127.0.0.1:8080/health", b'"status":"ok"', clock.now + 600)
+    assert clock.now < 1010
+
+
+
+def test_probe_fails_fast_when_systemd_restarts_a_crashed_start(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(deploy, "time", clock)
+    _refuse_then_answer(monkeypatch, 10_000)
+    # Restart=on-failure: after a crash the state is "activating" again.
+    _fake_systemd(monkeypatch, [("activating", 2), ("activating", 3)], [])
+    with pytest.raises(RuntimeError, match="crashed and was restarted"):
+        deploy.probe("http://127.0.0.1:8080/health", b'"status":"ok"', clock.now + 600,
+                     restarts_before=2)
+    assert clock.now < 1010
+
+def test_failed_start_with_identical_unit_is_not_restarted_again(tmp_path, monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(deploy, "time", clock)
+    unit = tmp_path / "themisiq-app.service"
+    unit.write_text("same unit\n", encoding="utf-8")
+    backup = tmp_path / "backup"
+    backup.write_text("same unit\n", encoding="utf-8")
+    _refuse_then_answer(monkeypatch, 10_000)
+    calls = []
+    _fake_systemd(monkeypatch, [("active", 0)], calls)
+    with pytest.raises(RuntimeError, match="probe failed"):
+        deploy.restart_and_verify(unit, backup, None, startup_wait=30)
+    assert calls.count(["restart", deploy.SERVICE_NAME]) == 1
+    assert unit.read_text(encoding="utf-8") == "same unit\n"
+
+
+def test_failed_start_with_changed_unit_restores_and_restarts(tmp_path, monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(deploy, "time", clock)
+    unit = tmp_path / "themisiq-app.service"
+    unit.write_text("new unit\n", encoding="utf-8")
+    backup = tmp_path / "backup"
+    backup.write_text("old unit\n", encoding="utf-8")
+    _refuse_then_answer(monkeypatch, 10_000)
+    calls = []
+    _fake_systemd(monkeypatch, [("active", 0)], calls)
+    with pytest.raises(RuntimeError, match="probe failed"):
+        deploy.restart_and_verify(unit, backup, None, startup_wait=30)
+    assert calls.count(["restart", deploy.SERVICE_NAME]) == 2
+    assert unit.read_text(encoding="utf-8") == "old unit\n"
+
+
+@pytest.mark.parametrize("seconds", ["29", "3601"])
+def test_cli_rejects_a_startup_wait_out_of_range(seconds, capsys):
+    assert deploy.main(["--apply", "--restart", "--startup-wait", seconds]) == 2
+    assert "--startup-wait must be between 30 and 3600" in capsys.readouterr().err
+
+
 def test_scrub_legacy_file_removes_secrets_but_preserves_flags(tmp_path):
     legacy = tmp_path / ".env"
     legacy.write_text(
