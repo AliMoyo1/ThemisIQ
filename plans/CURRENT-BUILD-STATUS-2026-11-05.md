@@ -327,3 +327,22 @@ PR 53 merged as 1185dfaa (not deployed). The owner said to finish all remaining 
 - An external auditor is no longer offered ARIA's Add Document, Import, Add Risk and Generate Report or GRID's New Audit.
 - Recorded without change: `auditor_signed` describes the document; generated style token names stay.
 - Owner step: close the superseded PR 12 (the session's approval check refused it).
+
+## Production release and policy worker install, 2026-11-16 (chat confirmation, not sign-off)
+
+PRs 40 to 55 are now live on the VPS: `/project` fast-forwarded from fb2d0aa (PR 39) to 6084f9e (PR 55), first start at 17:36 CAT. Session log, commands and evidence: [vps-policy-worker-install-2026-11-09.md](vps-policy-worker-install-2026-11-09.md).
+
+- Release backup PASS before the switch (1180 tables, 82 MB). Rollback point fb2d0aa; do not restore the backup over newer accepted records.
+- Pilot preflight passed (org 1, private Docker daemon; preview worker and extraction worker PASS). Health, ready, no error-level log entries.
+- Policy extraction worker proven: a synthetic DOCX gave suggestions with source anchors through a per-request sandboxed instance (1 GB cap, no network, dynamic user, read-only system); with the socket stopped, the import was refused with 503.
+- Decision (owner, 2026-11-16): one parse at a time (`MaxConnections=1`, PR 55). Why: 3.8 GB host, about 1.9 GB free, no swap, each parse may use 1 GB. Cost: a second concurrent import gets a 503 and must retry. Change: raise `MaxConnections` in the repo after measuring the licensed import pilot, then release.
+- Finding: `deploy.py --apply --restart` waits only 20 s for `/health`; the first start after this release took about 2 minutes (about 20 s per tenant schema). The probe failed, the restore path restarted the app and systemd killed the start mid-migration; the next start completed cleanly. Follow-up: lengthen the probe window.
+- Still open: durable backup schedule (runbook section 7), capacity measurement during the licensed import pilot, the Sentinel unit-access audit script on the VPS, close PR 12.
+
+## Deploy startup wait and release follow-ups, 2026-11-16 (chat confirmation, not sign-off)
+
+The owner said "do these fixes". Plan, findings F1 to F5 and decisions D1 to D5: [2026-11-deploy-wait-and-backups.md](2026-11-deploy-wait-and-backups.md).
+
+- `deploy.py --apply --restart` now waits up to 600 s for `/health` and `/ready` with progress lines, stops early only if the service fails, and no longer restores and restarts an unchanged unit (which interrupted the 2026-11-16 schema updates).
+- Backups stay on root cron; section 7 of the deployment guide now checks the crontab and the next nightly file. Server steps pending.
+- Watch: PR 54 can raise control effectiveness and lower ERM residual risk where mapped GRID proof exists, at the next rescoring.

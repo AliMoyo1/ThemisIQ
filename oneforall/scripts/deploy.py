@@ -6,8 +6,10 @@ The workflow is deliberately staged:
 * ``--capture-running-env`` copies configured application variables from the
   healthy running service into a root-only environment file. Values are never
   printed and PLAN-35 authoring is forced off.
-* ``--apply`` installs the non-root service. With ``--restart`` it checks both
-  health probes and restores the previous unit automatically on failure.
+* ``--apply`` installs the non-root service. With ``--restart`` it waits for
+  both health probes (up to ``--startup-wait`` seconds, because the first start
+  after a schema change can take minutes) and, on failure, restores the
+  previous unit only when the unit actually changed.
 * ``--scrub-legacy-secrets`` removes duplicate secrets from legacy env files
   only after the hardened service is verified.
 
@@ -62,6 +64,12 @@ ARIA_ACCEPTANCE_OPTION = "--accept-aria-policy-authoring-known-limitations"
 ARIA_PREVIEW_COMPONENT_LABEL = "com.themisiq.component=aria-policy-preview"
 ARIA_PREVIEW_IMAGE_PREFIX = "ghcr.io/alimoyo1/themisiq-aria-preview@sha256:"
 ARIA_PREVIEW_HEARTBEAT_MAX_AGE_SECONDS = 90
+# The first start after a release brings every tenant schema up to date, about
+# 20 s per tenant on the 4 GB host (2026-11-16). Never cut that short.
+STARTUP_WAIT_SECONDS = 600
+STARTUP_WAIT_RANGE = (30, 3600)
+PROBE_INTERVAL_SECONDS = 2
+PROGRESS_INTERVAL_SECONDS = 15
 FORCED_SAFE_VALUES = {
     "DEBUG": "false",
     "HOST": "127.0.0.1",
@@ -685,9 +693,24 @@ def restore_unit(
         shutil.copytree(dropin_backup, dropin_dir)
 
 
-def probe(url: str, expected: bytes, attempts: int = 20) -> None:
+def service_status() -> tuple[str, int]:
+    """Return the app's ActiveState and its count of automatic restarts."""
+    result = _run(["systemctl", "show", SERVICE_NAME, "-p", "ActiveState", "-p", "NRestarts"],
+                  check=False)
+    fields = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+    try:
+        restarts = int(fields.get("NRestarts", "0"))
+    except ValueError:
+        restarts = 0
+    return fields.get("ActiveState", ""), restarts
+
+
+def probe(url: str, expected: bytes, deadline: float, restarts_before: int = 0) -> None:
+    """Poll until the probe passes, the service dies, or the deadline passes."""
+    started = time.monotonic()
+    next_note = started + PROGRESS_INTERVAL_SECONDS
     last_error = "no response"
-    for _ in range(attempts):
+    while True:
         try:
             with urllib.request.urlopen(url, timeout=3) as response:
                 body = response.read()
@@ -696,19 +719,71 @@ def probe(url: str, expected: bytes, attempts: int = 20) -> None:
                 last_error = f"HTTP {response.status}: {body[:120]!r}"
         except (OSError, urllib.error.URLError) as exc:
             last_error = str(exc)
-        time.sleep(1)
-    raise RuntimeError(f"probe failed for {url}: {last_error}")
+        state, restarts = service_status()
+        if state in {"failed", "inactive"}:
+            raise RuntimeError(
+                f"{SERVICE_NAME} stopped while starting ({state}); last probe: {last_error}"
+            )
+        if restarts > restarts_before:
+            # Restart=on-failure shows a crash as "activating", not "failed".
+            raise RuntimeError(
+                f"{SERVICE_NAME} crashed and was restarted by systemd while starting; "
+                f"last probe: {last_error}"
+            )
+        now = time.monotonic()
+        if now >= deadline:
+            raise RuntimeError(
+                f"probe failed for {url} after {now - started:.0f}s: {last_error}"
+            )
+        if now >= next_note:
+            print(f"Waiting for {url}: {now - started:.0f}s, service {state or 'unknown'}",
+                  flush=True)
+            next_note = now + PROGRESS_INTERVAL_SECONDS
+        time.sleep(PROBE_INTERVAL_SECONDS)
 
 
-def verify_runtime() -> None:
-    active = _run(["systemctl", "is-active", SERVICE_NAME], check=False)
-    if active.stdout.strip() != "active":
-        raise RuntimeError(f"{SERVICE_NAME} is not active")
+def verify_runtime(startup_wait: int = STARTUP_WAIT_SECONDS) -> None:
     user = _run(["systemctl", "show", SERVICE_NAME, "-p", "User", "--value"])
     if user.stdout.strip() != SERVICE_USER:
         raise RuntimeError(f"{SERVICE_NAME} is not running as {SERVICE_USER}")
-    probe("http://127.0.0.1:8080/health", b'"status":"ok"')
-    probe("http://127.0.0.1:8080/ready", b'"status":"ready"')
+    _state, restarts_before = service_status()
+    deadline = time.monotonic() + startup_wait
+    probe("http://127.0.0.1:8080/health", b'"status":"ok"', deadline, restarts_before)
+    probe("http://127.0.0.1:8080/ready", b'"status":"ready"', deadline, restarts_before)
+
+
+def unit_changed(unit_file: Path, backup: Path | None, dropin_backup: Path | None) -> bool:
+    """True when install_unit replaced something that a restore would bring back."""
+    if backup is None or dropin_backup is not None:
+        return True
+    return backup.read_bytes() != unit_file.read_bytes()
+
+
+def restart_and_verify(
+    unit_file: Path,
+    backup: Path | None,
+    dropin_backup: Path | None,
+    startup_wait: int = STARTUP_WAIT_SECONDS,
+) -> None:
+    changed = unit_changed(unit_file, backup, dropin_backup)
+    _run(["systemctl", "daemon-reload"])
+    try:
+        _run(["systemctl", "restart", SERVICE_NAME])
+        verify_runtime(startup_wait)
+    except Exception:
+        if not changed:
+            # Restoring an identical unit fixes nothing, and a second restart
+            # would kill startup work such as tenant schema updates.
+            print(
+                "The service unit did not change, so it was not restored and the "
+                "service was not restarted again. Inspect it before any rollback.",
+                file=sys.stderr,
+            )
+            raise
+        restore_unit(unit_file, backup, dropin_backup)
+        _run(["systemctl", "daemon-reload"], check=False)
+        _run(["systemctl", "restart", SERVICE_NAME], check=False)
+        raise
 
 
 def apply_service(
@@ -719,6 +794,7 @@ def apply_service(
     *,
     authorized_aria_org_ids: tuple[int, ...] | None = None,
     accept_aria_known_limitations: bool = False,
+    startup_wait: int = STARTUP_WAIT_SECONDS,
 ) -> None:
     require_root()
     verify_private_file(env_file)
@@ -754,15 +830,7 @@ def apply_service(
         verify_aria_preview_container(values, uid, gid)
 
     backup, dropin_backup = install_unit(project_root, unit_file)
-    _run(["systemctl", "daemon-reload"])
-    try:
-        _run(["systemctl", "restart", SERVICE_NAME])
-        verify_runtime()
-    except Exception:
-        restore_unit(unit_file, backup, dropin_backup)
-        _run(["systemctl", "daemon-reload"], check=False)
-        _run(["systemctl", "restart", SERVICE_NAME], check=False)
-        raise
+    restart_and_verify(unit_file, backup, dropin_backup, startup_wait)
 
     print(f"{SERVICE_NAME} passed /health and /ready as user {SERVICE_USER}.")
     if backup:
@@ -875,6 +943,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --apply, restart and verify; otherwise install without restart",
     )
     parser.add_argument(
+        "--startup-wait", type=int, default=STARTUP_WAIT_SECONDS, metavar="SECONDS",
+        help=(
+            f"with --apply, how long to wait for /health and /ready "
+            f"(default {STARTUP_WAIT_SECONDS}, allowed "
+            f"{STARTUP_WAIT_RANGE[0]} to {STARTUP_WAIT_RANGE[1]})"
+        ),
+    )
+    parser.add_argument(
         ARIA_AUTHORIZATION_OPTION,
         metavar="ORG_ID[,ORG_ID...]",
         help=(
@@ -900,6 +976,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.apply and not args.restart:
         print("ERROR: --apply requires explicit --restart", file=sys.stderr)
+        return 2
+    low, high = STARTUP_WAIT_RANGE
+    if not low <= args.startup_wait <= high:
+        print(f"ERROR: --startup-wait must be between {low} and {high} seconds",
+              file=sys.stderr)
         return 2
     authorization_raw = args.authorize_aria_policy_authoring_org_ids
     authorization_is_incomplete = (
@@ -950,6 +1031,7 @@ def main(argv: list[str] | None = None) -> int:
                 accept_aria_known_limitations=(
                     args.accept_aria_policy_authoring_known_limitations
                 ),
+                startup_wait=args.startup_wait,
             )
         elif args.scrub_legacy_secrets:
             scrub_legacy_secrets(project_root, env_file)

@@ -221,10 +221,18 @@ sudo python3 oneforall/scripts/deploy.py --apply --restart
 The command archives the old unit and drop-ins under
 `/root/themisiq-rollbacks`, installs the non-root loopback-only unit, restarts
 the service, first imports the dependencies and application configuration as
-the `themisiq` account, and checks `/health` and `/ready`. If service
-verification fails, it restores the previous unit configuration and attempts
-one restart. It does not roll back the Git checkout; use section 9 if the old
-unit cannot run the new code.
+the `themisiq` account, and waits for `/health` and `/ready`. The first start
+after a release brings every tenant schema up to date (about 20 seconds per
+tenant on the 4 GB host, about two minutes on 2026-11-16), so it waits up to
+600 seconds, prints progress every 15 seconds, and stops early only if the
+service fails or systemd restarts it after a crash. `--startup-wait SECONDS` (30 to 3600) changes the limit. Do
+not restart the service while it is waiting: that interrupts schema updates.
+
+If service verification fails and the unit changed, it restores the previous
+unit configuration and attempts one restart. If the unit did not change, it
+leaves the service alone for inspection, because a second restart would only
+interrupt startup again. It does not roll back the Git checkout; use section 9
+if the old unit cannot run the new code.
 
 ## 6. Verify the live runtime
 
@@ -280,7 +288,18 @@ sudo timeout --signal=TERM --kill-after=30s 15m /project/backup_db.sh
 
 Expected output includes `backup=PASS`, a positive table count, and
 `invalid_indexes=0`. Confirm root cron still runs it at 02:00 and all backup
-files remain mode 0600.
+files remain mode 0600:
+
+```bash
+sudo crontab -l
+sudo ls -lt /project/backups
+```
+
+The crontab must contain a line that runs `/project/backup_db.sh` at 02:00.
+The host clock is UTC, so 02:00 there is 04:00 CAT. The next morning,
+`ls -lt` must list a new `themisiq_<date>T02...Z_verified.dump` with its
+`.sha256`, both `-rw-------`. A missing
+file means the nightly job failed; run the script by hand and read its error.
 
 ## 8. Remove duplicate legacy secrets
 
